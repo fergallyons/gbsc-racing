@@ -258,7 +258,6 @@ function renderBoatGrid(){
     el.className='boat-btn'+(isReg?' reg':''); el.id='bb-'+b.id;
     el.innerHTML=
       '<div style="position:relative;display:inline-block">'+
-        '<div class="boat-btn-icon">'+b.icon+'</div>'+
         (isReg?'<div class="reg-pip" title="Registered">✓</div>':'')+
       '</div>'+
       '<div class="boat-btn-name">'+b.name+'</div>'+
