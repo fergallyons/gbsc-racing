@@ -1021,7 +1021,7 @@ function renderCourseDiagram(){
   const nodes=[{label:'S / F',colour:'#00b4d8',sub:'Start',sf:true}];
   markEntries.forEach((me,i)=>{
     const m=MARKS.find(x=>x.id===me.id);
-    if(m) nodes.push({label:m.id,colour:m.colour,sub:m.name,rounding:me.rounding,markObj:m,idx:i+1});
+    if(m) nodes.push({label:m.name,colour:m.colour,sub:null,rounding:me.rounding,markObj:m,idx:i+1});
   });
   nodes.push({label:'Finish',colour:'#00b4d8',sub:'Club Line',sf:true});
 
@@ -1077,17 +1077,16 @@ function renderCourseDiagram(){
       // Mark node
       svgParts.push(`<circle cx="${cx}" cy="${y}" r="${NODE_R}" fill="${n.colour}22" stroke="${n.colour}" stroke-width="2.5"/>`);
       svgParts.push(`<circle cx="${cx}" cy="${y}" r="7" fill="${n.colour}"/>`);
-      // Sequence number top-left of circle
-      svgParts.push(`<text x="${cx-NODE_R-6}" y="${y+4}" text-anchor="end" fill="rgba(0,180,216,0.8)" font-family="Barlow Condensed,sans-serif" font-size="13" font-weight="800">${n.idx}</text>`);
-      // Mark ID to the right
-      svgParts.push(`<text x="${cx+NODE_R+10}" y="${y-6}" fill="${n.colour}" font-family="Barlow Condensed,sans-serif" font-size="14" font-weight="800">${n.label}</text>`);
-      svgParts.push(`<text x="${cx+NODE_R+10}" y="${y+8}" fill="rgba(240,244,248,0.7)" font-family="Barlow,sans-serif" font-size="10">${n.sub}</text>`);
+      // Sequence number left of circle
+      svgParts.push(`<text x="${cx-NODE_R-6}" y="${y+4}" text-anchor="end" fill="rgba(0,174,239,0.8)" font-family="Barlow Condensed,sans-serif" font-size="13" font-weight="800">${n.idx}</text>`);
+      // Mark name to the right
+      svgParts.push(`<text x="${cx+NODE_R+10}" y="${y+4}" fill="${n.colour}" font-family="Barlow Condensed,sans-serif" font-size="13" font-weight="800">${n.label}</text>`);
       // Rounding badge
       const rnd=n.rounding||'port';
       const rndColour=rnd==='port'?'#e63946':'#2dc653';
       const rndLabel=rnd==='port'?'◄ PORT':'STBD ►';
-      svgParts.push(`<rect x="${cx+NODE_R+8}" y="${y+13}" width="52" height="14" rx="4" fill="${rndColour}22" stroke="${rndColour}" stroke-width="1"/>`);
-      svgParts.push(`<text x="${cx+NODE_R+34}" y="${y+23}" text-anchor="middle" fill="${rndColour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${rndLabel}</text>`);
+      svgParts.push(`<rect x="${cx+NODE_R+8}" y="${y+12}" width="52" height="14" rx="4" fill="${rndColour}22" stroke="${rndColour}" stroke-width="1"/>`);
+      svgParts.push(`<text x="${cx+NODE_R+34}" y="${y+22}" text-anchor="middle" fill="${rndColour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${rndLabel}</text>`);
     }
   });
 
@@ -1115,7 +1114,7 @@ function renderCourseDiagram(){
     legRows+=`<div class="leg-row">
       <span class="leg-num">${i+1}</span>
       <span class="mark-colour" style="background:${m.colour}"></span>
-      <span class="leg-mark">${m.id} — ${m.name}</span>
+      <span class="leg-mark">${m.name}</span>
       <span class="leg-rounding ${rnd}">${rndLabel}</span>
       <span class="leg-detail">${brg}° ${dir} · ${d}nm</span>
     </div>`;
@@ -1156,16 +1155,16 @@ function renderCourseDiagram(){
             <span class="wind-badge-arrow">💨</span>
             <span class="wind-badge-label">${windDegDisp}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:5px;background:rgba(0,180,216,.08);
-            border:1px solid rgba(0,180,216,.2);border-radius:20px;padding:3px 10px;">
+          <div style="display:flex;align-items:center;gap:5px;background:rgba(0,174,239,.08);
+            border:1px solid rgba(0,174,239,.2);border-radius:20px;padding:3px 10px;">
             <span style="font-size:.8rem">📏</span>
             <span style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--teal)">${totalNm} nm</span>
           </div>
         </div>
       </div>
-      <div class="course-svg-wrap">${svgEl}</div>
+      <div class="course-legs-list">${legRows}</div>
+      <div class="course-svg-wrap" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">${svgEl}</div>
     </div>
-    <div class="course-legs-list">${legRows}</div>
   `;
 }
 
@@ -1180,8 +1179,7 @@ function buildMarksGrid(){
     el.innerHTML=
       '<div class="mark-toggle-id" style="display:flex;align-items:center;gap:4px">'+
         '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+m.colour+';flex-shrink:0"></span>'+
-        m.id+'</div>'+
-      '<div class="mark-toggle-name">'+m.name+'</div>'+
+        m.name+'</div>'+
       '<div style="font-size:.62rem;color:var(--teal);margin-top:3px;font-family:Barlow Condensed,sans-serif;font-weight:600">+ ADD</div>';
     el.onclick=()=>addMarkToSequence(m.id);
     g.appendChild(el);
@@ -1225,7 +1223,7 @@ function renderSelectedOrder(){
     el.innerHTML=
       '<span style="font-family:Barlow Condensed,sans-serif;font-size:.75rem;color:var(--teal);font-weight:700;min-width:16px">'+(i+1)+'.</span>'+
       '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+colour+';flex-shrink:0"></span>'+
-      '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:.95rem;flex:1">'+entry.id+'</span>'+
+      '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:.95rem;flex:1">'+(m?m.name:entry.id)+'</span>'+
       '<button onclick="setRounding('+i+',\'port\')" style="font-size:.65rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'#e63946':'var(--border)')+';background:'+(isPort?'rgba(230,57,70,.2)':'transparent')+';color:'+(isPort?'#e63946':'var(--muted)')+';cursor:pointer">◄ Port</button>'+
       '<button onclick="setRounding('+i+',\'stbd\')" style="font-size:.65rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'var(--border)':'#2dc653')+';background:'+(isPort?'transparent':'rgba(45,198,83,.2)')+';color:'+(isPort?'var(--muted)':'#2dc653')+';cursor:pointer">Stbd ►</button>'+
       '<span onclick="removeMarkFromSequence('+i+')" style="color:var(--muted);cursor:pointer;font-size:.9rem;padding:0 2px;line-height:1" title="Remove">✕</span>';
@@ -1242,7 +1240,7 @@ async function publishCourse(){
   if(!courseMarks.length){toast('Select at least one mark');return;}
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   const dir=dirs[Math.round(windDeg/22.5)%16];
-  const name='S/F – '+courseMarks.map(x=>x.id).join(' – ')+' – Finish';
+  const name='S/F – '+courseMarks.map(x=>{const m=MARKS.find(mk=>mk.id===x.id);return m?m.name:x.id;}).join(' – ')+' – Finish';
   const course={
     id:'current',
     name,
