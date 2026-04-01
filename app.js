@@ -176,7 +176,7 @@ const SEED={
 };
 
 let boats=[], currentBoat=null, isRO=false;
-let roster=[], nextId=200;
+let roster=[], nextId=Date.now(); // timestamp-based — unique across boats and sessions
 let allRaces=[], selectedRace=null, nextRace=null;
 let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225;
@@ -225,6 +225,18 @@ function saveRoster(){if(!currentBoat)return;try{localStorage.setItem('gr_'+curr
 function loadRoster(id){try{const r=localStorage.getItem('gr_'+id);return r?JSON.parse(r).map(p=>({...p,selected:false,paid:false})):null;}catch(e){return null;}}
 function loadCustom(){try{return JSON.parse(localStorage.getItem('gr_custom')||'[]');}catch(e){return[];}}
 function saveCustom(a){try{localStorage.setItem('gr_custom',JSON.stringify(a));}catch(e){}}
+// Global ID high-water mark — ensures nextId never reuses an ID across boats or sessions
+function bumpNextId(ids){
+  const max=ids.length?Math.max(...ids):0;
+  if(max>=nextId) nextId=max+1;
+  // Persist so switching boats doesn't reset it
+  try{const stored=parseInt(localStorage.getItem('gr_nextid')||'0');
+    if(nextId>stored) localStorage.setItem('gr_nextid',String(nextId));}catch(e){}
+}
+function initNextId(){
+  try{const stored=parseInt(localStorage.getItem('gr_nextid')||'0');
+    if(stored>=nextId) nextId=stored+1;}catch(e){}
+}
 
 // ═══════════════════════════════════════════════════════════════
 // LOGIN
@@ -351,7 +363,8 @@ async function enterApp(b,ro){
     roster=local||seed.map(p=>({...p,selected:false,paid:false}));
     setSyncStatus('offline');toast('⚠ Offline — using local data');
   }
-  nextId=Math.max(...roster.map(p=>p.id),199)+1;
+  nextId=Math.max(...roster.map(p=>p.id), nextId)+1;
+  bumpNextId(roster.map(p=>p.id));
   buildRaceDropdown();
   // Refresh registration state for this boat
   updateRegisterButton();
@@ -1670,5 +1683,6 @@ document.addEventListener('click',function(e){
 // ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
+initNextId();
 checkPayHash(); // show crew pay page if opened via QR link
 buildBoatGrid();
