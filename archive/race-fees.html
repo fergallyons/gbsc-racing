@@ -1,0 +1,2497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBSC Racing</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --navy:#0a1628; --navy-mid:#112240; --navy-lt:#1a3a6b;
+  --teal:#00b4d8; --teal-dk:#0096b7;
+  --gold:#f4b942; --gold-dk:#d4962a;
+  --white:#f0f4f8; --muted:#7a8fa6;
+  --danger:#e63946; --success:#2dc653; --warn:#f4a261;
+  --card:#112240; --border:rgba(0,180,216,0.18);
+  --ro:#e8a020;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Barlow',sans-serif;background:var(--navy);color:var(--white);min-height:100vh;
+  background-image:radial-gradient(ellipse at 20% 0%,rgba(0,100,180,.18) 0%,transparent 60%),
+  radial-gradient(ellipse at 80% 100%,rgba(0,180,216,.10) 0%,transparent 50%);}
+
+/* ─── SCREENS ─────────────────────────────────────────────── */
+.screen{display:none;} .screen.active{display:block;}
+#loginScreen{position:fixed;inset:0;background:var(--navy);
+  background-image:radial-gradient(ellipse at 20% 10%,rgba(0,100,180,.25) 0%,transparent 55%),
+  radial-gradient(ellipse at 80% 90%,rgba(0,180,216,.15) 0%,transparent 50%);
+  z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px;overflow-y:auto;}
+.login-box{width:100%;max-width:420px;display:flex;flex-direction:column;align-items:center;}
+.login-logo{height:54px;width:auto;margin-bottom:6px;border-radius:8px;}
+.login-logo-fb{font-family:'Barlow Condensed',sans-serif;font-size:2.2rem;font-weight:800;
+  letter-spacing:.06em;display:none;margin-bottom:2px;}
+.login-logo-fb span{color:var(--teal);}
+.login-sub{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:600;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--teal);margin-bottom:10px;}
+.login-label{font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:8px;align-self:flex-start;}
+.boat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%;margin-bottom:10px;}
+.boat-btn{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:9px 6px;cursor:pointer;transition:all .15s;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:3px;}
+.boat-btn:hover{border-color:var(--teal);background:rgba(0,180,216,.08);transform:translateY(-1px);}
+.boat-btn.active{border-color:var(--teal);background:rgba(0,180,216,.14);}
+.boat-btn.reg{border-color:rgba(45,198,83,.5);background:rgba(45,198,83,.06);}
+.boat-btn.reg:hover{border-color:var(--success);}
+.boat-btn-icon{font-size:1.2rem;}
+.boat-btn-name{font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;color:var(--white);line-height:1.2;}
+.boat-btn-reg-label{font-size:.56rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--success);margin-top:0;}
+.reg-pip{position:absolute;top:-3px;right:-6px;width:13px;height:13px;border-radius:50%;
+  background:var(--success);color:var(--navy);font-size:.5rem;font-weight:800;
+  display:flex;align-items:center;justify-content:center;border:2px solid var(--navy);}
+/* Race Officer button */
+.ro-btn{width:100%;margin-bottom:12px;padding:10px 14px;
+  background:linear-gradient(135deg,rgba(232,160,32,.15),rgba(232,160,32,.08));
+  border:1px solid rgba(232,160,32,.5);border-radius:10px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s;}
+.ro-btn:hover{border-color:var(--ro);background:rgba(232,160,32,.18);}
+.ro-btn-icon{font-size:1.1rem;}
+.ro-btn-text{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ro);}
+/* PIN overlay */
+.pin-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;
+  display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.pin-overlay.open{display:flex;}
+.pin-box{background:var(--navy-mid);border:1px solid var(--border);border-radius:16px;
+  padding:24px 20px;width:290px;text-align:center;}
+.pin-box h3{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;
+  letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;}
+.pin-box p{font-size:.8rem;color:var(--muted);margin-bottom:14px;}
+.pin-dots{display:flex;justify-content:center;gap:10px;margin-bottom:14px;}
+.pin-dot{width:13px;height:13px;border-radius:50%;border:2px solid var(--muted);transition:all .15s;}
+.pin-dot.filled{border-color:var(--pin-accent,var(--teal));background:var(--pin-accent,var(--teal));}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:10px;}
+.pin-key{background:var(--navy-lt);border:1px solid var(--border);border-radius:10px;
+  padding:12px;font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;
+  color:var(--white);cursor:pointer;transition:all .15s;}
+.pin-key:hover{border-color:var(--pin-accent,var(--teal));}
+.pin-key:active{transform:scale(.95);}
+.pin-error{font-size:.78rem;color:var(--danger);height:16px;}
+.pin-change-link{font-size:.72rem;color:var(--muted);cursor:pointer;margin-top:6px;text-decoration:underline;}
+.pin-change-link:hover{color:var(--white);}
+/* add boat */
+#addBoatForm{display:none;width:100%;background:var(--card);border:1px solid var(--teal);
+  border-radius:12px;padding:14px;margin-bottom:10px;}
+#addBoatForm h4{font-family:'Barlow Condensed',sans-serif;font-size:.8rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--teal);margin-bottom:10px;}
+.ab-row{display:flex;gap:8px;margin-bottom:8px;}
+.ab-input{flex:1;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+  color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;outline:none;}
+.ab-input:focus{border-color:var(--teal);}
+.ab-select{width:66px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+  color:var(--white);font-size:1rem;padding:8px 4px;outline:none;cursor:pointer;}
+.ab-actions{display:flex;gap:8px;}
+#addBoatBtn{width:100%;margin-top:4px;padding:10px;background:transparent;
+  border:1px dashed rgba(0,180,216,.4);border-radius:10px;color:var(--teal);
+  font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:500;cursor:pointer;transition:all .2s;}
+#addBoatBtn:hover{border-color:var(--teal);background:rgba(0,180,216,.05);}
+
+/* ─── HEADER ──────────────────────────────────────────────── */
+header{background:rgba(10,22,40,.95);border-bottom:1px solid var(--border);
+  padding:0 16px;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px);}
+.hdr{max-width:680px;margin:0 auto;display:flex;align-items:center;
+  justify-content:space-between;height:56px;}
+.app-logo{display:flex;align-items:center;gap:10px;}
+.app-logo img{height:36px;width:auto;object-fit:contain;}
+.app-logo-fb2{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;
+  letter-spacing:.05em;display:none;}
+.logo-div{width:1px;height:26px;background:var(--border);}
+.logo-sub{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--teal);}
+.hdr-right{display:flex;align-items:center;gap:8px;}
+.badge{background:var(--teal);color:var(--navy);font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 10px;border-radius:20px;}
+.badge.outline{background:transparent;color:var(--teal);border:1px solid var(--border);}
+.badge.ro-badge{background:rgba(232,160,32,.15);color:var(--ro);border:1px solid rgba(232,160,32,.4);}
+.boat-tag{font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;
+  display:flex;align-items:center;gap:5px;background:var(--card);
+  border:1px solid var(--border);border-radius:20px;padding:3px 10px;transition:all .15s;}
+.boat-tag:hover{border-color:var(--teal);color:var(--white);}
+.boat-tag span{color:var(--white);}
+/* nav tabs */
+.nav-tabs{display:flex;gap:4px;padding:0 16px;background:rgba(10,22,40,.8);
+  border-bottom:1px solid var(--border);max-width:680px;margin:0 auto;}
+.nav-tab{font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:10px 14px;
+  border:none;background:transparent;cursor:pointer;border-bottom:2px solid transparent;
+  transition:all .15s;}
+.nav-tab:hover{color:var(--white);}
+.nav-tab.active{color:var(--teal);border-bottom-color:var(--teal);}
+.nav-tab.ro-tab{color:var(--ro);}
+.nav-tab.ro-tab.active{color:var(--ro);border-bottom-color:var(--ro);}
+.tab-wrap{display:none;} .tab-wrap.active{display:block;}
+
+/* ─── MAIN ────────────────────────────────────────────────── */
+main{max-width:680px;margin:0 auto;padding:20px 16px 100px;}
+
+/* shared card/form styles */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;}
+.sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;margin-top:24px;}
+.sec-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.82rem;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+.crew-count{background:var(--navy-lt);color:var(--teal);font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:.8rem;padding:2px 10px;border-radius:12px;}
+.race-bar{background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:20px;}
+.race-bar-icon{font-size:1.4rem;flex-shrink:0;}
+.race-bar-text{flex:1;min-width:0;}
+.race-bar-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600;}
+#raceDropdown{background:transparent;border:none;color:var(--white);
+  font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;
+  width:100%;outline:none;cursor:pointer;padding:0;margin-top:2px;
+  -webkit-appearance:none;appearance:none;}
+#raceDropdown option{background:var(--navy-mid);}
+
+/* crew cards */
+.crew-list{display:flex;flex-direction:column;gap:8px;}
+.crew-card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:12px 14px;display:flex;align-items:center;gap:12px;
+  transition:border-color .15s,background .15s;position:relative;overflow:hidden;}
+.crew-card.selected{border-color:var(--teal);background:rgba(0,180,216,.07);}
+.crew-card.warn-flag{border-color:var(--warn);}
+.warn-stripe{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--warn);}
+.cc-check{width:22px;height:22px;border:2px solid var(--muted);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;}
+.crew-card.selected .cc-check{background:var(--teal);border-color:var(--teal);}
+.cc-check svg{display:none;}
+.crew-card.selected .cc-check svg{display:block;}
+.cc-avatar{width:36px;height:36px;border-radius:50%;background:var(--navy-lt);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;color:var(--teal);flex-shrink:0;}
+.cc-info{flex:1;min-width:0;}
+.cc-name{font-weight:600;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cc-meta{display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap;}
+.tag{font-size:.68rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 7px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;}
+.tag-full{background:rgba(44,198,83,.15);color:var(--success);}
+.tag-crew{background:rgba(0,180,216,.15);color:var(--teal);}
+.tag-visitor{background:rgba(244,185,66,.15);color:var(--gold);}
+.cc-alert{font-size:.72rem;color:var(--warn);margin-top:2px;}
+.cc-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;}
+.cc-fee{font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;}
+.cc-fee.dim{color:var(--muted);}
+.pay-dot{width:10px;height:10px;border-radius:50%;cursor:pointer;transition:transform .15s;}
+.pay-dot:hover{transform:scale(1.3);}
+.pay-dot.paid{background:var(--success);}
+.pay-dot.unpaid{background:var(--danger);}
+.cc-menu{background:none;border:none;color:var(--muted);cursor:pointer;padding:2px 5px;
+  border-radius:5px;font-size:1rem;line-height:1;transition:all .15s;}
+.cc-menu:hover{color:var(--white);background:rgba(255,255,255,.06);}
+.add-crew-btn{display:flex;align-items:center;gap:10px;background:transparent;
+  border:1px dashed rgba(0,180,216,.4);border-radius:12px;padding:12px 14px;
+  width:100%;color:var(--teal);cursor:pointer;font-family:'Barlow',sans-serif;
+  font-size:.9rem;font-weight:500;transition:all .2s;margin-top:8px;}
+.add-crew-btn:hover{border-color:var(--teal);background:rgba(0,180,216,.05);}
+.add-form{background:var(--card);border:1px solid var(--teal);border-radius:12px;
+  padding:16px;margin-top:8px;display:none;}
+.add-form.open{display:block;}
+.add-form h3{font-family:'Barlow Condensed',sans-serif;font-size:.82rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--teal);margin-bottom:12px;}
+.form-row{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+.form-group{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px;}
+.form-group label{font-size:.75rem;color:var(--muted);font-weight:500;}
+.form-group input,.form-group select{background:var(--navy);border:1px solid var(--border);
+  border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;
+  padding:8px 10px;outline:none;transition:border-color .2s;width:100%;}
+.form-group input:focus,.form-group select:focus{border-color:var(--teal);}
+.form-group select option{background:var(--navy-mid);}
+.form-actions{display:flex;gap:8px;margin-top:12px;}
+
+/* buttons */
+.btn{padding:9px 18px;border-radius:8px;border:none;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase;transition:all .2s;}
+.btn-primary{background:var(--teal);color:var(--navy);}
+.btn-primary:hover{background:var(--teal-dk);}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{color:var(--white);border-color:var(--muted);}
+.btn-danger{background:var(--danger);color:white;}
+.btn-gold{background:var(--gold);color:var(--navy);}
+.btn-gold:hover{background:var(--gold-dk);}
+.btn-ro{background:var(--ro);color:var(--navy);}
+.btn-ro:hover{background:var(--gold-dk);}
+
+/* totals */
+.totals-panel{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-top:28px;}
+.totals-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.82rem;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
+.totals-rows{display:flex;flex-direction:column;gap:8px;}
+.t-row{display:flex;justify-content:space-between;align-items:center;font-size:.9rem;color:var(--muted);}
+.t-row.hi{color:var(--white);}
+.t-row.big{border-top:1px solid var(--border);padding-top:10px;margin-top:4px;}
+.val-lg{font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;color:var(--teal);line-height:1;}
+.val-sm{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;}
+.c-ok{color:var(--success);} .c-bad{color:var(--danger);}
+.pay-actions{margin-top:16px;display:flex;flex-direction:column;gap:10px;}
+.revolut-btn{display:flex;align-items:center;justify-content:center;gap:10px;
+  background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border:none;
+  border-radius:10px;padding:14px;font-family:'Barlow Condensed',sans-serif;
+  font-size:1rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  cursor:pointer;transition:opacity .2s;width:100%;}
+.revolut-btn:hover{opacity:.9;}
+
+/* ─── OVERLAYS ────────────────────────────────────────────── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);
+  z-index:200;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);}
+.overlay.open{display:flex;}
+.sheet{background:var(--navy-mid);border:1px solid var(--border);border-radius:20px 20px 0 0;
+  padding:24px 20px 40px;width:100%;max-width:680px;animation:slideUp .25s ease;}
+@keyframes slideUp{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.sheet-handle{width:40px;height:4px;background:var(--muted);border-radius:2px;margin:0 auto 20px;}
+.sheet-title{font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:800;
+  color:var(--white);margin-bottom:16px;}
+.sheet-title span{color:var(--teal);}
+.pay-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
+.pay-row{display:flex;align-items:center;justify-content:space-between;background:var(--navy);
+  border-radius:10px;padding:10px 14px;}
+.pay-row-l{display:flex;align-items:center;gap:10px;}
+.pay-row-name{font-weight:500;font-size:.9rem;}
+.pay-row-amt{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;}
+.pay-row-btns{display:flex;gap:6px;}
+.micro{font-size:.7rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:6px;
+  border:none;cursor:pointer;transition:all .15s;}
+.micro.rev{background:linear-gradient(135deg,#191c82,#6e40d8);color:white;}
+.micro.cash{background:var(--navy-lt);color:var(--muted);}
+.micro.cash:hover{color:var(--white);}
+.pm-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+.pm-btn{background:var(--navy);border:1px solid var(--border);border-radius:10px;
+  color:var(--white);font-family:'Barlow',sans-serif;font-size:.88rem;font-weight:500;
+  padding:10px 8px;cursor:pointer;transition:all .15s;text-align:center;}
+.pm-btn:hover{border-color:var(--teal);background:rgba(0,180,216,.07);}
+.pm-btn.active{border-color:var(--teal);background:rgba(0,180,216,.15);color:var(--teal);font-weight:600;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--teal);color:var(--navy);font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;font-size:.9rem;letter-spacing:.05em;padding:10px 20px;border-radius:30px;
+  z-index:600;transition:transform .3s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.empty-state{text-align:center;padding:32px 20px;color:var(--muted);font-size:.9rem;}
+.empty-state .icon{font-size:2.4rem;margin-bottom:8px;}
+
+/* ─── COURSE DISPLAY ──────────────────────────────────────── */
+.course-diagram-wrap{padding:16px;background:var(--navy-mid);border-radius:14px;margin-bottom:14px;}
+.course-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.course-title-label{font-size:.72rem;color:var(--muted);font-family:'Barlow Condensed',sans-serif;letter-spacing:.1em;text-transform:uppercase;}
+.course-name-text{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;color:var(--white);}
+.wind-badge{display:flex;align-items:center;gap:6px;background:rgba(244,185,66,.1);
+  border:1px solid rgba(244,185,66,.3);border-radius:20px;padding:4px 10px;}
+.wind-badge-arrow{font-size:1rem;}
+.wind-badge-label{font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--gold);}
+.course-svg-wrap{width:100%;overflow-x:auto;}
+.course-svg-wrap svg{display:block;margin:0 auto;}
+.course-legs-list{margin-top:14px;display:flex;flex-direction:column;gap:0;}
+.leg-row{display:flex;align-items:center;gap:10px;padding:9px 0;
+  border-bottom:1px solid var(--border);font-size:.88rem;}
+.leg-row:last-child{border-bottom:none;}
+.leg-num{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;
+  color:var(--teal);min-width:20px;}
+.leg-mark{font-weight:600;flex:1;}
+.leg-rounding{font-size:.72rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:.05em;padding:2px 7px;border-radius:8px;white-space:nowrap;}
+.leg-rounding.port{background:rgba(230,57,70,.15);color:#e63946;}
+.leg-rounding.starboard{background:rgba(45,198,83,.15);color:#2dc653;}
+.leg-detail{font-size:.78rem;color:var(--muted);min-width:90px;text-align:right;}
+.mark-colour{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle;}
+.no-course-state{text-align:center;padding:32px 16px;color:var(--muted);}
+.no-course-state .icon{font-size:2rem;margin-bottom:8px;}
+
+/* ─── RESULTS TAB ─────────────────────────────────────────── */
+.results-table{width:100%;border-collapse:collapse;margin-top:4px;}
+.results-table th{font-family:'Barlow Condensed',sans-serif;font-size:.7rem;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:6px 8px;
+  border-bottom:1px solid var(--border);text-align:left;}
+.results-table th.num{text-align:right;}
+.results-table td{padding:8px 8px;font-size:.88rem;border-bottom:1px solid rgba(0,180,216,.07);vertical-align:middle;}
+.results-table td.num{font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;text-align:right;color:var(--muted);}
+.results-table tr.my-boat td{background:rgba(0,180,216,.07);}
+.results-table tr.my-boat td.boat-name{color:var(--teal);font-weight:700;}
+.results-table tr.podium-1 td.rank-cell{color:var(--gold);}
+.results-table tr.podium-2 td.rank-cell{color:#c0c0c0;}
+.results-table tr.podium-3 td.rank-cell{color:#cd7f32;}
+.rank-cell{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;width:28px;}
+.race-pts{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:.78rem;
+  font-weight:700;padding:1px 5px;border-radius:4px;margin:1px;}
+.race-pts.discarded{color:var(--muted);text-decoration:line-through;background:transparent;}
+.race-pts.dns{color:var(--danger);}
+.race-pts.ok{color:var(--white);}
+.fleet-toggle-active{border-color:var(--teal)!important;background:var(--teal)!important;color:var(--navy)!important;}
+.fleet-toggle-inactive{border-color:var(--border)!important;background:transparent!important;color:var(--muted)!important;}
+.results-race-header{display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:8px;margin-top:20px;}
+.results-series-name{font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+.results-updated{font-size:.7rem;color:var(--muted);}
+.results-my-pos{background:var(--card);border:1px solid var(--border);border-radius:12px;
+  padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:14px;}
+.results-my-rank{font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:800;
+  color:var(--teal);line-height:1;}
+.results-my-label{font-size:.7rem;color:var(--muted);font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;}
+.results-my-pts{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:var(--white);}
+
+.ro-panel{border:1px solid rgba(232,160,32,.3);border-radius:14px;
+  background:rgba(232,160,32,.04);padding:16px;margin-bottom:16px;}
+.ro-panel-title{font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ro);margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;}
+.marks-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.mark-toggle{background:var(--navy);border:1px solid var(--border);border-radius:10px;
+  padding:10px 8px;text-align:center;cursor:pointer;transition:all .15s;user-select:none;}
+.mark-toggle:hover{border-color:var(--teal);}
+.mark-toggle.selected{border-color:var(--ro);background:rgba(232,160,32,.12);}
+.mark-toggle-id{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
+  color:var(--white);}
+.mark-toggle-name{font-size:.68rem;color:var(--muted);margin-top:2px;}
+.mark-toggle.selected .mark-toggle-id{color:var(--ro);}
+.ro-controls{display:flex;flex-direction:column;gap:10px;margin-top:12px;}
+.ro-row{display:flex;align-items:center;gap:10px;}
+.ro-row label{font-size:.78rem;color:var(--muted);font-weight:500;min-width:90px;}
+.wind-input{display:flex;align-items:center;gap:8px;}
+.wind-input input[type=range]{flex:1;accent-color:var(--teal);}
+.wind-deg{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;
+  color:var(--white);min-width:42px;}
+.mark-toggle-rounding{display:flex;gap:4px;margin-top:6px;justify-content:center;}
+.rnd-btn{font-size:.65rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:.04em;padding:2px 7px;border-radius:6px;border:1px solid var(--border);
+  background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;}
+.rnd-btn.port.active{background:rgba(230,57,70,.2);border-color:#e63946;color:#e63946;}
+.rnd-btn.stbd.active{background:rgba(45,198,83,.2);border-color:#2dc653;color:#2dc653;}
+.selected-marks-order{margin-top:10px;}
+.smo-title{font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;margin-bottom:6px;}
+.smo-list{display:flex;flex-direction:column;gap:0;}
+.smo-item{display:flex;align-items:center;gap:4px;background:var(--navy);
+  border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer;}
+.smo-item:hover{border-color:var(--danger);}
+.smo-item-label{font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--white);}
+.smo-item-x{font-size:.8rem;color:var(--muted);}
+.publish-bar{margin-top:14px;display:flex;gap:10px;}
+
+/* registered boats list */
+.reg-list{display:flex;flex-direction:column;gap:8px;}
+.reg-row{display:flex;align-items:center;justify-content:space-between;
+  background:var(--navy);border-radius:10px;padding:10px 14px;}
+.reg-boat-name{font-weight:600;font-size:.9rem;}
+.reg-meta{font-size:.75rem;color:var(--muted);}
+.reg-status{font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;}
+.reg-status.paid{color:var(--success);}
+.reg-status.unpaid{color:var(--danger);}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     LOGIN SCREEN
+════════════════════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <img class="login-logo"
+      src="https://static.wixstatic.com/media/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg/v1/fill/w_300,h_175,al_c,q_80/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg"
+      alt="GBSC" onerror="this.style.display='none';document.getElementById('llf').style.display='block'">
+    <div class="login-logo-fb" id="llf">GB<span>SC</span></div>
+    <div class="login-sub">Racing App</div>
+    <div id="loginRaceLabel" style="font-size:.72rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;margin-bottom:10px;text-align:center;min-height:14px"></div>
+    <!-- Race Officer button — top -->
+    <div class="ro-btn" onclick="openPinOverlay('ro')">
+      <div class="ro-btn-icon">🎌</div>
+      <div class="ro-btn-text">Race Officer Login</div>
+    </div>
+    <div class="login-label">Select your boat</div>
+    <div class="boat-grid" id="boatGrid"></div>
+    <div id="addBoatForm">
+      <h4>+ Add New Boat</h4>
+      <div class="ab-row">
+        <input id="newBoatName" class="ab-input" type="text" placeholder="Boat name">
+        <select id="newBoatIcon" class="ab-select">
+          <option>⛵</option><option>🚤</option><option>⚓</option><option>🌊</option>
+          <option>🏴‍☠️</option><option>💨</option><option>⭐</option><option>🐟</option>
+          <option>🔵</option><option>🟢</option><option>🪝</option><option>🃏</option>
+        </select>
+      </div>
+      <div class="ab-actions">
+        <button class="btn btn-primary" style="flex:1;padding:10px" onclick="submitAddBoat()">Add Boat</button>
+        <button class="btn btn-ghost" style="padding:10px 14px" onclick="hideAddBoatForm()">Cancel</button>
+      </div>
+    </div>
+    <button id="addBoatBtn" onclick="showAddBoatForm()">+ Add a boat</button>
+  </div>
+</div>
+
+<!-- PIN OVERLAY -->
+<div class="pin-overlay" id="pinOverlay">
+  <div class="pin-box" id="pinBox">
+    <h3 id="pinTitle">🎌 Race Officer</h3>
+    <p id="pinSubtitle">Enter the 4-digit PIN</p>
+    <div class="pin-dots" id="pinDots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" onclick="pinClear()" style="font-size:.9rem;color:var(--muted)">CLR</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key" onclick="pinBack()" style="font-size:.9rem;color:var(--muted)">⌫</button>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:6px;padding:9px" onclick="closePinOverlay()">Cancel</button>
+    <div class="pin-change-link" id="pinChangeLink" style="display:none" onclick="openChangePinFlow()">Change PIN</div>
+  </div>
+</div>
+
+<!-- CHANGE PIN OVERLAY -->
+<div class="pin-overlay" id="changePinOverlay">
+  <div class="pin-box">
+    <h3 id="cpTitle" style="color:var(--teal)">🔑 Change PIN</h3>
+    <p id="cpSubtitle">Enter new 4-digit PIN</p>
+    <div class="pin-dots" id="cpDots">
+      <div class="pin-dot" id="cpd0"></div><div class="pin-dot" id="cpd1"></div>
+      <div class="pin-dot" id="cpd2"></div><div class="pin-dot" id="cpd3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="cpKey('1')">1</button>
+      <button class="pin-key" onclick="cpKey('2')">2</button>
+      <button class="pin-key" onclick="cpKey('3')">3</button>
+      <button class="pin-key" onclick="cpKey('4')">4</button>
+      <button class="pin-key" onclick="cpKey('5')">5</button>
+      <button class="pin-key" onclick="cpKey('6')">6</button>
+      <button class="pin-key" onclick="cpKey('7')">7</button>
+      <button class="pin-key" onclick="cpKey('8')">8</button>
+      <button class="pin-key" onclick="cpKey('9')">9</button>
+      <button class="pin-key" onclick="cpClear()" style="font-size:.9rem;color:var(--muted)">CLR</button>
+      <button class="pin-key" onclick="cpKey('0')">0</button>
+      <button class="pin-key" onclick="cpBack()" style="font-size:.9rem;color:var(--muted)">⌫</button>
+    </div>
+    <div class="pin-error" id="cpError"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:6px;padding:9px" onclick="closeChangePinOverlay()">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════════════════════════ -->
+<header>
+  <div class="hdr">
+    <div class="app-logo">
+      <img src="https://static.wixstatic.com/media/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg/v1/fill/w_300,h_175,al_c,q_80/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg"
+        alt="GBSC" onerror="this.style.display='none';document.getElementById('hlf').style.display='block'">
+      <div class="app-logo-fb2" id="hlf">GBSC</div>
+      <div class="logo-div"></div>
+      <div class="logo-sub">Racing</div>
+    </div>
+    <div class="hdr-right">
+      <span id="syncStatus" style="font-size:.72rem;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;min-width:60px;text-align:right"></span>
+      <div class="badge outline" id="raceBadge"></div>
+      <div class="boat-tag" onclick="switchBoat()" id="boatTag">⛵ <span id="headerBoat">—</span></div>
+      <div id="changePinBtn" style="display:none;cursor:pointer;font-size:1rem;color:var(--muted);padding:4px 6px;border-radius:6px;border:1px solid var(--border)" onclick="openChangePinFlow()" title="Change PIN">🔑</div>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs" style="display:none">
+    <button class="nav-tab active" id="feesNavTab" onclick="showTab('feesTab',this)">Race Fees</button>
+    <button class="nav-tab" onclick="showTab('courseTab',this)">Course</button>
+    <button class="nav-tab" onclick="showTab('resultsTab',this);loadResultsIfNeeded()">Results</button>
+    <button class="nav-tab ro-tab" id="roNavTab" style="display:none" onclick="showTab('roTab',this)">🎌 Race Officer</button>
+  </div>
+</header>
+
+<main id="mainApp" style="display:none">
+
+<!-- ═══ TAB: RACE FEES ═══ -->
+<div class="tab-wrap active" id="feesTab">
+  <div class="race-bar">
+    <div class="race-bar-icon">🏁</div>
+    <div class="race-bar-text">
+      <div class="race-bar-label">Today's Race</div>
+      <select id="raceDropdown" onchange="onRaceSelect(this)">
+        <option value="" disabled>Select a race…</option>
+      </select>
+    </div>
+    <svg width="16" height="16" fill="none" stroke="var(--muted)" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
+  </div>
+  <div class="sec-head">
+    <div class="sec-title">Crew on Board</div>
+    <div class="crew-count" id="crewCount">0 selected</div>
+  </div>
+  <div class="crew-list" id="crewList"></div>
+  <button class="add-crew-btn" onclick="toggleCrewForm()">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    Add person to roster
+  </button>
+  <div class="add-form" id="crewForm">
+    <h3>Add to Roster</h3>
+    <div class="form-row">
+      <div class="form-group"><label>First Name</label><input type="text" id="cf-first" placeholder="e.g. Ciarán"></div>
+      <div class="form-group"><label>Last Name</label><input type="text" id="cf-last" placeholder="e.g. Murphy"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Membership Type</label>
+        <select id="cf-type" onchange="onCrewTypeChange()">
+          <option value="full">Full Member — €4</option>
+          <option value="crew">Crew Member — €4</option>
+          <option value="visitor">Visitor — €10</option>
+        </select>
+      </div>
+      <div class="form-group" id="cf-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="cf-join" placeholder="2023" min="2015" max="2030"></div>
+      <div class="form-group" id="cf-outGrp" style="display:none"><label>Prev Outings</label><input type="number" id="cf-out" value="0" min="0" max="6"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="addCrewMember()">Add to Roster</button>
+      <button class="btn btn-ghost" onclick="toggleCrewForm()">Cancel</button>
+    </div>
+  </div>
+  <div style="margin-bottom:14px">
+    <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px" onclick="registerForRace()">⛵ Register for This Race</button>
+  </div>
+  <div class="totals-panel">
+    <div class="totals-title">Race Summary</div>
+    <div class="totals-rows">
+      <div class="t-row"><span>Full / Crew members</span><span class="val-sm" id="s-mem">—</span></div>
+      <div class="t-row"><span>Visitors</span><span class="val-sm" id="s-vis">—</span></div>
+      <div class="t-row hi"><span>Paid</span><span class="val-sm c-ok" id="s-paid">€0</span></div>
+      <div class="t-row hi"><span>Outstanding</span><span class="val-sm c-bad" id="s-owed">€0</span></div>
+      <div class="t-row big"><span style="font-size:1rem;color:var(--white)">Race Total</span><span class="val-lg" id="s-total">€0</span></div>
+    </div>
+    <div class="pay-actions">
+      <button class="btn btn-primary" style="width:100%;padding:13px;font-size:.95rem" onclick="openCollectSheet()">
+        💳 Collect Payments
+      </button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn btn-ghost" style="padding:11px" onclick="openSharePayLink()">
+          📲 Share Pay Link
+        </button>
+        <button class="btn btn-ghost" style="padding:11px" onclick="openSettingsSheet()">
+          ⚙ Settings
+        </button>
+      </div>
+      <button class="btn btn-gold" style="width:100%;padding:12px" onclick="sendReport()">
+        📧 Submit to Race Committee
+      </button>
+    </div>
+  </div>
+</div><!-- /feesTab -->
+
+<!-- ═══ TAB: COURSE ═══ -->
+<div class="tab-wrap" id="courseTab">
+  <div id="courseDisplay">
+    <div class="no-course-state"><div class="icon">🗺</div><div>No course published yet</div></div>
+  </div>
+</div><!-- /courseTab -->
+
+<!-- ═══ TAB: RESULTS ═══ -->
+<div class="tab-wrap" id="resultsTab">
+  <!-- Series selector -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Series</div>
+      <select id="resultSeriesSelect" onchange="onResultSeriesChange()" style="background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;padding:8px 10px;width:100%;outline:none;">
+        <option value="">Loading…</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:18px;">
+      <button id="ircBtn"  onclick="showFleet('irc')"  style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;border:1px solid var(--teal);background:var(--teal);color:var(--navy);cursor:pointer;">IRC</button>
+      <button id="echoBtn" onclick="showFleet('echo')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">ECHO</button>
+      <button onclick="refreshResults()" title="Refresh from Halsail" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">↺</button>
+    </div>
+  </div>
+  <div id="resultsContent">
+    <div class="empty-state"><div class="icon">🏆</div><div>Loading results…</div></div>
+  </div>
+</div><!-- /resultsTab -->
+<div class="tab-wrap" id="roTab">
+  <!-- Course Builder -->
+  <div class="ro-panel" style="margin-top:20px">
+    <div class="ro-panel-title">🗺 Course Builder</div>
+    <div class="login-label" style="margin-bottom:8px">Tap a mark to add it to the sequence — tap again to add it a second time</div>
+    <div class="marks-grid" id="marksGrid"></div>
+    <div class="selected-marks-order" id="selectedMarksOrder" style="display:none">
+      <div class="smo-title">Course order — tap to remove</div>
+      <div class="smo-list" id="smoList"></div>
+    </div>
+    <div class="ro-controls">
+      <div class="ro-row">
+        <label>Wind direction</label>
+        <div class="wind-input" style="flex:1">
+          <input type="range" id="windSlider" min="0" max="359" value="225" oninput="updateWind(this.value)">
+          <span class="wind-deg" id="windDegLabel">225° SW</span>
+        </div>
+      </div>
+      <div class="ro-row">
+        <label>Start/Finish</label>
+        <span style="font-size:.82rem;color:var(--white)">Club Start Line (outer)</span>
+      </div>
+    </div>
+    <div class="publish-bar">
+      <button class="btn btn-ro" style="flex:1;padding:12px" onclick="publishCourse()">🚀 Publish Course to Skippers</button>
+      <button class="btn btn-ghost" style="padding:12px 14px" onclick="clearCourse()">Clear</button>
+    </div>
+  </div>
+
+  <!-- Registered Boats -->
+  <div class="ro-panel">
+    <div class="ro-panel-title">⛵ Registered Boats</div>
+    <div class="reg-list" id="regList">
+      <div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div>No registrations yet</div>
+    </div>
+  </div>
+  <!-- PIN Management -->
+  <div class="ro-panel">
+    <div class="ro-panel-title">🔑 Boat PIN Management</div>
+    <div id="pinMgmtList" style="display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+</div><!-- /roTab -->
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════
+     OVERLAYS
+════════════════════════════════════════════════════════════ -->
+<div class="overlay" id="editSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Edit — <span id="ef-heading"></span></div>
+    <div class="form-row">
+      <div class="form-group"><label>First Name</label><input type="text" id="ef-first"></div>
+      <div class="form-group"><label>Last Name</label><input type="text" id="ef-last"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Membership Type</label>
+        <select id="ef-type" onchange="onEditTypeChange()">
+          <option value="full">Full Member — €4</option>
+          <option value="crew">Crew Member — €4</option>
+          <option value="visitor">Visitor — €10</option>
+        </select>
+      </div>
+      <div class="form-group" id="ef-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="ef-join" min="2015" max="2030"></div>
+      <div class="form-group" id="ef-outGrp" style="display:none"><label>Outings</label><input type="number" id="ef-out" min="0" max="6"></div>
+    </div>
+    <div class="form-actions" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="saveEdit()">Save</button>
+      <button class="btn btn-ghost" onclick="closeSheet('editSheet')">Cancel</button>
+    </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn btn-danger" style="width:100%;padding:11px" onclick="deleteCrew()">🗑 Remove from Roster</button>
+    </div>
+  </div>
+</div>
+<!-- COLLECT PAYMENTS SHEET -->
+<div class="overlay" id="collectSheet">
+  <div class="sheet" style="max-height:85vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Collect Payments</div>
+    <div id="collectList"></div>
+    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1;padding:11px;font-size:.82rem" onclick="markAllCash()">✓ All Cash</button>
+      <button class="btn btn-primary" style="flex:1;padding:11px" onclick="closeSheet('collectSheet')">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- INDIVIDUAL PAY METHOD SHEET -->
+<div class="overlay" id="pnSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Record Payment — <span id="pn-name"></span></div>
+    <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">How did they pay?</div>
+    <div class="pm-grid">
+      <button class="pm-btn" id="pm-revolut" onclick="pickMethod(this,'Revolut')">💜 Revolut</button>
+      <button class="pm-btn" id="pm-cash"    onclick="pickMethod(this,'Cash')">💵 Cash</button>
+      <button class="pm-btn" id="pm-bar"     onclick="pickMethod(this,'Bar Tap')">🍺 Bar Tap</button>
+      <button class="pm-btn" id="pm-stripe"  onclick="pickMethod(this,'Card/Apple/Google')">💳 Card</button>
+    </div>
+    <!-- Revolut deep link — shown when Revolut selected -->
+    <div id="pn-revolut-link" style="display:none;margin-bottom:12px">
+      <a id="pn-revolut-btn" href="#" target="_blank"
+        style="display:flex;align-items:center;justify-content:center;gap:8px;
+        background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:10px;
+        padding:12px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
+        font-size:.95rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
+        💜 Open Revolut Request
+      </a>
+      <div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:5px">
+        Opens Revolut on crew member's phone
+      </div>
+    </div>
+    <!-- Stripe placeholder -->
+    <div id="pn-stripe-link" style="display:none;margin-bottom:12px">
+      <div style="background:var(--card);border:1px dashed var(--border);border-radius:10px;padding:12px;text-align:center;font-size:.82rem;color:var(--muted)">
+        Stripe payment link coming soon —<br>add your Stripe key in Settings
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label style="font-size:.72rem;color:var(--muted);font-weight:500">Note (optional)</label>
+      <input type="text" id="pn-note" placeholder="e.g. paid at bar after race"
+        style="margin-top:4px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1;padding:12px" onclick="confirmPayNote()">✓ Confirm Payment</button>
+      <button class="btn btn-ghost" style="padding:12px 16px" onclick="closeSheet('pnSheet')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHARE PAYMENT LINK / QR SHEET -->
+<div class="overlay" id="shareSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Share Payment Link</div>
+    <div style="font-size:.82rem;color:var(--muted);margin-bottom:14px">
+      Show this QR code to crew — they scan it to see what they owe and pay by their preferred method.
+    </div>
+    <div id="shareQR" style="background:white;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px"></div>
+    <div id="shareLinkBox" style="background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:.78rem;color:var(--muted);word-break:break-all;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1;padding:11px" onclick="copyShareLink()">📋 Copy Link</button>
+      <button class="btn btn-ghost" style="padding:11px 14px" onclick="closeSheet('shareSheet')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS SHEET -->
+<div class="overlay" id="settingsSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">⚙ Skipper Settings</div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        💜 Your Revolut @username
+      </label>
+      <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+        <span style="color:var(--muted);font-size:1rem;font-weight:700">@</span>
+        <input type="text" id="settings-revolut" placeholder="yourname"
+          style="flex:1;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+          color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:9px 12px;
+          outline:none;box-sizing:border-box;">
+      </div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">
+        Used to generate Revolut payment request links for your crew
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        💳 Stripe Payment Link (optional)
+      </label>
+      <input type="text" id="settings-stripe" placeholder="https://buy.stripe.com/…"
+        style="margin-top:6px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:9px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">
+        Add when you have your Stripe account — enables card / Apple Pay / Google Pay
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveSettings()">Save Settings</button>
+      <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('settingsSheet')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// SUPABASE
+// ═══════════════════════════════════════════════════════════════
+const SB_URL='https://esqjcmwfnzkolwxfbcro.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzcWpjbXdmbnprb2x3eGZiY3JvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE4MDgsImV4cCI6MjA4OTQ5NzgwOH0.FCNEwXrayFMuzwMlHBX6iWESoVFi63-1IKhzgoQTx2U';
+const SBH={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+async function sbFetch(path,opts={}){
+  try{
+    const r=await fetch(SB_URL+path,{headers:SBH,...opts});
+    if(!r.ok){console.warn('SB',r.status,path,await r.text());return null;}
+    if(r.status===204)return true;
+    const t=await r.text();return t?JSON.parse(t):[];
+  }catch(e){console.warn('SB net',e);return null;}
+}
+async function sbEnsureBoat(b){
+  // Upsert the boat — ignore duplicates so we don't overwrite existing config
+  return sbFetch('/rest/v1/boats',{method:'POST',
+    headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},
+    body:JSON.stringify({id:b.id,name:b.name,icon:b.icon})});
+}
+async function sbLoadBoatConfig(id){
+  // Returns {pin, revolut_user, stripe_link} or null if offline
+  const r=await sbFetch('/rest/v1/boats?id=eq.'+id+'&select=pin,revolut_user,stripe_link');
+  if(!r||!r.length) return null;
+  return r[0];
+}
+async function sbSaveBoatConfig(id,fields){
+  // fields: any subset of {pin, revolut_user, stripe_link}
+  return sbFetch('/rest/v1/boats?id=eq.'+id,{
+    method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify(fields)
+  });
+}
+async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+id+'&order=id.asc');if(r===null)return null;if(!r.length)return[];return r.map(x=>({id:x.id,first:x.first,last:x.last,type:x.type,joinYear:x.join_year,outings:x.outings,selected:false,paid:false}));}
+async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:p.id,boat_id:bid,first:p.first,last:p.last,type:p.type,join_year:p.joinYear||null,outings:p.outings||0})});}
+async function sbDeleteCrew(id){return sbFetch('/rest/v1/crew?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});}
+async function sbSaveRaceRecord(rec){return sbFetch('/rest/v1/race_records',{method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(rec)});}
+async function sbRegisterBoat(boatId,race){
+  const key=raceKey(race);
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/registrations?on_conflict=boat_id,race_key',{
+      method:'POST',
+      headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({boat_id:boatId,race_key:key,race_name:race.label,race_date:race.date.toISOString().split('T')[0],registered_at:new Date().toISOString()})
+    });
+    if(!r.ok){
+      const txt=await r.text();
+      console.error('sbRegisterBoat failed',r.status,txt);
+      toast('⚠ DB '+r.status+': '+txt.slice(0,120));
+      return false;
+    }
+    return true;
+  }catch(e){
+    console.error('sbRegisterBoat net',e);
+    toast('⚠ Network error — check connection');
+    return false;
+  }
+}
+async function sbUnregisterBoat(boatId,race){
+  const key=raceKey(race);
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/registrations?boat_id=eq.'+boatId+'&race_key=eq.'+key,{
+      method:'DELETE',
+      headers:{...SBH,'Prefer':'return=minimal'}
+    });
+    if(!r.ok){ const txt=await r.text(); console.error('sbUnregisterBoat',r.status,txt); return null; }
+    return true;
+  }catch(e){ return null; }
+}
+async function sbLoadRegistrations(race){
+  const key=raceKey(race);
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/registrations?race_key=eq.'+key,{headers:SBH});
+    if(!r.ok){ return []; }
+    const t=await r.text(); return t?JSON.parse(t):[];
+  }catch(e){ return []; }
+}
+async function sbSaveCourse(course){
+  // marks is [{id,rounding}] — must be sent as jsonb
+  const payload={
+    id: course.id,
+    name: course.name,
+    marks: course.marks,           // Supabase REST auto-serialises JS arrays/objects to jsonb
+    wind_deg: course.windDeg,
+    wind_dir: course.windDir,
+    race_name: course.race_name||'',
+    published_at: course.published_at
+  };
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/published_courses',{
+      method:'POST',
+      headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal','Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    if(!r.ok){
+      const txt=await r.text();
+      console.error('sbSaveCourse failed',r.status,txt);
+      toast('⚠ DB error: '+r.status+' — '+txt.slice(0,80));
+      return false;
+    }
+    return true;
+  }catch(e){
+    console.error('sbSaveCourse net error',e);
+    toast('⚠ Network error saving course');
+    return false;
+  }
+}
+async function sbLoadCourse(){
+  const r=await sbFetch('/rest/v1/published_courses?order=published_at.desc&limit=1');
+  if(!r||!r.length) return null;
+  const row=r[0];
+  // Normalise: marks may come back as a jsonb array or a JSON string
+  let marks=row.marks||[];
+  if(typeof marks==='string'){try{marks=JSON.parse(marks);}catch(e){marks=[];}}
+  return{
+    id: row.id,
+    name: row.name,
+    marks,
+    windDeg: row.wind_deg,
+    windDir: row.wind_dir,
+    race_name: row.race_name,
+    published_at: row.published_at
+  };
+}
+function setSyncStatus(s){const el=document.getElementById('syncStatus');if(!el)return;if(s==='syncing'){el.textContent='⏳';el.style.color='var(--gold)';}else if(s==='ok'){el.textContent='☁';el.style.color='var(--success)';setTimeout(()=>{el.textContent='';},3000);}else{el.textContent='⚠';el.style.color='var(--warn)';}}
+
+// ═══════════════════════════════════════════════════════════════
+// MARKS DATA  (from GBSC Sailing Instructions 2026, Appendix A)
+// ═══════════════════════════════════════════════════════════════
+const MARKS = [
+  {id:'BR', name:'Black Rock',         lat:53+(14.001/60), lng:-(9+(6.547/60)),  colour:'#e63946', desc:'Channel Red'},
+  {id:'C',  name:'Cockle',             lat:53+(14.537/60), lng:-(9+(1.886/60)),  colour:'#f4a261', desc:'Club Orange'},
+  {id:'D',  name:'Dillisk',            lat:53+(14.665/60), lng:-(8+(59.991/60)), colour:'#f4a261', desc:'Club Orange'},
+  {id:'K',  name:'Kilcolgan Pt',       lat:53+(13.320/60), lng:-(9+(3.850/60)),  colour:'#f4a261', desc:'Club Orange'},
+  {id:'L',  name:'Leverets',           lat:53+(15.333/60), lng:-(9+(1.890/60)),  colour:'#f0f4f8', desc:'Lighthouse B/W'},
+  {id:'MN', name:'Mutton New',         lat:53+(15.179/60), lng:-(9+(2.500/60)),  colour:'#e63946', desc:'Channel Red'},
+  {id:'O',  name:'Oranmore',           lat:53+(15.429/60), lng:-(8+(59.203/60)), colour:'#f4a261', desc:'Club Orange'},
+  {id:'OF', name:'Outfall',            lat:53+(14.962/60), lng:-(9+(3.308/60)),  colour:'#f4b942', desc:'Warning Yellow'},
+  {id:'S',  name:'Salthill',           lat:53+(14.873/60), lng:-(9+(5.447/60)),  colour:'#f4a261', desc:'Club Orange'},
+  {id:'T',  name:'Tawin',              lat:53+(14.301/60), lng:-(9+(4.259/60)),  colour:'#2dc653', desc:'Channel Green'},
+  {id:'TR', name:'Trout',              lat:53+(15.026/60), lng:-(9+(1.109/60)),  colour:'#f4a261', desc:'Club Orange'},
+  {id:'WM', name:'W. Margaretta',      lat:53+(13.673/60), lng:-(9+(5.978/60)),  colour:'#2dc653', desc:'Channel Green'},
+];
+// Club start line — 53°14.5687'N, 008°58.6148'W
+const START_POS = {lat:53+(14.5687/60), lng:-(8+(58.6148/60))};
+
+// ═══════════════════════════════════════════════════════════════
+// CONSTANTS & STATE
+// ═══════════════════════════════════════════════════════════════
+const FEES={full:4,crew:4,visitor:10};
+const VISITOR_MAX=6; const CREW_MAX_YRS=2; const CY=new Date().getFullYear();
+const RO_PIN='2026';
+
+const DEFAULT_BOATS=[
+  {id:'outoftheblue',name:'Out of the Blue',icon:'🔵'},
+  {id:'ibaraki',name:'Ibaraki',icon:'⚓'},
+  {id:'woofer',name:'Woofer',icon:'🐾'},
+  {id:'joker',name:'Joker',icon:'🃏'},
+  {id:'afterfizzer',name:'After Fizzer',icon:'🥂'},
+  {id:'runningtide',name:'Running Tide',icon:'🌊'},
+  {id:'rhocstar',name:'Rhocstar',icon:'⭐'},
+  {id:'viking',name:'Viking',icon:'🪓'},
+  {id:'scorpio',name:'Scorpio',icon:'♏'},
+];
+const SEED={
+  outoftheblue:[{id:1,first:'Skipper',last:'Blue',type:'full',joinYear:null,outings:0},{id:2,first:'Crew',last:'One',type:'crew',joinYear:2024,outings:0}],
+  ibaraki:[{id:10,first:'Skipper',last:'Ibaraki',type:'full',joinYear:null,outings:0}],
+  woofer:[{id:20,first:'Skipper',last:'Woofer',type:'full',joinYear:null,outings:0}],
+  joker:[{id:30,first:'Skipper',last:'Joker',type:'full',joinYear:null,outings:0}],
+  afterfizzer:[{id:40,first:'Skipper',last:'Fizzer',type:'full',joinYear:null,outings:0}],
+  runningtide:[{id:50,first:'Skipper',last:'Tide',type:'full',joinYear:null,outings:0}],
+  rhocstar:[{id:60,first:'Skipper',last:'Rhoc',type:'full',joinYear:null,outings:0}],
+  viking:[{id:70,first:'Skipper',last:'Viking',type:'full',joinYear:null,outings:0}],
+  scorpio:[{id:80,first:'Skipper',last:'Scorpio',type:'full',joinYear:null,outings:0}],
+};
+
+let boats=[], currentBoat=null, isRO=false;
+let roster=[], nextId=200;
+let allRaces=[], selectedRace=null, nextRace=null;
+let editingId=null, pnId=null, pnMethod=null;
+let windDeg=225;
+let courseMarks=[];
+let publishedCourse=null;
+let registeredBoatIds=new Set(); // boat IDs registered for the next race
+
+// ═══════════════════════════════════════════════════════════════
+// RACE SCHEDULE DATA  (must be before buildAllRaces)
+// ═══════════════════════════════════════════════════════════════
+const WED=[
+  {name:"McSwiggans Series",d:["Apr 8","Apr 15","Apr 22","Apr 29"]},
+  {name:"Grealy Stores Series",d:["May 6","May 13","May 20","May 27"]},
+  {name:"Seahorse Series",d:["Jun 3","Jun 10","Jun 17","Jun 24","Jul 1"]},
+  {name:"Aquabroker Series",d:["Jul 8","Jul 15","Jul 22","Jul 29"]},
+  {name:"GM Series",d:["Aug 5","Aug 12","Aug 19","Aug 26"]},
+  {name:"O'Tuairisg Series",d:["Sep 2","Sep 9","Sep 16","Sep 23","Sep 30"]},
+];
+const KOTB=["King of the Bay: Spring Cup|May 2, 2026","King of the Bay: Barna|May 16, 2026","King of the Bay: Ballyvaughan|May 30, 2026","King of the Bay: Aran Cup|Jun 19, 2026","King of the Bay: Kinvara|Aug 15, 2026","King of the Bay: Clarinbridge Cup|Aug 29, 2026","King of the Bay: Morans|Sep 12, 2026","King of the Bay: Oyster Festival|Sep 26, 2026"];
+
+function buildAllRaces(){
+  allRaces=[];
+  WED.forEach(s=>s.d.forEach(d=>allRaces.push({label:s.name+' — Wed '+d,date:new Date(d+' 2026'),g:'w'})));
+  KOTB.forEach(r=>{const[n,d]=r.split('|');allRaces.push({label:n,date:new Date(d),g:'k'});});
+  allRaces.push({label:'Expert Forklifts October Series',date:new Date('Oct 7, 2026'),g:'o'});
+  allRaces.sort((a,b)=>a.date-b.date);
+}
+function getNextRace(){
+  // Returns the next race — prefer within 48hrs, otherwise the next future one
+  const now=new Date();
+  const upcoming=allRaces.filter(r=>r.date>=new Date(now-48*60*60*1000));
+  if(!upcoming.length) return allRaces[allRaces.length-1];
+  // Within 48hrs ahead
+  const soon=upcoming.filter(r=>r.date-now<=48*60*60*1000);
+  return soon.length?soon[0]:upcoming[0];
+}
+function raceKey(r){
+  // Stable string key for a race — used as registration identifier
+  return r.date.toISOString().split('T')[0]+'_'+r.label.replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,20);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOCAL STORAGE
+// ═══════════════════════════════════════════════════════════════
+function saveRoster(){if(!currentBoat)return;try{localStorage.setItem('gr_'+currentBoat.id,JSON.stringify(roster.map(p=>({...p,selected:false,paid:false}))));}catch(e){}}
+function loadRoster(id){try{const r=localStorage.getItem('gr_'+id);return r?JSON.parse(r).map(p=>({...p,selected:false,paid:false})):null;}catch(e){return null;}}
+function loadCustom(){try{return JSON.parse(localStorage.getItem('gr_custom')||'[]');}catch(e){return[];}}
+function saveCustom(a){try{localStorage.setItem('gr_custom',JSON.stringify(a));}catch(e){}}
+
+// ═══════════════════════════════════════════════════════════════
+// LOGIN
+// ═══════════════════════════════════════════════════════════════
+function buildBoatGrid(){
+  buildAllRaces();
+  nextRace=getNextRace();
+  boats=[...DEFAULT_BOATS];
+  loadCustom().forEach(b=>{if(!boats.find(x=>x.id===b.id))boats.push(b);});
+
+  // Show next race label immediately
+  const raceEl=document.getElementById('loginRaceLabel');
+  if(raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+
+  // Render grid immediately — no network dependency
+  renderBoatGrid();
+
+  // Then load registrations in background and update badges
+  sbLoadRegistrations(nextRace).then(regs=>{
+    registeredBoatIds=new Set((regs||[]).map(r=>r.boat_id));
+    renderBoatGrid(); // re-render with badges
+  }).catch(()=>{}); // fail silently — grid already shown
+}
+
+function renderBoatGrid(){
+  const g=document.getElementById('boatGrid'); if(!g)return;
+  g.innerHTML='';
+  boats.forEach(b=>{
+    const isReg=registeredBoatIds.has(b.id);
+    const el=document.createElement('div');
+    el.className='boat-btn'+(isReg?' reg':''); el.id='bb-'+b.id;
+    el.innerHTML=
+      '<div style="position:relative;display:inline-block">'+
+        '<div class="boat-btn-icon">'+b.icon+'</div>'+
+        (isReg?'<div class="reg-pip" title="Registered">✓</div>':'')+
+      '</div>'+
+      '<div class="boat-btn-name">'+b.name+'</div>'+
+      (isReg?'<div class="boat-btn-reg-label">Registered</div>':'');
+    el.onclick=()=>loginAs(b.id);
+    g.appendChild(el);
+  });
+}
+async function registerForRace(){
+  if(!currentBoat||!selectedRace)return;
+  const isReg=registeredBoatIds.has(currentBoat.id);
+  const btn=document.getElementById('registerBtn');
+  if(isReg){
+    // Unregister
+    if(!confirm('Remove '+currentBoat.name+' from the start list?'))return;
+    btn.textContent='⏳ Updating…'; btn.disabled=true;
+    const ok=await sbUnregisterBoat(currentBoat.id,selectedRace);
+    if(ok!==null){
+      registeredBoatIds.delete(currentBoat.id);
+      toast('Registration withdrawn');
+    } else { toast('⚠ Could not update — try again'); }
+  } else {
+    // Register
+    btn.textContent='⏳ Registering…'; btn.disabled=true;
+    const ok=await sbRegisterBoat(currentBoat.id,selectedRace);
+    if(ok){
+      registeredBoatIds.add(currentBoat.id);
+      toast('✅ '+currentBoat.name+' registered for '+selectedRace.label+'!');
+    } else { toast('⚠ Could not register — try again'); }
+  }
+  updateRegisterButton();
+}
+function updateRegisterButton(){
+  const btn=document.getElementById('registerBtn'); if(!btn)return;
+  const isReg=registeredBoatIds.has(currentBoat?.id);
+  btn.disabled=false;
+  btn.className='btn '+(isReg?'btn-ghost':'btn-primary');
+  btn.style.width='100%'; btn.style.padding='12px';
+  btn.textContent=isReg?'✓ Registered — Withdraw':'⛵ Register for This Race';
+  if(isReg){btn.style.color='var(--success)';btn.style.borderColor='rgba(45,198,83,.4)';}
+  else{btn.style.color='';btn.style.borderColor='';}
+}
+function loginAs(id){
+  const b=boats.find(x=>x.id===id); if(!b)return;
+  document.querySelectorAll('.boat-btn').forEach(e=>e.classList.remove('active'));
+  const btn=document.getElementById('bb-'+id); if(btn)btn.classList.add('active');
+  openPinOverlay(id);
+}
+async function enterApp(b,ro){
+  currentBoat=b; isRO=ro;
+  try{localStorage.setItem('gr_last',b.id);}catch(e){}
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+  document.getElementById('navTabs').style.display='flex';
+  document.getElementById('headerBoat').textContent=ro?'Race Officer':b.name;
+  document.getElementById('changePinBtn').style.display=ro?'none':'flex';
+  if(ro){
+    document.getElementById('boatTag').style.background='rgba(232,160,32,.1)';
+    document.getElementById('boatTag').style.borderColor='rgba(232,160,32,.4)';
+    document.getElementById('headerBoat').style.color='var(--ro)';
+    document.getElementById('roNavTab').style.display='block';
+    document.getElementById('feesNavTab').style.display='none';
+    // Land directly on RO tab
+    const roBtn=document.getElementById('roNavTab');
+    showTab('roTab', roBtn);
+    buildMarksGrid();
+    loadAndDrawCourse();
+    loadRegistrations();
+    buildPinMgmtList();
+    return;
+  }
+  document.getElementById('crewList').innerHTML='<div class="empty-state"><div class="icon">⏳</div>Loading…</div>';
+  setSyncStatus('syncing');
+  await sbEnsureBoat(b);
+  await loadBoatConfig(b.id); // load PIN, Revolut, Stripe from DB
+  // Load crew
+  const sbCrew=await sbLoadCrew(b.id);
+  if(sbCrew!==null){
+    if(sbCrew.length>0){roster=sbCrew;setSyncStatus('ok');}
+    else{
+      const local=loadRoster(b.id);
+      const seed=SEED[b.id]||[{id:nextId++,first:'Skipper',last:b.name.split(' ')[0],type:'full',joinYear:null,outings:0}];
+      roster=local||seed.map(p=>({...p,selected:false,paid:false}));
+      let ok=true;
+      for(const p of roster){const r=await sbUpsertCrew(b.id,p);if(!r)ok=false;}
+      setSyncStatus(ok?'ok':'offline');
+    }
+  } else {
+    const local=loadRoster(b.id);
+    const seed=SEED[b.id]||[{id:nextId++,first:'Skipper',last:b.name.split(' ')[0],type:'full',joinYear:null,outings:0}];
+    roster=local||seed.map(p=>({...p,selected:false,paid:false}));
+    setSyncStatus('offline');toast('⚠ Offline — using local data');
+  }
+  nextId=Math.max(...roster.map(p=>p.id),199)+1;
+  buildRaceDropdown();
+  // Refresh registration state for this boat
+  updateRegisterButton();
+  loadAndDrawCourse();
+  renderCrew();
+}
+function switchBoat(){
+  saveRoster();
+  currentBoat=null;roster=[];isRO=false;boatConfig={};
+  halResultsLoaded=false;
+  document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('mainApp').style.display='none';
+  document.getElementById('navTabs').style.display='none';
+  document.getElementById('roNavTab').style.display='none';
+  document.getElementById('feesNavTab').style.display='block'; // restore for next login
+  document.getElementById('boatTag').removeAttribute('style');
+  document.getElementById('headerBoat').removeAttribute('style');
+  showTab('feesTab',document.getElementById('feesNavTab'));
+  buildBoatGrid();
+}
+// add boat
+function showAddBoatForm(){document.getElementById('addBoatForm').style.display='block';document.getElementById('addBoatBtn').style.display='none';document.getElementById('newBoatName').focus();}
+function hideAddBoatForm(){document.getElementById('addBoatForm').style.display='none';document.getElementById('addBoatBtn').style.display='block';document.getElementById('newBoatName').value='';}
+function submitAddBoat(){
+  const name=document.getElementById('newBoatName').value.trim();
+  const icon=document.getElementById('newBoatIcon').value;
+  if(!name){toast('Enter a boat name');return;}
+  const id=name.toLowerCase().replace(/[^a-z0-9]/g,'')||'boat'+Date.now();
+  if(boats.find(b=>b.id===id)){toast('Boat already exists');return;}
+  const nb={id,name,icon};
+  boats.push(nb);
+  const c=loadCustom();c.push(nb);saveCustom(c);
+  // Also persist to Supabase so it appears on other devices
+  sbFetch('/rest/v1/boats',{method:'POST',
+    headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},
+    body:JSON.stringify({id,name,icon,pin:'0000',revolut_user:'',stripe_link:''})
+  });
+  hideAddBoatForm();
+  renderBoatGrid();
+  setTimeout(()=>loginAs(id),80);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PIN SYSTEM
+// ═══════════════════════════════════════════════════════════════
+// PIN SYSTEM — see getBoatPin/setBoatPin/getRoPin/setRoPin below
+// ═══════════════════════════════════════════════════════════════
+
+let pinEntry='', pinContext=null; // context: 'ro' | {boatId}
+function openPinOverlay(ctx){
+  pinEntry=''; pinContext=ctx;
+  updatePinDots();
+  document.getElementById('pinError').textContent='';
+  const isRO=ctx==='ro';
+  const box=document.getElementById('pinBox');
+  box.style.setProperty('--pin-accent', isRO?'var(--ro)':'var(--teal)');
+  document.getElementById('pinTitle').style.color=isRO?'var(--ro)':'var(--teal)';
+  if(isRO){
+    document.getElementById('pinTitle').textContent='🎌 Race Officer';
+    document.getElementById('pinSubtitle').textContent='Enter the Race Officer PIN';
+    document.getElementById('pinChangeLink').style.display='none';
+  } else {
+    const b=boats.find(x=>x.id===ctx);
+    document.getElementById('pinTitle').textContent=(b?b.icon+' '+b.name:'Boat');
+    document.getElementById('pinSubtitle').textContent='Enter your 4-digit PIN';
+    document.getElementById('pinChangeLink').style.display='block';
+  }
+  document.getElementById('pinOverlay').classList.add('open');
+}
+function closePinOverlay(){ document.getElementById('pinOverlay').classList.remove('open'); pinContext=null; }
+function pinKey(k){ if(pinEntry.length>=4)return; pinEntry+=k; updatePinDots(); if(pinEntry.length===4)checkPin(); }
+function pinBack(){ pinEntry=pinEntry.slice(0,-1); updatePinDots(); }
+function pinClear(){ pinEntry=''; updatePinDots(); }
+function updatePinDots(){ for(let i=0;i<4;i++) document.getElementById('pd'+i).classList.toggle('filled',i<pinEntry.length); }
+function checkPin(){
+  const ctx=pinContext; // save before closePinOverlay nulls it
+  const correct = ctx==='ro' ? getRoPin() : getBoatPin(ctx);
+  if(pinEntry===correct){
+    closePinOverlay();
+    if(ctx==='ro'){
+      enterApp({id:'ro',name:'Race Officer',icon:'🎌'},true);
+    } else {
+      const b=boats.find(x=>x.id===ctx);
+      if(b) enterApp(b,false);
+    }
+  } else {
+    document.getElementById('pinError').textContent='Incorrect PIN';
+    pinEntry=''; updatePinDots();
+    setTimeout(()=>{ document.getElementById('pinError').textContent=''; },2000);
+  }
+}
+
+// ── Change PIN flow ──────────────────────────────────────────
+let cpEntry='', cpTargetId=null;
+function openChangePinFlow(){
+  // Can be called from "Change PIN" link inside PIN overlay, or from the header 🔑 button
+  closePinOverlay();
+  cpEntry=''; cpTargetId=pinContext||currentBoat?.id||null;
+  updateCpDots();
+  document.getElementById('cpError').textContent='';
+  const b=cpTargetId&&cpTargetId!=='ro'?boats.find(x=>x.id===cpTargetId):null;
+  document.getElementById('cpTitle').textContent= b?'🔑 Change PIN — '+b.name:'🔑 Change RO PIN';
+  document.getElementById('cpSubtitle').textContent='Enter new 4-digit PIN';
+  document.getElementById('changePinOverlay').classList.add('open');
+}
+// RO can change any boat's PIN from settings panel
+function openChangePinForBoat(id){
+  cpEntry=''; cpTargetId=id;
+  updateCpDots();
+  document.getElementById('cpError').textContent='';
+  const b=boats.find(x=>x.id===id);
+  document.getElementById('cpTitle').textContent=b?'🔑 Change PIN — '+b.name:'🔑 Change PIN';
+  document.getElementById('cpSubtitle').textContent='Enter new 4-digit PIN';
+  document.getElementById('changePinOverlay').classList.add('open');
+}
+function closeChangePinOverlay(){ document.getElementById('changePinOverlay').classList.remove('open'); }
+function cpKey(k){ if(cpEntry.length>=4)return; cpEntry+=k; updateCpDots(); if(cpEntry.length===4)confirmChangePin(); }
+function cpBack(){ cpEntry=cpEntry.slice(0,-1); updateCpDots(); }
+function cpClear(){ cpEntry=''; updateCpDots(); }
+function updateCpDots(){ for(let i=0;i<4;i++) document.getElementById('cpd'+i).classList.toggle('filled',i<cpEntry.length); }
+function confirmChangePin(){
+  if(cpEntry.length!==4){ document.getElementById('cpError').textContent='Enter 4 digits'; return; }
+  if(cpTargetId==='ro'){ setRoPin(cpEntry); }
+  else { setBoatPin(cpTargetId,cpEntry); } // async — fires and doesn't block
+  closeChangePinOverlay();
+  const b=cpTargetId&&cpTargetId!=='ro'?boats.find(x=>x.id===cpTargetId):null;
+  toast('✅ PIN updated'+(b?' for '+b.name:''));
+  if(isRO) buildPinMgmtList();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════
+function showTab(id,btn){
+  document.querySelectorAll('.tab-wrap').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(btn)btn.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RACE SCHEDULE FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+function buildRaceDropdown(){
+  // allRaces already built by buildAllRaces() in buildBoatGrid
+  // Default to nextRace
+  const nr=nextRace||getNextRace();
+  const ci=allRaces.indexOf(nr)>=0?allRaces.indexOf(nr):0;
+  const sel=document.getElementById('raceDropdown'); sel.innerHTML='';
+  const gmap={w:'Wednesday Night Racing',k:'King of the Bay',o:'Other'};
+  const og={};
+  Object.entries(gmap).forEach(([k,l])=>{og[k]=document.createElement('optgroup');og[k].label=l;});
+  allRaces.forEach((r,i)=>{const o=document.createElement('option');o.value=i;o.textContent=r.label;og[r.g].appendChild(o);});
+  Object.values(og).forEach(g=>sel.appendChild(g));
+  sel.value=ci; onRaceSelect(sel,true);
+}
+function onRaceSelect(el,silent){
+  const i=parseInt(el.value);if(isNaN(i))return;
+  selectedRace=allRaces[i];
+  document.getElementById('raceBadge').textContent=selectedRace.date.toLocaleDateString('en-IE',{day:'numeric',month:'short'});
+  if(!silent)toast('Race set ✓');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CREW RENDER
+// ═══════════════════════════════════════════════════════════════
+const fee=p=>FEES[p.type]||0;
+const ini=p=>(p.first[0]+p.last[0]).toUpperCase();
+const over=p=>p.type==='crew'&&p.joinYear&&(CY-p.joinYear)>=CREW_MAX_YRS;
+const vmax=p=>p.type==='visitor'&&p.outings>=VISITOR_MAX;
+const vnr=p=>p.type==='visitor'&&p.outings===VISITOR_MAX-1;
+
+function renderCrew(){
+  const list=document.getElementById('crewList'); list.innerHTML='';
+  const sel=roster.filter(p=>p.selected);
+  document.getElementById('crewCount').textContent=sel.length+' selected';
+  if(!roster.length){list.innerHTML='<div class="empty-state"><div class="icon">👥</div>No crew yet — add people below</div>';updateTotals();return;}
+  roster.forEach(p=>{
+    const warn=over(p)||vmax(p)||vnr(p);
+    const c=document.createElement('div');
+    c.className='crew-card'+(p.selected?' selected':'')+(warn?' warn-flag':'');
+    c.innerHTML=(warn?'<div class="warn-stripe"></div>':'')+
+      '<div class="cc-check" onclick="toggleSel('+p.id+')">'+
+        '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="var(--navy)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,7 5,10 11,3"/></svg>'+
+      '</div>'+
+      '<div class="cc-avatar">'+ini(p)+'</div>'+
+      '<div class="cc-info">'+
+        '<div class="cc-name">'+p.first+' '+p.last+'</div>'+
+        '<div class="cc-meta">'+
+          (p.type==='full'?'<span class="tag tag-full">Full Member</span>':'')+
+          (p.type==='crew'?'<span class="tag tag-crew">Crew Member</span>':'')+
+          (p.type==='visitor'?'<span class="tag tag-visitor">Visitor</span>':'')+
+          (p.type==='visitor'?'<span style="font-size:.7rem;color:'+(warn?'var(--warn)':'var(--muted)')+'">'+p.outings+'/'+VISITOR_MAX+' outings</span>':'')+
+          (p.type==='crew'&&p.joinYear?'<span style="font-size:.72rem;color:var(--muted)">since '+p.joinYear+'</span>':'')+
+        '</div>'+
+        (over(p)?'<div class="cc-alert">⚠ Should convert to Full Member</div>':'')+
+        (vmax(p)?'<div class="cc-alert">⚠ Max outings — must join as Crew</div>':'')+
+        (vnr(p)?'<div class="cc-alert">⚠ Last free outing before joining</div>':'')+
+      '</div>'+
+      '<div class="cc-right">'+
+        '<div class="cc-fee'+(p.selected?'':' dim')+'">€'+fee(p)+'</div>'+
+        (p.selected?'<div class="pay-dot '+(p.paid?'paid':'unpaid')+'" onclick="togglePaid('+p.id+')" title="'+(p.paid?'Paid':'Unpaid')+'"></div>':'')+
+        '<button class="cc-menu" onclick="openEditSheet('+p.id+')">⋯</button>'+
+      '</div>';
+    list.appendChild(c);
+  });
+  updateTotals();
+}
+function updateTotals(){
+  const s=roster.filter(p=>p.selected);
+  const m=s.filter(p=>p.type!=='visitor').length;
+  const v=s.filter(p=>p.type==='visitor').length;
+  const tot=s.reduce((a,p)=>a+fee(p),0);
+  const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
+  document.getElementById('s-mem').textContent=m?m+'×€4=€'+(m*4):'—';
+  document.getElementById('s-vis').textContent=v?v+'×€10=€'+(v*10):'—';
+  document.getElementById('s-total').textContent='€'+tot;
+  document.getElementById('s-paid').textContent='€'+paid;
+  document.getElementById('s-owed').textContent='€'+(tot-paid);
+}
+function toggleSel(id){const p=roster.find(r=>r.id===id);if(p){p.selected=!p.selected;if(!p.selected){p.paid=false;}}renderCrew();}
+function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid){p.paid=false;p.payMethod='';p.payNote='';renderCrew();toast(p.first+' marked unpaid');}else openPNSheet(id);}
+
+// add crew
+function onCrewTypeChange(){const t=document.getElementById('cf-type').value;document.getElementById('cf-joinGrp').style.display=t==='crew'?'flex':'none';document.getElementById('cf-outGrp').style.display=t==='visitor'?'flex':'none';}
+function toggleCrewForm(){const f=document.getElementById('crewForm');f.classList.toggle('open');if(f.classList.contains('open'))document.getElementById('cf-first').focus();}
+function addCrewMember(){
+  const first=document.getElementById('cf-first').value.trim();
+  const last=document.getElementById('cf-last').value.trim();
+  const type=document.getElementById('cf-type').value;
+  if(!first||!last){toast('Enter a name');return;}
+  const joinYear=type==='crew'?(parseInt(document.getElementById('cf-join').value)||CY):null;
+  const outings=type==='visitor'?(parseInt(document.getElementById('cf-out').value)||0):0;
+  roster.push({id:nextId++,first,last,type,joinYear,outings,selected:true,paid:false});
+  document.getElementById('cf-first').value='';document.getElementById('cf-last').value='';
+  document.getElementById('cf-type').value='full';
+  document.getElementById('cf-joinGrp').style.display='none';document.getElementById('cf-outGrp').style.display='none';
+  document.getElementById('crewForm').classList.remove('open');
+  const newP=roster[roster.length-1];
+  saveRoster();
+  sbUpsertCrew(currentBoat.id,newP).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('offline'));
+  renderCrew();toast(first+' '+last+' added ✓');
+}
+// edit sheet
+function onEditTypeChange(){const t=document.getElementById('ef-type').value;document.getElementById('ef-joinGrp').style.display=t==='crew'?'flex':'none';document.getElementById('ef-outGrp').style.display=t==='visitor'?'flex':'none';}
+function openEditSheet(id){
+  const p=roster.find(r=>r.id===id);if(!p)return;
+  editingId=id;
+  document.getElementById('ef-heading').textContent=p.first+' '+p.last;
+  document.getElementById('ef-first').value=p.first;
+  document.getElementById('ef-last').value=p.last;
+  document.getElementById('ef-type').value=p.type;
+  document.getElementById('ef-join').value=p.joinYear||'';
+  document.getElementById('ef-out').value=p.outings||0;
+  onEditTypeChange();
+  document.getElementById('editSheet').classList.add('open');
+}
+function saveEdit(){
+  const p=roster.find(r=>r.id===editingId);if(!p)return;
+  const first=document.getElementById('ef-first').value.trim();
+  const last=document.getElementById('ef-last').value.trim();
+  if(!first||!last){toast('Enter a name');return;}
+  p.first=first;p.last=last;p.type=document.getElementById('ef-type').value;
+  p.joinYear=p.type==='crew'?(parseInt(document.getElementById('ef-join').value)||CY):null;
+  p.outings=p.type==='visitor'?(parseInt(document.getElementById('ef-out').value)||0):0;
+  saveRoster();
+  sbUpsertCrew(currentBoat.id,p).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('offline'));
+  closeSheet('editSheet');renderCrew();toast(first+' updated ✓');
+}
+function deleteCrew(){
+  const p=roster.find(r=>r.id===editingId);if(!p)return;
+  if(!confirm('Remove '+p.first+' '+p.last+'?'))return;
+  const delId=editingId;
+  roster=roster.filter(r=>r.id!==editingId);
+  saveRoster();sbDeleteCrew(delId).then(()=>setSyncStatus('ok'));
+  closeSheet('editSheet');renderCrew();toast(p.first+' removed');
+}
+// ── Boat config: PIN, Revolut, Stripe ────────────────────────
+// In-memory cache loaded from DB on login, written back on change
+// localStorage used as fallback when offline
+let boatConfig={}; // {pin, revolut_user, stripe_link} for currentBoat
+
+async function loadBoatConfig(boatId){
+  // Try DB first
+  const cfg=await sbLoadBoatConfig(boatId);
+  if(cfg){
+    boatConfig=cfg;
+    // Sync to localStorage as offline cache
+    try{localStorage.setItem('cfg_'+boatId,JSON.stringify(cfg));}catch(e){}
+  } else {
+    // Fall back to localStorage cache
+    try{
+      const cached=localStorage.getItem('cfg_'+boatId);
+      boatConfig=cached?JSON.parse(cached):{pin:'0000',revolut_user:'',stripe_link:''};
+    }catch(e){ boatConfig={pin:'0000',revolut_user:'',stripe_link:''}; }
+  }
+}
+
+function getBoatPin(id){
+  // For login screen we need the PIN before loading config — use localStorage cache
+  if(currentBoat&&currentBoat.id===id) return boatConfig.pin||'0000';
+  try{ const c=localStorage.getItem('cfg_'+id); return c?JSON.parse(c).pin||'0000':'0000'; }catch(e){ return'0000'; }
+}
+function getRoPin(){ try{return localStorage.getItem('pin_ro')||RO_PIN;}catch(e){return RO_PIN;} }
+function setRoPin(pin){ try{localStorage.setItem('pin_ro',pin);}catch(e){} }
+
+async function setBoatPin(id,pin){
+  // Update in-memory + localStorage immediately, then persist to DB
+  if(currentBoat&&currentBoat.id===id) boatConfig.pin=pin;
+  try{
+    const c=localStorage.getItem('cfg_'+id);
+    const obj=c?JSON.parse(c):{};
+    obj.pin=pin;
+    localStorage.setItem('cfg_'+id,JSON.stringify(obj));
+  }catch(e){}
+  await sbSaveBoatConfig(id,{pin});
+}
+
+function getRevolutUser(){
+  return boatConfig.revolut_user||'';
+}
+function getStripeLink(){
+  return boatConfig.stripe_link||'';
+}
+async function saveBoatSettings(revolut_user, stripe_link){
+  boatConfig.revolut_user=revolut_user;
+  boatConfig.stripe_link=stripe_link;
+  // Sync to localStorage cache
+  try{
+    const c=localStorage.getItem('cfg_'+currentBoat?.id)||'{}';
+    const obj=JSON.parse(c);
+    obj.revolut_user=revolut_user; obj.stripe_link=stripe_link;
+    localStorage.setItem('cfg_'+currentBoat?.id,JSON.stringify(obj));
+  }catch(e){}
+  await sbSaveBoatConfig(currentBoat.id,{revolut_user,stripe_link});
+}
+
+function openSettingsSheet(){
+  document.getElementById('settings-revolut').value=getRevolutUser();
+  document.getElementById('settings-stripe').value=getStripeLink();
+  document.getElementById('settingsSheet').classList.add('open');
+}
+function saveSettings(){
+  const rev=document.getElementById('settings-revolut').value.trim().replace(/^@/,'');
+  const stripe=document.getElementById('settings-stripe').value.trim();
+  saveBoatSettings(rev,stripe); // async — persists to DB + localStorage cache
+  closeSheet('settingsSheet');
+  toast('Settings saved ✓');
+}
+
+// ── Collect Payments sheet ────────────────────────────────────
+function openCollectSheet(){
+  const sel=roster.filter(p=>p.selected);
+  if(!sel.length){toast('No crew selected');return;}
+  const list=document.getElementById('collectList');
+  list.innerHTML='';
+  const revUser=getRevolutUser();
+  sel.forEach(p=>{
+    const amt=fee(p);
+    const isPaid=p.paid;
+    const row=document.createElement('div');
+    row.id='cr-'+p.id;
+    row.style.cssText='padding:10px 0;border-bottom:1px solid var(--border);';
+    // Paid state
+    if(isPaid){
+      row.innerHTML=
+        '<div style="display:flex;align-items:center;justify-content:space-between">'+
+          '<div style="display:flex;align-items:center;gap:8px">'+
+            '<div class="cc-avatar" style="width:30px;height:30px;font-size:.72rem">'+ini(p)+'</div>'+
+            '<div><div style="font-size:.88rem;font-weight:600">'+p.first+' '+p.last+'</div>'+
+            '<div style="font-size:.7rem;color:var(--success)">✓ '+( p.payMethod||'Paid')+'</div></div>'+
+          '</div>'+
+          '<div style="display:flex;align-items:center;gap:8px">'+
+            '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;color:var(--success)">€'+amt+'</span>'+
+            '<button onclick="unpayCrewCollect('+p.id+')" style="font-size:.68rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">Undo</button>'+
+          '</div>'+
+        '</div>';
+    } else {
+      // Payment buttons
+      const revLink=revUser?`https://revolut.me/${revUser}/${amt}?currency=EUR`:'';
+      const stripeLink=getStripeLink();
+      row.innerHTML=
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
+          '<div style="display:flex;align-items:center;gap:8px">'+
+            '<div class="cc-avatar" style="width:30px;height:30px;font-size:.72rem">'+ini(p)+'</div>'+
+            '<div><div style="font-size:.88rem;font-weight:600">'+p.first+' '+p.last+'</div>'+
+            '<div style="font-size:.7rem;color:var(--muted)">'+(p.type==='visitor'?'Visitor':'Member')+' · €'+amt+'</div></div>'+
+          '</div>'+
+          '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.2rem;font-weight:800;color:var(--danger)">€'+amt+'</span>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">'+
+          (revLink?
+            '<a href="'+revLink+'" target="_blank" onclick="markPaidCollect('+p.id+',\'Revolut\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
+            'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;">'+
+            '<span style="font-size:1rem">💜</span>'+
+            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></a>'
+            :
+            '<button onclick="openPNSheet('+p.id+',\'Revolut\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.1);'+
+            'border:1px solid var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
+            '<span style="font-size:1rem">💜</span>'+
+            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Revolut</span></button>'
+          )+
+          '<button onclick="markPaidCollect('+p.id+',\'Cash\')" '+
+          'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(45,198,83,.08);'+
+          'border:1px solid rgba(45,198,83,.3);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
+          '<span style="font-size:1rem">💵</span>'+
+          '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--success)">Cash</span></button>'+
+
+          '<button onclick="markPaidCollect('+p.id+',\'Bar Tap\')" '+
+          'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(244,185,66,.08);'+
+          'border:1px solid rgba(244,185,66,.3);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
+          '<span style="font-size:1rem">🍺</span>'+
+          '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--gold)">Bar</span></button>'+
+
+          (stripeLink?
+            '<a href="'+stripeLink+'?client_reference_id='+p.id+'&amount='+amt*100+'" target="_blank" onclick="markPaidCollect('+p.id+',\'Card\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.08);'+
+            'border:1px solid rgba(0,180,216,.3);border-radius:8px;padding:8px 4px;text-decoration:none;">'+
+            '<span style="font-size:1rem">💳</span>'+
+            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--teal)">Card</span></a>'
+            :
+            '<button onclick="toast(\'Add Stripe link in ⚙ Settings\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;'+
+            'border:1px dashed var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;opacity:.5;">'+
+            '<span style="font-size:1rem">💳</span>'+
+            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Card</span></button>'
+          )+
+        '</div>';
+    }
+    list.appendChild(row);
+  });
+  document.getElementById('collectSheet').classList.add('open');
+}
+
+function markPaidCollect(id,method){
+  const p=roster.find(r=>r.id===id); if(!p)return;
+  p.paid=true; p.payMethod=method; p.payNote='';
+  renderCrew();
+  // Refresh the row in the collect sheet
+  const row=document.getElementById('cr-'+id);
+  if(row){
+    row.style.transition='background .3s';
+    row.style.background='rgba(45,198,83,.06)';
+    row.innerHTML=
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0">'+
+        '<div style="display:flex;align-items:center;gap:8px">'+
+          '<div class="cc-avatar" style="width:30px;height:30px;font-size:.72rem">'+ini(p)+'</div>'+
+          '<div><div style="font-size:.88rem;font-weight:600">'+p.first+' '+p.last+'</div>'+
+          '<div style="font-size:.7rem;color:var(--success)">✓ '+method+'</div></div>'+
+        '</div>'+
+        '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;color:var(--success)">€'+fee(p)+'</span>'+
+      '</div>';
+  }
+  toast(p.first+' — '+method+' ✓');
+}
+
+function unpayCrewCollect(id){
+  const p=roster.find(r=>r.id===id); if(!p)return;
+  p.paid=false; p.payMethod=''; p.payNote='';
+  renderCrew();
+  openCollectSheet(); // re-render sheet
+}
+
+function markAllCash(){
+  const sel=roster.filter(p=>p.selected&&!p.paid);
+  if(!sel.length){toast('All already paid ✓');closeSheet('collectSheet');return;}
+  sel.forEach(p=>{p.paid=true;p.payMethod='Cash';p.payNote='Bulk';});
+  renderCrew();
+  openCollectSheet();
+  toast('All '+sel.length+' marked Cash ✓');
+}
+
+// ── Individual pay method sheet (kept for edge cases) ─────────
+function openPNSheet(id,preset){
+  const p=roster.find(r=>r.id===id);if(!p)return;
+  pnId=id;pnMethod=preset||null;
+  document.getElementById('pn-name').textContent=p.first+' '+p.last;
+  document.getElementById('pn-note').value='';
+  document.querySelectorAll('.pm-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pn-revolut-link').style.display='none';
+  document.getElementById('pn-stripe-link').style.display='none';
+  if(preset){
+    const btn=document.getElementById('pm-'+preset.toLowerCase().replace(/\s.*/,''));
+    if(btn){btn.classList.add('active');showPayMethodExtras(preset,p);}
+  }
+  document.getElementById('pnSheet').classList.add('open');
+}
+function pickMethod(btn,m){
+  pnMethod=m;
+  document.querySelectorAll('.pm-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const p=roster.find(r=>r.id===pnId);
+  showPayMethodExtras(m,p);
+}
+function showPayMethodExtras(m,p){
+  const revDiv=document.getElementById('pn-revolut-link');
+  const stripeDiv=document.getElementById('pn-stripe-link');
+  revDiv.style.display='none'; stripeDiv.style.display='none';
+  if(m==='Revolut'){
+    const revUser=getRevolutUser();
+    if(revUser&&p){
+      document.getElementById('pn-revolut-btn').href=`https://revolut.me/${revUser}/${fee(p)}?currency=EUR`;
+      revDiv.style.display='block';
+    }
+  }
+  if(m==='Card/Apple/Google'){
+    stripeDiv.style.display='block';
+  }
+}
+function confirmPayNote(){
+  if(!pnId)return;if(!pnMethod){toast('Select payment method');return;}
+  const p=roster.find(r=>r.id===pnId);if(!p)return;
+  p.paid=true;p.payMethod=pnMethod;p.payNote=document.getElementById('pn-note').value.trim();
+  closeSheet('pnSheet');renderCrew();
+  // Refresh collect sheet row if open
+  const cr=document.getElementById('cr-'+p.id);
+  if(cr) markPaidCollect(p.id, pnMethod);
+  else toast(p.first+' — '+pnMethod+' ✓');
+}
+
+// ── Share Payment Link / QR ───────────────────────────────────
+function openSharePayLink(){
+  const sel=roster.filter(p=>p.selected);
+  if(!sel.length){toast('No crew selected');return;}
+  const tot=sel.filter(p=>!p.paid).reduce((a,p)=>a+fee(p),0);
+  if(!tot){toast('All crew already paid ✓');return;}
+
+  // Build a data URL encoding the payment context
+  const data={
+    boat: currentBoat.name,
+    race: selectedRace?selectedRace.label:'Race',
+    rev: getRevolutUser(),
+    stripe: getStripeLink(),
+    crew: sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p)}))
+  };
+  const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  // Self-contained link — opens the pay page embedded in this same file
+  const link=window.location.href.split('#')[0]+'#pay='+encoded;
+
+  document.getElementById('shareLinkBox').textContent=link;
+
+  // Generate QR using a free API
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(link);
+  document.getElementById('shareQR').innerHTML=
+    '<img src="'+qrUrl+'" style="width:180px;height:180px;border-radius:8px;" alt="QR Code">'+
+    '<div style="margin-top:8px;font-size:.78rem;color:#333;font-family:Barlow Condensed,sans-serif;font-weight:700">'+
+    currentBoat.name+' · '+tot+' EUR outstanding</div>';
+
+  document.getElementById('shareSheet').classList.add('open');
+}
+
+function copyShareLink(){
+  const link=document.getElementById('shareLinkBox').textContent;
+  navigator.clipboard.writeText(link).then(()=>toast('Link copied ✓')).catch(()=>{
+    // Fallback
+    const ta=document.createElement('textarea');ta.value=link;document.body.appendChild(ta);
+    ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('Link copied ✓');
+  });
+}
+
+// ── Submit to RC ──────────────────────────────────────────────
+function sendReport(){
+  const s=roster.filter(p=>p.selected);if(!s.length){toast('No crew selected');return;}
+  const unpaid=s.filter(p=>!p.paid);
+  if(unpaid.length){
+    if(!confirm(unpaid.length+' crew member'+(unpaid.length>1?'s are':' is')+' still unpaid. Submit anyway?'))return;
+  }
+  const rn=selectedRace?selectedRace.label:'Race';
+  const rd=selectedRace?selectedRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'}):new Date().toLocaleDateString('en-IE');
+  const tot=s.reduce((a,p)=>a+fee(p),0);
+  const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
+
+  // Group by payment method for summary
+  const byMethod={};
+  s.filter(p=>p.paid).forEach(p=>{
+    const m=p.payMethod||'Unknown';
+    byMethod[m]=(byMethod[m]||0)+fee(p);
+  });
+  const methodSummary=Object.entries(byMethod).map(([m,a])=>'  '+m+': €'+a).join('\n');
+
+  const lines=s.map(p=>{
+    const tl=p.type==='full'?'Full Member':p.type==='crew'?'Crew Member':'Visitor';
+    const ps=p.paid?'Paid €'+fee(p)+' via '+(p.payMethod||'?')+(p.payNote?' ('+p.payNote+')':''):'UNPAID €'+fee(p);
+    return'  • '+p.first+' '+p.last+' ['+tl+'] — '+ps;
+  }).join('\n');
+
+  const sub='Race Fees — '+currentBoat.name+' — '+rn;
+  const body='Race Fee Submission\n===================\n'+
+    'Boat:  '+currentBoat.name+'\nRace:  '+rn+'\nDate:  '+rd+'\n\n'+
+    'Crew ('+s.length+' on board):\n'+lines+'\n\n'+
+    'Payment Summary:\n'+methodSummary+'\n\n'+
+    'Total Due:   €'+tot+'\nTotal Paid:  €'+paid+'\nOutstanding: €'+(tot-paid)+'\n\n'+
+    'Submitted via GBSC Racing App';
+
+  window.location.href='mailto:rccruisers@gbsc.ie?subject='+encodeURIComponent(sub)+'&body='+encodeURIComponent(body);
+
+  // Save to Supabase with payment method breakdown
+  sbSaveRaceRecord({
+    boat_id:currentBoat.id,
+    race_name:rn,
+    race_date:selectedRace?selectedRace.date.toISOString().split('T')[0]:new Date().toISOString().split('T')[0],
+    crew_snapshot:s,
+    total_due:tot,
+    total_paid:paid,
+    payment_methods:byMethod
+  }).then(()=>setSyncStatus('ok'));
+
+  toast('Opening email to RC…');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GEO UTILS
+// ═══════════════════════════════════════════════════════════════
+function bearing(lat1,lng1,lat2,lng2){
+  const dLng=(lng2-lng1)*Math.PI/180;
+  const l1=lat1*Math.PI/180,l2=lat2*Math.PI/180;
+  const y=Math.sin(dLng)*Math.cos(l2);
+  const x=Math.cos(l1)*Math.sin(l2)-Math.sin(l1)*Math.cos(l2)*Math.cos(dLng);
+  return((Math.atan2(y,x)*180/Math.PI)+360)%360;
+}
+function dist(lat1,lng1,lat2,lng2){
+  const R=6371000;
+  const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COURSE DIAGRAM (SVG)
+// ═══════════════════════════════════════════════════════════════
+async function loadAndDrawCourse(){
+  const c=await sbLoadCourse();
+  if(c){ publishedCourse=c; }
+  renderCourseDiagram();
+}
+
+function renderCourseDiagram(){
+  const wrap=document.getElementById('courseDisplay');
+  if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){
+    wrap.innerHTML='<div class="no-course-state"><div class="icon">🗺</div><div>No course published yet</div></div>';
+    return;
+  }
+  const c=publishedCourse;
+  // marks is array of {id,rounding} or legacy string IDs
+  const markEntries=(c.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
+  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  const windDir=c.windDeg!=null?dirs[Math.round(c.windDeg/22.5)%16]:'—';
+  const windDegDisp=c.windDeg!=null?c.windDeg+'° '+windDir:'—';
+
+  // Build SVG diagram
+  // Nodes: S/F + each mark + Finish (S/F again)
+  const nodes=[{label:'S / F',colour:'#00b4d8',sub:'Start',sf:true}];
+  markEntries.forEach((me,i)=>{
+    const m=MARKS.find(x=>x.id===me.id);
+    if(m) nodes.push({label:m.id,colour:m.colour,sub:m.name,rounding:me.rounding,markObj:m,idx:i+1});
+  });
+  nodes.push({label:'Finish',colour:'#00b4d8',sub:'Club Line',sf:true});
+
+  const NODE_R=22, GAP=80, PAD=40;
+  const totalNodes=nodes.length;
+  // Layout: vertical stack
+  const SVG_W=320;
+  const SVG_H=PAD*2+totalNodes*NODE_R*2+(totalNodes-1)*GAP;
+  const cx=SVG_W/2;
+
+  let svgParts=[];
+  // Draw connecting lines first (behind nodes)
+  for(let i=0;i<nodes.length-1;i++){
+    const y1=PAD+i*(NODE_R*2+GAP)+NODE_R;
+    const y2=PAD+(i+1)*(NODE_R*2+GAP)+NODE_R;
+    const midY=(y1+y2)/2;
+    // dashed line
+    svgParts.push(`<line x1="${cx}" y1="${y1+NODE_R}" x2="${cx}" y2="${y2-NODE_R}" stroke="rgba(0,180,216,0.35)" stroke-width="2" stroke-dasharray="5 4"/>`);
+    // arrow at midpoint
+    svgParts.push(`<polygon points="${cx},${midY+8} ${cx-5},${midY-4} ${cx+5},${midY-4}" fill="rgba(0,180,216,0.6)"/>`);
+    // leg bearing/distance label — calc from geo
+    if(i===0){
+      // First leg: S/F to mark 1
+      const toM=MARKS.find(x=>x.id===nodes[1]?.label);
+      if(toM){
+        const brg=Math.round(bearing(START_POS.lat,START_POS.lng,toM.lat,toM.lng));
+        const d=Math.round(dist(START_POS.lat,START_POS.lng,toM.lat,toM.lng)/1852*10)/10;
+        const dir=dirs[Math.round(brg/22.5)%16];
+        svgParts.push(`<text x="${cx+14}" y="${midY+4}" fill="rgba(122,143,166,0.9)" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600">${brg}° ${dir} · ${d}nm</text>`);
+      }
+    } else if(!nodes[i].sf){
+      const fromM=MARKS.find(x=>x.id===nodes[i].label);
+      const toM=MARKS.find(x=>x.id===nodes[i+1].label);
+      if(fromM&&toM){
+        const brg=Math.round(bearing(fromM.lat,fromM.lng,toM.lat,toM.lng));
+        const d=Math.round(dist(fromM.lat,fromM.lng,toM.lat,toM.lng)/1852*10)/10;
+        const dir=dirs[Math.round(brg/22.5)%16];
+        svgParts.push(`<text x="${cx+14}" y="${midY+4}" fill="rgba(122,143,166,0.9)" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600">${brg}° ${dir} · ${d}nm</text>`);
+      }
+    }
+  }
+
+  // Draw nodes
+  nodes.forEach((n,i)=>{
+    const y=PAD+i*(NODE_R*2+GAP)+NODE_R;
+    if(n.sf){
+      // S/F: double ring
+      svgParts.push(`<circle cx="${cx}" cy="${y}" r="${NODE_R+4}" fill="none" stroke="${n.colour}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.5"/>`);
+      svgParts.push(`<circle cx="${cx}" cy="${y}" r="${NODE_R}" fill="rgba(0,180,216,0.15)" stroke="${n.colour}" stroke-width="2"/>`);
+      svgParts.push(`<text x="${cx}" y="${y-5}" text-anchor="middle" fill="${n.colour}" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="800">${n.label}</text>`);
+      svgParts.push(`<text x="${cx}" y="${y+8}" text-anchor="middle" fill="rgba(122,143,166,0.9)" font-family="Barlow,sans-serif" font-size="9">${n.sub}</text>`);
+    } else {
+      // Mark node
+      svgParts.push(`<circle cx="${cx}" cy="${y}" r="${NODE_R}" fill="${n.colour}22" stroke="${n.colour}" stroke-width="2.5"/>`);
+      svgParts.push(`<circle cx="${cx}" cy="${y}" r="7" fill="${n.colour}"/>`);
+      // Sequence number top-left of circle
+      svgParts.push(`<text x="${cx-NODE_R-6}" y="${y+4}" text-anchor="end" fill="rgba(0,180,216,0.8)" font-family="Barlow Condensed,sans-serif" font-size="13" font-weight="800">${n.idx}</text>`);
+      // Mark ID to the right
+      svgParts.push(`<text x="${cx+NODE_R+10}" y="${y-6}" fill="${n.colour}" font-family="Barlow Condensed,sans-serif" font-size="14" font-weight="800">${n.label}</text>`);
+      svgParts.push(`<text x="${cx+NODE_R+10}" y="${y+8}" fill="rgba(240,244,248,0.7)" font-family="Barlow,sans-serif" font-size="10">${n.sub}</text>`);
+      // Rounding badge
+      const rnd=n.rounding||'port';
+      const rndColour=rnd==='port'?'#e63946':'#2dc653';
+      const rndLabel=rnd==='port'?'◄ PORT':'STBD ►';
+      svgParts.push(`<rect x="${cx+NODE_R+8}" y="${y+13}" width="52" height="14" rx="4" fill="${rndColour}22" stroke="${rndColour}" stroke-width="1"/>`);
+      svgParts.push(`<text x="${cx+NODE_R+34}" y="${y+23}" text-anchor="middle" fill="${rndColour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${rndLabel}</text>`);
+    }
+  });
+
+  const svgEl=`<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto">${svgParts.join('')}</svg>`;
+
+  // Leg-by-leg table — starts with the Start Line entry
+  let legRows='';
+  let prevLat=START_POS.lat, prevLng=START_POS.lng;
+
+  // Row 0: Start Line
+  legRows+=`<div class="leg-row">
+    <span class="leg-num" style="color:var(--teal)">S</span>
+    <span class="mark-colour" style="background:#00b4d8"></span>
+    <span class="leg-mark">Start / Finish Line</span>
+    <span class="leg-rounding" style="background:rgba(0,180,216,.1);color:var(--teal);border:1px solid rgba(0,180,216,.3)">S / F</span>
+    <span class="leg-detail" style="color:var(--muted)">—</span>
+  </div>`;
+  markEntries.forEach((me,i)=>{
+    const m=MARKS.find(x=>x.id===me.id); if(!m)return;
+    const brg=Math.round(bearing(prevLat,prevLng,m.lat,m.lng));
+    const d=Math.round(dist(prevLat,prevLng,m.lat,m.lng)/1852*10)/10;
+    const dir=dirs[Math.round(brg/22.5)%16];
+    const rnd=me.rounding||'port';
+    const rndLabel=rnd==='port'?'◄ Port':'Stbd ►';
+    legRows+=`<div class="leg-row">
+      <span class="leg-num">${i+1}</span>
+      <span class="mark-colour" style="background:${m.colour}"></span>
+      <span class="leg-mark">${m.id} — ${m.name}</span>
+      <span class="leg-rounding ${rnd}">${rndLabel}</span>
+      <span class="leg-detail">${brg}° ${dir} · ${d}nm</span>
+    </div>`;
+    prevLat=m.lat; prevLng=m.lng;
+  });
+  // return leg
+  const retBrg=Math.round(bearing(prevLat,prevLng,START_POS.lat,START_POS.lng));
+  const retD=Math.round(dist(prevLat,prevLng,START_POS.lat,START_POS.lng)/1852*10)/10;
+  const retDir=dirs[Math.round(retBrg/22.5)%16];
+  legRows+=`<div class="leg-row">
+    <span class="leg-num">${markEntries.length+1}</span>
+    <span class="mark-colour" style="background:#00b4d8"></span>
+    <span class="leg-mark">Finish — Club Start Line</span>
+    <span class="leg-rounding" style="background:rgba(0,180,216,.1);color:var(--teal);border:1px solid rgba(0,180,216,.3)">S / F</span>
+    <span class="leg-detail">${retBrg}° ${retDir} · ${retD}nm</span>
+  </div>`;
+
+  // Total distance — sum all legs including return
+  let totalDist=0;
+  let tLat=START_POS.lat, tLng=START_POS.lng;
+  markEntries.forEach(me=>{
+    const m=MARKS.find(x=>x.id===me.id); if(!m)return;
+    totalDist+=dist(tLat,tLng,m.lat,m.lng);
+    tLat=m.lat; tLng=m.lng;
+  });
+  totalDist+=dist(tLat,tLng,START_POS.lat,START_POS.lng);
+  const totalNm=Math.round(totalDist/1852*10)/10;
+
+  wrap.innerHTML=`
+    <div class="course-diagram-wrap">
+      <div class="course-header">
+        <div>
+          <div class="course-title-label">Course</div>
+          <div class="course-name-text">${c.name||'Published Course'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+          <div class="wind-badge">
+            <span class="wind-badge-arrow">💨</span>
+            <span class="wind-badge-label">${windDegDisp}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;background:rgba(0,180,216,.08);
+            border:1px solid rgba(0,180,216,.2);border-radius:20px;padding:3px 10px;">
+            <span style="font-size:.8rem">📏</span>
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--teal)">${totalNm} nm</span>
+          </div>
+        </div>
+      </div>
+      <div class="course-svg-wrap">${svgEl}</div>
+    </div>
+    <div class="course-legs-list">${legRows}</div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RACE OFFICER — COURSE BUILDER
+// ═══════════════════════════════════════════════════════════════
+function buildMarksGrid(){
+  const g=document.getElementById('marksGrid'); g.innerHTML='';
+  MARKS.forEach(m=>{
+    const el=document.createElement('div');
+    el.className='mark-toggle'; el.id='mt-'+m.id;
+    el.innerHTML=
+      '<div class="mark-toggle-id" style="display:flex;align-items:center;gap:4px">'+
+        '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+m.colour+';flex-shrink:0"></span>'+
+        m.id+'</div>'+
+      '<div class="mark-toggle-name">'+m.name+'</div>'+
+      '<div style="font-size:.62rem;color:var(--teal);margin-top:3px;font-family:Barlow Condensed,sans-serif;font-weight:600">+ ADD</div>';
+    el.onclick=()=>addMarkToSequence(m.id);
+    g.appendChild(el);
+  });
+}
+function addMarkToSequence(id){
+  // Always append — marks can appear multiple times
+  courseMarks.push({id, rounding:'port'});
+  // Highlight grid button to show mark is in use
+  const btn=document.getElementById('mt-'+id);
+  if(btn) btn.classList.add('selected');
+  renderSelectedOrder();
+}
+function removeMarkFromSequence(idx){
+  const removed=courseMarks[idx];
+  courseMarks.splice(idx,1);
+  // Remove highlight if this mark no longer appears anywhere in the sequence
+  if(!courseMarks.some(x=>x.id===removed.id)){
+    const btn=document.getElementById('mt-'+removed.id);
+    if(btn) btn.classList.remove('selected');
+  }
+  renderSelectedOrder();
+}
+function setRounding(idx,rnd){
+  if(courseMarks[idx]) courseMarks[idx].rounding=rnd;
+  renderSelectedOrder();
+}
+function renderSelectedOrder(){
+  const wrap=document.getElementById('selectedMarksOrder');
+  const list=document.getElementById('smoList');
+  list.innerHTML='';
+  if(!courseMarks.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  courseMarks.forEach((entry,i)=>{
+    const m=MARKS.find(x=>x.id===entry.id);
+    const colour=m?m.colour:'#888';
+    const isPort=entry.rounding==='port';
+    const el=document.createElement('div');
+    el.className='smo-item';
+    el.style.cssText='display:flex;align-items:center;gap:6px;background:var(--navy);border:1px solid var(--border);border-radius:10px;padding:7px 10px;margin-bottom:6px;';
+    el.innerHTML=
+      '<span style="font-family:Barlow Condensed,sans-serif;font-size:.75rem;color:var(--teal);font-weight:700;min-width:16px">'+(i+1)+'.</span>'+
+      '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+colour+';flex-shrink:0"></span>'+
+      '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:.95rem;flex:1">'+entry.id+'</span>'+
+      '<button onclick="setRounding('+i+',\'port\')" style="font-size:.65rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'#e63946':'var(--border)')+';background:'+(isPort?'rgba(230,57,70,.2)':'transparent')+';color:'+(isPort?'#e63946':'var(--muted)')+';cursor:pointer">◄ Port</button>'+
+      '<button onclick="setRounding('+i+',\'stbd\')" style="font-size:.65rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'var(--border)':'#2dc653')+';background:'+(isPort?'transparent':'rgba(45,198,83,.2)')+';color:'+(isPort?'var(--muted)':'#2dc653')+';cursor:pointer">Stbd ►</button>'+
+      '<span onclick="removeMarkFromSequence('+i+')" style="color:var(--muted);cursor:pointer;font-size:.9rem;padding:0 2px;line-height:1" title="Remove">✕</span>';
+    list.appendChild(el);
+  });
+}
+function updateWind(v){
+  windDeg=parseInt(v);
+  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  const dir=dirs[Math.round(windDeg/22.5)%16];
+  document.getElementById('windDegLabel').textContent=windDeg+'° '+dir;
+}
+async function publishCourse(){
+  if(!courseMarks.length){toast('Select at least one mark');return;}
+  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  const dir=dirs[Math.round(windDeg/22.5)%16];
+  const name='S/F – '+courseMarks.map(x=>x.id).join(' – ')+' – Finish';
+  const course={
+    id:'current',
+    name,
+    marks:courseMarks,  // [{id, rounding}]
+    windDeg,
+    windDir:dir,
+    race_name:selectedRace?selectedRace.label:'',
+    published_at:new Date().toISOString()
+  };
+  setSyncStatus('syncing');
+  const ok=await sbSaveCourse(course);
+  if(ok){
+    publishedCourse=course;
+    setSyncStatus('ok');
+    renderCourseDiagram();
+    toast('✅ Course published to all skippers!');
+  } else {
+    setSyncStatus('offline');
+    toast('⚠ Could not save to database');
+  }
+}
+function buildPinMgmtList(){
+  const list=document.getElementById('pinMgmtList'); if(!list)return;
+  list.innerHTML='';
+  boats.forEach(b=>{
+    const pin=getBoatPin(b.id);
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;justify-content:space-between;background:var(--navy);border-radius:10px;padding:9px 12px;margin-bottom:5px;';
+    row.innerHTML=
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-size:1rem">'+b.icon+'</span>'+
+        '<span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem">'+b.name+'</span>'+
+      '</div>'+
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.15em">'+pin+'</span>'+
+        '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">Change</button>'+
+      '</div>';
+    list.appendChild(row);
+  });
+  const roRow=document.createElement('div');
+  roRow.style.cssText='display:flex;align-items:center;justify-content:space-between;background:rgba(232,160,32,.06);border:1px solid rgba(232,160,32,.2);border-radius:10px;padding:9px 12px;margin-top:4px;';
+  roRow.innerHTML=
+    '<div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-size:1rem">🎌</span>'+
+      '<span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem;color:var(--ro)">Race Officer</span>'+
+    '</div>'+
+    '<div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.15em">'+getRoPin()+'</span>'+
+      '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(232,160,32,.4);background:transparent;color:var(--ro);cursor:pointer">Change</button>'+
+    '</div>';
+  list.appendChild(roRow);
+}
+function clearCourse(){
+  courseMarks=[];
+  document.querySelectorAll('.mark-toggle').forEach(el=>el.classList.remove('selected'));
+  renderSelectedOrder();
+}
+async function loadRegistrations(){
+  const list=document.getElementById('regList');
+  if(!nextRace){list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">⛵</div>No upcoming race found</div>';return;}
+  list.innerHTML='<div style="color:var(--muted);font-size:.82rem;padding:8px 0">Loading…</div>';
+  const regs=await sbLoadRegistrations(nextRace);
+  registeredBoatIds=new Set(regs.map(r=>r.boat_id));
+  if(!regs.length){
+    list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div><div>No boats registered yet</div></div>';
+    return;
+  }
+  list.innerHTML='';
+  // Sort by registration time
+  regs.sort((a,b)=>new Date(a.registered_at)-new Date(b.registered_at));
+  regs.forEach((r,i)=>{
+    const boat=boats.find(b=>b.id===r.boat_id);
+    const icon=boat?boat.icon:'⛵';
+    const name=boat?boat.name:r.boat_id;
+    const t=new Date(r.registered_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const row=document.createElement('div'); row.className='reg-row';
+    row.innerHTML=
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<span style="font-size:1.2rem">'+icon+'</span>'+
+        '<div><div class="reg-boat-name">'+name+'</div>'+
+        '<div class="reg-meta">Registered '+t+'</div></div>'+
+      '</div>'+
+      '<div class="reg-status paid">#'+(i+1)+'</div>';
+    list.appendChild(row);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HALSAIL RESULTS
+// ═══════════════════════════════════════════════════════════════
+const HAL_URL='https://halsail.com/HalApi';
+const HAL_CLUB=3725;
+// Match any class name containing these strings (case-insensitive)
+const HAL_IRC_MATCH='irc';
+const HAL_ECHO_MATCH=/echo|cru.*e\b|\be.*cru/i;
+
+function isIrcClass(name){ return name.toLowerCase().includes(HAL_IRC_MATCH); }
+function isEchoClass(name){ return HAL_ECHO_MATCH.test(name); }
+
+let halSchedule=null;       // raw GetSchedule response
+let halSeriesList=[];        // [{label, ircId, echoId}] — one per series name
+let halCurrentFleet='irc';  // 'irc' | 'echo'
+let halCurrentSeries=null;  // currently selected {label, ircId, echoId}
+let halResultsCache={};     // seriesId -> GetSeriesResult response
+let halResultsLoaded=false;
+
+// Halsail fetch — tries direct first, falls back to Supabase proxy if CORS blocks it
+const HAL_PROXY=SB_URL+'/functions/v1/halsail-proxy'; // Edge Function (deploy if needed)
+let halUsesProxy=false;
+
+async function halFetch(path){
+  const url=(halUsesProxy?HAL_PROXY+'?path=':HAL_URL)+path;
+  const opts=halUsesProxy?{headers:{...SBH}}:{mode:'cors'};
+  try{
+    const r=await fetch(url,opts);
+    if(!r.ok){ console.error('Halsail',r.status,path); return {_err:'HTTP '+r.status}; }
+    return await r.json();
+  }catch(e){
+    // If direct fetch fails with a TypeError (CORS / network), try proxy once
+    if(!halUsesProxy&&(e instanceof TypeError)){
+      console.warn('Halsail direct blocked, trying proxy',e.message);
+      halUsesProxy=true;
+      return halFetch(path);
+    }
+    console.error('Halsail fetch error',e.message,path);
+    return {_err: e.message||'Network error'};
+  }
+}
+
+async function refreshResults(){
+  halResultsLoaded=false;
+  halResultsCache={};
+  halSeriesList=[];
+  document.getElementById('resultSeriesSelect').innerHTML='<option value="">Loading…</option>';
+  document.getElementById('resultsContent').innerHTML=
+    '<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Refreshing from Halsail…</div></div>';
+  await loadResultsIfNeeded();
+}
+async function loadResultsIfNeeded(){
+  if(halResultsLoaded) return;
+  halResultsLoaded=true;
+  const wrap=document.getElementById('resultsContent');
+  wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading GBSC results from Halsail…</div></div>';
+
+  const schedule=await halFetch('/GetSchedule/'+HAL_CLUB);
+
+  if(!schedule||schedule._err||!Array.isArray(schedule)){
+    const errMsg=schedule&&schedule._err?schedule._err:'No data returned';
+    halResultsLoaded=false; // allow retry
+    wrap.innerHTML=`
+      <div class="empty-state">
+        <div class="icon">⚠</div>
+        <div style="margin-bottom:10px">Could not reach Halsail<br><span style="font-size:.75rem;color:var(--muted)">${errMsg}</span></div>
+        <button class="btn btn-ghost" style="padding:8px 16px" onclick="halResultsLoaded=false;loadResultsIfNeeded()">Try Again</button>
+      </div>`;
+    return;
+  }
+  halSchedule=schedule;
+
+  // Build series list — find all unique series that have both IRC and ECHO entries
+  const seriesMap={};
+  schedule.forEach(r=>{
+    const key=r.Series;
+    if(!seriesMap[key]) seriesMap[key]={label:key,ircId:null,echoId:null,latestStart:null};
+    if(isIrcClass(r.Class))  seriesMap[key].ircId=r.SeryID;
+    if(isEchoClass(r.Class)) seriesMap[key].echoId=r.SeryID;
+    // Track most recent start to sort
+    const d=new Date(r.Start);
+    if(!seriesMap[key].latestStart||d>seriesMap[key].latestStart) seriesMap[key].latestStart=d;
+  });
+
+  // Keep only series with at least one of IRC/ECHO
+  halSeriesList=Object.values(seriesMap)
+    .filter(s=>s.ircId||s.echoId)
+    .sort((a,b)=>b.latestStart-a.latestStart);
+
+  // Populate selector
+  const sel=document.getElementById('resultSeriesSelect');
+  sel.innerHTML='';
+  halSeriesList.forEach((s,i)=>{
+    const o=document.createElement('option');
+    o.value=i;
+    o.textContent=s.label;
+    sel.appendChild(o);
+  });
+
+  if(halSeriesList.length){
+    halCurrentSeries=halSeriesList[0];
+    await renderResultsForSeries(halCurrentSeries);
+  } else {
+    document.getElementById('resultsContent').innerHTML=
+      '<div class="empty-state"><div class="icon">🏆</div><div>No IRC or ECHO cruiser series found</div></div>';
+  }
+}
+
+async function onResultSeriesChange(){
+  const i=parseInt(document.getElementById('resultSeriesSelect').value);
+  if(isNaN(i)) return;
+  halCurrentSeries=halSeriesList[i];
+  await renderResultsForSeries(halCurrentSeries);
+}
+
+function showFleet(fleet){
+  halCurrentFleet=fleet;
+  document.getElementById('ircBtn').className='';
+  document.getElementById('echoBtn').className='';
+  document.getElementById('ircBtn').style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'+(fleet==='irc'?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
+  document.getElementById('echoBtn').style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'+(fleet==='echo'?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
+  if(halCurrentSeries) renderResultsForSeries(halCurrentSeries);
+}
+
+async function renderResultsForSeries(series){
+  const seriesId=halCurrentFleet==='irc'?series.ircId:series.echoId;
+  const fleetLabel=halCurrentFleet==='irc'?'Cruiser (IRC)':'Cruiser (ECHO)';
+  const wrap=document.getElementById('resultsContent');
+
+  if(!seriesId){
+    wrap.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No '+fleetLabel+' results for this series</div></div>';
+    return;
+  }
+
+  wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.4rem">⏳</div><div>Loading…</div></div>';
+
+  // Use cache if available
+  if(!halResultsCache[seriesId]){
+    const data=await halFetch('/GetSeriesResult/'+seriesId);
+    if(!data||data._err){
+      wrap.innerHTML=`<div class="empty-state"><div class="icon">⚠</div><div>Could not load results<br><span style="font-size:.75rem;color:var(--muted)">${data&&data._err?data._err:'No data'}</span></div></div>`;
+      return;
+    }
+    halResultsCache[seriesId]=data;
+  }
+  const data=halResultsCache[seriesId];
+  buildResultsTable(data, series.label, fleetLabel, wrap);
+}
+
+function buildResultsTable(data, seriesLabel, fleetLabel, wrap){
+  const resultBoats=data.ResultsOverall||[];
+  if(!resultBoats.length){ wrap.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No results yet</div></div>'; return; }
+
+  // Find my boat's position based on helm name matching current boat name (best effort)
+  const myBoatName=currentBoat&&!isRO?currentBoat.name.toLowerCase():'';
+  const myResult=resultBoats.find(b=>{
+    const helm=(b.HelmOrGuestName||'').toLowerCase();
+    const boatName=myBoatName;
+    return boatName&&(helm.includes(boatName)||boatName.includes(helm.split(' ')[0]));
+  });
+
+  // Gather all unique RaceIDs in order
+  const raceIds=[];
+  resultBoats.forEach(b=>(b.Results||[]).forEach(r=>{ if(!raceIds.includes(r.RaceID)) raceIds.push(r.RaceID); }));
+  raceIds.sort((a,b)=>a-b);
+
+  // My position summary card
+  let summaryHtml='';
+  if(myResult){
+    summaryHtml=`<div class="results-my-pos">
+      <div class="results-my-rank">${myResult.RankString||'—'}</div>
+      <div>
+        <div class="results-my-label">${currentBoat.name} — ${fleetLabel}</div>
+        <div class="results-my-pts">${myResult.NetPointsString} pts · ${myResult.Results?myResult.Results.length:0} races</div>
+      </div>
+    </div>`;
+  }
+
+  // Race column headers
+  const raceHeaders=raceIds.map((_,i)=>`<th class="num" style="min-width:32px">R${i+1}</th>`).join('');
+
+  // Build a lookup: helm name (lowercase) -> boat name from our fleet
+  // This matches Halsail entries to GBSC boat names
+  const helmToBoat={};
+  boats.forEach(b=>{
+    // Each boat's helm in Halsail is typically the skipper's name
+    // We match on boat name words appearing in the helm field
+    const bName=b.name.toLowerCase();
+    helmToBoat[bName]=b.name;
+  });
+
+  function resolveBoatDisplay(halBoat){
+    const helm=halBoat.HelmOrGuestName||'—';
+    const helmLower=helm.toLowerCase();
+    // Try to match against our boat names
+    const matched=boats.find(b=>{
+      const bName=b.name.toLowerCase();
+      // Match if boat name appears in helm, or first word of helm appears in boat name
+      return helmLower.includes(bName)||bName.includes(helmLower.split(' ')[0]);
+    });
+    if(matched){
+      return {primary:matched.name, secondary:helm, icon:matched.icon};
+    }
+    return {primary:helm, secondary:null, icon:null};
+  }
+
+  // Rows
+  const rows=resultBoats.map((b,bi)=>{
+    const rank=b.Rank||bi+1;
+    const podiumClass=rank===1?'podium-1':rank===2?'podium-2':rank===3?'podium-3':'';
+    const isMe=b===myResult;
+    const display=resolveBoatDisplay(b);
+
+    const nameCell=display.secondary
+      ? `<div style="font-weight:600;line-height:1.2">${display.icon?display.icon+' ':''} ${display.primary}</div>`+
+        `<div style="font-size:.7rem;color:var(--muted)">${display.secondary}</div>`
+      : `<div style="font-weight:600">${display.primary}</div>`;
+
+    // Per-race points cells
+    const raceCells=raceIds.map(rid=>{
+      const r=(b.Results||[]).find(x=>x.RaceID===rid);
+      if(!r) return '<td class="num"><span class="race-pts dns">—</span></td>';
+      const pts=r.PointsString||'';
+      const isDiscard=pts.startsWith('(');
+      const isOk=r.StatusString==='OK'||r.StatusString==='';
+      const cls=isDiscard?'discarded':(!isOk?'dns':'ok');
+      return `<td class="num"><span class="race-pts ${cls}">${pts.replace(/[()]/g,'')}</span></td>`;
+    }).join('');
+
+    return `<tr class="${isMe?'my-boat':''} ${podiumClass}">
+      <td class="rank-cell">${rank}</td>
+      <td class="boat-name${isMe?' ':''}">${nameCell}</td>
+      <td class="num" style="color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800">${b.NetPointsString}</td>
+      ${raceCells}
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML=`
+    ${summaryHtml}
+    <div class="results-race-header">
+      <div class="results-series-name">${seriesLabel} · ${fleetLabel}</div>
+      <div class="results-updated">via Halsail</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th style="width:28px"></th>
+            <th>Boat</th>
+            <th class="num">Pts</th>
+            ${raceHeaders}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="font-size:.7rem;color:var(--muted);margin-top:10px;text-align:center">
+      Points in () are discards · Red = DNS/DNF/OCS
+    </div>
+  `;
+}
+function closeSheet(id){
+  document.getElementById(id).classList.remove('open');
+  if(id==='collectSheet'||id==='pnSheet') renderCrew();
+}
+
+// ── Crew Pay Page (opened via shared QR link) ─────────────────
+function checkPayHash(){
+  const hash=window.location.hash;
+  if(!hash.startsWith('#pay=')) return;
+  try{
+    const data=JSON.parse(decodeURIComponent(escape(atob(hash.slice(5)))));
+    showCrewPayPage(data);
+  }catch(e){ console.warn('Invalid pay hash',e); }
+}
+function showCrewPayPage(data){
+  // Build a standalone pay page that overlays everything
+  const tot=data.crew.reduce((a,c)=>a+c.a,0);
+  const crewRows=data.crew.map(c=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;
+      padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+      <div>
+        <div style="font-weight:600;font-size:.95rem">${c.n}</div>
+        <div style="font-size:.72rem;color:#7a8fa6;text-transform:uppercase;
+          letter-spacing:.06em">${c.t==='full'?'Full Member':c.t==='crew'?'Crew Member':'Visitor'}</div>
+      </div>
+      <span style="font-family:Barlow Condensed,sans-serif;font-size:1.2rem;
+        font-weight:800;color:#f0f4f8">€${c.a}</span>
+    </div>`).join('');
+
+  const revBtn=data.rev?`
+    <a href="https://revolut.me/${data.rev}/${tot}?currency=EUR" target="_blank"
+      style="display:flex;align-items:center;justify-content:center;gap:10px;
+      background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:12px;
+      padding:14px;text-decoration:none;font-family:Barlow Condensed,sans-serif;
+      font-size:1rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px;">
+      💜 Pay €${tot} via Revolut
+    </a>`:'';
+
+  const stripeBtn=data.stripe?`
+    <a href="${data.stripe}" target="_blank"
+      style="display:flex;align-items:center;justify-content:center;gap:10px;
+      background:linear-gradient(135deg,#0d6efd,#0dcaf0);color:white;border-radius:12px;
+      padding:14px;text-decoration:none;font-family:Barlow Condensed,sans-serif;
+      font-size:1rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px;">
+      💳 Pay €${tot} by Card / Apple Pay / Google Pay
+    </a>`:'';
+
+  const noPayOptions=!data.rev&&!data.stripe?`
+    <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:14px;
+      text-align:center;font-size:.85rem;color:#7a8fa6;margin-bottom:10px;">
+      Pay your skipper directly — cash or Revolut
+    </div>`:'';
+
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:#0a1628;z-index:900;overflow-y:auto;'+
+    'padding:24px 16px;font-family:Barlow,sans-serif;color:#f0f4f8;';
+  overlay.innerHTML=`
+    <div style="max-width:420px;margin:0 auto;">
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="font-family:Barlow Condensed,sans-serif;font-size:1.8rem;font-weight:800;
+          letter-spacing:.04em;color:#00b4d8;margin-bottom:2px">GBSC Racing</div>
+        <div style="font-size:.85rem;color:#7a8fa6">${data.race}</div>
+      </div>
+      <div style="background:#112240;border:1px solid rgba(0,180,216,.18);border-radius:14px;
+        padding:16px;margin-bottom:16px;">
+        <div style="font-size:.7rem;color:#7a8fa6;font-weight:600;letter-spacing:.1em;
+          text-transform:uppercase;margin-bottom:8px">Race Fees Due — ${data.boat}</div>
+        ${crewRows}
+        <div style="display:flex;justify-content:space-between;padding-top:12px;margin-top:4px">
+          <span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:1rem;color:#f0f4f8">Total Due</span>
+          <span style="font-family:Barlow Condensed,sans-serif;font-size:1.6rem;font-weight:800;color:#00b4d8">€${tot}</span>
+        </div>
+      </div>
+      ${revBtn}${stripeBtn}${noPayOptions}
+      <div style="text-align:center;font-size:.7rem;color:#7a8fa6;margin-top:16px">
+        GBSC Racing App · Race fees collected on behalf of Galway Bay Sailing Club
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+let _tt;
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2600);}
+document.addEventListener('click',function(e){
+  ['collectSheet','editSheet','pnSheet','shareSheet','settingsSheet'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el&&el.classList.contains('open')&&e.target===el)closeSheet(id);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+checkPayHash(); // show crew pay page if opened via QR link
+buildBoatGrid();
+</script>
+
+</body>
+</html>

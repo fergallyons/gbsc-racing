@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GBSC Racing</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     LOGIN SCREEN
+════════════════════════════════════════════════════════════ -->
+<div id="loginScreen">
+  <div class="login-box">
+    <img class="login-logo"
+      src="https://static.wixstatic.com/media/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg/v1/fill/w_300,h_175,al_c,q_80/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg"
+      alt="GBSC" onerror="this.style.display='none';document.getElementById('llf').style.display='block'">
+    <div class="login-logo-fb" id="llf">GB<span>SC</span></div>
+    <div class="login-sub">Racing App</div>
+    <div id="loginRaceLabel" style="font-size:.72rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;margin-bottom:10px;text-align:center;min-height:14px"></div>
+    <!-- Race Officer button — top -->
+    <div class="ro-btn" onclick="openPinOverlay('ro')">
+      <div class="ro-btn-icon">🎌</div>
+      <div class="ro-btn-text">Race Officer Login</div>
+    </div>
+    <div class="login-label">Select your boat</div>
+    <div class="boat-grid" id="boatGrid"></div>
+    <div id="addBoatForm">
+      <h4>+ Add New Boat</h4>
+      <div class="ab-row">
+        <input id="newBoatName" class="ab-input" type="text" placeholder="Boat name">
+        <select id="newBoatIcon" class="ab-select">
+          <option>⛵</option><option>🚤</option><option>⚓</option><option>🌊</option>
+          <option>🏴‍☠️</option><option>💨</option><option>⭐</option><option>🐟</option>
+          <option>🔵</option><option>🟢</option><option>🪝</option><option>🃏</option>
+        </select>
+      </div>
+      <div class="ab-actions">
+        <button class="btn btn-primary" style="flex:1;padding:10px" onclick="submitAddBoat()">Add Boat</button>
+        <button class="btn btn-ghost" style="padding:10px 14px" onclick="hideAddBoatForm()">Cancel</button>
+      </div>
+    </div>
+    <button id="addBoatBtn" onclick="showAddBoatForm()">+ Add a boat</button>
+  </div>
+</div>
+
+<!-- PIN OVERLAY -->
+<div class="pin-overlay" id="pinOverlay">
+  <div class="pin-box" id="pinBox">
+    <h3 id="pinTitle">🎌 Race Officer</h3>
+    <p id="pinSubtitle">Enter the 4-digit PIN</p>
+    <div class="pin-dots" id="pinDots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" onclick="pinClear()" style="font-size:.9rem;color:var(--muted)">CLR</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key" onclick="pinBack()" style="font-size:.9rem;color:var(--muted)">⌫</button>
+    </div>
+    <div class="pin-error" id="pinError"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:6px;padding:9px" onclick="closePinOverlay()">Cancel</button>
+    <div class="pin-change-link" id="pinChangeLink" style="display:none" onclick="openChangePinFlow()">Change PIN</div>
+  </div>
+</div>
+
+<!-- CHANGE PIN OVERLAY -->
+<div class="pin-overlay" id="changePinOverlay">
+  <div class="pin-box">
+    <h3 id="cpTitle" style="color:var(--teal)">🔑 Change PIN</h3>
+    <p id="cpSubtitle">Enter new 4-digit PIN</p>
+    <div class="pin-dots" id="cpDots">
+      <div class="pin-dot" id="cpd0"></div><div class="pin-dot" id="cpd1"></div>
+      <div class="pin-dot" id="cpd2"></div><div class="pin-dot" id="cpd3"></div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="cpKey('1')">1</button>
+      <button class="pin-key" onclick="cpKey('2')">2</button>
+      <button class="pin-key" onclick="cpKey('3')">3</button>
+      <button class="pin-key" onclick="cpKey('4')">4</button>
+      <button class="pin-key" onclick="cpKey('5')">5</button>
+      <button class="pin-key" onclick="cpKey('6')">6</button>
+      <button class="pin-key" onclick="cpKey('7')">7</button>
+      <button class="pin-key" onclick="cpKey('8')">8</button>
+      <button class="pin-key" onclick="cpKey('9')">9</button>
+      <button class="pin-key" onclick="cpClear()" style="font-size:.9rem;color:var(--muted)">CLR</button>
+      <button class="pin-key" onclick="cpKey('0')">0</button>
+      <button class="pin-key" onclick="cpBack()" style="font-size:.9rem;color:var(--muted)">⌫</button>
+    </div>
+    <div class="pin-error" id="cpError"></div>
+    <button class="btn btn-ghost" style="width:100%;margin-top:6px;padding:9px" onclick="closeChangePinOverlay()">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MAIN APP
+════════════════════════════════════════════════════════════ -->
+<header>
+  <div class="hdr">
+    <div class="app-logo">
+      <img src="https://static.wixstatic.com/media/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg/v1/fill/w_300,h_175,al_c,q_80/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg"
+        alt="GBSC" onerror="this.style.display='none';document.getElementById('hlf').style.display='block'">
+      <div class="app-logo-fb2" id="hlf">GBSC</div>
+      <div class="logo-div"></div>
+      <div class="logo-sub">Racing</div>
+    </div>
+    <div class="hdr-right">
+      <span id="syncStatus" style="font-size:.72rem;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;min-width:60px;text-align:right"></span>
+      <div class="badge outline" id="raceBadge"></div>
+      <div class="boat-tag" onclick="switchBoat()" id="boatTag">⛵ <span id="headerBoat">—</span></div>
+      <div id="changePinBtn" style="display:none;cursor:pointer;font-size:1rem;color:var(--muted);padding:4px 6px;border-radius:6px;border:1px solid var(--border)" onclick="openChangePinFlow()" title="Change PIN">🔑</div>
+    </div>
+  </div>
+  <div class="nav-tabs" id="navTabs" style="display:none">
+    <button class="nav-tab active" id="feesNavTab" onclick="showTab('feesTab',this)">Race Fees</button>
+    <button class="nav-tab" onclick="showTab('courseTab',this)">Course</button>
+    <button class="nav-tab" onclick="showTab('resultsTab',this);loadResultsIfNeeded()">Results</button>
+    <button class="nav-tab ro-tab" id="roNavTab" style="display:none" onclick="showTab('roTab',this)">🎌 Race Officer</button>
+  </div>
+</header>
+
+<main id="mainApp" style="display:none">
+
+<!-- ═══ TAB: RACE FEES ═══ -->
+<div class="tab-wrap active" id="feesTab">
+  <div class="race-bar">
+    <div class="race-bar-icon">🏁</div>
+    <div class="race-bar-text">
+      <div class="race-bar-label">Today's Race</div>
+      <select id="raceDropdown" onchange="onRaceSelect(this)">
+        <option value="" disabled>Select a race…</option>
+      </select>
+    </div>
+    <svg width="16" height="16" fill="none" stroke="var(--muted)" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
+  </div>
+  <div class="sec-head">
+    <div class="sec-title">Crew on Board</div>
+    <div class="crew-count" id="crewCount">0 selected</div>
+  </div>
+  <div class="crew-list" id="crewList"></div>
+  <button class="add-crew-btn" onclick="toggleCrewForm()">
+    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    Add person to roster
+  </button>
+  <div class="add-form" id="crewForm">
+    <h3>Add to Roster</h3>
+    <div class="form-row">
+      <div class="form-group"><label>First Name</label><input type="text" id="cf-first" placeholder="e.g. Ciarán"></div>
+      <div class="form-group"><label>Last Name</label><input type="text" id="cf-last" placeholder="e.g. Murphy"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Membership Type</label>
+        <select id="cf-type" onchange="onCrewTypeChange()">
+          <option value="full">Full Member — €4</option>
+          <option value="crew">Crew Member — €4</option>
+          <option value="visitor">Visitor — €10</option>
+        </select>
+      </div>
+      <div class="form-group" id="cf-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="cf-join" placeholder="2023" min="2015" max="2030"></div>
+      <div class="form-group" id="cf-outGrp" style="display:none"><label>Prev Outings</label><input type="number" id="cf-out" value="0" min="0" max="6"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="addCrewMember()">Add to Roster</button>
+      <button class="btn btn-ghost" onclick="toggleCrewForm()">Cancel</button>
+    </div>
+  </div>
+  <div style="margin-bottom:14px">
+    <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px" onclick="registerForRace()">⛵ Register for This Race</button>
+  </div>
+  <div class="totals-panel">
+    <div class="totals-title">Race Summary</div>
+    <div class="totals-rows">
+      <div class="t-row"><span>Full / Crew members</span><span class="val-sm" id="s-mem">—</span></div>
+      <div class="t-row"><span>Visitors</span><span class="val-sm" id="s-vis">—</span></div>
+      <div class="t-row hi"><span>Paid</span><span class="val-sm c-ok" id="s-paid">€0</span></div>
+      <div class="t-row hi"><span>Outstanding</span><span class="val-sm c-bad" id="s-owed">€0</span></div>
+      <div class="t-row big"><span style="font-size:1rem;color:var(--white)">Race Total</span><span class="val-lg" id="s-total">€0</span></div>
+    </div>
+    <div class="pay-actions">
+      <button class="btn btn-primary" style="width:100%;padding:13px;font-size:.95rem" onclick="openCollectSheet()">
+        💳 Collect Payments
+      </button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn btn-ghost" style="padding:11px" onclick="openSharePayLink()">
+          📲 Share Pay Link
+        </button>
+        <button class="btn btn-ghost" style="padding:11px" onclick="openSettingsSheet()">
+          ⚙ Settings
+        </button>
+      </div>
+      <button class="btn btn-gold" style="width:100%;padding:12px" onclick="sendReport()">
+        📧 Submit to Race Committee
+      </button>
+    </div>
+  </div>
+</div><!-- /feesTab -->
+
+<!-- ═══ TAB: COURSE ═══ -->
+<div class="tab-wrap" id="courseTab">
+  <div id="courseDisplay">
+    <div class="no-course-state"><div class="icon">🗺</div><div>No course published yet</div></div>
+  </div>
+</div><!-- /courseTab -->
+
+<!-- ═══ TAB: RESULTS ═══ -->
+<div class="tab-wrap" id="resultsTab">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Series</div>
+      <select id="resultSeriesSelect" onchange="onResultSeriesChange()" style="background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;padding:8px 10px;width:100%;outline:none;">
+        <option value="">Loading…</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:6px;margin-top:18px;">
+      <button id="ircBtn"  onclick="showFleet('irc')"  style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;border:1px solid var(--teal);background:var(--teal);color:var(--navy);cursor:pointer;">IRC</button>
+      <button id="echoBtn" onclick="showFleet('echo')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">ECHO</button>
+      <button onclick="refreshResults()" title="Refresh from Halsail" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">↺</button>
+    </div>
+  </div>
+  <div id="resultsContent">
+    <div class="empty-state"><div class="icon">🏆</div><div>Loading results…</div></div>
+  </div>
+</div><!-- /resultsTab -->
+
+<!-- ═══ TAB: RACE OFFICER ═══ -->
+<div class="tab-wrap" id="roTab">
+  <div class="ro-panel" style="margin-top:20px">
+    <div class="ro-panel-title">🗺 Course Builder</div>
+    <div class="login-label" style="margin-bottom:8px">Tap a mark to add it to the sequence — tap again to add it a second time</div>
+    <div class="marks-grid" id="marksGrid"></div>
+    <div class="selected-marks-order" id="selectedMarksOrder" style="display:none">
+      <div class="smo-title">Course order — tap to remove</div>
+      <div class="smo-list" id="smoList"></div>
+    </div>
+    <div class="ro-controls">
+      <div class="ro-row">
+        <label>Wind direction</label>
+        <div class="wind-input" style="flex:1">
+          <input type="range" id="windSlider" min="0" max="359" value="225" oninput="updateWind(this.value)">
+          <span class="wind-deg" id="windDegLabel">225° SW</span>
+        </div>
+      </div>
+      <div class="ro-row">
+        <label>Start/Finish</label>
+        <span style="font-size:.82rem;color:var(--white)">Club Start Line (outer)</span>
+      </div>
+    </div>
+    <div class="publish-bar">
+      <button class="btn btn-ro" style="flex:1;padding:12px" onclick="publishCourse()">🚀 Publish Course to Skippers</button>
+      <button class="btn btn-ghost" style="padding:12px 14px" onclick="clearCourse()">Clear</button>
+    </div>
+  </div>
+  <div class="ro-panel">
+    <div class="ro-panel-title">⛵ Registered Boats</div>
+    <div class="reg-list" id="regList">
+      <div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div>No registrations yet</div>
+    </div>
+  </div>
+  <div class="ro-panel">
+    <div class="ro-panel-title">🔑 Boat PIN Management</div>
+    <div id="pinMgmtList" style="display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+</div><!-- /roTab -->
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════
+     OVERLAYS
+════════════════════════════════════════════════════════════ -->
+<div class="overlay" id="editSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Edit — <span id="ef-heading"></span></div>
+    <div class="form-row">
+      <div class="form-group"><label>First Name</label><input type="text" id="ef-first"></div>
+      <div class="form-group"><label>Last Name</label><input type="text" id="ef-last"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Membership Type</label>
+        <select id="ef-type" onchange="onEditTypeChange()">
+          <option value="full">Full Member — €4</option>
+          <option value="crew">Crew Member — €4</option>
+          <option value="visitor">Visitor — €10</option>
+        </select>
+      </div>
+      <div class="form-group" id="ef-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="ef-join" min="2015" max="2030"></div>
+      <div class="form-group" id="ef-outGrp" style="display:none"><label>Outings</label><input type="number" id="ef-out" min="0" max="6"></div>
+    </div>
+    <div class="form-actions" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="saveEdit()">Save</button>
+      <button class="btn btn-ghost" onclick="closeSheet('editSheet')">Cancel</button>
+    </div>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn btn-danger" style="width:100%;padding:11px" onclick="deleteCrew()">🗑 Remove from Roster</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="collectSheet">
+  <div class="sheet" style="max-height:85vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Collect Payments</div>
+    <div id="collectList"></div>
+    <div style="margin-top:6px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1;padding:11px;font-size:.82rem" onclick="markAllCash()">✓ All Cash</button>
+      <button class="btn btn-primary" style="flex:1;padding:11px" onclick="closeSheet('collectSheet')">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="pnSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Record Payment — <span id="pn-name"></span></div>
+    <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">How did they pay?</div>
+    <div class="pm-grid">
+      <button class="pm-btn" id="pm-revolut" onclick="pickMethod(this,'Revolut')">💜 Revolut</button>
+      <button class="pm-btn" id="pm-cash"    onclick="pickMethod(this,'Cash')">💵 Cash</button>
+      <button class="pm-btn" id="pm-bar"     onclick="pickMethod(this,'Bar Tap')">🍺 Bar Tap</button>
+      <button class="pm-btn" id="pm-stripe"  onclick="pickMethod(this,'Card/Apple/Google')">💳 Card</button>
+    </div>
+    <div id="pn-revolut-link" style="display:none;margin-bottom:12px">
+      <a id="pn-revolut-btn" href="#" target="_blank"
+        style="display:flex;align-items:center;justify-content:center;gap:8px;
+        background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:10px;
+        padding:12px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
+        font-size:.95rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
+        💜 Open Revolut Request
+      </a>
+      <div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:5px">Opens Revolut on crew member's phone</div>
+    </div>
+    <div id="pn-stripe-link" style="display:none;margin-bottom:12px">
+      <div style="background:var(--card);border:1px dashed var(--border);border-radius:10px;padding:12px;text-align:center;font-size:.82rem;color:var(--muted)">
+        Stripe payment link coming soon — add your Stripe key in Settings
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label style="font-size:.72rem;color:var(--muted);font-weight:500">Note (optional)</label>
+      <input type="text" id="pn-note" placeholder="e.g. paid at bar after race"
+        style="margin-top:4px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1;padding:12px" onclick="confirmPayNote()">✓ Confirm Payment</button>
+      <button class="btn btn-ghost" style="padding:12px 16px" onclick="closeSheet('pnSheet')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="shareSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Share Payment Link</div>
+    <div style="font-size:.82rem;color:var(--muted);margin-bottom:14px">
+      Show this QR code to crew — they scan it to see what they owe and pay by their preferred method.
+    </div>
+    <div id="shareQR" style="background:white;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px"></div>
+    <div id="shareLinkBox" style="background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:.78rem;color:var(--muted);word-break:break-all;margin-bottom:14px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1;padding:11px" onclick="copyShareLink()">📋 Copy Link</button>
+      <button class="btn btn-ghost" style="padding:11px 14px" onclick="closeSheet('shareSheet')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="settingsSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">⚙ Skipper Settings</div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        💜 Your Revolut @username
+      </label>
+      <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+        <span style="color:var(--muted);font-size:1rem;font-weight:700">@</span>
+        <input type="text" id="settings-revolut" placeholder="yourname"
+          style="flex:1;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+          color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:9px 12px;
+          outline:none;box-sizing:border-box;">
+      </div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Used to generate Revolut payment request links for your crew</div>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        💳 Stripe Payment Link (optional)
+      </label>
+      <input type="text" id="settings-stripe" placeholder="https://buy.stripe.com/…"
+        style="margin-top:6px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:9px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Add when you have your Stripe account — enables card / Apple Pay / Google Pay</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveSettings()">Save Settings</button>
+      <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('settingsSheet')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
