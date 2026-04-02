@@ -202,8 +202,12 @@ function raceKey(r){
 // ═══════════════════════════════════════════════════════════════
 // LOCAL STORAGE
 // ═══════════════════════════════════════════════════════════════
-function saveRoster(){if(!currentBoat)return;try{localStorage.setItem('gr_'+currentBoat.id,JSON.stringify(roster.map(p=>({...p,selected:false,paid:false}))));}catch(e){}}
+function saveRoster(){
+  // No-op — Supabase is the source of truth for crew.
+  // localStorage is only used as a read-only offline cache written on load.
+}
 function loadRoster(id){try{const r=localStorage.getItem('gr_'+id);return r?JSON.parse(r).map(p=>({...p,selected:false,paid:false})):null;}catch(e){return null;}}
+function cacheRosterLocally(id,r){try{localStorage.setItem('gr_'+id,JSON.stringify(r.map(p=>({...p,selected:false,paid:false}))));}catch(e){}}
 function loadCustom(){try{return JSON.parse(localStorage.getItem('gr_custom')||'[]');}catch(e){return[];}}
 function saveCustom(a){try{localStorage.setItem('gr_custom',JSON.stringify(a));}catch(e){}}
 // Global ID high-water mark — ensures nextId never reuses an ID across boats or sessions
@@ -346,17 +350,11 @@ async function enterApp(b,ro){
   // Load crew
   const sbCrew=await sbLoadCrew(b.id);
   if(sbCrew!==null){
-    if(sbCrew.length>0){roster=sbCrew;setSyncStatus('ok');}
-    else{
-      // New boat — start with empty roster or local cache
-      roster=loadRoster(b.id)||[];
-      if(roster.length){
-        for(const p of roster){await sbUpsertCrew(b.id,p);}
-      }
-      setSyncStatus('ok');
-    }
+    roster=sbCrew; // always use DB data — empty or not
+    cacheRosterLocally(b.id, roster); // write to localStorage as offline cache
+    setSyncStatus('ok');
   } else {
-    // Offline — use local cache
+    // Offline — use local cache, show warning
     roster=loadRoster(b.id)||[];
     setSyncStatus('offline');toast('⚠ Offline — using local data');
   }
@@ -369,7 +367,6 @@ async function enterApp(b,ro){
   renderCrew();
 }
 function switchBoat(){
-  saveRoster();
   currentBoat=null;roster=[];isRO=false;boatConfig={};
   halResultsLoaded=false;
   document.getElementById('loginScreen').style.display='flex';
@@ -601,8 +598,7 @@ function addCrewMember(){
   document.getElementById('cf-joinGrp').style.display='none';document.getElementById('cf-outGrp').style.display='none';
   document.getElementById('crewForm').classList.remove('open');
   const newP=roster[roster.length-1];
-  saveRoster();
-  sbUpsertCrew(currentBoat.id,newP).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('offline'));
+  sbUpsertCrew(currentBoat.id,newP).then(()=>{setSyncStatus('ok');cacheRosterLocally(currentBoat.id,roster);}).catch(()=>setSyncStatus('offline'));
   renderCrew();toast(first+' '+last+' added ✓');
 }
 // edit sheet
@@ -627,8 +623,7 @@ function saveEdit(){
   p.first=first;p.last=last;p.type=document.getElementById('ef-type').value;
   p.joinYear=p.type==='crew'?(parseInt(document.getElementById('ef-join').value)||CY):null;
   p.outings=p.type==='visitor'?(parseInt(document.getElementById('ef-out').value)||0):0;
-  saveRoster();
-  sbUpsertCrew(currentBoat.id,p).then(()=>setSyncStatus('ok')).catch(()=>setSyncStatus('offline'));
+  sbUpsertCrew(currentBoat.id,p).then(()=>{setSyncStatus('ok');cacheRosterLocally(currentBoat.id,roster);}).catch(()=>setSyncStatus('offline'));
   closeSheet('editSheet');renderCrew();toast(first+' updated ✓');
 }
 function deleteCrew(){
@@ -636,7 +631,7 @@ function deleteCrew(){
   if(!confirm('Remove '+p.first+' '+p.last+'?'))return;
   const delId=editingId;
   roster=roster.filter(r=>r.id!==editingId);
-  saveRoster();sbDeleteCrew(delId).then(()=>setSyncStatus('ok'));
+  sbDeleteCrew(delId).then(()=>{setSyncStatus('ok');cacheRosterLocally(currentBoat.id,roster);});
   closeSheet('editSheet');renderCrew();toast(p.first+' removed');
 }
 // ── Boat config: PIN, Revolut, Stripe ────────────────────────
@@ -1160,7 +1155,7 @@ function renderCalList(){
           <div class="cal-date-mon">${mon}</div>
         </div>
         <div class="cal-info">
-          <div class="cal-race-name">${r.Race.replace(/_/g,' ')}</div>
+          <div class="cal-race-name">${r.Notes&&r.Notes.trim()?r.Notes.trim():r.Race.replace(/_/g,' ')}</div>
           <div class="cal-series-name">${weekday} · ${time}</div>
         </div>
         ${isNext?'<div class="cal-badge next">Next</div>':isKotb&&!isPast?'<div class="cal-badge kotb">KOTB</div>':isPast?'<div class="cal-badge past">Done</div>':''}
