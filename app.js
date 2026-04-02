@@ -36,6 +36,10 @@ async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+
 async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:p.id,boat_id:bid,first:p.first,last:p.last,type:p.type,join_year:p.joinYear||null,outings:p.outings||0})});}
 async function sbDeleteCrew(id){return sbFetch('/rest/v1/crew?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});}
 async function sbSaveRaceRecord(rec){return sbFetch('/rest/v1/race_records',{method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(rec)});}
+async function sbLoadRaceRecords(raceName){
+  const r=await sbFetch('/rest/v1/race_records?race_name=eq.'+encodeURIComponent(raceName)+'&order=submitted_at.asc');
+  return r||[];
+}
 async function sbRegisterBoat(boatId,race){
   const key=raceKey(race);
   try{
@@ -136,7 +140,7 @@ const MARKS = [
   {id:'L',  name:'Leverets',           lat:53+(15.333/60), lng:-(9+(1.890/60)),  colour:'#f0f4f8', desc:'Lighthouse B/W'},
   {id:'MN', name:'Mutton New',         lat:53+(15.179/60), lng:-(9+(2.500/60)),  colour:'#e63946', desc:'Channel Red'},
   {id:'O',  name:'Oranmore',           lat:53+(15.429/60), lng:-(8+(59.203/60)), colour:'#f4a261', desc:'Club Orange'},
-  {id:'OF', name:'Outfall',            lat:53+(14.962/60), lng:-(9+(3.308/60)),  colour:'#f4b942', desc:'Warning Yellow'},
+  {id:'OF', name:'Mutton Outfall',        lat:53+(14.962/60), lng:-(9+(3.308/60)),  colour:'#f4b942', desc:'Warning Yellow'},
   {id:'S',  name:'Salthill',           lat:53+(14.873/60), lng:-(9+(5.447/60)),  colour:'#f4a261', desc:'Club Orange'},
   {id:'T',  name:'Tawin',              lat:53+(14.301/60), lng:-(9+(4.259/60)),  colour:'#2dc653', desc:'Channel Green'},
   {id:'TR', name:'Trout',              lat:53+(15.026/60), lng:-(9+(1.109/60)),  colour:'#f4a261', desc:'Club Orange'},
@@ -390,7 +394,7 @@ function showAddBoatForm(){document.getElementById('addBoatForm').style.display=
 function hideAddBoatForm(){document.getElementById('addBoatForm').style.display='none';document.getElementById('addBoatBtn').style.display='block';document.getElementById('newBoatName').value='';}
 function submitAddBoat(){
   const name=document.getElementById('newBoatName').value.trim();
-  const icon=document.getElementById('newBoatIcon').value;
+  const icon='⛵'; // default, no longer user-selectable
   if(!name){toast('Enter a boat name');return;}
   const id=name.toLowerCase().replace(/[^a-z0-9]/g,'')||'boat'+Date.now();
   if(boats.find(b=>b.id===id)){toast('Boat already exists');return;}
@@ -935,35 +939,10 @@ function sendReport(){
     if(!confirm(unpaid.length+' crew member'+(unpaid.length>1?'s are':' is')+' still unpaid. Submit anyway?'))return;
   }
   const rn=selectedRace?selectedRace.label:'Race';
-  const rd=selectedRace?selectedRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'}):new Date().toLocaleDateString('en-IE');
   const tot=s.reduce((a,p)=>a+fee(p),0);
   const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
-
-  // Group by payment method for summary
   const byMethod={};
-  s.filter(p=>p.paid).forEach(p=>{
-    const m=p.payMethod||'Unknown';
-    byMethod[m]=(byMethod[m]||0)+fee(p);
-  });
-  const methodSummary=Object.entries(byMethod).map(([m,a])=>'  '+m+': €'+a).join('\n');
-
-  const lines=s.map(p=>{
-    const tl=p.type==='full'?'Full Member':p.type==='crew'?'Crew Member':'Visitor';
-    const ps=p.paid?'Paid €'+fee(p)+' via '+(p.payMethod||'?')+(p.payNote?' ('+p.payNote+')':''):'UNPAID €'+fee(p);
-    return'  • '+p.first+' '+p.last+' ['+tl+'] — '+ps;
-  }).join('\n');
-
-  const sub='Race Fees — '+currentBoat.name+' — '+rn;
-  const body='Race Fee Submission\n===================\n'+
-    'Boat:  '+currentBoat.name+'\nRace:  '+rn+'\nDate:  '+rd+'\n\n'+
-    'Crew ('+s.length+' on board):\n'+lines+'\n\n'+
-    'Payment Summary:\n'+methodSummary+'\n\n'+
-    'Total Due:   €'+tot+'\nTotal Paid:  €'+paid+'\nOutstanding: €'+(tot-paid)+'\n\n'+
-    'Submitted via GBSC Racing App';
-
-  window.location.href='mailto:rccruisers@gbsc.ie?subject='+encodeURIComponent(sub)+'&body='+encodeURIComponent(body);
-
-  // Save to Supabase with payment method breakdown
+  s.filter(p=>p.paid).forEach(p=>{const m=p.payMethod||'Unknown';byMethod[m]=(byMethod[m]||0)+fee(p);});
   sbSaveRaceRecord({
     boat_id:currentBoat.id,
     race_name:rn,
@@ -972,14 +951,138 @@ function sendReport(){
     total_due:tot,
     total_paid:paid,
     payment_methods:byMethod
-  }).then(()=>setSyncStatus('ok'));
-
-  toast('Opening email to RC…');
+  }).then(()=>{setSyncStatus('ok');toast('✅ Submitted to Race Officer');})
+    .catch(()=>toast('⚠ Could not submit — check connection'));
 }
 
 // ═══════════════════════════════════════════════════════════════
-// GEO UTILS
+// RO PAYMENT REPORT
 // ═══════════════════════════════════════════════════════════════
+async function generatePaymentReport(){
+  const statusEl=document.getElementById('reportStatus');
+  if(!nextRace){statusEl.textContent='No upcoming race found';return;}
+  const raceName=nextRace.label;
+  const raceDate=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  statusEl.textContent='⏳ Loading submissions…';
+  const records=await sbLoadRaceRecords(raceName);
+
+  if(!records.length){
+    statusEl.textContent='No submissions yet for this race';
+    return;
+  }
+  statusEl.textContent='';
+
+  // Aggregate totals
+  let grandDue=0, grandPaid=0;
+  const allMethods={};
+
+  const boatRows=records.map(rec=>{
+    const boat=boats.find(b=>b.id===rec.boat_id);
+    const boatName=boat?boat.name:rec.boat_id;
+    const crew=(rec.crew_snapshot||[]);
+    const due=rec.total_due||0;
+    const paid=rec.total_paid||0;
+    const outstanding=due-paid;
+    const methods=rec.payment_methods||{};
+    grandDue+=due; grandPaid+=paid;
+    Object.entries(methods).forEach(([m,a])=>{allMethods[m]=(allMethods[m]||0)+a;});
+
+    const crewRows=crew.map(p=>{
+      const tl=p.type==='full'?'Full Member':p.type==='crew'?'Crew Member':'Visitor';
+      const statusCol=p.paid
+        ?`<td style="color:#1a7a3a;font-weight:600">Paid €${fee(p)}</td><td style="color:#555">${p.payMethod||'—'}</td>`
+        :`<td style="color:#c0392b;font-weight:600">Unpaid €${fee(p)}</td><td>—</td>`;
+      return`<tr>
+        <td>${p.first} ${p.last}</td>
+        <td>${tl}</td>
+        ${statusCol}
+        <td style="color:#888;font-size:.85em">${p.payNote||''}</td>
+      </tr>`;
+    }).join('');
+
+    const submittedAt=new Date(rec.submitted_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const methodStr=Object.entries(methods).map(([m,a])=>`${m}: €${a}`).join(' · ')||'—';
+
+    return`
+      <div style="margin-bottom:28px;page-break-inside:avoid;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;
+          border-bottom:2px solid #1B3E93;padding-bottom:4px;margin-bottom:8px;">
+          <h3 style="font-size:1rem;color:#1B3E93;margin:0">${boatName}</h3>
+          <span style="font-size:.8rem;color:#888">Submitted ${submittedAt}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:6px">
+          <thead>
+            <tr style="background:#f0f4ff;">
+              <th style="text-align:left;padding:4px 8px;font-weight:600">Name</th>
+              <th style="text-align:left;padding:4px 8px;font-weight:600">Type</th>
+              <th style="text-align:left;padding:4px 8px;font-weight:600">Status</th>
+              <th style="text-align:left;padding:4px 8px;font-weight:600">Method</th>
+              <th style="text-align:left;padding:4px 8px;font-weight:600">Note</th>
+            </tr>
+          </thead>
+          <tbody>${crewRows}</tbody>
+        </table>
+        <div style="display:flex;justify-content:space-between;font-size:.82rem;color:#555;padding:4px 0">
+          <span>Due: <b>€${due}</b> · Paid: <b style="color:#1a7a3a">€${paid}</b>${outstanding>0?' · <b style="color:#c0392b">Outstanding: €'+outstanding+'</b>':''}</span>
+          <span style="color:#888">Payment: ${methodStr}</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  const grandOutstanding=grandDue-grandPaid;
+  const methodSummaryRows=Object.entries(allMethods)
+    .map(([m,a])=>`<tr><td style="padding:3px 8px">${m}</td><td style="padding:3px 8px;font-weight:600;text-align:right">€${a}</td></tr>`)
+    .join('');
+
+  const printHtml=`<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Race Fees — ${raceName}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Barlow',sans-serif;color:#1a1a2e;padding:32px;max-width:800px;margin:0 auto;font-size:13px;}
+  h1{font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:#1B3E93;letter-spacing:.04em;}
+  h2{font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#666;margin-bottom:20px;}
+  table td, table th{padding:4px 8px;border-bottom:1px solid #e8eef8;}
+  @media print{body{padding:16px;}@page{margin:15mm;}}
+</style>
+</head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+    <div>
+      <h1>Race Fee Report</h1>
+      <h2>${raceName} · ${raceDate}</h2>
+    </div>
+    <div style="text-align:right;font-size:.8rem;color:#888">
+      Generated ${new Date().toLocaleString('en-IE')}<br>
+      GBSC Racing App
+    </div>
+  </div>
+
+  <div style="display:flex;gap:24px;background:#f0f4ff;border-radius:8px;padding:14px;margin-bottom:28px;">
+    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Boats</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">${records.length}</div></div>
+    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Total Due</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">€${grandDue}</div></div>
+    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Collected</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#1a7a3a;font-family:'Barlow Condensed',sans-serif">€${grandPaid}</div></div>
+    ${grandOutstanding>0?`<div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Outstanding</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#c0392b;font-family:'Barlow Condensed',sans-serif">€${grandOutstanding}</div></div>`:''}
+    <div style="margin-left:auto">
+      <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">By Method</div>
+      <table style="margin-top:2px">${methodSummaryRows}</table>
+    </div>
+  </div>
+
+  ${boatRows}
+</body></html>`;
+
+  // Open in new window and trigger print
+  const win=window.open('','_blank','width=900,height=700');
+  win.document.write(printHtml);
+  win.document.close();
+  win.onload=()=>{ win.focus(); win.print(); };
+}
 function bearing(lat1,lng1,lat2,lng2){
   const dLng=(lng2-lng1)*Math.PI/180;
   const l1=lat1*Math.PI/180,l2=lat2*Math.PI/180;
@@ -1050,7 +1153,7 @@ function renderCourseDiagram(){
         const brg=Math.round(bearing(START_POS.lat,START_POS.lng,toM.lat,toM.lng));
         const d=Math.round(dist(START_POS.lat,START_POS.lng,toM.lat,toM.lng)/1852*10)/10;
         const dir=dirs[Math.round(brg/22.5)%16];
-        svgParts.push(`<text x="${cx+14}" y="${midY+4}" fill="rgba(122,143,166,0.9)" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600">${brg}° ${dir} · ${d}nm</text>`);
+        svgParts.push(`<text x="${cx+14}" y="${midY+4}" fill="rgba(122,143,166,0.9)" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600">${brg}° · ${d}nm</text>`);
       }
     } else if(!nodes[i].sf){
       const fromM=MARKS.find(x=>x.id===nodes[i].label);
@@ -1059,7 +1162,7 @@ function renderCourseDiagram(){
         const brg=Math.round(bearing(fromM.lat,fromM.lng,toM.lat,toM.lng));
         const d=Math.round(dist(fromM.lat,fromM.lng,toM.lat,toM.lng)/1852*10)/10;
         const dir=dirs[Math.round(brg/22.5)%16];
-        svgParts.push(`<text x="${cx+14}" y="${midY+4}" fill="rgba(122,143,166,0.9)" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600">${brg}° ${dir} · ${d}nm</text>`);
+        svgParts.push(`<text x="${cx+14}" y="${midY+4}" fill="rgba(122,143,166,0.9)" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600">${brg}° · ${d}nm</text>`);
       }
     }
   }
@@ -1116,7 +1219,7 @@ function renderCourseDiagram(){
       <span class="mark-colour" style="background:${m.colour}"></span>
       <span class="leg-mark">${m.name}</span>
       <span class="leg-rounding ${rnd}">${rndLabel}</span>
-      <span class="leg-detail">${brg}° ${dir} · ${d}nm</span>
+      <span class="leg-detail">${brg}° · ${d}nm</span>
     </div>`;
     prevLat=m.lat; prevLng=m.lng;
   });
@@ -1129,7 +1232,7 @@ function renderCourseDiagram(){
     <span class="mark-colour" style="background:#00b4d8"></span>
     <span class="leg-mark">Finish — Club Start Line</span>
     <span class="leg-rounding" style="background:rgba(0,180,216,.1);color:var(--teal);border:1px solid rgba(0,180,216,.3)">S / F</span>
-    <span class="leg-detail">${retBrg}° ${retDir} · ${retD}nm</span>
+    <span class="leg-detail">${retBrg}° · ${retD}nm</span>
   </div>`;
 
   // Total distance — sum all legs including return
