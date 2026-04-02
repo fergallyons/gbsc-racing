@@ -245,9 +245,11 @@ function initNextId(){
 // ═══════════════════════════════════════════════════════════════
 // LOGIN
 // ═══════════════════════════════════════════════════════════════
-function buildBoatGrid(){
+async function buildBoatGrid(){
   buildAllRaces();
   nextRace=getNextRace();
+
+  // Start with defaults + localStorage custom boats — instant, no network
   boats=[...DEFAULT_BOATS];
   loadCustom().forEach(b=>{if(!boats.find(x=>x.id===b.id))boats.push(b);});
 
@@ -255,14 +257,30 @@ function buildBoatGrid(){
   const raceEl=document.getElementById('loginRaceLabel');
   if(raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
 
-  // Render grid immediately — no network dependency
+  // Render immediately with what we have
   renderBoatGrid();
 
-  // Then load registrations in background and update badges
+  // Fetch all boats from Supabase in background — catches boats added on other devices
+  const sbBoats=await sbFetch('/rest/v1/boats?order=name.asc');
+  if(sbBoats&&sbBoats.length){
+    let changed=false;
+    sbBoats.forEach(b=>{
+      if(!boats.find(x=>x.id===b.id)){
+        boats.push({id:b.id,name:b.name,icon:b.icon||'⛵'});
+        // Persist to localStorage so they appear instantly next time (offline)
+        const c=loadCustom();
+        if(!c.find(x=>x.id===b.id)){c.push({id:b.id,name:b.name,icon:b.icon||'⛵'});saveCustom(c);}
+        changed=true;
+      }
+    });
+    if(changed) renderBoatGrid();
+  }
+
+  // Load registrations and add badges
   sbLoadRegistrations(nextRace).then(regs=>{
     registeredBoatIds=new Set((regs||[]).map(r=>r.boat_id));
-    renderBoatGrid(); // re-render with badges
-  }).catch(()=>{}); // fail silently — grid already shown
+    renderBoatGrid();
+  }).catch(()=>{});
 }
 
 function renderBoatGrid(){
