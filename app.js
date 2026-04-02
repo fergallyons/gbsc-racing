@@ -1076,6 +1076,164 @@ async function generatePaymentReport(){
   win.document.close();
   win.onload=()=>{ win.focus(); win.print(); };
 }
+
+// ═══════════════════════════════════════════════════════════════
+// CALENDAR
+// ═══════════════════════════════════════════════════════════════
+let calLoaded=false, calView='list', calGridMonth=null, calSchedule=[];
+
+async function loadCalendarIfNeeded(){
+  if(calLoaded) return;
+  calLoaded=true;
+  document.getElementById('calendarContent').innerHTML=
+    '<div class="empty-state"><div class="icon">⏳</div><div>Loading schedule from Halsail…</div></div>';
+
+  const raw=await halFetch('/GetSchedule/'+HAL_CLUB);
+  if(!raw||raw._err||!Array.isArray(raw)){
+    calLoaded=false;
+    document.getElementById('calendarContent').innerHTML=
+      '<div class="empty-state"><div class="icon">⚠</div>'+
+      '<div>Could not load schedule<br><span style="font-size:.75rem;color:var(--muted)">'+(raw&&raw._err?raw._err:'No data')+'</span></div>'+
+      '<button class="btn btn-ghost" style="padding:8px 16px;margin-top:10px" onclick="calLoaded=false;loadCalendarIfNeeded()">Try Again</button></div>';
+    return;
+  }
+
+  // Deduplicate by RaceID across all classes, sort by date
+  const seen=new Set();
+  calSchedule=raw
+    .filter(r=>{ if(seen.has(r.RaceID))return false; seen.add(r.RaceID); return true; })
+    .map(r=>({...r,dateObj:new Date(r.Start)}))
+    .sort((a,b)=>a.dateObj-b.dateObj);
+
+  // Share schedule data with Results tab if it hasn't loaded yet
+  if(!halSchedule) halSchedule=raw;
+
+  calGridMonth={year:new Date().getFullYear(),month:new Date().getMonth()};
+  renderCalendar();
+}
+
+function setCalView(v){
+  calView=v;
+  const activeStyle='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--teal);background:var(--teal);color:var(--navy-dark);';
+  const inactiveStyle='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);';
+  document.getElementById('calListBtn').style.cssText=v==='list'?activeStyle:inactiveStyle;
+  document.getElementById('calGridBtn').style.cssText=v==='grid'?activeStyle:inactiveStyle;
+  renderCalendar();
+}
+
+function renderCalendar(){
+  if(calView==='list') renderCalList();
+  else renderCalGrid();
+}
+
+function renderCalList(){
+  const wrap=document.getElementById('calendarContent');
+  if(!calSchedule.length){wrap.innerHTML='<div class="empty-state"><div class="icon">📅</div><div>No races found</div></div>';return;}
+
+  const now=new Date();
+  const nextEvt=calSchedule.find(r=>r.dateObj>=now);
+
+  // Group by series
+  const groups={};
+  calSchedule.forEach(r=>{
+    if(!groups[r.Series]) groups[r.Series]={series:r.Series,races:[]};
+    if(!groups[r.Series].races.find(x=>x.RaceID===r.RaceID))
+      groups[r.Series].races.push(r);
+  });
+  const sorted=Object.values(groups).sort((a,b)=>a.races[0].dateObj-b.races[0].dateObj);
+
+  let html='';
+  sorted.forEach(g=>{
+    const isKotb=g.series.toLowerCase().includes('king');
+    html+=`<div class="cal-group"><div class="cal-group-title">${g.series}</div>`;
+    g.races.forEach(r=>{
+      const d=r.dateObj;
+      const isPast=d<now;
+      const isNext=nextEvt&&r.RaceID===nextEvt.RaceID;
+      const dayNum=d.getDate();
+      const mon=d.toLocaleDateString('en-IE',{month:'short'});
+      const weekday=d.toLocaleDateString('en-IE',{weekday:'short'});
+      const time=d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      html+=`<div class="cal-race-row${isNext?' next-race':''}${isPast?' past':''}">
+        <div class="cal-date${isPast?' past':''}">
+          <div class="cal-date-day">${dayNum}</div>
+          <div class="cal-date-mon">${mon}</div>
+        </div>
+        <div class="cal-info">
+          <div class="cal-race-name">${r.Race.replace(/_/g,' ')}</div>
+          <div class="cal-series-name">${weekday} · ${time}</div>
+        </div>
+        ${isNext?'<div class="cal-badge next">Next</div>':isKotb&&!isPast?'<div class="cal-badge kotb">KOTB</div>':isPast?'<div class="cal-badge past">Done</div>':''}
+      </div>`;
+    });
+    html+='</div>';
+  });
+  wrap.innerHTML=html;
+}
+
+function renderCalGrid(){
+  const wrap=document.getElementById('calendarContent');
+  const {year,month}=calGridMonth;
+  const now=new Date();
+  const monthName=new Date(year,month,1).toLocaleDateString('en-IE',{month:'long',year:'numeric'});
+
+  // Event lookup by date string
+  const events={};
+  calSchedule.forEach(r=>{
+    const key=r.dateObj.toISOString().split('T')[0];
+    if(!events[key]) events[key]=[];
+    if(!events[key].find(x=>x.RaceID===r.RaceID)) events[key].push(r);
+  });
+
+  const firstDay=new Date(year,month,1).getDay();
+  const offset=(firstDay+6)%7; // Monday-first
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const daysInPrev=new Date(year,month,0).getDate();
+  const DAY_LABELS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+  let html=`<div class="cal-month-nav">
+    <button class="cal-nav-btn" onclick="calNavMonth(-1)">‹</button>
+    <div class="cal-month-label">${monthName}</div>
+    <button class="cal-nav-btn" onclick="calNavMonth(1)">›</button>
+  </div>
+  <div class="cal-grid">
+    ${DAY_LABELS.map(d=>`<div class="cal-grid-header">${d}</div>`).join('')}`;
+
+  for(let i=0;i<offset;i++){
+    html+=`<div class="cal-cell other-month"><div class="cal-cell-num">${daysInPrev-offset+i+1}</div></div>`;
+  }
+  for(let d=1;d<=daysInMonth;d++){
+    const date=new Date(year,month,d);
+    const key=date.toISOString().split('T')[0];
+    const dayEvents=events[key]||[];
+    const isToday=date.toDateString()===now.toDateString();
+    html+=`<div class="cal-cell${isToday?' today':''}">
+      <div class="cal-cell-num">${d}</div>
+      ${dayEvents.map(r=>{
+        const isKotb=r.Series.toLowerCase().includes('king');
+        const cls=isKotb?'kotb':'wed';
+        return`<div class="cal-event ${cls}" title="${r.Series}">${r.Race.replace('Race_','R')}</div>`;
+      }).join('')}
+    </div>`;
+  }
+  const totalCells=offset+daysInMonth;
+  const remaining=(7-totalCells%7)%7;
+  for(let d=1;d<=remaining;d++){
+    html+=`<div class="cal-cell other-month"><div class="cal-cell-num">${d}</div></div>`;
+  }
+  html+='</div>';
+  wrap.innerHTML=html;
+}
+
+function calNavMonth(dir){
+  let {year,month}=calGridMonth;
+  month+=dir;
+  if(month>11){month=0;year++;}
+  if(month<0){month=11;year--;}
+  calGridMonth={year,month};
+  renderCalGrid();
+}
+
 function bearing(lat1,lng1,lat2,lng2){
   const dLng=(lng2-lng1)*Math.PI/180;
   const l1=lat1*Math.PI/180,l2=lat2*Math.PI/180;

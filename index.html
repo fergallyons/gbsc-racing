@@ -123,6 +123,7 @@
     <button class="nav-tab active" id="feesNavTab" onclick="showTab('feesTab',this)">Race Fees</button>
     <button class="nav-tab" onclick="showTab('courseTab',this)">Course</button>
     <button class="nav-tab" onclick="showTab('resultsTab',this);loadResultsIfNeeded()">Results</button>
+    <button class="nav-tab" onclick="showTab('calendarTab',this);loadCalendarIfNeeded()">Calendar</button>
     <button class="nav-tab ro-tab" id="roNavTab" style="display:none" onclick="showTab('roTab',this)">🎌 Race Officer</button>
   </div>
 </header>
@@ -231,6 +232,20 @@
   </div>
 </div><!-- /resultsTab -->
 
+<!-- ═══ TAB: CALENDAR ═══ -->
+<div class="tab-wrap" id="calendarTab">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">2026 Race Schedule</div>
+    <div style="display:flex;gap:6px;">
+      <button id="calListBtn" onclick="setCalView('list')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid var(--teal);background:var(--teal);color:var(--navy-dark);cursor:pointer;">List</button>
+      <button id="calGridBtn" onclick="setCalView('grid')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">Grid</button>
+    </div>
+  </div>
+  <div id="calendarContent">
+    <div class="empty-state"><div class="icon">📅</div><div>Loading schedule…</div></div>
+  </div>
+</div><!-- /calendarTab -->
+
 <!-- ═══ TAB: RACE OFFICER ═══ -->
 <div class="tab-wrap" id="roTab">
   <div class="ro-panel" style="margin-top:20px">
@@ -266,7 +281,7 @@
     </div>
   </div>
   <div class="ro-panel">
-    <div class="ro-panel-title">🔑 Boat PIN Management</div>
+    <div class="ro-panel-title">🔑 Boat Management</div>
     <div id="pinMgmtList" style="display:flex;flex-direction:column;gap:6px;"></div>
   </div>
   <div class="ro-panel">
