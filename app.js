@@ -156,29 +156,6 @@ const FEES={full:4,crew:4,visitor:10};
 const VISITOR_MAX=6; const CREW_MAX_YRS=2; const CY=new Date().getFullYear();
 const RO_PIN='2026';
 
-const DEFAULT_BOATS=[
-  {id:'outoftheblue',name:'Out of the Blue',icon:'🔵'},
-  {id:'ibaraki',name:'Ibaraki',icon:'⚓'},
-  {id:'woofer',name:'Woofer',icon:'🐾'},
-  {id:'joker',name:'Joker',icon:'🃏'},
-  {id:'afterfizzer',name:'After Fizzer',icon:'🥂'},
-  {id:'runningtide',name:'Running Tide',icon:'🌊'},
-  {id:'rhocstar',name:'Rhocstar',icon:'⭐'},
-  {id:'viking',name:'Viking',icon:'🪓'},
-  {id:'scorpio',name:'Scorpio',icon:'♏'},
-];
-const SEED={
-  outoftheblue:[{id:1,first:'Skipper',last:'Blue',type:'full',joinYear:null,outings:0},{id:2,first:'Crew',last:'One',type:'crew',joinYear:2024,outings:0}],
-  ibaraki:[{id:10,first:'Skipper',last:'Ibaraki',type:'full',joinYear:null,outings:0}],
-  woofer:[{id:20,first:'Skipper',last:'Woofer',type:'full',joinYear:null,outings:0}],
-  joker:[{id:30,first:'Skipper',last:'Joker',type:'full',joinYear:null,outings:0}],
-  afterfizzer:[{id:40,first:'Skipper',last:'Fizzer',type:'full',joinYear:null,outings:0}],
-  runningtide:[{id:50,first:'Skipper',last:'Tide',type:'full',joinYear:null,outings:0}],
-  rhocstar:[{id:60,first:'Skipper',last:'Rhoc',type:'full',joinYear:null,outings:0}],
-  viking:[{id:70,first:'Skipper',last:'Viking',type:'full',joinYear:null,outings:0}],
-  scorpio:[{id:80,first:'Skipper',last:'Scorpio',type:'full',joinYear:null,outings:0}],
-};
-
 let boats=[], currentBoat=null, isRO=false;
 let roster=[], nextId=Date.now(); // timestamp-based — unique across boats and sessions
 let allRaces=[], selectedRace=null, nextRace=null;
@@ -249,34 +226,33 @@ async function buildBoatGrid(){
   buildAllRaces();
   nextRace=getNextRace();
 
-  // Start with defaults + localStorage custom boats — instant, no network
-  boats=[...DEFAULT_BOATS];
-  loadCustom().forEach(b=>{if(!boats.find(x=>x.id===b.id))boats.push(b);});
-
-  // Show next race label immediately
+  // Show next race label
   const raceEl=document.getElementById('loginRaceLabel');
   if(raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
 
-  // Render immediately with what we have
-  renderBoatGrid();
+  // Show loading state
+  const g=document.getElementById('boatGrid');
+  if(g) g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:.82rem;padding:16px">Loading boats…</div>';
 
-  // Fetch all boats from Supabase in background — catches boats added on other devices
+  // Load all boats from Supabase
   const sbBoats=await sbFetch('/rest/v1/boats?order=name.asc');
   if(sbBoats&&sbBoats.length){
-    let changed=false;
-    sbBoats.forEach(b=>{
-      if(!boats.find(x=>x.id===b.id)){
-        boats.push({id:b.id,name:b.name,icon:b.icon||'⛵'});
-        // Persist to localStorage so they appear instantly next time (offline)
-        const c=loadCustom();
-        if(!c.find(x=>x.id===b.id)){c.push({id:b.id,name:b.name,icon:b.icon||'⛵'});saveCustom(c);}
-        changed=true;
-      }
-    });
-    if(changed) renderBoatGrid();
+    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵'}));
+  } else {
+    // Offline — fall back to localStorage cache
+    boats=loadCustom();
+    if(!boats.length&&g){
+      g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:.82rem;padding:16px">⚠ Could not load boats — check connection</div>';
+      return;
+    }
   }
 
-  // Load registrations and add badges
+  // Cache to localStorage for offline fallback
+  saveCustom(boats);
+
+  renderBoatGrid();
+
+  // Load registration badges in background
   sbLoadRegistrations(nextRace).then(regs=>{
     registeredBoatIds=new Set((regs||[]).map(r=>r.boat_id));
     renderBoatGrid();
@@ -366,23 +342,22 @@ async function enterApp(b,ro){
   document.getElementById('crewList').innerHTML='<div class="empty-state"><div class="icon">⏳</div>Loading…</div>';
   setSyncStatus('syncing');
   await sbEnsureBoat(b);
-  await loadBoatConfig(b.id); // load PIN, Revolut, Stripe from DB
+  await loadBoatConfig(b.id);
   // Load crew
   const sbCrew=await sbLoadCrew(b.id);
   if(sbCrew!==null){
     if(sbCrew.length>0){roster=sbCrew;setSyncStatus('ok');}
     else{
-      const local=loadRoster(b.id);
-      const seed=SEED[b.id]||[{id:nextId++,first:'Skipper',last:b.name.split(' ')[0],type:'full',joinYear:null,outings:0}];
-      roster=local||seed.map(p=>({...p,selected:false,paid:false}));
-      let ok=true;
-      for(const p of roster){const r=await sbUpsertCrew(b.id,p);if(!r)ok=false;}
-      setSyncStatus(ok?'ok':'offline');
+      // New boat — start with empty roster or local cache
+      roster=loadRoster(b.id)||[];
+      if(roster.length){
+        for(const p of roster){await sbUpsertCrew(b.id,p);}
+      }
+      setSyncStatus('ok');
     }
   } else {
-    const local=loadRoster(b.id);
-    const seed=SEED[b.id]||[{id:nextId++,first:'Skipper',last:b.name.split(' ')[0],type:'full',joinYear:null,outings:0}];
-    roster=local||seed.map(p=>({...p,selected:false,paid:false}));
+    // Offline — use local cache
+    roster=loadRoster(b.id)||[];
     setSyncStatus('offline');toast('⚠ Offline — using local data');
   }
   nextId=Math.max(...roster.map(p=>p.id), nextId)+1;
@@ -1389,30 +1364,54 @@ function buildPinMgmtList(){
   boats.forEach(b=>{
     const pin=getBoatPin(b.id);
     const row=document.createElement('div');
+    row.id='pinrow-'+b.id;
     row.style.cssText='display:flex;align-items:center;justify-content:space-between;background:var(--navy);border-radius:10px;padding:9px 12px;margin-bottom:5px;';
     row.innerHTML=
       '<div style="display:flex;align-items:center;gap:8px">'+
-        '<span style="font-size:1rem">'+b.icon+'</span>'+
         '<span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem">'+b.name+'</span>'+
       '</div>'+
-      '<div style="display:flex;align-items:center;gap:8px">'+
+      '<div style="display:flex;align-items:center;gap:6px">'+
         '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.15em">'+pin+'</span>'+
-        '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">Change</button>'+
+        '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">PIN</button>'+
+        '<button onclick="deleteBoat(\''+b.id+'\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">Delete</button>'+
       '</div>';
     list.appendChild(row);
   });
   const roRow=document.createElement('div');
-  roRow.style.cssText='display:flex;align-items:center;justify-content:space-between;background:rgba(232,160,32,.06);border:1px solid rgba(232,160,32,.2);border-radius:10px;padding:9px 12px;margin-top:4px;';
+  roRow.style.cssText='display:flex;align-items:center;justify-content:space-between;background:rgba(254,224,30,.06);border:1px solid rgba(254,224,30,.2);border-radius:10px;padding:9px 12px;margin-top:4px;';
   roRow.innerHTML=
     '<div style="display:flex;align-items:center;gap:8px">'+
-      '<span style="font-size:1rem">🎌</span>'+
-      '<span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem;color:var(--ro)">Race Officer</span>'+
+      '<span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem;color:var(--ro)">🎌 Race Officer</span>'+
     '</div>'+
-    '<div style="display:flex;align-items:center;gap:8px">'+
+    '<div style="display:flex;align-items:center;gap:6px">'+
       '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.15em">'+getRoPin()+'</span>'+
-      '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(232,160,32,.4);background:transparent;color:var(--ro);cursor:pointer">Change</button>'+
+      '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(254,224,30,.4);background:transparent;color:var(--ro);cursor:pointer">PIN</button>'+
     '</div>';
   list.appendChild(roRow);
+}
+
+async function deleteBoat(id){
+  const b=boats.find(x=>x.id===id);
+  if(!b){return;}
+  if(!confirm('Delete '+b.name+'?\n\nThis will remove the boat and all its crew from the database. This cannot be undone.')){return;}
+
+  // Remove from DB — cascade will delete crew too
+  const ok=await sbFetch('/rest/v1/boats?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
+  if(ok===null){toast('⚠ Could not delete from database');return;}
+
+  // Remove from in-memory list
+  boats=boats.filter(x=>x.id!==id);
+
+  // Remove from localStorage custom list
+  const c=loadCustom().filter(x=>x.id!==id);
+  saveCustom(c);
+
+  // Remove pin/config cache
+  try{localStorage.removeItem('pin_'+id);localStorage.removeItem('cfg_'+id);}catch(e){}
+
+  // Refresh the panel and boat grid
+  buildPinMgmtList();
+  toast('✅ '+b.name+' deleted');
 }
 function clearCourse(){
   courseMarks=[];
