@@ -31,11 +31,6 @@
       <h4>+ Add New Boat</h4>
       <div class="ab-row">
         <input id="newBoatName" class="ab-input" type="text" placeholder="Boat name">
-        <select id="newBoatIcon" class="ab-select">
-          <option>⛵</option><option>🚤</option><option>⚓</option><option>🌊</option>
-          <option>🏴‍☠️</option><option>💨</option><option>⭐</option><option>🐟</option>
-          <option>🔵</option><option>🟢</option><option>🪝</option><option>🃏</option>
-        </select>
       </div>
       <div class="ab-actions">
         <button class="btn btn-primary" style="flex:1;padding:10px" onclick="submitAddBoat()">Add Boat</button>
@@ -203,7 +198,7 @@
         </button>
       </div>
       <button class="btn btn-gold" style="width:100%;padding:12px" onclick="sendReport()">
-        📧 Submit to Race Committee
+        ✅ Submit to Race Officer
       </button>
     </div>
   </div>
@@ -239,6 +234,12 @@
 <!-- ═══ TAB: RACE OFFICER ═══ -->
 <div class="tab-wrap" id="roTab">
   <div class="ro-panel" style="margin-top:20px">
+    <div class="ro-panel-title">⛵ Registered Boats</div>
+    <div class="reg-list" id="regList">
+      <div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div>No registrations yet</div>
+    </div>
+  </div>
+  <div class="ro-panel">
     <div class="ro-panel-title">🗺 Course Builder</div>
     <div class="login-label" style="margin-bottom:8px">Tap a mark to add it to the sequence — tap again to add it a second time</div>
     <div class="marks-grid" id="marksGrid"></div>
@@ -265,14 +266,18 @@
     </div>
   </div>
   <div class="ro-panel">
-    <div class="ro-panel-title">⛵ Registered Boats</div>
-    <div class="reg-list" id="regList">
-      <div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div>No registrations yet</div>
-    </div>
-  </div>
-  <div class="ro-panel">
     <div class="ro-panel-title">🔑 Boat PIN Management</div>
     <div id="pinMgmtList" style="display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+  <div class="ro-panel">
+    <div class="ro-panel-title">📄 Payment Report</div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">
+      Generates a printable PDF of all submitted fee reports for the current race.
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:12px" onclick="generatePaymentReport()">
+      📄 Generate PDF Report
+    </button>
+    <div id="reportStatus" style="font-size:.75rem;color:var(--muted);margin-top:8px;text-align:center"></div>
   </div>
 </div><!-- /roTab -->
 
