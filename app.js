@@ -1642,6 +1642,36 @@ function clearCourse(){
   document.querySelectorAll('.mark-toggle').forEach(el=>el.classList.remove('selected'));
   renderSelectedOrder();
 }
+function shareRegistrationInvite(){
+  if(!nextRace){toast('No upcoming race found');return;}
+
+  const raceName=nextRace.label;
+  const raceDate=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+  const raceTime=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  const appUrl='https://gbsc-racing.netlify.app';
+
+  const msg=
+    '⛵ *GBSC Racing — Registration Open*\n\n'+
+    '*'+raceName+'*\n'+
+    raceDate+' · '+raceTime+'\n\n'+
+    'Register your boat in the racing app:\n'+
+    appUrl+'\n\n'+
+    '_Open the link, select your boat and tap Register._';
+
+  if(isMobile()){
+    // WhatsApp deep link on mobile
+    window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+  } else {
+    // On desktop copy to clipboard and prompt to paste into WhatsApp Web
+    navigator.clipboard.writeText(msg).then(()=>{
+      toast('📋 Message copied — paste into WhatsApp');
+    }).catch(()=>{
+      // Fallback — show in a prompt so they can copy manually
+      window.prompt('Copy this message and paste into WhatsApp:',msg);
+    });
+  }
+}
+
 async function loadRegistrations(){
   const list=document.getElementById('regList');
   if(!nextRace){list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">⛵</div>No upcoming race found</div>';return;}

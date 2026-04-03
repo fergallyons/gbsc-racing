@@ -249,7 +249,15 @@
 <!-- ═══ TAB: RACE OFFICER ═══ -->
 <div class="tab-wrap" id="roTab">
   <div class="ro-panel" style="margin-top:20px">
-    <div class="ro-panel-title">⛵ Registered Boats</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="ro-panel-title" style="margin-bottom:0">⛵ Registered Boats</div>
+      <button onclick="shareRegistrationInvite()" style="display:flex;align-items:center;gap:6px;
+        font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;
+        padding:6px 12px;border-radius:8px;border:1px solid rgba(37,211,102,.4);
+        background:rgba(37,211,102,.1);color:#25d366;cursor:pointer;letter-spacing:.04em;">
+        <span style="font-size:1rem">💬</span> Invite via WhatsApp
+      </button>
+    </div>
     <div class="reg-list" id="regList">
       <div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div>No registrations yet</div>
     </div>
