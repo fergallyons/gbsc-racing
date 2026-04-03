@@ -7,10 +7,14 @@ const SBH={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Be
 async function sbFetch(path,opts={}){
   try{
     const r=await fetch(SB_URL+path,{headers:SBH,...opts});
-    if(!r.ok){console.warn('SB',r.status,path,await r.text());return null;}
+    if(!r.ok){
+      const err=await r.text();
+      console.error('SB error',r.status,path,err);
+      return {_err:'HTTP '+r.status+': '+err, _status:r.status};
+    }
     if(r.status===204)return true;
     const t=await r.text();return t?JSON.parse(t):[];
-  }catch(e){console.warn('SB net',e);return null;}
+  }catch(e){console.error('SB net',e);return null;}
 }
 async function sbEnsureBoat(b){
   // Upsert the boat — ignore duplicates so we don't overwrite existing config
@@ -157,8 +161,7 @@ const VISITOR_MAX=6; const CREW_MAX_YRS=2; const CY=new Date().getFullYear();
 const RO_PIN='2026';
 
 let boats=[], currentBoat=null, isRO=false;
-let roster=[], nextId=Date.now(); // timestamp-based — unique across boats and sessions
-let allRaces=[], selectedRace=null, nextRace=null;
+let roster=[], allRaces=[], selectedRace=null, nextRace=null;
 let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225;
 let courseMarks=[];
@@ -211,16 +214,13 @@ function cacheRosterLocally(id,r){try{localStorage.setItem('gr_'+id,JSON.stringi
 function loadCustom(){try{return JSON.parse(localStorage.getItem('gr_custom')||'[]');}catch(e){return[];}}
 function saveCustom(a){try{localStorage.setItem('gr_custom',JSON.stringify(a));}catch(e){}}
 // Global ID high-water mark — ensures nextId never reuses an ID across boats or sessions
-function bumpNextId(ids){
-  const max=ids.length?Math.max(...ids):0;
-  if(max>=nextId) nextId=max+1;
-  // Persist so switching boats doesn't reset it
-  try{const stored=parseInt(localStorage.getItem('gr_nextid')||'0');
-    if(nextId>stored) localStorage.setItem('gr_nextid',String(nextId));}catch(e){}
-}
-function initNextId(){
-  try{const stored=parseInt(localStorage.getItem('gr_nextid')||'0');
-    if(stored>=nextId) nextId=stored+1;}catch(e){}
+function newCrewId(){
+  // Generate a UUID v4 — works in all modern browsers
+  if(crypto&&crypto.randomUUID) return crypto.randomUUID();
+  // Fallback for older browsers
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -358,8 +358,7 @@ async function enterApp(b,ro){
     roster=loadRoster(b.id)||[];
     setSyncStatus('offline');toast('⚠ Offline — using local data');
   }
-  nextId=Math.max(...roster.map(p=>p.id), nextId)+1;
-  bumpNextId(roster.map(p=>p.id));
+
   buildRaceDropdown();
   // Refresh registration state for this boat
   updateRegisterButton();
@@ -585,20 +584,30 @@ function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid
 // add crew
 function onCrewTypeChange(){const t=document.getElementById('cf-type').value;document.getElementById('cf-joinGrp').style.display=t==='crew'?'flex':'none';document.getElementById('cf-outGrp').style.display=t==='visitor'?'flex':'none';}
 function toggleCrewForm(){const f=document.getElementById('crewForm');f.classList.toggle('open');if(f.classList.contains('open'))document.getElementById('cf-first').focus();}
-function addCrewMember(){
+async function addCrewMember(){
   const first=document.getElementById('cf-first').value.trim();
   const last=document.getElementById('cf-last').value.trim();
   const type=document.getElementById('cf-type').value;
   if(!first||!last){toast('Enter a name');return;}
   const joinYear=type==='crew'?(parseInt(document.getElementById('cf-join').value)||CY):null;
   const outings=type==='visitor'?(parseInt(document.getElementById('cf-out').value)||0):0;
-  roster.push({id:nextId++,first,last,type,joinYear,outings,selected:true,paid:false});
+  roster.push({id:newCrewId(),first,last,type,joinYear,outings,selected:true,paid:false});
   document.getElementById('cf-first').value='';document.getElementById('cf-last').value='';
   document.getElementById('cf-type').value='full';
   document.getElementById('cf-joinGrp').style.display='none';document.getElementById('cf-outGrp').style.display='none';
   document.getElementById('crewForm').classList.remove('open');
   const newP=roster[roster.length-1];
-  sbUpsertCrew(currentBoat.id,newP).then(()=>{setSyncStatus('ok');cacheRosterLocally(currentBoat.id,roster);}).catch(()=>setSyncStatus('offline'));
+  const result=await sbUpsertCrew(currentBoat.id,newP);
+  if(result&&result._err){
+    toast('⚠ DB error: '+result._err.slice(0,80));
+    setSyncStatus('offline');
+  } else if(result===null){
+    toast('⚠ Could not reach database');
+    setSyncStatus('offline');
+  } else {
+    setSyncStatus('ok');
+    cacheRosterLocally(currentBoat.id,roster);
+  }
   renderCrew();toast(first+' '+last+' added ✓');
 }
 // edit sheet
@@ -1954,6 +1963,5 @@ document.addEventListener('click',function(e){
 // ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
-initNextId();
-checkPayHash(); // show crew pay page if opened via QR link
+checkPayHash();
 buildBoatGrid();
