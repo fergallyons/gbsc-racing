@@ -1659,8 +1659,7 @@ function shareRegistrationInvite(){
     '_Open the link, select your boat and tap Register._';
 
   if(isMobile()){
-    // WhatsApp deep link on mobile
-    window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+    window.open('https://api.whatsapp.com/send?text='+encodeURIComponent(msg),'_blank');
   } else {
     // On desktop copy to clipboard and prompt to paste into WhatsApp Web
     navigator.clipboard.writeText(msg).then(()=>{
