@@ -540,7 +540,7 @@ function renderCrew(){
     const c=document.createElement('div');
     c.className='crew-card'+(p.selected?' selected':'')+(warn?' warn-flag':'');
     c.innerHTML=(warn?'<div class="warn-stripe"></div>':'')+
-      '<div class="cc-check" onclick="toggleSel('+p.id+')">'+
+      '<div class="cc-check" onclick="toggleSel(\''+p.id+'\')">'+
         '<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="var(--navy)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,7 5,10 11,3"/></svg>'+
       '</div>'+
       '<div class="cc-avatar">'+ini(p)+'</div>'+
@@ -559,8 +559,8 @@ function renderCrew(){
       '</div>'+
       '<div class="cc-right">'+
         '<div class="cc-fee'+(p.selected?'':' dim')+'">€'+fee(p)+'</div>'+
-        (p.selected?'<div class="pay-dot '+(p.paid?'paid':'unpaid')+'" onclick="togglePaid('+p.id+')" title="'+(p.paid?'Paid':'Unpaid')+'"></div>':'')+
-        '<button class="cc-menu" onclick="openEditSheet('+p.id+')">⋯</button>'+
+        (p.selected?'<div class="pay-dot '+(p.paid?'paid':'unpaid')+'" onclick="togglePaid(\''+p.id+'\')" title="'+(p.paid?'Paid':'Unpaid')+'"></div>':'')+
+        '<button class="cc-menu" onclick="openEditSheet(\''+p.id+'\')">⋯</button>'+
       '</div>';
     list.appendChild(c);
   });
@@ -740,7 +740,7 @@ function openCollectSheet(){
           '</div>'+
           '<div style="display:flex;align-items:center;gap:8px">'+
             '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;color:var(--success)">€'+amt+'</span>'+
-            '<button onclick="unpayCrewCollect('+p.id+')" style="font-size:.68rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">Undo</button>'+
+            '<button onclick="unpayCrewCollect(\''+p.id+'\')" style="font-size:.68rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">Undo</button>'+
           '</div>'+
         '</div>';
     } else {
@@ -764,7 +764,7 @@ function openCollectSheet(){
             '<span style="font-size:1rem">💜</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></a>'
             :
-            '<button onclick="openPNSheet('+p.id+',\'Revolut\')" '+
+            '<button onclick="openPNSheet(\''+p.id+'\',\'Revolut\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.1);'+
             'border:1px solid var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
             '<span style="font-size:1rem">💜</span>'+
