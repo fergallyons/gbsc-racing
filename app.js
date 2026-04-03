@@ -745,7 +745,7 @@ function openCollectSheet(){
         '</div>';
     } else {
       // Payment buttons
-      const revLink=revUser?`https://revolut.me/${revUser}/${amt}?currency=EUR`:'';
+      const revLink=revUser?`https://revolut.me/${revUser}`:'';
       const stripeLink=getStripeLink();
       row.innerHTML=
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
@@ -757,8 +757,8 @@ function openCollectSheet(){
           '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.2rem;font-weight:800;color:var(--danger)">€'+amt+'</span>'+
         '</div>'+
         '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">'+
-          (revLink?
-            '<a href="'+revLink+'" target="_blank" onclick="markPaidCollect('+p.id+',\'Revolut\')" '+
+          (revLink&&isMobile()?
+            '<a href="'+revLink+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Revolut\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
             'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;">'+
             '<span style="font-size:1rem">💜</span>'+
@@ -766,24 +766,24 @@ function openCollectSheet(){
             :
             '<button onclick="openPNSheet(\''+p.id+'\',\'Revolut\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.1);'+
-            'border:1px solid var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
+            'border:1px solid var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;" title="Mobile only — shows QR/link">'+
             '<span style="font-size:1rem">💜</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Revolut</span></button>'
           )+
-          '<button onclick="markPaidCollect('+p.id+',\'Cash\')" '+
+          '<button onclick="markPaidCollect(\''+p.id+'\',\'Cash\')" '+
           'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(45,198,83,.08);'+
           'border:1px solid rgba(45,198,83,.3);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
           '<span style="font-size:1rem">💵</span>'+
           '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--success)">Cash</span></button>'+
 
-          '<button onclick="markPaidCollect('+p.id+',\'Bar Tap\')" '+
+          '<button onclick="markPaidCollect(\''+p.id+'\',\'Bar Tap\')" '+
           'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(244,185,66,.08);'+
           'border:1px solid rgba(244,185,66,.3);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
           '<span style="font-size:1rem">🍺</span>'+
           '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--gold)">Bar</span></button>'+
 
           (stripeLink?
-            '<a href="'+stripeLink+'?client_reference_id='+p.id+'&amount='+amt*100+'" target="_blank" onclick="markPaidCollect('+p.id+',\'Card\')" '+
+            '<a href="'+stripeLink+'?client_reference_id='+p.id+'&amount='+amt*100+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Card\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.08);'+
             'border:1px solid rgba(0,180,216,.3);border-radius:8px;padding:8px 4px;text-decoration:none;">'+
             '<span style="font-size:1rem">💳</span>'+
@@ -862,6 +862,9 @@ function pickMethod(btn,m){
   const p=roster.find(r=>r.id===pnId);
   showPayMethodExtras(m,p);
 }
+function isMobile(){
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
 function showPayMethodExtras(m,p){
   const revDiv=document.getElementById('pn-revolut-link');
   const stripeDiv=document.getElementById('pn-stripe-link');
@@ -869,8 +872,26 @@ function showPayMethodExtras(m,p){
   if(m==='Revolut'){
     const revUser=getRevolutUser();
     if(revUser&&p){
-      document.getElementById('pn-revolut-btn').href=`https://revolut.me/${revUser}/${fee(p)}?currency=EUR`;
-      revDiv.style.display='block';
+      if(isMobile()){
+        document.getElementById('pn-revolut-btn').href=`https://revolut.me/${revUser}`;
+        revDiv.style.display='block';
+      } else {
+        revDiv.innerHTML=`<div style="background:rgba(110,64,216,.08);border:1px solid rgba(110,64,216,.25);
+          border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:1.2rem;margin-bottom:4px">📱</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;color:#a78bfa;margin-bottom:3px">
+            Revolut — Mobile Only
+          </div>
+          <div style="font-size:.75rem;color:var(--muted)">
+            Ask the crew member to open Revolut on their phone,<br>
+            or use the QR Pay Link instead.
+          </div>
+          <div style="font-size:.78rem;color:#a78bfa;margin-top:6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em">
+            revolut.me/@${revUser} · enter €${fee(p)} in the app
+          </div>
+        </div>`;
+        revDiv.style.display='block';
+      }
     }
   }
   if(m==='Card/Apple/Google'){
@@ -1901,7 +1922,7 @@ function showCrewPayPage(data){
     </div>`).join('');
 
   const revBtn=data.rev?`
-    <a href="https://revolut.me/${data.rev}/${tot}?currency=EUR" target="_blank"
+    <a href="https://revolut.me/${data.rev}" target="_blank"
       style="display:flex;align-items:center;justify-content:center;gap:10px;
       background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:12px;
       padding:14px;text-decoration:none;font-family:Barlow Condensed,sans-serif;
