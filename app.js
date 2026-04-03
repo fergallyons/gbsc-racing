@@ -950,27 +950,63 @@ function copyShareLink(){
 }
 
 // ── Submit to RC ──────────────────────────────────────────────
+let settlementMethods=new Set();
+
 function sendReport(){
-  const s=roster.filter(p=>p.selected);if(!s.length){toast('No crew selected');return;}
+  const s=roster.filter(p=>p.selected);
+  if(!s.length){toast('No crew selected');return;}
   const unpaid=s.filter(p=>!p.paid);
   if(unpaid.length){
     if(!confirm(unpaid.length+' crew member'+(unpaid.length>1?'s are':' is')+' still unpaid. Submit anyway?'))return;
   }
+  // Reset settlement sheet state
+  settlementMethods=new Set();
+  document.querySelectorAll('.settle-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('settlement-note').value='';
+  document.getElementById('settlementSheet').classList.add('open');
+}
+
+function toggleSettle(method){
+  const btn=document.getElementById('sb-'+method);
+  if(settlementMethods.has(method)){
+    settlementMethods.delete(method);
+    btn.classList.remove('active');
+  } else {
+    settlementMethods.add(method);
+    btn.classList.add('active');
+  }
+}
+
+async function confirmSubmit(){
+  const s=roster.filter(p=>p.selected);
   const rn=selectedRace?selectedRace.label:'Race';
   const tot=s.reduce((a,p)=>a+fee(p),0);
   const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
   const byMethod={};
   s.filter(p=>p.paid).forEach(p=>{const m=p.payMethod||'Unknown';byMethod[m]=(byMethod[m]||0)+fee(p);});
-  sbSaveRaceRecord({
+  const note=document.getElementById('settlement-note').value.trim();
+  const settlement=Array.from(settlementMethods);
+
+  closeSheet('settlementSheet');
+
+  const result=await sbSaveRaceRecord({
     boat_id:currentBoat.id,
     race_name:rn,
     race_date:selectedRace?selectedRace.date.toISOString().split('T')[0]:new Date().toISOString().split('T')[0],
     crew_snapshot:s,
     total_due:tot,
     total_paid:paid,
-    payment_methods:byMethod
-  }).then(()=>{setSyncStatus('ok');toast('✅ Submitted to Race Officer');})
-    .catch(()=>toast('⚠ Could not submit — check connection'));
+    payment_methods:byMethod,
+    settlement_methods:settlement,
+    settlement_note:note||null
+  });
+
+  if(result&&result._err){
+    toast('⚠ Could not submit — '+result._err.slice(0,60));
+  } else {
+    setSyncStatus('ok');
+    toast('✅ Submitted to Race Officer');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1021,6 +1057,8 @@ async function generatePaymentReport(){
 
     const submittedAt=new Date(rec.submitted_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
     const methodStr=Object.entries(methods).map(([m,a])=>`${m}: €${a}`).join(' · ')||'—';
+    const settlementStr=(rec.settlement_methods||[]).map(s=>s.charAt(0).toUpperCase()+s.slice(1)).join(', ')||'—';
+    const settlementNote=rec.settlement_note||'';
 
     return`
       <div style="margin-bottom:28px;page-break-inside:avoid;">
@@ -1041,9 +1079,12 @@ async function generatePaymentReport(){
           </thead>
           <tbody>${crewRows}</tbody>
         </table>
-        <div style="display:flex;justify-content:space-between;font-size:.82rem;color:#555;padding:4px 0">
+        <div style="display:flex;justify-content:space-between;font-size:.82rem;color:#555;padding:4px 0;flex-wrap:wrap;gap:4px">
           <span>Due: <b>€${due}</b> · Paid: <b style="color:#1a7a3a">€${paid}</b>${outstanding>0?' · <b style="color:#c0392b">Outstanding: €'+outstanding+'</b>':''}</span>
-          <span style="color:#888">Payment: ${methodStr}</span>
+          <span style="color:#888">Crew payments: ${methodStr}</span>
+        </div>
+        <div style="font-size:.82rem;color:#555;padding:3px 0">
+          Settlement to club: <b>${settlementStr}</b>${settlementNote?' — '+settlementNote:''}
         </div>
       </div>`;
   }).join('');
@@ -1357,15 +1398,15 @@ function renderCourseDiagram(){
       svgParts.push(`<circle cx="${cx}" cy="${y}" r="${NODE_R}" fill="${n.colour}22" stroke="${n.colour}" stroke-width="2.5"/>`);
       svgParts.push(`<circle cx="${cx}" cy="${y}" r="7" fill="${n.colour}"/>`);
       // Sequence number left of circle
-      svgParts.push(`<text x="${cx-NODE_R-6}" y="${y+4}" text-anchor="end" fill="rgba(0,174,239,0.8)" font-family="Barlow Condensed,sans-serif" font-size="13" font-weight="800">${n.idx}</text>`);
+      svgParts.push(`<text x="${cx-NODE_R-6}" y="${y+4}" text-anchor="end" fill="rgba(0,174,239,0.8)" font-family="Barlow Condensed,sans-serif" font-size="14" font-weight="800">${n.idx}</text>`);
       // Mark name to the right
-      svgParts.push(`<text x="${cx+NODE_R+10}" y="${y+4}" fill="${n.colour}" font-family="Barlow Condensed,sans-serif" font-size="13" font-weight="800">${n.label}</text>`);
+      svgParts.push(`<text x="${cx+NODE_R+10}" y="${y+4}" fill="${n.colour}" font-family="Barlow Condensed,sans-serif" font-size="17" font-weight="800">${n.label}</text>`);
       // Rounding badge
       const rnd=n.rounding||'port';
       const rndColour=rnd==='port'?'#e63946':'#2dc653';
       const rndLabel=rnd==='port'?'◄ PORT':'STBD ►';
-      svgParts.push(`<rect x="${cx+NODE_R+8}" y="${y+12}" width="52" height="14" rx="4" fill="${rndColour}22" stroke="${rndColour}" stroke-width="1"/>`);
-      svgParts.push(`<text x="${cx+NODE_R+34}" y="${y+22}" text-anchor="middle" fill="${rndColour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${rndLabel}</text>`);
+      svgParts.push(`<rect x="${cx+NODE_R+8}" y="${y+12}" width="58" height="16" rx="4" fill="${rndColour}22" stroke="${rndColour}" stroke-width="1"/>`);
+      svgParts.push(`<text x="${cx+NODE_R+37}" y="${y+23}" text-anchor="middle" fill="${rndColour}" font-family="Barlow Condensed,sans-serif" font-size="10" font-weight="700">${rndLabel}</text>`);
     }
   });
 

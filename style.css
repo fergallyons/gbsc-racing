@@ -310,17 +310,17 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 100px;}
 .course-svg-wrap{width:100%;overflow-x:auto;}
 .course-svg-wrap svg{display:block;margin:0 auto;}
 .course-legs-list{margin-top:14px;display:flex;flex-direction:column;gap:0;}
-.leg-row{display:flex;align-items:center;gap:10px;padding:9px 0;
-  border-bottom:1px solid var(--border);font-size:.88rem;}
+.leg-row{display:flex;align-items:center;gap:10px;padding:10px 0;
+  border-bottom:1px solid var(--border);font-size:1rem;}
 .leg-row:last-child{border-bottom:none;}
-.leg-num{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;
+.leg-num{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.95rem;
   color:var(--teal);min-width:20px;}
-.leg-mark{font-weight:600;flex:1;}
-.leg-rounding{font-size:.72rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
-  letter-spacing:.05em;padding:2px 7px;border-radius:8px;white-space:nowrap;}
+.leg-mark{font-weight:700;font-size:1.05rem;flex:1;}
+.leg-rounding{font-size:.8rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  letter-spacing:.05em;padding:3px 8px;border-radius:8px;white-space:nowrap;}
 .leg-rounding.port{background:rgba(230,57,70,.15);color:#e63946;}
 .leg-rounding.starboard{background:rgba(45,198,83,.15);color:#2dc653;}
-.leg-detail{font-size:.78rem;color:var(--muted);min-width:90px;text-align:right;}
+.leg-detail{font-size:.9rem;color:var(--muted);min-width:90px;text-align:right;}
 .mark-colour{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle;}
 .no-course-state{text-align:center;padding:32px 16px;color:var(--muted);}
 .no-course-state .icon{font-size:2rem;margin-bottom:8px;}
@@ -457,3 +457,12 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 100px;}
 .cal-nav-btn{background:transparent;border:1px solid var(--border);border-radius:7px;
   color:var(--muted);font-size:1rem;padding:4px 10px;cursor:pointer;transition:all .15s;}
 .cal-nav-btn:hover{border-color:var(--teal);color:var(--white);}
+
+/* ─── SETTLEMENT SHEET ────────────────────────────────────── */
+.settle-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:5px;padding:12px 6px;border-radius:10px;border:1px solid var(--border);
+  background:var(--navy);color:var(--muted);font-family:'Barlow Condensed',sans-serif;
+  font-size:.78rem;font-weight:700;letter-spacing:.04em;cursor:pointer;
+  transition:all .15s;line-height:1.2;}
+.settle-btn:hover{border-color:var(--teal);color:var(--white);}
+.settle-btn.active{border-color:var(--teal);background:rgba(0,174,239,.15);color:var(--white);}
