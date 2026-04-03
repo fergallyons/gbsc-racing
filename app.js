@@ -1648,7 +1648,7 @@ function shareRegistrationInvite(){
   const raceName=nextRace.label;
   const raceDate=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   const raceTime=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-  const appUrl='https://gbsc-racing.netlify.app';
+  const appUrl='https://gbscracing.netlify.app';
 
   const msg=
     '⛵ *GBSC Racing — Registration Open*\n\n'+
