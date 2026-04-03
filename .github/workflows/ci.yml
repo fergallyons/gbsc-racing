@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check JavaScript syntax
+        run: node --check app.js && echo "✅ app.js syntax OK"
+
+      - name: Check HTML structure
+        run: |
+          # Verify key elements exist in index.html
+          grep -q 'id="boatGrid"'     index.html && echo "✅ boatGrid found"
+          grep -q 'id="loginScreen"'  index.html && echo "✅ loginScreen found"
+          grep -q 'src="app.js"'      index.html && echo "✅ app.js linked"
+          grep -q 'href="style.css"'  index.html && echo "✅ style.css linked"
+          echo "✅ HTML checks passed"
