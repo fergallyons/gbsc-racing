@@ -1018,16 +1018,24 @@ async function generatePaymentReport(){
   const raceName=nextRace.label;
   const raceDate=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
-  statusEl.textContent='⏳ Loading submissions…';
-  const records=await sbLoadRaceRecords(raceName);
+  statusEl.textContent='⏳ Loading report…';
 
-  if(!records.length){
-    statusEl.textContent='No submissions yet for this race';
-    return;
-  }
+  // Fetch both registrations and payment submissions in parallel
+  const [records, regs]=await Promise.all([
+    sbLoadRaceRecords(raceName),
+    sbLoadRegistrations(nextRace)
+  ]);
+
   statusEl.textContent='';
 
-  // Aggregate totals
+  // Boats that registered but never submitted a payment report
+  const submittedBoatIds=new Set(records.map(r=>r.boat_id));
+  const missingBoats=(regs||[])
+    .filter(r=>!submittedBoatIds.has(r.boat_id))
+    .map(r=>boats.find(b=>b.id===r.boat_id))
+    .filter(Boolean);
+
+  // Aggregate totals from submissions
   let grandDue=0, grandPaid=0;
   const allMethods={};
 
@@ -1094,6 +1102,23 @@ async function generatePaymentReport(){
     .map(([m,a])=>`<tr><td style="padding:3px 8px">${m}</td><td style="padding:3px 8px;font-weight:600;text-align:right">€${a}</td></tr>`)
     .join('');
 
+  // Missing boats section — registered but no submission
+  const missingSection=missingBoats.length?`
+    <div style="margin-bottom:32px;page-break-inside:avoid;">
+      <div style="background:#fff3cd;border:2px solid #e8a020;border-radius:8px;padding:14px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
+          color:#c0392b;letter-spacing:.04em;margin-bottom:10px;">
+          ⚠ Registered — No Payment Submission (${missingBoats.length})
+        </div>
+        ${missingBoats.map(b=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;
+            padding:7px 0;border-bottom:1px solid rgba(0,0,0,.08);">
+            <span style="font-weight:600;font-size:.95rem">${b.name}</span>
+            <span style="font-size:.8rem;color:#c0392b;font-weight:600">No submission received</span>
+          </div>`).join('')}
+      </div>
+    </div>`:'';
+
   const printHtml=`<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <title>Race Fees — ${raceName}</title>
@@ -1118,9 +1143,13 @@ async function generatePaymentReport(){
     </div>
   </div>
 
-  <div style="display:flex;gap:24px;background:#f0f4ff;border-radius:8px;padding:14px;margin-bottom:28px;">
-    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Boats</div>
+  <div style="display:flex;gap:24px;background:#f0f4ff;border-radius:8px;padding:14px;margin-bottom:28px;flex-wrap:wrap;">
+    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Registered</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">${(regs||[]).length}</div></div>
+    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Submitted</div>
       <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">${records.length}</div></div>
+    ${missingBoats.length?`<div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Missing</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#c0392b;font-family:'Barlow Condensed',sans-serif">${missingBoats.length}</div></div>`:''}
     <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Total Due</div>
       <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">€${grandDue}</div></div>
     <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Collected</div>
@@ -1133,6 +1162,7 @@ async function generatePaymentReport(){
     </div>
   </div>
 
+  ${missingSection}
   ${boatRows}
 </body></html>`;
 
