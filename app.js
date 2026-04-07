@@ -2112,7 +2112,7 @@ const GBSC_LAT=53.2744, GBSC_LNG=-9.0490; // Galway Bay
 
 async function loadWindWidget(){
   try{
-    const url=`https://api.open-meteo.com/v1/forecast?latitude=${GBSC_LAT}&longitude=${GBSC_LNG}`+
+    const url=`/api/wind?latitude=${GBSC_LAT}&longitude=${GBSC_LNG}`+
       `&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=Europe%2FDublin`;
     const r=await fetch(url);
     if(!r.ok) throw new Error('HTTP '+r.status);
