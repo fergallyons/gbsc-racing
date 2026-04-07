@@ -20,7 +20,36 @@
     <div class="login-logo-fb" id="llf">GB<span>SC</span></div>
     <div class="login-sub">Racing App</div>
     <div id="loginRaceLabel" style="font-size:.72rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;margin-bottom:10px;text-align:center;min-height:14px"></div>
-    <!-- Race Officer button — top -->
+    <!-- Wind widget -->
+    <div id="windWidget" style="display:flex;align-items:center;justify-content:center;gap:12px;
+      width:100%;background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.18);
+      border-radius:12px;padding:10px 16px;margin-bottom:12px;">
+      <div id="windArrow" style="font-size:1.6rem;transition:transform .5s ease">💨</div>
+      <div>
+        <div id="windSpeed" style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;
+          font-weight:800;color:var(--white);line-height:1">—</div>
+        <div id="windDir" style="font-size:.7rem;color:var(--muted);font-weight:600;
+          letter-spacing:.06em;text-transform:uppercase">Loading wind…</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div id="windBeaufort" style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;
+          font-weight:700;color:var(--teal)"></div>
+        <div style="font-size:.62rem;color:var(--muted)">Galway Bay</div>
+      </div>
+    </div>
+    <!-- Sponsor widget — shown when current race has a sponsor -->
+    <a id="sponsorWidget" href="#" target="_blank" rel="noopener"
+      style="display:none;width:100%;text-decoration:none;
+        background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+        border-radius:12px;padding:10px 14px;margin-bottom:12px;
+        align-items:center;gap:12px;">
+      <img id="sponsorLogo" src="" alt="" style="height:36px;width:auto;object-fit:contain;border-radius:4px;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:.58rem;color:var(--muted);font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:1px">Series Sponsor</div>
+        <div id="sponsorName" style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      </div>
+      <div style="font-size:.68rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;flex-shrink:0">Visit →</div>
+    </a>
     <div class="ro-btn" onclick="openPinOverlay('ro')">
       <div class="ro-btn-icon">🎌</div>
       <div class="ro-btn-text">Race Officer Login</div>
@@ -142,15 +171,14 @@
     </div>
     <svg width="16" height="16" fill="none" stroke="var(--muted)" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
   </div>
+  <div style="margin-bottom:14px">
+    <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px" onclick="registerForRace()">⛵ Register for This Race</button>
+  </div>
   <div class="sec-head">
     <div class="sec-title">Crew on Board</div>
     <div class="crew-count" id="crewCount">0 selected</div>
   </div>
   <div class="crew-list" id="crewList"></div>
-  <button class="add-crew-btn" onclick="toggleCrewForm()">
-    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-    Add person to roster
-  </button>
   <div class="add-form" id="crewForm">
     <h3>Add to Roster</h3>
     <div class="form-row">
@@ -173,9 +201,6 @@
       <button class="btn btn-primary" onclick="addCrewMember()">Add to Roster</button>
       <button class="btn btn-ghost" onclick="toggleCrewForm()">Cancel</button>
     </div>
-  </div>
-  <div style="margin-bottom:14px">
-    <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px" onclick="registerForRace()">⛵ Register for This Race</button>
   </div>
   <div class="totals-panel">
     <div class="totals-title">Race Summary</div>

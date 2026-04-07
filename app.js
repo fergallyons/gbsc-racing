@@ -233,6 +233,7 @@ async function buildBoatGrid(){
   // Show next race label
   const raceEl=document.getElementById('loginRaceLabel');
   if(raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  showSponsor(nextRace.label);
 
   // Show loading state
   const g=document.getElementById('boatGrid');
@@ -1174,8 +1175,31 @@ async function generatePaymentReport(){
 }
 
 // ═══════════════════════════════════════════════════════════════
-// CALENDAR
+// SPONSORS
 // ═══════════════════════════════════════════════════════════════
+const SPONSORS=[
+  {
+    match:/galway.?maritime/i,
+    name:'Galway Maritime',
+    tagline:'Marine Chandlery',
+    logo:'https://i0.wp.com/galwaymaritime.com/wp-content/uploads/2025/07/cropped-Web-Logo-scaled-1.webp',
+    url:'https://galwaymaritime.com'
+  },
+  // Add more sponsors here as series are added:
+  // { match:/mcswiggans/i, name:'McSwiggans', tagline:'...', logo:'...', url:'...' },
+];
+
+function showSponsor(raceName){
+  const widget=document.getElementById('sponsorWidget');
+  if(!raceName||!widget){return;}
+  const sponsor=SPONSORS.find(s=>s.match.test(raceName));
+  if(!sponsor){widget.style.display='none';return;}
+  document.getElementById('sponsorLogo').src=sponsor.logo;
+  document.getElementById('sponsorLogo').alt=sponsor.name;
+  document.getElementById('sponsorName').textContent=sponsor.name+(sponsor.tagline?' — '+sponsor.tagline:'');
+  widget.href=sponsor.url;
+  widget.style.display='flex';
+}
 let calLoaded=false, calView='list', calGridMonth=null, calSchedule=[];
 
 async function loadCalendarIfNeeded(){
@@ -2082,7 +2106,52 @@ document.addEventListener('click',function(e){
 });
 
 // ═══════════════════════════════════════════════════════════════
+// WIND WIDGET — Open-Meteo (no API key required)
+// ═══════════════════════════════════════════════════════════════
+const GBSC_LAT=53.2744, GBSC_LNG=-9.0490; // Galway Bay
+
+async function loadWindWidget(){
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${GBSC_LAT}&longitude=${GBSC_LNG}`+
+      `&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m&wind_speed_unit=kn&timezone=Europe%2FDublin`;
+    const r=await fetch(url);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const c=d.current;
+    const spd=Math.round(c.wind_speed_10m);
+    const gust=Math.round(c.wind_gusts_10m);
+    const deg=Math.round(c.wind_direction_10m);
+
+    // Cardinal direction
+    const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    const dir=dirs[Math.round(deg/22.5)%16];
+
+    // Beaufort scale
+    const beaufort=spd<1?0:spd<4?1:spd<7?2:spd<11?3:spd<17?4:spd<22?5:spd<28?6:spd<34?7:spd<41?8:spd<48?9:spd<56?10:spd<64?11:12;
+    const bNames=['Calm','Light air','Light breeze','Gentle breeze','Moderate breeze','Fresh breeze',
+      'Strong breeze','Near gale','Gale','Strong gale','Storm','Violent storm','Hurricane'];
+
+    // Rotate arrow emoji using a CSS transform on a Unicode arrow instead
+    document.getElementById('windArrow').innerHTML=
+      `<svg width="32" height="32" viewBox="0 0 32 32" style="transform:rotate(${deg}deg);transition:transform .6s ease">
+        <circle cx="16" cy="16" r="14" fill="rgba(0,174,239,.15)" stroke="rgba(0,174,239,.3)" stroke-width="1.5"/>
+        <polygon points="16,4 20,22 16,19 12,22" fill="#00aeef"/>
+        <circle cx="16" cy="16" r="3" fill="#00aeef"/>
+      </svg>`;
+
+    document.getElementById('windSpeed').textContent=spd+' kn'+(gust>spd+5?' (gusts '+gust+')':'');
+    document.getElementById('windDir').textContent=`From ${dir} · ${deg}°`;
+    document.getElementById('windBeaufort').textContent=`F${beaufort} · ${bNames[beaufort]}`;
+
+  }catch(e){
+    document.getElementById('windDir').textContent='Wind data unavailable';
+    console.warn('Wind widget error:',e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
 checkPayHash();
+loadWindWidget();
 buildBoatGrid();
