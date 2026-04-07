@@ -1,5 +1,2 @@
-[[redirects]]
-  from = "/api/wind"
-  to = "https://api.open-meteo.com/v1/forecast"
-  status = 200
-  force = true
+[build]
+  functions = "netlify/functions"
