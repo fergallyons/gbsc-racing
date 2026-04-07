@@ -1185,8 +1185,14 @@ const SPONSORS=[
     logo:'https://i0.wp.com/galwaymaritime.com/wp-content/uploads/2025/07/cropped-Web-Logo-scaled-1.webp',
     url:'https://galwaymaritime.com'
   },
+  {
+    match:/mcswiggans/i,
+    name:'McSwiggans',
+    tagline:'Steak & Seafood Restaurant',
+    logo:'https://www.google.com/s2/favicons?domain=mcswiggans.ie&sz=64',
+    url:'https://mcswiggans.ie'
+  },
   // Add more sponsors here as series are added:
-  // { match:/mcswiggans/i, name:'McSwiggans', tagline:'...', logo:'...', url:'...' },
 ];
 
 function showSponsor(raceName){
