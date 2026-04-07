@@ -196,6 +196,8 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 100px;}
 .tag-full{background:rgba(44,198,83,.15);color:var(--success);}
 .tag-crew{background:rgba(0,180,216,.15);color:var(--teal);}
 .tag-visitor{background:rgba(244,185,66,.15);color:var(--gold);}
+.tag-student{background:rgba(162,89,255,.15);color:#a259ff;}
+.tag-kid{background:rgba(255,100,130,.15);color:#ff6482;}
 .cc-alert{font-size:.72rem;color:var(--warn);margin-top:2px;}
 .cc-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;}
 .cc-fee{font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;}
