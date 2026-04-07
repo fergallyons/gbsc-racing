@@ -176,7 +176,10 @@
   </div>
   <div class="sec-head">
     <div class="sec-title">Crew on Board</div>
-    <div class="crew-count" id="crewCount">0 selected</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="crew-count" id="crewCount">0 selected</div>
+      <button class="btn btn-ghost" style="padding:4px 10px;font-size:.75rem" onclick="toggleCrewForm()">+ Add</button>
+    </div>
   </div>
   <div class="crew-list" id="crewList"></div>
   <div class="add-form" id="crewForm">
