@@ -153,6 +153,7 @@
     <button class="nav-tab" onclick="showTab('courseTab',this)">Course</button>
     <button class="nav-tab" onclick="showTab('resultsTab',this);loadResultsIfNeeded()">Results</button>
     <button class="nav-tab" onclick="showTab('calendarTab',this);loadCalendarIfNeeded()">Calendar</button>
+    <button class="nav-tab" onclick="showTab('docsTab',this)">Docs</button>
     <button class="nav-tab ro-tab" id="roNavTab" style="display:none" onclick="showTab('roTab',this)">🎌 Race Officer</button>
   </div>
 </header>
@@ -277,6 +278,21 @@
     <div class="empty-state"><div class="icon">📅</div><div>Loading schedule…</div></div>
   </div>
 </div><!-- /calendarTab -->
+
+<!-- ═══ TAB: DOCS ═══ -->
+<div class="tab-wrap" id="docsTab">
+  <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px">Race Documents</div>
+  <div id="docsList"></div>
+</div><!-- /docsTab -->
+
+<!-- PDF Viewer Overlay -->
+<div id="pdfOverlay" style="display:none;position:fixed;inset:0;background:var(--navy-dark);z-index:1000;flex-direction:column;">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;">
+    <div id="pdfTitle" style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80%"></div>
+    <button onclick="closeDoc()" style="background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--white);border-radius:8px;padding:6px 14px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;">✕ Close</button>
+  </div>
+  <iframe id="pdfFrame" src="" style="flex:1;width:100%;border:none;"></iframe>
+</div>
 
 <!-- ═══ TAB: RACE OFFICER ═══ -->
 <div class="tab-wrap" id="roTab">

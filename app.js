@@ -234,6 +234,7 @@ async function buildBoatGrid(){
   const raceEl=document.getElementById('loginRaceLabel');
   if(raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
   showSponsor(nextRace.label);
+  renderDocs();
 
   // Show loading state
   const g=document.getElementById('boatGrid');
@@ -1178,6 +1179,53 @@ async function generatePaymentReport(){
   win.document.write(printHtml);
   win.document.close();
   win.onload=()=>{ win.focus(); win.print(); };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RACE DOCUMENTS
+// ═══════════════════════════════════════════════════════════════
+const RACE_DOCS={
+  si:{
+    id:'1VM-ViDoWftAwRuVayr8ABIpvwXYE_Uba',
+    title:'Sailing Instructions 2026',
+    subtitle:'Applies to all Wednesday & KOTB races'
+  },
+  nor:[
+    {match:/mcswiggans/i, id:'1aE_3NNaUQ4QMPFkMDuSdCjTH-RDlU3sm', title:'Notice of Race — McSwiggans Series 2026', subtitle:'Wednesday Series · Apr 2026'},
+    // Add more NORs here as PDFs become available:
+    // {match:/grealy/i, id:'...', title:'Notice of Race — Grealy Stores Series 2026', subtitle:'Wednesday Series · May 2026'},
+  ]
+};
+
+function renderDocs(){
+  const el=document.getElementById('docsList'); if(!el) return;
+  const nor=nextRace?RACE_DOCS.nor.find(n=>n.match.test(nextRace.label)):null;
+  el.innerHTML=
+    '<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Always Available</div>'+
+    docCard(RACE_DOCS.si,'📋')+
+    '<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Notice of Race</div>'+
+    (nor?docCard(nor,'🏁'):'<div class="empty-state" style="margin:0;padding:18px"><div class="icon">📄</div><div>No Notice of Race available for this series yet</div></div>');
+}
+function docCard(doc,icon){
+  return'<div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">'+
+    '<div style="font-size:1.8rem;flex-shrink:0">'+icon+'</div>'+
+    '<div style="flex:1;min-width:0">'+
+      '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">'+doc.title+'</div>'+
+      '<div style="font-size:.72rem;color:var(--muted);margin-top:2px">'+doc.subtitle+'</div>'+
+    '</div>'+
+    '<button onclick="openDoc(\''+doc.id+'\',\''+doc.title.replace(/'/g,'&#39;')+'\')"\n'+
+    '  style="flex-shrink:0;background:var(--teal);color:var(--navy-dark);border:none;border-radius:8px;'+
+    '  padding:8px 14px;font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:.85rem;cursor:pointer;">'+
+    'View</button></div>';
+}
+function openDoc(fileId,title){
+  document.getElementById('pdfTitle').textContent=title;
+  document.getElementById('pdfFrame').src='https://drive.google.com/file/d/'+fileId+'/preview';
+  document.getElementById('pdfOverlay').style.display='flex';
+}
+function closeDoc(){
+  document.getElementById('pdfOverlay').style.display='none';
+  document.getElementById('pdfFrame').src='';
 }
 
 // ═══════════════════════════════════════════════════════════════
