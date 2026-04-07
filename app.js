@@ -156,7 +156,7 @@ const START_POS = {lat:53+(14.5687/60), lng:-(8+(58.6148/60))};
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS & STATE
 // ═══════════════════════════════════════════════════════════════
-const FEES={full:4,crew:4,visitor:10};
+const FEES={full:4,crew:4,visitor:10,student:5,kid:0};
 const VISITOR_MAX=6; const CREW_MAX_YRS=2; const CY=new Date().getFullYear();
 const RO_PIN='2026';
 
@@ -551,6 +551,8 @@ function renderCrew(){
           (p.type==='full'?'<span class="tag tag-full">Full Member</span>':'')+
           (p.type==='crew'?'<span class="tag tag-crew">Crew Member</span>':'')+
           (p.type==='visitor'?'<span class="tag tag-visitor">Visitor</span>':'')+
+          (p.type==='student'?'<span class="tag tag-student">Student</span>':'')+
+          (p.type==='kid'?'<span class="tag tag-kid">Junior</span>':'')+
           (p.type==='visitor'?'<span style="font-size:.7rem;color:'+(warn?'var(--warn)':'var(--muted)')+'">'+p.outings+'/'+VISITOR_MAX+' outings</span>':'')+
           (p.type==='crew'&&p.joinYear?'<span style="font-size:.72rem;color:var(--muted)">since '+p.joinYear+'</span>':'')+
         '</div>'+
@@ -569,12 +571,16 @@ function renderCrew(){
 }
 function updateTotals(){
   const s=roster.filter(p=>p.selected);
-  const m=s.filter(p=>p.type!=='visitor').length;
+  const m=s.filter(p=>p.type==='full'||p.type==='crew').length;
   const v=s.filter(p=>p.type==='visitor').length;
+  const st=s.filter(p=>p.type==='student').length;
+  const k=s.filter(p=>p.type==='kid').length;
   const tot=s.reduce((a,p)=>a+fee(p),0);
   const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
   document.getElementById('s-mem').textContent=m?m+'×€4=€'+(m*4):'—';
   document.getElementById('s-vis').textContent=v?v+'×€10=€'+(v*10):'—';
+  document.getElementById('s-stu').textContent=st?st+'×€5=€'+(st*5):'—';
+  document.getElementById('s-kid').textContent=k?k+' (free)':'—';
   document.getElementById('s-total').textContent='€'+tot;
   document.getElementById('s-paid').textContent='€'+paid;
   document.getElementById('s-owed').textContent='€'+(tot-paid);
@@ -1052,7 +1058,7 @@ async function generatePaymentReport(){
     Object.entries(methods).forEach(([m,a])=>{allMethods[m]=(allMethods[m]||0)+a;});
 
     const crewRows=crew.map(p=>{
-      const tl=p.type==='full'?'Full Member':p.type==='crew'?'Crew Member':'Visitor';
+      const tl=p.type==='full'?'Full Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='kid'?'Junior':'Visitor';
       const statusCol=p.paid
         ?`<td style="color:#1a7a3a;font-weight:600">Paid €${fee(p)}</td><td style="color:#555">${p.payMethod||'—'}</td>`
         :`<td style="color:#c0392b;font-weight:600">Unpaid €${fee(p)}</td><td>—</td>`;
@@ -2045,7 +2051,7 @@ function showCrewPayPage(data){
       <div>
         <div style="font-weight:600;font-size:.95rem">${c.n}</div>
         <div style="font-size:.72rem;color:#7a8fa6;text-transform:uppercase;
-          letter-spacing:.06em">${c.t==='full'?'Full Member':c.t==='crew'?'Crew Member':'Visitor'}</div>
+          letter-spacing:.06em">${c.t==='full'?'Full Member':c.t==='crew'?'Crew Member':c.t==='student'?'Student':c.t==='kid'?'Junior':'Visitor'}</div>
       </div>
       <span style="font-family:Barlow Condensed,sans-serif;font-size:1.2rem;
         font-weight:800;color:#f0f4f8">€${c.a}</span>
