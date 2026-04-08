@@ -108,7 +108,6 @@
     </div>
     <div class="pin-error" id="pinError"></div>
     <button class="btn btn-ghost" style="width:100%;margin-top:6px;padding:9px" onclick="closePinOverlay()">Cancel</button>
-    <div class="pin-change-link" id="pinChangeLink" style="display:none" onclick="openChangePinFlow()">Change PIN</div>
   </div>
 </div>
 
@@ -388,6 +387,17 @@
 </div><!-- /roTab -->
 
 </main>
+
+<!-- Default PIN warning modal -->
+<div id="defaultPinModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:800;align-items:center;justify-content:center;padding:24px;">
+  <div style="background:var(--navy-mid);border:1px solid rgba(244,162,97,.5);border-radius:16px;padding:24px;max-width:340px;width:100%;text-align:center;">
+    <div style="font-size:2rem;margin-bottom:10px">🔒</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:800;color:var(--warn);margin-bottom:8px">Default PIN Active</div>
+    <div style="font-size:.85rem;color:var(--muted);line-height:1.5;margin-bottom:20px">Your boat is still using the default PIN <strong style="color:var(--white)">0000</strong>. Set a personal PIN to prevent unauthorised access.</div>
+    <button onclick="closeDefaultPinModal(true)" style="width:100%;padding:12px;background:var(--teal);color:var(--navy-dark);border:none;border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;letter-spacing:.06em;cursor:pointer;margin-bottom:8px">🔑 Change PIN Now</button>
+    <button onclick="closeDefaultPinModal(false)" style="width:100%;padding:10px;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:10px;font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer">Later</button>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════════════════════
      OVERLAYS

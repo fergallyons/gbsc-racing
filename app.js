@@ -461,12 +461,10 @@ function openPinOverlay(ctx){
   if(isRO){
     document.getElementById('pinTitle').textContent='🎌 Race Officer';
     document.getElementById('pinSubtitle').textContent='Enter the Race Officer PIN';
-    document.getElementById('pinChangeLink').style.display='none';
   } else {
     const b=boats.find(x=>x.id===ctx);
     document.getElementById('pinTitle').textContent=(b?b.icon+' '+b.name:'Boat');
     document.getElementById('pinSubtitle').textContent='Enter your 4-digit PIN';
-    document.getElementById('pinChangeLink').style.display='block';
   }
   document.getElementById('pinOverlay').classList.add('open');
 }
@@ -484,13 +482,25 @@ function checkPin(){
       enterApp({id:'ro',name:'Race Officer',icon:'🎌'},true);
     } else {
       const b=boats.find(x=>x.id===ctx);
-      if(b) enterApp(b,false);
+      if(b) enterApp(b,false).then(()=>{
+        if(correct==='0000') showDefaultPinModal();
+      });
     }
   } else {
     document.getElementById('pinError').textContent='Incorrect PIN';
     pinEntry=''; updatePinDots();
     setTimeout(()=>{ document.getElementById('pinError').textContent=''; },2000);
   }
+}
+
+function showDefaultPinModal(){
+  const m=document.getElementById('defaultPinModal');
+  if(m) m.style.display='flex';
+}
+function closeDefaultPinModal(changePinNow){
+  const m=document.getElementById('defaultPinModal');
+  if(m) m.style.display='none';
+  if(changePinNow) openChangePinFlow();
 }
 
 // ── Change PIN flow ──────────────────────────────────────────
