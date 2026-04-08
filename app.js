@@ -1565,20 +1565,6 @@ function renderCourseDiagram(){
     const dash='';
     svgParts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${stroke}" stroke-width="1.8" ${dash} marker-end="url(#${marker})"/>`);
 
-    // Leg label: bearing & distance on the line midpoint
-    const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;
-    let fromLat,fromLng,toLat,toLng;
-    if(i===0){fromLat=START_POS.lat;fromLng=START_POS.lng;}
-    else{fromLat=resolvedMarks[i-1].lat;fromLng=resolvedMarks[i-1].lng;}
-    if(i===route.length-2){toLat=START_POS.lat;toLng=START_POS.lng;}
-    else{toLat=resolvedMarks[i].lat;toLng=resolvedMarks[i].lng;}
-    const brg=Math.round(bearing(fromLat,fromLng,toLat,toLng));
-    const dnm=(dist(fromLat,fromLng,toLat,toLng)/1852).toFixed(1);
-    // Perpendicular offset for label (avoid overlapping the line)
-    const nx2=-dy/len,ny2=dx/len; // left-normal
-    const lx=(mx+nx2*12).toFixed(1),ly=(my+ny2*12).toFixed(1);
-    const anchor=nx2>0?'start':'end';
-    svgParts.push(`<text x="${lx}" y="${ly}" text-anchor="${anchor}" dominant-baseline="middle" fill="rgba(122,143,166,0.75)" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="600">${brg}°·${dnm}nm</text>`);
   }
 
   // ── Mark nodes ─────────────────────────────────────────────────
