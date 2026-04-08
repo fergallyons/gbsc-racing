@@ -327,7 +327,7 @@ async function enterApp(b,ro){
   try{localStorage.setItem('gr_last',b.id);}catch(e){}
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
-  document.getElementById('navTabs').style.display='flex';
+  document.getElementById('bottomNav').style.display='flex';
   document.getElementById('headerBoat').textContent=ro?'Race Officer':b.name;
   document.getElementById('changePinBtn').style.display=ro?'none':'flex';
   if(ro){
@@ -372,7 +372,7 @@ function switchBoat(){
   halResultsLoaded=false;
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('mainApp').style.display='none';
-  document.getElementById('navTabs').style.display='none';
+  document.getElementById('bottomNav').style.display='none';
   document.getElementById('roNavTab').style.display='none';
   document.getElementById('feesNavTab').style.display='block'; // restore for next login
   document.getElementById('boatTag').removeAttribute('style');
@@ -495,7 +495,7 @@ function confirmChangePin(){
 // ═══════════════════════════════════════════════════════════════
 function showTab(id,btn){
   document.querySelectorAll('.tab-wrap').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.bn-item').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if(btn)btn.classList.add('active');
 }

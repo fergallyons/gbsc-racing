@@ -150,15 +150,29 @@
       <div id="changePinBtn" style="display:none;cursor:pointer;font-size:1rem;color:var(--muted);padding:4px 6px;border-radius:6px;border:1px solid var(--border)" onclick="openChangePinFlow()" title="Change PIN">🔑</div>
     </div>
   </div>
-  <div class="nav-tabs" id="navTabs" style="display:none">
-    <button class="nav-tab active" id="feesNavTab" onclick="showTab('feesTab',this)">Race Fees</button>
-    <button class="nav-tab" onclick="showTab('courseTab',this)">Course</button>
-    <button class="nav-tab" onclick="showTab('resultsTab',this);loadResultsIfNeeded()">Results</button>
-    <button class="nav-tab" onclick="showTab('calendarTab',this);loadCalendarIfNeeded()">Calendar</button>
-    <button class="nav-tab" onclick="showTab('docsTab',this)">Docs</button>
-    <button class="nav-tab ro-tab" id="roNavTab" style="display:none" onclick="showTab('roTab',this)">🎌 Race Officer</button>
-  </div>
 </header>
+
+<!-- ═══ BOTTOM NAV ═══ -->
+<nav id="bottomNav" style="display:none">
+  <button class="bn-item active" id="feesNavTab" onclick="showTab('feesTab',this)">
+    <span class="bn-icon">⛵</span><span class="bn-label">Fees</span>
+  </button>
+  <button class="bn-item" onclick="showTab('courseTab',this)">
+    <span class="bn-icon">🗺</span><span class="bn-label">Course</span>
+  </button>
+  <button class="bn-item" onclick="showTab('resultsTab',this);loadResultsIfNeeded()">
+    <span class="bn-icon">🏆</span><span class="bn-label">Results</span>
+  </button>
+  <button class="bn-item" onclick="showTab('calendarTab',this);loadCalendarIfNeeded()">
+    <span class="bn-icon">📅</span><span class="bn-label">Calendar</span>
+  </button>
+  <button class="bn-item" onclick="showTab('docsTab',this)">
+    <span class="bn-icon">📄</span><span class="bn-label">Docs</span>
+  </button>
+  <button class="bn-item ro-tab" id="roNavTab" style="display:none" onclick="showTab('roTab',this)">
+    <span class="bn-icon">🎌</span><span class="bn-label">RO</span>
+  </button>
+</nav>
 
 <main id="mainApp" style="display:none">
 
