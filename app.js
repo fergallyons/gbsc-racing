@@ -1820,16 +1820,18 @@ async function loadRegistrations(){
 // ═══════════════════════════════════════════════════════════════
 const HAL_URL='https://halsail.com/HalApi';
 const HAL_CLUB=3725;
-// Match any class name containing these strings (case-insensitive)
-const HAL_IRC_MATCH='irc';
-const HAL_ECHO_MATCH=/echo|cru.*e\b|\be.*cru/i;
+// Match class names — handles GBSC Halsail conventions:
+//   IRC:  "CRru- IRC", "Cru - IRC", "IRC Cruiser", or anything containing "irc"
+//   ECHO: "Cru - E", "CRru- E", "Cru - Echo", or anything containing "echo" / ending in " - E"
+const HAL_IRC_MATCH=/\birc\b|crru.*irc/i;
+const HAL_ECHO_MATCH=/\becho\b|cru\s*-\s*e\b|crru\s*-\s*e\b|cru.*e\b|\be.*cru/i;
 
-function isIrcClass(name){ return name.toLowerCase().includes(HAL_IRC_MATCH); }
-function isEchoClass(name){ return HAL_ECHO_MATCH.test(name); }
+function isIrcClass(name){ return HAL_IRC_MATCH.test(name); }
+function isEchoClass(name){ return HAL_ECHO_MATCH.test(name) && !isIrcClass(name); }
 
 let halSchedule=null;       // raw GetSchedule response
 let halSeriesList=[];        // [{label, ircId, echoId}] — one per series name
-let halCurrentFleet='irc';  // 'irc' | 'echo'
+let halCurrentFleet='irc';  // 'irc' | 'echo' — auto-set to whichever has data
 let halCurrentSeries=null;  // currently selected {label, ircId, echoId}
 let halResultsCache={};     // seriesId -> GetSeriesResult response
 let halResultsLoaded=false;
@@ -1916,6 +1918,12 @@ async function loadResultsIfNeeded(){
 
   if(halSeriesList.length){
     halCurrentSeries=halSeriesList[0];
+    // Auto-select fleet: prefer IRC if available, otherwise default to ECHO
+    const hasIrc=halSeriesList.some(s=>s.ircId);
+    const hasEcho=halSeriesList.some(s=>s.echoId);
+    if(!hasIrc&&hasEcho) halCurrentFleet='echo';
+    else halCurrentFleet='irc';
+    showFleet(halCurrentFleet);
     await renderResultsForSeries(halCurrentSeries);
   } else {
     document.getElementById('resultsContent').innerHTML=
