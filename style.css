@@ -331,7 +331,7 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 100px;}
 .leg-rounding{font-size:.8rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
   letter-spacing:.05em;padding:3px 8px;border-radius:8px;white-space:nowrap;}
 .leg-rounding.port{background:rgba(230,57,70,.15);color:#e63946;}
-.leg-rounding.starboard{background:rgba(45,198,83,.15);color:#2dc653;}
+.leg-rounding.stbd{background:rgba(45,198,83,.15);color:#2dc653;}
 .leg-detail{font-size:.9rem;color:var(--muted);min-width:90px;text-align:right;}
 .mark-colour{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle;}
 .no-course-state{text-align:center;padding:32px 16px;color:var(--muted);}
