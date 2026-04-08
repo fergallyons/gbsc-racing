@@ -134,18 +134,25 @@ header{background:rgba(36,61,115,.97);border-bottom:1px solid var(--border);
 .logo-div{width:1px;height:26px;background:var(--border);}
 .logo-sub{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;
   letter-spacing:.1em;text-transform:uppercase;color:var(--teal);}
-.hdr-right{display:flex;align-items:center;gap:8px;}
+.hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .badge{background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;
   font-weight:700;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;
-  padding:3px 10px;border-radius:20px;}
+  padding:3px 10px;border-radius:20px;white-space:nowrap;}
 .badge.outline{background:transparent;color:var(--teal);border:1px solid var(--border);}
 .badge.ro-badge{background:rgba(232,160,32,.15);color:var(--ro);border:1px solid rgba(232,160,32,.4);}
 .boat-tag{font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
   letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer;
   display:flex;align-items:center;gap:5px;background:var(--card);
-  border:1px solid var(--border);border-radius:20px;padding:3px 10px;transition:all .15s;}
+  border:1px solid var(--border);border-radius:20px;padding:3px 10px;transition:all .15s;
+  white-space:nowrap;}
 .boat-tag:hover{border-color:var(--teal);color:var(--white);}
 .boat-tag span{color:var(--white);}
+@media(max-width:480px){
+  .logo-div,.logo-sub{display:none;}
+  .app-logo{gap:6px;}
+  .app-logo img{height:30px;}
+  .hdr-right{gap:6px;}
+}
 /* bottom nav */
 #bottomNav{position:fixed;bottom:0;left:0;right:0;
   background:rgba(22,42,84,.97);border-top:1px solid var(--border);
