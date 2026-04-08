@@ -76,6 +76,11 @@ body{font-family:'Barlow',sans-serif;background:var(--navy);color:var(--white);m
 .ro-btn-icon{font-size:1.1rem;}
 .ro-btn-text{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;
   letter-spacing:.06em;text-transform:uppercase;color:var(--ro);}
+.guest-btn{width:100%;margin-bottom:12px;padding:9px 14px;
+  background:transparent;border:1px solid var(--border);border-radius:10px;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:600;
+  letter-spacing:.05em;color:var(--muted);transition:all .15s;}
+.guest-btn:hover{border-color:var(--teal);color:var(--white);}
 /* PIN overlay */
 .pin-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:600;
   display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
