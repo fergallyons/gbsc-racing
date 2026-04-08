@@ -1820,14 +1820,11 @@ async function loadRegistrations(){
 // ═══════════════════════════════════════════════════════════════
 const HAL_URL='https://halsail.com/HalApi';
 const HAL_CLUB=3725;
-// Match class names — handles GBSC Halsail conventions:
-//   IRC:  "CRru- IRC", "Cru - IRC", "IRC Cruiser", or anything containing "irc"
-//   ECHO: "Cru - E", "CRru- E", "Cru - Echo", or anything containing "echo" / ending in " - E"
-const HAL_IRC_MATCH=/\birc\b|crru.*irc/i;
-const HAL_ECHO_MATCH=/\becho\b|cru\s*-\s*e\b|crru\s*-\s*e\b|cru.*e\b|\be.*cru/i;
-
-function isIrcClass(name){ return HAL_IRC_MATCH.test(name); }
-function isEchoClass(name){ return HAL_ECHO_MATCH.test(name) && !isIrcClass(name); }
+// GBSC Halsail convention:
+//   GetSchedule only ever returns ECHO entries (Class "Cru - E")
+//   IRC is a tandem series — its SeryID is always echoId + 1
+//   Both pull from GetSeriesResult; Halsail handles the different handicapping
+function isEchoClass(name){ return /cru\s*-\s*e\b/i.test(name); }
 
 let halSchedule=null;       // raw GetSchedule response
 let halSeriesList=[];        // [{label, ircId, echoId}] — one per series name
@@ -1889,19 +1886,20 @@ async function loadResultsIfNeeded(){
   }
   halSchedule=schedule;
 
-  // Build series list — find all unique series that have both IRC and ECHO entries
+  // Build series list from ECHO entries; IRC SeryID = echoId + 1 (Halsail tandem convention)
   const seriesMap={};
   schedule.forEach(r=>{
+    if(!isEchoClass(r.Class)) return; // skip non-ECHO entries
     const key=r.Series;
     if(!seriesMap[key]) seriesMap[key]={label:key,ircId:null,echoId:null,latestStart:null};
-    if(isIrcClass(r.Class))  seriesMap[key].ircId=r.SeryID;
-    if(isEchoClass(r.Class)) seriesMap[key].echoId=r.SeryID;
+    seriesMap[key].echoId=r.SeryID;
+    seriesMap[key].ircId=r.SeryID+1; // IRC tandem series is always echoId + 1
     // Track most recent start to sort
     const d=new Date(r.Start);
     if(!seriesMap[key].latestStart||d>seriesMap[key].latestStart) seriesMap[key].latestStart=d;
   });
 
-  // Keep only series with at least one of IRC/ECHO
+  // Keep only series with ECHO (and therefore IRC) entries
   halSeriesList=Object.values(seriesMap)
     .filter(s=>s.ircId||s.echoId)
     .sort((a,b)=>b.latestStart-a.latestStart);
@@ -1918,11 +1916,8 @@ async function loadResultsIfNeeded(){
 
   if(halSeriesList.length){
     halCurrentSeries=halSeriesList[0];
-    // Auto-select fleet: prefer IRC if available, otherwise default to ECHO
-    const hasIrc=halSeriesList.some(s=>s.ircId);
-    const hasEcho=halSeriesList.some(s=>s.echoId);
-    if(!hasIrc&&hasEcho) halCurrentFleet='echo';
-    else halCurrentFleet='irc';
+    // Both IRC and ECHO always present; default to IRC
+    halCurrentFleet='irc';
     showFleet(halCurrentFleet);
     await renderResultsForSeries(halCurrentSeries);
   } else {
