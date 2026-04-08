@@ -1605,10 +1605,9 @@ function renderCourseDiagram(){
 
   // ── Wind direction arrow (top-left) ───────────────────────────
   if(c.windDeg!=null){
-    // Arrow points in the direction wind is blowing FROM (conventional met)
+    // Arrow shows direction wind flows (downwind) — tail at FROM side, head downwind
     const wCX=20,wCY=24,wLen=13;
-    const wRad=c.windDeg*Math.PI/180;
-    // FROM direction: arrowhead at source, tail downwind
+    const wRad=(c.windDeg+180)*Math.PI/180;
     const arrowX=(wCX+Math.sin(wRad)*wLen).toFixed(1);
     const arrowY=(wCY-Math.cos(wRad)*wLen).toFixed(1);
     svgParts.push(`<line x1="${wCX}" y1="${wCY}" x2="${arrowX}" y2="${arrowY}" stroke="rgba(255,170,0,0.75)" stroke-width="2" marker-end="url(#cw)"/>`);
