@@ -1565,6 +1565,11 @@ function renderCourseDiagram(){
     const dash='';
     svgParts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${stroke}" stroke-width="1.8" ${dash} marker-end="url(#${marker})"/>`);
 
+    // Leg number label at midpoint — lightweight, no bearing/distance text
+    const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;
+    const nx2=-dy/len,ny2=dx/len;
+    const lx=(mx+nx2*9).toFixed(1),ly=(my+ny2*9).toFixed(1);
+    svgParts.push(`<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" fill="rgba(0,180,216,0.55)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${i+1}</text>`);
   }
 
   // ── Mark nodes ─────────────────────────────────────────────────
@@ -1579,15 +1584,8 @@ function renderCourseDiagram(){
     svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR}" fill="${m.colour}30" stroke="${m.colour}" stroke-width="1.5"/>`);
     // Core dot
     svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2" fill="${m.colour}"/>`);
-    // Sequence badge
+    // Sequence number inside circle only — no name/rounding text labels
     svgParts.push(`<text x="${p.x.toFixed(1)}" y="${(p.y+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.9)" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="900">${i+1}</text>`);
-    // Label — left side of SVG → label to the left; right side → label to the right
-    // This keeps labels away from the centre where course legs run
-    const labelLeft=p.x<=SVG_W/2;
-    const lx=(labelLeft?p.x-NR-4:p.x+NR+4).toFixed(1);
-    const anchor=labelLeft?'end':'start';
-    svgParts.push(`<text x="${lx}" y="${(p.y-3).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="800">${m.name}</text>`);
-    svgParts.push(`<text x="${lx}" y="${(p.y+6).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${rndSym}</text>`);
   });
 
   // ── Start / Finish node ────────────────────────────────────────
