@@ -1934,18 +1934,23 @@ async function loadResultsIfNeeded(){
   schedule.forEach(r=>{
     if(!isEchoClass(r.Class)) return; // skip non-ECHO entries
     const key=r.Series;
-    if(!seriesMap[key]) seriesMap[key]={label:key,ircId:null,echoId:null,latestStart:null};
+    if(!seriesMap[key]) seriesMap[key]={label:key,ircId:null,echoId:null,firstStart:null};
     seriesMap[key].echoId=r.SeryID;
     seriesMap[key].ircId=r.SeryID+1; // IRC tandem series is always echoId + 1
-    // Track most recent start to sort
+    // Track earliest start for chronological ordering
     const d=new Date(r.Start);
-    if(!seriesMap[key].latestStart||d>seriesMap[key].latestStart) seriesMap[key].latestStart=d;
+    if(!seriesMap[key].firstStart||d<seriesMap[key].firstStart) seriesMap[key].firstStart=d;
   });
 
-  // Keep only series with ECHO (and therefore IRC) entries
+  // Sort chronologically by first race start
   halSeriesList=Object.values(seriesMap)
     .filter(s=>s.ircId||s.echoId)
-    .sort((a,b)=>b.latestStart-a.latestStart);
+    .sort((a,b)=>a.firstStart-b.firstStart);
+
+  // Default to the series matching the current/next race
+  const currentLabel=nextRace?nextRace.label.toLowerCase():'';
+  let defaultIdx=halSeriesList.findIndex(s=>currentLabel.includes(s.label.toLowerCase()));
+  if(defaultIdx<0) defaultIdx=0;
 
   // Populate selector
   const sel=document.getElementById('resultSeriesSelect');
@@ -1954,11 +1959,12 @@ async function loadResultsIfNeeded(){
     const o=document.createElement('option');
     o.value=i;
     o.textContent=s.label;
+    if(i===defaultIdx) o.selected=true;
     sel.appendChild(o);
   });
 
   if(halSeriesList.length){
-    halCurrentSeries=halSeriesList[0];
+    halCurrentSeries=halSeriesList[defaultIdx];
     // Both IRC and ECHO always present; default to IRC
     halCurrentFleet='irc';
     showFleet(halCurrentFleet);
