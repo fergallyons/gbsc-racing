@@ -1831,6 +1831,7 @@ let halSeriesList=[];        // [{label, ircId, echoId}] — one per series name
 let halCurrentFleet='irc';  // 'irc' | 'echo' — auto-set to whichever has data
 let halCurrentSeries=null;  // currently selected {label, ircId, echoId}
 let halResultsCache={};     // seriesId -> GetSeriesResult response
+let halBoatCache={};        // BoatID -> {name, sailText, helm}
 let halResultsLoaded=false;
 
 // Halsail fetch — tries direct first, falls back to Supabase proxy if CORS blocks it
@@ -1859,6 +1860,7 @@ async function halFetch(path){
 async function refreshResults(){
   halResultsLoaded=false;
   halResultsCache={};
+  halBoatCache={};
   halSeriesList=[];
   document.getElementById('resultSeriesSelect').innerHTML='<option value="">Loading…</option>';
   document.getElementById('resultsContent').innerHTML=
@@ -1964,6 +1966,14 @@ async function renderResultsForSeries(series){
     halResultsCache[seriesId]=data;
   }
   const data=halResultsCache[seriesId];
+
+  // Fetch boat details for any BoatIDs not yet cached
+  const boatIds=[...new Set((data.ResultsOverall||[]).map(b=>b.BoatID).filter(Boolean))];
+  await Promise.all(boatIds.filter(id=>!halBoatCache[id]).map(async id=>{
+    const b=await halFetch('/GetBoat/'+id);
+    if(b&&!b._err) halBoatCache[id]={name:b.Name||'',sailText:b.SailText||'',helm:b.Helm||''};
+  }));
+
   buildResultsTable(data, series.label, fleetLabel, wrap);
 }
 
@@ -1971,12 +1981,13 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap){
   const resultBoats=data.ResultsOverall||[];
   if(!resultBoats.length){ wrap.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No results yet</div></div>'; return; }
 
-  // Find my boat's position based on helm name matching current boat name (best effort)
+  // Find my boat by matching current boat name against Halsail boat name (from GetBoat cache)
   const myBoatName=currentBoat&&!isRO?currentBoat.name.toLowerCase():'';
   const myResult=resultBoats.find(b=>{
-    const helm=(b.HelmOrGuestName||'').toLowerCase();
-    const boatName=myBoatName;
-    return boatName&&(helm.includes(boatName)||boatName.includes(helm.split(' ')[0]));
+    const boatData=halBoatCache[b.BoatID];
+    if(boatData) return myBoatName&&boatData.name.toLowerCase()===myBoatName;
+    // Fallback: helm name match
+    return myBoatName&&(b.HelmOrGuestName||'').toLowerCase().includes(myBoatName.split(' ')[0]);
   });
 
   // Gather all unique RaceIDs in order
@@ -1999,29 +2010,16 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap){
   // Race column headers
   const raceHeaders=raceIds.map((_,i)=>`<th class="num" style="min-width:32px">R${i+1}</th>`).join('');
 
-  // Build a lookup: helm name (lowercase) -> boat name from our fleet
-  // This matches Halsail entries to GBSC boat names
-  const helmToBoat={};
-  boats.forEach(b=>{
-    // Each boat's helm in Halsail is typically the skipper's name
-    // We match on boat name words appearing in the helm field
-    const bName=b.name.toLowerCase();
-    helmToBoat[bName]=b.name;
-  });
-
   function resolveBoatDisplay(halBoat){
-    const helm=halBoat.HelmOrGuestName||'—';
-    const helmLower=helm.toLowerCase();
-    // Try to match against our boat names
-    const matched=boats.find(b=>{
-      const bName=b.name.toLowerCase();
-      // Match if boat name appears in helm, or first word of helm appears in boat name
-      return helmLower.includes(bName)||bName.includes(helmLower.split(' ')[0]);
-    });
-    if(matched){
-      return {primary:matched.name, secondary:helm, icon:matched.icon};
+    const boatData=halBoatCache[halBoat.BoatID];
+    if(boatData&&boatData.name){
+      return {
+        primary: boatData.name,
+        secondary: boatData.sailText||boatData.helm||null
+      };
     }
-    return {primary:helm, secondary:null, icon:null};
+    // Fallback if boat not in cache yet
+    return {primary: halBoat.HelmOrGuestName||'—', secondary: null};
   }
 
   // Rows
@@ -2032,7 +2030,7 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap){
     const display=resolveBoatDisplay(b);
 
     const nameCell=display.secondary
-      ? `<div style="font-weight:600;line-height:1.2">${display.icon?display.icon+' ':''} ${display.primary}</div>`+
+      ? `<div style="font-weight:600;line-height:1.2">${display.primary}</div>`+
         `<div style="font-size:.7rem;color:var(--muted)">${display.secondary}</div>`
       : `<div style="font-weight:600">${display.primary}</div>`;
 
