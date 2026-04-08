@@ -837,12 +837,6 @@ function openCollectSheet(){
           '<span style="font-size:1rem">💵</span>'+
           '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--success)">Cash</span></button>'+
 
-          '<button onclick="markPaidCollect(\''+p.id+'\',\'Bar Tap\')" '+
-          'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(244,185,66,.08);'+
-          'border:1px solid rgba(244,185,66,.3);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
-          '<span style="font-size:1rem">🍺</span>'+
-          '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--gold)">Bar</span></button>'+
-
           (stripeLink?
             '<a href="'+stripeLink+'?client_reference_id='+p.id+'&amount='+amt*100+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Card\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.08);'+
