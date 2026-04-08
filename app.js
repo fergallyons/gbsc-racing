@@ -2289,7 +2289,6 @@ async function loadWindWidget(){
 
     document.getElementById('windSpeed').textContent=spd+' kn'+(gust>spd+5?' (gusts '+gust+')':'');
     document.getElementById('windDir').textContent=`From ${dir} · ${deg}°`;
-    document.getElementById('windBeaufort').textContent=`F${beaufort} · ${bNames[beaufort]}`;
 
   }catch(e){
     document.getElementById('windDir').textContent='Wind data unavailable';
