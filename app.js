@@ -1541,14 +1541,14 @@ function renderCourseDiagram(){
 
   // ── Defs: arrowhead markers ────────────────────────────────────
   svgParts.push(`<defs>
-    <marker id="ca" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
-      <path d="M0,0.5 L0,5.5 L6,3 z" fill="rgba(0,180,216,0.8)"/>
+    <marker id="ca" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(0,180,216,0.8)"/>
     </marker>
-    <marker id="cr" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
-      <path d="M0,0.5 L0,5.5 L6,3 z" fill="rgba(122,143,166,0.45)"/>
+    <marker id="cr" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(122,143,166,0.45)"/>
     </marker>
-    <marker id="cw" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
-      <path d="M0,0.5 L0,5.5 L6,3 z" fill="rgba(255,170,0,0.9)"/>
+    <marker id="cw" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(255,170,0,0.9)"/>
     </marker>
   </defs>`);
 
@@ -1582,7 +1582,7 @@ function renderCourseDiagram(){
     const labelLeft=p.x<=SVG_W/2;
     const lx=(labelLeft?p.x-NR-4:p.x+NR+4).toFixed(1);
     const anchor=labelLeft?'end':'start';
-    svgParts.push(`<text x="${lx}" y="${(p.y-3).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="800">${m.name}</text>`);
+    svgParts.push(`<text x="${lx}" y="${(p.y-3).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="400">${m.name}</text>`);
     svgParts.push(`<text x="${lx}" y="${(p.y+6).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${rndSym}</text>`);
   });
 
