@@ -160,7 +160,7 @@ const FEES={full:4,crew:4,visitor:10,student:5,kid:0};
 const VISITOR_MAX=6; const CREW_MAX_YRS=2; const CY=new Date().getFullYear();
 const RO_PIN='2026';
 
-let boats=[], currentBoat=null, isRO=false;
+let boats=[], currentBoat=null, isRO=false, isGuest=false;
 let roster=[], allRaces=[], selectedRace=null, nextRace=null;
 let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225;
@@ -368,17 +368,58 @@ async function enterApp(b,ro){
   renderCrew();
 }
 function switchBoat(){
-  currentBoat=null;roster=[];isRO=false;boatConfig={};
+  currentBoat=null;roster=[];isRO=false;isGuest=false;boatConfig={};
   halResultsLoaded=false;
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('mainApp').style.display='none';
   document.getElementById('bottomNav').style.display='none';
   document.getElementById('roNavTab').style.display='none';
-  document.getElementById('feesNavTab').style.display='block'; // restore for next login
+  document.getElementById('boatsNavTab').style.display='none';
+  document.getElementById('feesNavTab').style.display='flex'; // restore for next login
   document.getElementById('boatTag').removeAttribute('style');
   document.getElementById('headerBoat').removeAttribute('style');
   showTab('feesTab',document.getElementById('feesNavTab'));
   buildBoatGrid();
+}
+function enterGuestMode(){
+  isGuest=true; currentBoat=null; isRO=false;
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainApp').style.display='block';
+  document.getElementById('bottomNav').style.display='flex';
+  document.getElementById('feesNavTab').style.display='none';
+  document.getElementById('boatsNavTab').style.display='flex';
+  document.getElementById('roNavTab').style.display='none';
+  document.getElementById('headerBoat').textContent='Guest';
+  document.getElementById('boatTag').style.background='rgba(0,174,239,.08)';
+  document.getElementById('boatTag').style.borderColor='rgba(0,174,239,.3)';
+  document.getElementById('changePinBtn').style.display='none';
+  loadAndDrawCourse();
+  renderRegisteredTab();
+  showTab('registeredTab', document.getElementById('boatsNavTab'));
+}
+async function renderRegisteredTab(){
+  const label=document.getElementById('regRaceLabel');
+  const list=document.getElementById('registeredList');
+  if(!nextRace){list.innerHTML='<div class="empty-state"><div class="icon">📅</div><div>No upcoming race found</div></div>';return;}
+  label.textContent=nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  list.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading…</div></div>';
+  const regs=await sbLoadRegistrations(nextRace);
+  if(!regs||!regs.length){
+    list.innerHTML='<div class="empty-state"><div class="icon">⛵</div><div>No boats registered yet</div></div>';
+    return;
+  }
+  const regBoats=regs.map(r=>{
+    const b=boats.find(x=>x.id===r.boat_id);
+    return b?b:null;
+  }).filter(Boolean);
+  list.innerHTML=regBoats.map(b=>
+    '<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.04);'+
+    'border:1px solid var(--border);border-radius:10px;margin-bottom:8px;">'+
+    '<span style="font-size:1.4rem">'+b.icon+'</span>'+
+    '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">'+b.name+'</span>'+
+    '<span style="margin-left:auto;font-size:.72rem;color:var(--success);font-weight:600">✓ Registered</span>'+
+    '</div>'
+  ).join('');
 }
 // add boat
 function showAddBoatForm(){document.getElementById('addBoatForm').style.display='block';document.getElementById('addBoatBtn').style.display='none';document.getElementById('newBoatName').focus();}

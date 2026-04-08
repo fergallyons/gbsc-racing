@@ -61,6 +61,7 @@
       <div class="ro-btn-icon">🎌</div>
       <div class="ro-btn-text">Race Officer Login</div>
     </div>
+    <button class="guest-btn" onclick="enterGuestMode()">👁 Guest Access — view course, results &amp; calendar</button>
     <div class="login-label">Select your boat</div>
     <div class="boat-grid" id="boatGrid"></div>
     <div id="addBoatForm">
@@ -161,6 +162,9 @@
 <nav id="bottomNav" style="display:none">
   <button class="bn-item active" id="feesNavTab" onclick="showTab('feesTab',this)">
     <span class="bn-icon">⛵</span><span class="bn-label">Fees</span>
+  </button>
+  <button class="bn-item" id="boatsNavTab" style="display:none" onclick="showTab('registeredTab',this)">
+    <span class="bn-icon">🚢</span><span class="bn-label">Boats</span>
   </button>
   <button class="bn-item" onclick="showTab('courseTab',this)">
     <span class="bn-icon">🗺</span><span class="bn-label">Course</span>
@@ -305,6 +309,13 @@
   <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px">Race Documents</div>
   <div id="docsList"></div>
 </div><!-- /docsTab -->
+
+<!-- ═══ TAB: REGISTERED BOATS (guest) ═══ -->
+<div class="tab-wrap" id="registeredTab">
+  <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Today's Race</div>
+  <div id="regRaceLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--white);margin-bottom:14px"></div>
+  <div id="registeredList"></div>
+</div><!-- /registeredTab -->
 
 <!-- PDF Viewer Overlay -->
 <div id="pdfOverlay" style="display:none;position:fixed;inset:0;background:var(--navy-dark);z-index:1000;flex-direction:column;">
