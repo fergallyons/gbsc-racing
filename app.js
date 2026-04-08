@@ -1553,7 +1553,7 @@ function renderCourseDiagram(){
   </defs>`);
 
   // ── Course legs ────────────────────────────────────────────────
-  const NR=11; // node radius for endpoint offsets
+  const NR=7; // node radius for endpoint offsets
   for(let i=0;i<route.length-1;i++){
     const p1=route[i],p2=route[i+1];
     const isRet=i===route.length-2;
@@ -1588,19 +1588,20 @@ function renderCourseDiagram(){
     const rndCol=rnd==='port'?'#e63946':'#2dc653';
     const rndSym=rnd==='port'?'◄P':'S►';
     // Glow
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR+4}" fill="${m.colour}15" stroke="${m.colour}" stroke-width="0.8" opacity="0.6"/>`);
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR+3}" fill="${m.colour}12" stroke="${m.colour}" stroke-width="0.7" opacity="0.55"/>`);
     // Body
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR}" fill="${m.colour}30" stroke="${m.colour}" stroke-width="2"/>`);
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR}" fill="${m.colour}30" stroke="${m.colour}" stroke-width="1.5"/>`);
     // Core dot
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${m.colour}"/>`);
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2" fill="${m.colour}"/>`);
     // Sequence badge
-    svgParts.push(`<text x="${p.x.toFixed(1)}" y="${(p.y+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.9)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="900">${i+1}</text>`);
-    // Label — position on the side with more space
-    const labelLeft=p.x>SVG_W/2;
-    const lx=(labelLeft?p.x-NR-5:p.x+NR+5).toFixed(1);
+    svgParts.push(`<text x="${p.x.toFixed(1)}" y="${(p.y+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.9)" font-family="Barlow Condensed,sans-serif" font-size="7" font-weight="900">${i+1}</text>`);
+    // Label — left side of SVG → label to the left; right side → label to the right
+    // This keeps labels away from the centre where course legs run
+    const labelLeft=p.x<=SVG_W/2;
+    const lx=(labelLeft?p.x-NR-4:p.x+NR+4).toFixed(1);
     const anchor=labelLeft?'end':'start';
-    svgParts.push(`<text x="${lx}" y="${(p.y-5).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="800">${m.name}</text>`);
-    svgParts.push(`<text x="${lx}" y="${(p.y+7).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${rndSym}</text>`);
+    svgParts.push(`<text x="${lx}" y="${(p.y-3).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="800">${m.name}</text>`);
+    svgParts.push(`<text x="${lx}" y="${(p.y+6).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${rndSym}</text>`);
   });
 
   // ── Start / Finish node ────────────────────────────────────────
