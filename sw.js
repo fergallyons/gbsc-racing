@@ -1,4 +1,4 @@
-const CACHE = 'gbsc-racing-v1';
+const CACHE = 'gbsc-racing-v2';
 const STATIC = ['/', '/index.html', '/app.js', '/style.css', '/favicon.svg', '/manifest.json'];
 
 // Install — cache static assets
@@ -17,10 +17,14 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// Fetch — network-first for API/external, cache-first for static assets
+// Fetch strategy:
+//   API/external calls  → network-first (never cache)
+//   HTML / JS / CSS     → network-first (always fresh when online, cache fallback offline)
+//   Other static assets → cache-first (icons, manifest — rarely change)
 self.addEventListener('fetch', e => {
   const url = e.request.url;
-  // Always go network-first for API calls
+
+  // Always network-first for API calls
   if (
     url.includes('supabase.co') ||
     url.includes('halsail.com') ||
@@ -33,7 +37,29 @@ self.addEventListener('fetch', e => {
     );
     return;
   }
-  // Cache-first for static assets
+
+  // Network-first for app shell files — ensures updates land immediately
+  if (
+    url.endsWith('/') ||
+    url.includes('/index.html') ||
+    url.includes('/app.js') ||
+    url.includes('/style.css')
+  ) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Cache-first for everything else (favicon, manifest, etc.)
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
