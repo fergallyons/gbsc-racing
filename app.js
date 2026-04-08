@@ -1560,9 +1560,9 @@ function renderCourseDiagram(){
     const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1;
     const sx=p1.x+dx/len*NR,sy=p1.y+dy/len*NR;
     const ex=p2.x-dx/len*(NR+2),ey=p2.y-dy/len*(NR+2);
-    const stroke=isRet?'rgba(122,143,166,0.35)':'rgba(0,180,216,0.6)';
-    const marker=isRet?'cr':'ca';
-    const dash=isRet?'stroke-dasharray="5 4"':'';
+    const stroke='rgba(0,180,216,0.6)';
+    const marker='ca';
+    const dash='';
     svgParts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${stroke}" stroke-width="1.8" ${dash} marker-end="url(#${marker})"/>`);
 
     // Leg label: bearing & distance on the line midpoint
