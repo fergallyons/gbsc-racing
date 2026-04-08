@@ -547,7 +547,9 @@ function confirmChangePin(){
 function showTab(id,btn){
   document.querySelectorAll('.tab-wrap').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.bn-item').forEach(t=>t.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  const el=document.getElementById(id);
+  el.classList.add('active');
+  el.scrollTop=0;
   if(btn)btn.classList.add('active');
 }
 
@@ -1677,8 +1679,8 @@ function renderCourseDiagram(){
           </div>
         </div>
       </div>
-      <div class="course-svg-wrap" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:rgba(4,14,32,0.7)">${svgEl}</div>
       <div class="course-legs-list" style="margin-top:12px">${legRows}</div>
+      <div class="course-svg-wrap" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:rgba(4,14,32,0.7)">${svgEl}</div>
     </div>
   `;
 }
