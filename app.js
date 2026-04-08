@@ -1495,93 +1495,146 @@ function renderCourseDiagram(){
     return;
   }
   const c=publishedCourse;
-  // marks is array of {id,rounding} or legacy string IDs
   const markEntries=(c.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   const windDir=c.windDeg!=null?dirs[Math.round(c.windDeg/22.5)%16]:'—';
   const windDegDisp=c.windDeg!=null?c.windDeg+'° '+windDir:'—';
 
-  // Build SVG diagram
-  // Nodes: S/F + each mark + Finish (S/F again)
-  const nodes=[{label:'S / F',colour:'#00b4d8',sub:'Start',sf:true}];
-  markEntries.forEach((me,i)=>{
+  // ── Resolve marks ──────────────────────────────────────────────
+  const resolvedMarks=markEntries.map(me=>{
     const m=MARKS.find(x=>x.id===me.id);
-    if(m) nodes.push({label:m.name,colour:m.colour,sub:null,rounding:me.rounding,markObj:m,idx:i+1});
-  });
-  nodes.push({label:'Finish',colour:'#00b4d8',sub:'Club Line',sf:true});
+    return m?{...m,rounding:me.rounding||'port'}:null;
+  }).filter(Boolean);
 
-  const NODE_R=22, GAP=80, PAD=40;
-  const totalNodes=nodes.length;
-  // Layout: vertical stack
-  const SVG_W=320;
-  const SVG_H=PAD*2+totalNodes*NODE_R*2+(totalNodes-1)*GAP;
-  const cx=SVG_W/2;
+  // ── Geo points for projection: start + marks ───────────────────
+  const geoPts=[{lat:START_POS.lat,lng:START_POS.lng},...resolvedMarks.map(m=>({lat:m.lat,lng:m.lng}))];
+
+  // ── Equirectangular projection (north=up, east=right) ──────────
+  const refLat=geoPts.reduce((s,p)=>s+p.lat,0)/geoPts.length;
+  const refLng=geoPts.reduce((s,p)=>s+p.lng,0)/geoPts.length;
+  const cosLat=Math.cos(refLat*Math.PI/180);
+  const raw=geoPts.map(p=>({
+    x:(p.lng-refLng)*cosLat,
+    y:-(p.lat-refLat)   // flip Y: north=up in SVG
+  }));
+
+  // ── Scale to SVG canvas ────────────────────────────────────────
+  const SVG_W=320,SVG_H=300,PAD=44;
+  const rawXs=raw.map(p=>p.x),rawYs=raw.map(p=>p.y);
+  const minX=Math.min(...rawXs),maxX=Math.max(...rawXs);
+  const minY=Math.min(...rawYs),maxY=Math.max(...rawYs);
+  const rangeX=maxX-minX||0.001,rangeY=maxY-minY||0.001;
+  const usableW=SVG_W-PAD*2,usableH=SVG_H-PAD*2;
+  const scale=Math.min(usableW/rangeX,usableH/rangeY);
+  const scaledW=rangeX*scale,scaledH=rangeY*scale;
+  const ox=PAD+(usableW-scaledW)/2-minX*scale;
+  const oy=PAD+(usableH-scaledH)/2-minY*scale;
+  const toSvg=p=>({x:p.x*scale+ox,y:p.y*scale+oy});
+  const svgPts=raw.map(toSvg);
+  const sfPt=svgPts[0];
+  const markPts=svgPts.slice(1);
+
+  // Full route for drawing legs: S → m1 → ... → mn → S
+  const route=[sfPt,...markPts,sfPt];
 
   let svgParts=[];
-  // Draw connecting lines first (behind nodes)
-  for(let i=0;i<nodes.length-1;i++){
-    const y1=PAD+i*(NODE_R*2+GAP)+NODE_R;
-    const y2=PAD+(i+1)*(NODE_R*2+GAP)+NODE_R;
-    const midY=(y1+y2)/2;
-    // dashed line
-    svgParts.push(`<line x1="${cx}" y1="${y1+NODE_R}" x2="${cx}" y2="${y2-NODE_R}" stroke="rgba(0,180,216,0.35)" stroke-width="2" stroke-dasharray="5 4"/>`);
-    // arrow at midpoint
-    svgParts.push(`<polygon points="${cx},${midY+8} ${cx-5},${midY-4} ${cx+5},${midY-4}" fill="rgba(0,180,216,0.6)"/>`);
-    // leg bearing/distance label — calc from geo
-    if(i===0){
-      // First leg: S/F to mark 1
-      const toM=MARKS.find(x=>x.id===nodes[1]?.label);
-      if(toM){
-        const brg=Math.round(bearing(START_POS.lat,START_POS.lng,toM.lat,toM.lng));
-        const d=Math.round(dist(START_POS.lat,START_POS.lng,toM.lat,toM.lng)/1852*10)/10;
-        const dir=dirs[Math.round(brg/22.5)%16];
-        svgParts.push(`<text x="${cx+14}" y="${midY+4}" fill="rgba(122,143,166,0.9)" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600">${brg}° · ${d}nm</text>`);
-      }
-    } else if(!nodes[i].sf){
-      const fromM=MARKS.find(x=>x.id===nodes[i].label);
-      const toM=MARKS.find(x=>x.id===nodes[i+1].label);
-      if(fromM&&toM){
-        const brg=Math.round(bearing(fromM.lat,fromM.lng,toM.lat,toM.lng));
-        const d=Math.round(dist(fromM.lat,fromM.lng,toM.lat,toM.lng)/1852*10)/10;
-        const dir=dirs[Math.round(brg/22.5)%16];
-        svgParts.push(`<text x="${cx+14}" y="${midY+4}" fill="rgba(122,143,166,0.9)" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600">${brg}° · ${d}nm</text>`);
-      }
-    }
+
+  // ── Defs: arrowhead markers ────────────────────────────────────
+  svgParts.push(`<defs>
+    <marker id="ca" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+      <path d="M0,0.5 L0,5.5 L6,3 z" fill="rgba(0,180,216,0.8)"/>
+    </marker>
+    <marker id="cr" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+      <path d="M0,0.5 L0,5.5 L6,3 z" fill="rgba(122,143,166,0.45)"/>
+    </marker>
+    <marker id="cw" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+      <path d="M0,0.5 L0,5.5 L6,3 z" fill="rgba(255,170,0,0.9)"/>
+    </marker>
+  </defs>`);
+
+  // ── Course legs ────────────────────────────────────────────────
+  const NR=11; // node radius for endpoint offsets
+  for(let i=0;i<route.length-1;i++){
+    const p1=route[i],p2=route[i+1];
+    const isRet=i===route.length-2;
+    const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1;
+    const sx=p1.x+dx/len*NR,sy=p1.y+dy/len*NR;
+    const ex=p2.x-dx/len*(NR+2),ey=p2.y-dy/len*(NR+2);
+    const stroke=isRet?'rgba(122,143,166,0.35)':'rgba(0,180,216,0.6)';
+    const marker=isRet?'cr':'ca';
+    const dash=isRet?'stroke-dasharray="5 4"':'';
+    svgParts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${stroke}" stroke-width="1.8" ${dash} marker-end="url(#${marker})"/>`);
+
+    // Leg label: bearing & distance on the line midpoint
+    const mx=(p1.x+p2.x)/2,my=(p1.y+p2.y)/2;
+    let fromLat,fromLng,toLat,toLng;
+    if(i===0){fromLat=START_POS.lat;fromLng=START_POS.lng;}
+    else{fromLat=resolvedMarks[i-1].lat;fromLng=resolvedMarks[i-1].lng;}
+    if(i===route.length-2){toLat=START_POS.lat;toLng=START_POS.lng;}
+    else{toLat=resolvedMarks[i].lat;toLng=resolvedMarks[i].lng;}
+    const brg=Math.round(bearing(fromLat,fromLng,toLat,toLng));
+    const dnm=(dist(fromLat,fromLng,toLat,toLng)/1852).toFixed(1);
+    // Perpendicular offset for label (avoid overlapping the line)
+    const nx2=-dy/len,ny2=dx/len; // left-normal
+    const lx=(mx+nx2*12).toFixed(1),ly=(my+ny2*12).toFixed(1);
+    const anchor=nx2>0?'start':'end';
+    svgParts.push(`<text x="${lx}" y="${ly}" text-anchor="${anchor}" dominant-baseline="middle" fill="rgba(122,143,166,0.75)" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="600">${brg}°·${dnm}nm</text>`);
   }
 
-  // Draw nodes
-  nodes.forEach((n,i)=>{
-    const y=PAD+i*(NODE_R*2+GAP)+NODE_R;
-    if(n.sf){
-      // S/F: double ring
-      svgParts.push(`<circle cx="${cx}" cy="${y}" r="${NODE_R+4}" fill="none" stroke="${n.colour}" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.5"/>`);
-      svgParts.push(`<circle cx="${cx}" cy="${y}" r="${NODE_R}" fill="rgba(0,180,216,0.15)" stroke="${n.colour}" stroke-width="2"/>`);
-      svgParts.push(`<text x="${cx}" y="${y-5}" text-anchor="middle" fill="${n.colour}" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="800">${n.label}</text>`);
-      svgParts.push(`<text x="${cx}" y="${y+8}" text-anchor="middle" fill="rgba(122,143,166,0.9)" font-family="Barlow,sans-serif" font-size="9">${n.sub}</text>`);
-    } else {
-      // Mark node
-      svgParts.push(`<circle cx="${cx}" cy="${y}" r="${NODE_R}" fill="${n.colour}22" stroke="${n.colour}" stroke-width="2.5"/>`);
-      svgParts.push(`<circle cx="${cx}" cy="${y}" r="7" fill="${n.colour}"/>`);
-      // Sequence number left of circle
-      svgParts.push(`<text x="${cx-NODE_R-6}" y="${y+4}" text-anchor="end" fill="rgba(0,174,239,0.8)" font-family="Barlow Condensed,sans-serif" font-size="14" font-weight="800">${n.idx}</text>`);
-      // Mark name to the right
-      svgParts.push(`<text x="${cx+NODE_R+10}" y="${y+4}" fill="${n.colour}" font-family="Barlow Condensed,sans-serif" font-size="17" font-weight="800">${n.label}</text>`);
-      // Rounding badge
-      const rnd=n.rounding||'port';
-      const rndColour=rnd==='port'?'#e63946':'#2dc653';
-      const rndLabel=rnd==='port'?'◄ PORT':'STBD ►';
-      svgParts.push(`<rect x="${cx+NODE_R+8}" y="${y+12}" width="58" height="16" rx="4" fill="${rndColour}22" stroke="${rndColour}" stroke-width="1"/>`);
-      svgParts.push(`<text x="${cx+NODE_R+37}" y="${y+23}" text-anchor="middle" fill="${rndColour}" font-family="Barlow Condensed,sans-serif" font-size="10" font-weight="700">${rndLabel}</text>`);
-    }
+  // ── Mark nodes ─────────────────────────────────────────────────
+  resolvedMarks.forEach((m,i)=>{
+    const p=markPts[i];
+    const rnd=m.rounding;
+    const rndCol=rnd==='port'?'#e63946':'#2dc653';
+    const rndSym=rnd==='port'?'◄P':'S►';
+    // Glow
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR+4}" fill="${m.colour}15" stroke="${m.colour}" stroke-width="0.8" opacity="0.6"/>`);
+    // Body
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR}" fill="${m.colour}30" stroke="${m.colour}" stroke-width="2"/>`);
+    // Core dot
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${m.colour}"/>`);
+    // Sequence badge
+    svgParts.push(`<text x="${p.x.toFixed(1)}" y="${(p.y+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.9)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="900">${i+1}</text>`);
+    // Label — position on the side with more space
+    const labelLeft=p.x>SVG_W/2;
+    const lx=(labelLeft?p.x-NR-5:p.x+NR+5).toFixed(1);
+    const anchor=labelLeft?'end':'start';
+    svgParts.push(`<text x="${lx}" y="${(p.y-5).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="800">${m.name}</text>`);
+    svgParts.push(`<text x="${lx}" y="${(p.y+7).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${rndSym}</text>`);
   });
 
-  const svgEl=`<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto">${svgParts.join('')}</svg>`;
+  // ── Start / Finish node ────────────────────────────────────────
+  {
+    const p=sfPt,R=NR+1;
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${R+4}" fill="none" stroke="#00b4d8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.55"/>`);
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${R}" fill="rgba(0,180,216,0.15)" stroke="#00b4d8" stroke-width="2"/>`);
+    svgParts.push(`<text x="${p.x.toFixed(1)}" y="${(p.y+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="#00b4d8" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="800">S/F</text>`);
+  }
 
-  // Leg-by-leg table — starts with the Start Line entry
+  // ── North arrow (top-right) ────────────────────────────────────
+  {
+    const nx=SVG_W-18,ny=32,nh=14;
+    svgParts.push(`<line x1="${nx}" y1="${ny+nh/2}" x2="${nx}" y2="${ny-nh/2}" stroke="rgba(180,200,220,0.55)" stroke-width="1.5" marker-end="url(#ca)"/>`);
+    svgParts.push(`<text x="${nx}" y="${ny+nh/2+10}" text-anchor="middle" fill="rgba(122,143,166,0.65)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">N</text>`);
+  }
+
+  // ── Wind direction arrow (top-left) ───────────────────────────
+  if(c.windDeg!=null){
+    // Arrow points in the direction wind is blowing FROM (conventional met)
+    const wCX=20,wCY=24,wLen=13;
+    const wRad=c.windDeg*Math.PI/180;
+    // FROM direction: arrowhead at source, tail downwind
+    const arrowX=(wCX+Math.sin(wRad)*wLen).toFixed(1);
+    const arrowY=(wCY-Math.cos(wRad)*wLen).toFixed(1);
+    svgParts.push(`<line x1="${wCX}" y1="${wCY}" x2="${arrowX}" y2="${arrowY}" stroke="rgba(255,170,0,0.75)" stroke-width="2" marker-end="url(#cw)"/>`);
+    svgParts.push(`<text x="${wCX}" y="${wCY+13}" text-anchor="middle" fill="rgba(255,170,0,0.75)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${c.windDeg}°</text>`);
+  }
+
+  const svgEl=`<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block">${svgParts.join('\n')}</svg>`;
+
+  // ── Leg table (preserved) ──────────────────────────────────────
   let legRows='';
-  let prevLat=START_POS.lat, prevLng=START_POS.lng;
-
-  // Row 0: Start Line
+  let prevLat=START_POS.lat,prevLng=START_POS.lng;
   legRows+=`<div class="leg-row">
     <span class="leg-num" style="color:var(--teal)">S</span>
     <span class="mark-colour" style="background:#00b4d8"></span>
@@ -1605,10 +1658,8 @@ function renderCourseDiagram(){
     </div>`;
     prevLat=m.lat; prevLng=m.lng;
   });
-  // return leg
   const retBrg=Math.round(bearing(prevLat,prevLng,START_POS.lat,START_POS.lng));
   const retD=Math.round(dist(prevLat,prevLng,START_POS.lat,START_POS.lng)/1852*10)/10;
-  const retDir=dirs[Math.round(retBrg/22.5)%16];
   legRows+=`<div class="leg-row">
     <span class="leg-num">${markEntries.length+1}</span>
     <span class="mark-colour" style="background:#00b4d8"></span>
@@ -1617,13 +1668,10 @@ function renderCourseDiagram(){
     <span class="leg-detail">${retBrg}° · ${retD}nm</span>
   </div>`;
 
-  // Total distance — sum all legs including return
-  let totalDist=0;
-  let tLat=START_POS.lat, tLng=START_POS.lng;
+  let totalDist=0,tLat=START_POS.lat,tLng=START_POS.lng;
   markEntries.forEach(me=>{
     const m=MARKS.find(x=>x.id===me.id); if(!m)return;
-    totalDist+=dist(tLat,tLng,m.lat,m.lng);
-    tLat=m.lat; tLng=m.lng;
+    totalDist+=dist(tLat,tLng,m.lat,m.lng); tLat=m.lat; tLng=m.lng;
   });
   totalDist+=dist(tLat,tLng,START_POS.lat,START_POS.lng);
   const totalNm=Math.round(totalDist/1852*10)/10;
@@ -1640,15 +1688,14 @@ function renderCourseDiagram(){
             <span class="wind-badge-arrow">💨</span>
             <span class="wind-badge-label">${windDegDisp}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:5px;background:rgba(0,174,239,.08);
-            border:1px solid rgba(0,174,239,.2);border-radius:20px;padding:3px 10px;">
+          <div style="display:flex;align-items:center;gap:5px;background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);border-radius:20px;padding:3px 10px">
             <span style="font-size:.8rem">📏</span>
             <span style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--teal)">${totalNm} nm</span>
           </div>
         </div>
       </div>
-      <div class="course-legs-list">${legRows}</div>
-      <div class="course-svg-wrap" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">${svgEl}</div>
+      <div class="course-svg-wrap" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:rgba(4,14,32,0.7)">${svgEl}</div>
+      <div class="course-legs-list" style="margin-top:12px">${legRows}</div>
     </div>
   `;
 }
