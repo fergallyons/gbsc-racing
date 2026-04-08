@@ -1,0 +1,18 @@
+{
+  "name": "GBSC Racing",
+  "short_name": "GBSC Racing",
+  "description": "Galway Bay Sailing Club — Race Management",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#081529",
+  "theme_color": "#0f1f3d",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
