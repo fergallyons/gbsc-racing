@@ -1553,7 +1553,7 @@ function renderCourseDiagram(){
   </defs>`);
 
   // ── Course legs ────────────────────────────────────────────────
-  const NR=7; // node radius for endpoint offsets
+  const NR=4; // node radius for endpoint offsets
   for(let i=0;i<route.length-1;i++){
     const p1=route[i],p2=route[i+1];
     const isRet=i===route.length-2;
@@ -1577,7 +1577,7 @@ function renderCourseDiagram(){
     // Body
     svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR}" fill="${m.colour}30" stroke="${m.colour}" stroke-width="1.5"/>`);
     // Core dot
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2" fill="${m.colour}"/>`);
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="1.5" fill="${m.colour}"/>`);
     // Mark name and rounding — left of mark if on left half, right if on right half
     const labelLeft=p.x<=SVG_W/2;
     const lx=(labelLeft?p.x-NR-4:p.x+NR+4).toFixed(1);
