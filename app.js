@@ -808,8 +808,13 @@ function openCollectSheet(){
         '</div>';
     } else {
       // Payment buttons
-      const revLink=revUser?`https://revolut.me/${revUser}`:'';
+      const revLink=revUser?`https://revolut.me/${revUser}/${amt}`:'';
       const stripeLink=getStripeLink();
+      // WhatsApp Revolut link — only when crew has a phone number
+      const waRevLink=p.phone&&revLink
+        ?'https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(
+            `Hi ${p.first} — your GBSC racing fee is €${amt}. Pay via Revolut: ${revLink} ⛵`)
+        :'';
       row.innerHTML=
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
           '<div style="display:flex;align-items:center;gap:8px">'+
@@ -820,16 +825,25 @@ function openCollectSheet(){
           '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.2rem;font-weight:800;color:var(--danger)">€'+amt+'</span>'+
         '</div>'+
         '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">'+
-          (revLink&&isMobile()?
+          (waRevLink?
+            // Phone on file → WhatsApp with Revolut payment link
+            '<a href="'+waRevLink+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Revolut\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
+            'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;" title="Send Revolut request via WhatsApp">'+
+            '<span style="font-size:1rem">💬</span>'+
+            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></a>'
+          :revLink&&isMobile()?
+            // No phone, mobile → direct Revolut deep-link
             '<a href="'+revLink+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Revolut\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
             'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;">'+
             '<span style="font-size:1rem">💜</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></a>'
-            :
+          :
+            // No phone, desktop → QR / PN sheet
             '<button onclick="openPNSheet(\''+p.id+'\',\'Revolut\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.1);'+
-            'border:1px solid var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;" title="Mobile only — shows QR/link">'+
+            'border:1px solid var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;" title="Show QR code">'+
             '<span style="font-size:1rem">💜</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Revolut</span></button>'
           )+
@@ -921,6 +935,15 @@ function pickMethod(btn,m){
 }
 function isMobile(){
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+// Normalise a phone number to the digits-only format wa.me expects
+// Handles +353…, 00353…, 087… (Irish local) formats
+function fmtWaPhone(ph){
+  let d=ph.replace(/[^\d+]/g,'');          // strip spaces, dashes, brackets
+  if(d.startsWith('+')) d=d.slice(1);       // +353… → 353…
+  else if(d.startsWith('00')) d=d.slice(2); // 00353… → 353…
+  else if(d.startsWith('0')) d='353'+d.slice(1); // 087… → 353 87…
+  return d;
 }
 function showPayMethodExtras(m,p){
   const revDiv=document.getElementById('pn-revolut-link');
