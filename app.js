@@ -1258,27 +1258,48 @@ async function generatePaymentReport(){
 // ═══════════════════════════════════════════════════════════════
 // RACE DOCUMENTS
 // ═══════════════════════════════════════════════════════════════
-const RACE_DOCS={
-  si:{
-    id:'1VM-ViDoWftAwRuVayr8ABIpvwXYE_Uba',
-    title:'Sailing Instructions 2026',
-    subtitle:'Applies to all Wednesday & KOTB races'
-  },
-  nor:[
-    {match:/mcswiggans/i, id:'1aE_3NNaUQ4QMPFkMDuSdCjTH-RDlU3sm', title:'Notice of Race — McSwiggans Series 2026', subtitle:'Wednesday Series · Apr 2026'},
-    // Add more NORs here as PDFs become available:
-    // {match:/grealy/i, id:'...', title:'Notice of Race — Grealy Stores Series 2026', subtitle:'Wednesday Series · May 2026'},
-  ]
-};
+// Race docs are loaded dynamically from Google Drive via Netlify function
+// Naming convention in the Drive folder:
+//   "Sailing Instructions…" → always-available SI
+//   "Notice of Race…"       → NOR, shown under its own section
+//   Anything else           → shown as a general document
+
+async function loadAndRenderDocs(){
+  const el=document.getElementById('docsList'); if(!el) return;
+  el.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading documents…</div></div>';
+  try{
+    const res=await fetch('/.netlify/functions/drive-docs');
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const files=await res.json();
+    if(!Array.isArray(files)||!files.length){
+      el.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">📄</div><div>No documents available yet</div></div>';
+      return;
+    }
+    const si=files.filter(f=>/sailing.instruct/i.test(f.name));
+    const nor=files.filter(f=>/notice.of.race/i.test(f.name));
+    const other=files.filter(f=>!/sailing.instruct|notice.of.race/i.test(f.name));
+    let html='';
+    if(si.length){
+      html+='<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Always Available</div>';
+      si.forEach(f=>{ html+=docCard({id:f.id,title:f.name.replace(/\.pdf$/i,''),subtitle:'Applies to all Wednesday & KOTB races'},'📋'); });
+    }
+    if(nor.length){
+      html+='<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Notice of Race</div>';
+      nor.forEach(f=>{ html+=docCard({id:f.id,title:f.name.replace(/\.pdf$/i,''),subtitle:'Wednesday Series'},'🏁'); });
+    }
+    if(other.length){
+      html+='<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Other Documents</div>';
+      other.forEach(f=>{ html+=docCard({id:f.id,title:f.name.replace(/\.pdf$/i,''),subtitle:''},'📄'); });
+    }
+    el.innerHTML=html;
+  }catch(e){
+    el.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⚠️</div><div>Could not load documents</div></div>';
+    console.error('drive-docs error',e);
+  }
+}
 
 function renderDocs(){
-  const el=document.getElementById('docsList'); if(!el) return;
-  const nor=nextRace?RACE_DOCS.nor.find(n=>n.match.test(nextRace.label)):null;
-  el.innerHTML=
-    '<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Always Available</div>'+
-    docCard(RACE_DOCS.si,'📋')+
-    '<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Notice of Race</div>'+
-    (nor?docCard(nor,'🏁'):'<div class="empty-state" style="margin:0;padding:18px"><div class="icon">📄</div><div>No Notice of Race available for this series yet</div></div>');
+  loadAndRenderDocs();
 }
 function docCard(doc,icon){
   return'<div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">'+
