@@ -227,6 +227,9 @@
       <div class="form-group" id="cf-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="cf-join" placeholder="2023" min="2015" max="2030"></div>
       <div class="form-group" id="cf-outGrp" style="display:none"><label>Prev Outings</label><input type="number" id="cf-out" value="0" min="0" max="6"></div>
     </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="tel" id="cf-phone" placeholder="+353 87 123 4567"></div>
+    </div>
     <div class="form-actions">
       <button class="btn btn-primary" onclick="addCrewMember()">Add to Roster</button>
       <button class="btn btn-ghost" onclick="toggleCrewForm()">Cancel</button>
@@ -420,6 +423,9 @@
       </div>
       <div class="form-group" id="ef-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="ef-join" min="2015" max="2030"></div>
       <div class="form-group" id="ef-outGrp" style="display:none"><label>Outings</label><input type="number" id="ef-out" min="0" max="6"></div>
+    </div>
+    <div class="form-row" style="margin-top:6px">
+      <div class="form-group" style="flex:1"><label>Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="tel" id="ef-phone" placeholder="+353 87 123 4567"></div>
     </div>
     <div class="form-actions" style="margin-top:14px">
       <button class="btn btn-primary" onclick="saveEdit()">Save</button>

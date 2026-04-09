@@ -36,8 +36,8 @@ async function sbSaveBoatConfig(id,fields){
     body:JSON.stringify(fields)
   });
 }
-async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+id+'&order=id.asc');if(r===null)return null;if(!r.length)return[];return r.map(x=>({id:x.id,first:x.first,last:x.last,type:x.type,joinYear:x.join_year,outings:x.outings,selected:false,paid:false}));}
-async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:p.id,boat_id:bid,first:p.first,last:p.last,type:p.type,join_year:p.joinYear||null,outings:p.outings||0})});}
+async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+id+'&order=id.asc');if(r===null)return null;if(!r.length)return[];return r.map(x=>({id:x.id,first:x.first,last:x.last,type:x.type,joinYear:x.join_year,outings:x.outings,phone:x.phone||'',selected:false,paid:false}));}
+async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:p.id,boat_id:bid,first:p.first,last:p.last,type:p.type,join_year:p.joinYear||null,outings:p.outings||0,phone:p.phone||null})});}
 async function sbDeleteCrew(id){return sbFetch('/rest/v1/crew?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});}
 async function sbSaveRaceRecord(rec){return sbFetch('/rest/v1/race_records',{method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(rec)});}
 async function sbLoadRaceRecords(raceName){
@@ -609,6 +609,7 @@ function renderCrew(){
           (p.type==='kid'?'<span class="tag tag-kid">Junior</span>':'')+
           (p.type==='visitor'?'<span style="font-size:.7rem;color:'+(warn?'var(--warn)':'var(--muted)')+'">'+p.outings+'/'+VISITOR_MAX+' outings</span>':'')+
           (p.type==='crew'&&p.joinYear?'<span style="font-size:.72rem;color:var(--muted)">since '+p.joinYear+'</span>':'')+
+          (p.phone?'<span style="font-size:.7rem;color:var(--muted)">📱 '+p.phone+'</span>':'')+
         '</div>'+
         (over(p)?'<div class="cc-alert">⚠ Should convert to Full Member</div>':'')+
         (vmax(p)?'<div class="cc-alert">⚠ Max outings — must join as Crew</div>':'')+
@@ -652,9 +653,10 @@ async function addCrewMember(){
   if(!first||!last){toast('Enter a name');return;}
   const joinYear=type==='crew'?(parseInt(document.getElementById('cf-join').value)||CY):null;
   const outings=type==='visitor'?(parseInt(document.getElementById('cf-out').value)||0):0;
-  roster.push({id:newCrewId(),first,last,type,joinYear,outings,selected:true,paid:false});
+  const phone=document.getElementById('cf-phone').value.trim();
+  roster.push({id:newCrewId(),first,last,type,joinYear,outings,phone,selected:true,paid:false});
   document.getElementById('cf-first').value='';document.getElementById('cf-last').value='';
-  document.getElementById('cf-type').value='full';
+  document.getElementById('cf-type').value='full';document.getElementById('cf-phone').value='';
   document.getElementById('cf-joinGrp').style.display='none';document.getElementById('cf-outGrp').style.display='none';
   document.getElementById('crewForm').classList.remove('open');
   const newP=roster[roster.length-1];
@@ -682,6 +684,7 @@ function openEditSheet(id){
   document.getElementById('ef-type').value=p.type;
   document.getElementById('ef-join').value=p.joinYear||'';
   document.getElementById('ef-out').value=p.outings||0;
+  document.getElementById('ef-phone').value=p.phone||'';
   onEditTypeChange();
   document.getElementById('editSheet').classList.add('open');
 }
@@ -693,6 +696,7 @@ function saveEdit(){
   p.first=first;p.last=last;p.type=document.getElementById('ef-type').value;
   p.joinYear=p.type==='crew'?(parseInt(document.getElementById('ef-join').value)||CY):null;
   p.outings=p.type==='visitor'?(parseInt(document.getElementById('ef-out').value)||0):0;
+  p.phone=document.getElementById('ef-phone').value.trim();
   sbUpsertCrew(currentBoat.id,p).then(()=>{setSyncStatus('ok');cacheRosterLocally(currentBoat.id,roster);}).catch(()=>setSyncStatus('offline'));
   closeSheet('editSheet');renderCrew();toast(first+' updated ✓');
 }
