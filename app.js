@@ -189,13 +189,11 @@ function buildAllRaces(){
   allRaces.sort((a,b)=>a.date-b.date);
 }
 function getNextRace(){
-  // Returns the next race — prefer within 48hrs, otherwise the next future one
+  // Returns the next future race; fall back to the last race if season is over
   const now=new Date();
-  const upcoming=allRaces.filter(r=>r.date>=new Date(now-48*60*60*1000));
+  const upcoming=allRaces.filter(r=>r.date>=now);
   if(!upcoming.length) return allRaces[allRaces.length-1];
-  // Within 48hrs ahead
-  const soon=upcoming.filter(r=>r.date-now<=48*60*60*1000);
-  return soon.length?soon[0]:upcoming[0];
+  return upcoming[0];
 }
 function raceKey(r){
   // Stable string key for a race — used as registration identifier
