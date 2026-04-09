@@ -808,12 +808,12 @@ function openCollectSheet(){
         '</div>';
     } else {
       // Payment buttons
-      const revLink=revUser?`https://revolut.me/${revUser}/${amt}`:'';
+      const revLink=revUser?`https://revolut.me/${revUser}/EUR${amt}`:'';
       const stripeLink=getStripeLink();
       // WhatsApp Revolut link — only when crew has a phone number
       const waRevLink=p.phone&&revLink
         ?'https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(
-            `Hi ${p.first} — your GBSC racing fee is €${amt}. Pay via Revolut: ${revLink} ⛵`)
+            `Hi ${p.first} — your GBSC racing fee is €${amt}. Tap to pay via Revolut: ${revLink} ⛵`)
         :'';
       row.innerHTML=
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
