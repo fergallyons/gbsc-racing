@@ -93,6 +93,7 @@ async function sbSaveCourse(course){
     wind_deg: course.windDeg,
     wind_dir: course.windDir,
     race_name: course.race_name||'',
+    notes: course.notes||'',
     published_at: course.published_at
   };
   try{
@@ -128,6 +129,7 @@ async function sbLoadCourse(){
     windDeg: row.wind_deg,
     windDir: row.wind_dir,
     race_name: row.race_name,
+    notes: row.notes||'',
     published_at: row.published_at
   };
 }
@@ -1697,6 +1699,7 @@ function renderCourseDiagram(){
           </div>
         </div>
       </div>
+      ${c.notes?`<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.82rem;color:var(--gold);line-height:1.4">📋 ${c.notes}</div>`:''}
       <div class="course-legs-list" style="margin-top:12px">${legRows}</div>
       <div class="course-svg-wrap" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:rgba(4,14,32,0.7)">${svgEl}</div>
     </div>
@@ -1776,6 +1779,7 @@ async function publishCourse(){
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   const dir=dirs[Math.round(windDeg/22.5)%16];
   const name='S/F – '+courseMarks.map(x=>{const m=MARKS.find(mk=>mk.id===x.id);return m?m.name:x.id;}).join(' – ')+' – Finish';
+  const notes=(document.getElementById('courseNotes').value||'').trim();
   const course={
     id:'current',
     name,
@@ -1783,6 +1787,7 @@ async function publishCourse(){
     windDeg,
     windDir:dir,
     race_name:selectedRace?selectedRace.label:'',
+    notes,
     published_at:new Date().toISOString()
   };
   setSyncStatus('syncing');
@@ -1855,6 +1860,7 @@ async function deleteBoat(id){
 function clearCourse(){
   courseMarks=[];
   document.querySelectorAll('.mark-toggle').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('courseNotes').value='';
   renderSelectedOrder();
 }
 function shareRegistrationInvite(){
