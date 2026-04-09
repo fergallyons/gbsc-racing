@@ -808,7 +808,7 @@ function openCollectSheet(){
         '</div>';
     } else {
       // Payment buttons
-      const revLink=revUser?`https://revolut.me/${revUser}/EUR${amt}`:'';
+      const revLink=revUser?`https://revolut.me/${revUser}`:'';
       const stripeLink=getStripeLink();
       // WhatsApp Revolut link — only when crew has a phone number
       const waRevLink=p.phone&&revLink
