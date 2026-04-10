@@ -2448,18 +2448,21 @@ function showCrewPayPage(data){
   // ── Step 2: Personal payment screen ───────────────────────────
   window._cpStep2=function(idx){
     const c=data.crew[idx];
-    const revUrl=data.rev?`https://revolut.me/${data.rev}/${c.a}?currency=EUR`:'';
+    const revUrl=data.rev?`https://revolut.me/${data.rev}`:'';
     const stripeUrl=data.stripe?`${data.stripe}?client_reference_id=${encodeURIComponent(c.n)}&amount=${c.a*100}`:'';
 
     const revBtn=revUrl?`
       <a href="${revUrl}" target="_blank"
-        style="display:flex;align-items:center;justify-content:center;gap:10px;
+        style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
         background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:14px;
         padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
-        font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
-        margin-bottom:12px;box-shadow:0 4px 24px rgba(110,64,216,.4);">
-        💜 Pay €${c.a} via Revolut
-      </a>`:'';
+        margin-bottom:6px;box-shadow:0 4px 24px rgba(110,64,216,.4);">
+        <span style="font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">💜 Open Revolut</span>
+        <span style="font-size:.85rem;font-weight:400;opacity:.85">then enter <strong style="font-size:1rem;font-weight:800">€${c.a}</strong> as the amount</span>
+      </a>
+      <div style="text-align:center;font-size:.72rem;color:#a78bfa;margin-bottom:12px;letter-spacing:.02em">
+        Send to <strong>@${data.rev}</strong>
+      </div>`:'';
 
     const stripeBtn=stripeUrl?`
       <a href="${stripeUrl}" target="_blank"
