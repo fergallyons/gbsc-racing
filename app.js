@@ -1973,7 +1973,7 @@ async function publishCourse(){
   if(ok){
     publishedCourse=course;
     setSyncStatus('ok');
-    renderCourseDiagram();
+    try{renderCourseDiagram();}catch(e){console.error('renderCourseDiagram error',e);}
     roDashCoursePublished=true;
     updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
     toast('✅ Course published to all skippers!');
@@ -2554,7 +2554,7 @@ async function toggleMarkActive(id){
   const r=await sbFetch('/rest/v1/marks?id=eq.'+id,{method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify({active:newActive})});
-  if(r===null){toast('⚠ Could not update mark');return;}
+  if(!r||r._err){toast('⚠ Could not update mark: '+(r&&r._err||'network error'));return;}
   m.active=newActive;
   buildMarksMgrList();
   buildMarksGrid(); // refresh course builder
@@ -2597,7 +2597,7 @@ async function deleteMark(id){
   const m=MARKS.find(x=>x.id===id); if(!m)return;
   if(!confirm('Delete '+m.name+'?\n\nThis cannot be undone.'))return;
   const r=await sbFetch('/rest/v1/marks?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
-  if(r===null){toast('⚠ Could not delete mark');return;}
+  if(!r||r._err){toast('⚠ Could not delete mark: '+(r&&r._err||'network error'));return;}
   MARKS.splice(MARKS.indexOf(m),1);
   buildMarksMgrList();
   buildMarksGrid();
@@ -2620,7 +2620,7 @@ async function submitAddMark(){
     const r=await sbFetch('/rest/v1/marks?id=eq.'+editingMarkId,{method:'PATCH',
       headers:{...SBH,'Prefer':'return=minimal'},
       body:JSON.stringify({name,lat,lng,colour,description:desc})});
-    if(r===null){toast('⚠ Could not save changes');return;}
+    if(!r||r._err){toast('⚠ Could not save changes: '+(r&&r._err||'network error'));return;}
     const m=MARKS.find(x=>x.id===editingMarkId);
     if(m){Object.assign(m,{name,lat,lng,colour,desc});}
     hideMarkAddForm();
@@ -2633,11 +2633,10 @@ async function submitAddMark(){
     const r=await sbFetch('/rest/v1/marks',{method:'POST',
       headers:{...SBH,'Prefer':'return=minimal'},
       body:JSON.stringify({id,name,lat,lng,colour,description:desc,active:true,sort_order:99})});
-    if(r===null){toast('⚠ Could not save mark');return;}
-    MARKS.push({id,name,lat,lng,colour,desc,active:true});
+    if(!r||r._err){toast('⚠ Could not save mark: '+(r&&r._err||'network error'));return;}
+    // Reload marks from DB to confirm save and pick up server-generated fields
+    await loadMarks();
     hideMarkAddForm();
-    buildMarksMgrList();
-    buildMarksGrid();
     toast('✅ '+name+' added');
   }
 }
