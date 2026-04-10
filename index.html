@@ -421,7 +421,6 @@
   <div class="panel-header">
     <button class="panel-back" onclick="closePanel('crewPanel')">‹</button>
     <span class="panel-title">👥 Crew Roster</span>
-    <button class="btn btn-ghost" style="padding:5px 12px;font-size:.8rem" onclick="toggleCrewForm()">+ Add</button>
   </div>
   <div class="panel-body">
     <!-- Race bar context -->
@@ -437,6 +436,9 @@
       <div class="crew-count" id="crewCount">0 selected</div>
     </div>
     <div class="crew-list" id="crewList"></div>
+    <button id="crewAddBtn" class="crew-add-main-btn" onclick="toggleCrewForm()">
+      <span style="font-size:1.2rem;line-height:1">＋</span> Add Crew Member
+    </button>
     <div class="add-form" id="crewForm">
       <h3>Add to Roster</h3>
       <div class="form-row">

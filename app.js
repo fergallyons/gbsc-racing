@@ -787,7 +787,14 @@ function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid
 
 // add crew
 function onCrewTypeChange(){const t=document.getElementById('cf-type').value;document.getElementById('cf-joinGrp').style.display=t==='crew'?'flex':'none';document.getElementById('cf-outGrp').style.display=t==='visitor'?'flex':'none';}
-function toggleCrewForm(){const f=document.getElementById('crewForm');f.classList.toggle('open');if(f.classList.contains('open'))document.getElementById('cf-first').focus();}
+function toggleCrewForm(){
+  const f=document.getElementById('crewForm');
+  const btn=document.getElementById('crewAddBtn');
+  f.classList.toggle('open');
+  const isOpen=f.classList.contains('open');
+  if(btn) btn.style.display=isOpen?'none':'flex';
+  if(isOpen) document.getElementById('cf-first').focus();
+}
 async function addCrewMember(){
   const first=document.getElementById('cf-first').value.trim();
   const last=document.getElementById('cf-last').value.trim();
