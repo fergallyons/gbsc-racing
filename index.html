@@ -159,112 +159,91 @@
 
 <!-- ═══ BOTTOM NAV ═══ -->
 <nav id="bottomNav" style="display:none">
-  <button class="bn-item active" id="feesNavTab" onclick="showTab('feesTab',this)">
+  <button class="bn-item active" id="feesNavTab" data-tab="feesTab" onclick="showTab('feesTab',this)">
     <span class="bn-icon">⛵</span><span class="bn-label">Fees</span>
   </button>
-  <button class="bn-item" id="boatsNavTab" style="display:none" onclick="showTab('registeredTab',this)">
+  <button class="bn-item" id="boatsNavTab" data-tab="registeredTab" style="display:none" onclick="showTab('registeredTab',this)">
     <span class="bn-icon">🚢</span><span class="bn-label">Boats</span>
   </button>
-  <button class="bn-item" onclick="showTab('courseTab',this)">
+  <button class="bn-item" data-tab="courseTab" onclick="showTab('courseTab',this)">
     <span class="bn-icon">🗺</span><span class="bn-label">Course</span>
   </button>
-  <button class="bn-item" onclick="showTab('resultsTab',this);loadResultsIfNeeded()">
+  <button class="bn-item" data-tab="resultsTab" onclick="showTab('resultsTab',this);loadResultsIfNeeded()">
     <span class="bn-icon">🏆</span><span class="bn-label">Results</span>
   </button>
-  <button class="bn-item" onclick="showTab('calendarTab',this);loadCalendarIfNeeded()">
+  <button class="bn-item" data-tab="calendarTab" onclick="showTab('calendarTab',this);loadCalendarIfNeeded()">
     <span class="bn-icon">📅</span><span class="bn-label">Calendar</span>
   </button>
-  <button class="bn-item" onclick="showTab('docsTab',this)">
+  <button class="bn-item" data-tab="docsTab" onclick="showTab('docsTab',this)">
     <span class="bn-icon">📄</span><span class="bn-label">Docs</span>
   </button>
-  <button class="bn-item ro-tab" id="roNavTab" style="display:none" onclick="showTab('roTab',this)">
+  <button class="bn-item ro-tab" id="roNavTab" data-tab="roTab" style="display:none" onclick="showTab('roTab',this)">
     <span class="bn-icon">🎌</span><span class="bn-label">RO</span>
   </button>
 </nav>
 
 <main id="mainApp" style="display:none">
 
-<!-- ═══ TAB: RACE FEES ═══ -->
+<!-- ═══ TAB: RACE FEES (Skipper Dashboard) ═══ -->
 <div class="tab-wrap active" id="feesTab">
-  <div class="race-bar">
-    <div class="race-bar-icon">🏁</div>
-    <div class="race-bar-text">
-      <div class="race-bar-label">Today's Race</div>
+  <!-- Race card -->
+  <div class="dash-race-card">
+    <div class="dash-race-eyebrow">Today's Race</div>
+    <div class="dash-race-name" id="dashRaceName">Loading…</div>
+    <div class="dash-race-meta" id="dashRaceMeta"></div>
+    <div id="dashRegStatus"></div>
+    <div class="dash-race-select">
+      <div class="race-bar-label">Change race</div>
       <select id="raceDropdown" onchange="onRaceSelect(this)">
         <option value="" disabled>Select a race…</option>
       </select>
     </div>
-    <svg width="16" height="16" fill="none" stroke="var(--muted)" stroke-width="2" viewBox="0 0 24 24" style="flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
   </div>
-  <div style="margin-bottom:14px">
+  <!-- Fee summary strip -->
+  <div class="dash-fee-strip">
+    <div class="dfs-item">
+      <div class="dfs-val" id="dash-crew">0</div>
+      <div class="dfs-label">Aboard</div>
+    </div>
+    <div class="dfs-sep"></div>
+    <div class="dfs-item">
+      <div class="dfs-val" id="dash-total">€0</div>
+      <div class="dfs-label">Total</div>
+    </div>
+    <div class="dfs-sep"></div>
+    <div class="dfs-item">
+      <div class="dfs-val owed" id="dash-owed">€0</div>
+      <div class="dfs-label">Owed</div>
+    </div>
+  </div>
+  <!-- 2×2 action grid -->
+  <div class="dash-grid">
+    <div class="dash-card" onclick="openPanel('crewPanel')">
+      <div class="dash-card-icon">👥</div>
+      <div class="dash-card-label">Crew Roster</div>
+      <div class="dash-card-sub" id="dc-crew-badge">0 selected</div>
+    </div>
+    <div class="dash-card" onclick="openCollectSheet()">
+      <div class="dash-card-icon">💳</div>
+      <div class="dash-card-label">Collect Fees</div>
+      <div class="dash-card-sub">Record payments</div>
+    </div>
+    <div class="dash-card" onclick="openSharePayLink()">
+      <div class="dash-card-icon">📲</div>
+      <div class="dash-card-label">Pay Link</div>
+      <div class="dash-card-sub">QR for crew</div>
+    </div>
+    <div class="dash-card" onclick="openSettingsSheet()">
+      <div class="dash-card-icon">⚙</div>
+      <div class="dash-card-label">Settings</div>
+      <div class="dash-card-sub">Revolut &amp; Stripe</div>
+    </div>
+  </div>
+  <!-- Action buttons -->
+  <div style="display:flex;flex-direction:column;gap:10px">
     <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px" onclick="registerForRace()">⛵ Register for This Race</button>
-  </div>
-  <div class="sec-head">
-    <div class="sec-title">Crew on Board</div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <div class="crew-count" id="crewCount">0 selected</div>
-      <button class="btn btn-ghost" style="padding:4px 10px;font-size:.75rem" onclick="toggleCrewForm()">+ Add</button>
-    </div>
-  </div>
-  <div class="crew-list" id="crewList"></div>
-  <div class="add-form" id="crewForm">
-    <h3>Add to Roster</h3>
-    <div class="form-row">
-      <div class="form-group"><label>First Name</label><input type="text" id="cf-first" placeholder="e.g. Ciarán"></div>
-      <div class="form-group"><label>Last Name</label><input type="text" id="cf-last" placeholder="e.g. Murphy"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Membership Type</label>
-        <select id="cf-type" onchange="onCrewTypeChange()">
-          <option value="full">Full Member — €4</option>
-          <option value="crew">Crew Member — €4</option>
-          <option value="student">Student — €5</option>
-          <option value="visitor">Visitor — €10</option>
-          <option value="kid">Junior — Free</option>
-        </select>
-      </div>
-      <div class="form-group" id="cf-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="cf-join" placeholder="2023" min="2015" max="2030"></div>
-      <div class="form-group" id="cf-outGrp" style="display:none"><label>Prev Outings</label><input type="number" id="cf-out" value="0" min="0" max="6"></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group" style="flex:1"><label>Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="tel" id="cf-phone" placeholder="+353 87 123 4567"></div>
-    </div>
-    <div class="form-actions">
-      <button class="btn btn-primary" onclick="addCrewMember()">Add to Roster</button>
-      <button class="btn btn-ghost" onclick="toggleCrewForm()">Cancel</button>
-    </div>
-  </div>
-  <div class="totals-panel">
-    <div class="totals-title">Race Summary</div>
-    <div class="totals-rows">
-      <div class="t-row"><span>Full / Crew members</span><span class="val-sm" id="s-mem">—</span></div>
-      <div class="t-row"><span>Students</span><span class="val-sm" id="s-stu">—</span></div>
-      <div class="t-row"><span>Visitors</span><span class="val-sm" id="s-vis">—</span></div>
-      <div class="t-row"><span>Juniors</span><span class="val-sm" id="s-kid">—</span></div>
-      <div class="t-row hi"><span>Paid</span><span class="val-sm c-ok" id="s-paid">€0</span></div>
-      <div class="t-row hi"><span>Outstanding</span><span class="val-sm c-bad" id="s-owed">€0</span></div>
-      <div class="t-row big"><span style="font-size:1rem;color:var(--white)">Race Total</span><span class="val-lg" id="s-total">€0</span></div>
-    </div>
-    <div class="pay-actions">
-      <button class="btn btn-primary" style="width:100%;padding:13px;font-size:.95rem" onclick="openCollectSheet()">
-        💳 Collect Payments
-      </button>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <button class="btn btn-ghost" style="padding:11px" onclick="openSharePayLink()">
-          📲 Share Pay Link
-        </button>
-        <button class="btn btn-ghost" style="padding:11px" onclick="openSettingsSheet()">
-          ⚙ Settings
-        </button>
-      </div>
-      <button class="btn btn-gold" style="width:100%;padding:12px" onclick="sendReport()">
-        ✅ Submit to Race Officer
-      </button>
-      <button class="btn btn-ghost" style="width:100%;padding:11px;border-color:var(--danger);color:var(--danger)" onclick="openProtestSheet()">
-        🚩 File a Protest
-      </button>
-    </div>
+    <button class="btn btn-gold" style="width:100%;padding:12px" onclick="sendReport()">✅ Submit to Race Officer</button>
+    <button class="btn btn-ghost" style="width:100%;padding:11px;border-color:var(--danger);color:var(--danger)" onclick="openProtestSheet()">🚩 File a Protest</button>
   </div>
 </div><!-- /feesTab -->
 
@@ -315,11 +294,30 @@
   <div id="docsList"></div>
 </div><!-- /docsTab -->
 
-<!-- ═══ TAB: REGISTERED BOATS (guest) ═══ -->
+<!-- ═══ TAB: REGISTERED BOATS (Guest Dashboard) ═══ -->
 <div class="tab-wrap" id="registeredTab">
-  <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Today's Race</div>
-  <div id="regRaceLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--white);margin-bottom:14px"></div>
-  <div id="registeredList"></div>
+  <!-- Race card -->
+  <div class="dash-race-card guest" style="margin-top:20px">
+    <div class="dash-race-eyebrow">Today's Race</div>
+    <div class="dash-race-name" id="guestDashRaceName">Loading…</div>
+    <div class="dash-race-meta" id="guestDashMeta"></div>
+  </div>
+  <!-- Starting line -->
+  <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">⛵ Starting Line</div>
+  <div id="registeredList" style="margin-bottom:20px"></div>
+  <!-- 2-tile grid -->
+  <div class="dash-grid">
+    <div class="dash-card" onclick="guestNav('docsTab')">
+      <div class="dash-card-icon">📄</div>
+      <div class="dash-card-label">Documents</div>
+      <div class="dash-card-sub">Sailing instructions</div>
+    </div>
+    <div class="dash-card" onclick="guestNav('resultsTab')">
+      <div class="dash-card-icon">🏆</div>
+      <div class="dash-card-label">Results</div>
+      <div class="dash-card-sub">Series standings</div>
+    </div>
+  </div>
 </div><!-- /registeredTab -->
 
 <!-- PDF Viewer Overlay -->
@@ -331,25 +329,162 @@
   <iframe id="pdfFrame" src="" style="flex:1;width:100%;border:none;"></iframe>
 </div>
 
-<!-- ═══ TAB: RACE OFFICER ═══ -->
+<!-- ═══ TAB: RACE OFFICER (RO Dashboard) ═══ -->
 <div class="tab-wrap" id="roTab">
-  <div class="ro-panel" style="margin-top:20px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-      <div class="ro-panel-title" style="margin-bottom:0">⛵ Registered Boats</div>
-      <button onclick="shareRegistrationInvite()" style="display:flex;align-items:center;gap:6px;
-        font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;
-        padding:6px 12px;border-radius:8px;border:1px solid rgba(37,211,102,.4);
-        background:rgba(37,211,102,.1);color:#25d366;cursor:pointer;letter-spacing:.04em;">
-        <span style="font-size:1rem">💬</span> Invite via WhatsApp
-      </button>
-    </div>
-    <div class="reg-list" id="regList">
-      <div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div>No registrations yet</div>
+  <!-- Race card -->
+  <div class="dash-race-card ro" style="margin-top:20px">
+    <div class="dash-race-eyebrow">Race Officer</div>
+    <div class="dash-race-name" id="roDashRaceName">Loading…</div>
+    <div class="dash-race-meta" id="roDashMeta"></div>
+    <div class="dash-chips" id="roDashChips">
+      <span class="dash-chip course-no">Course not set</span>
     </div>
   </div>
-  <div class="ro-panel">
-    <div class="ro-panel-title">🗺 Course Builder</div>
-    <div class="login-label" style="margin-bottom:8px">Tap a mark to add it to the sequence — tap again to add it a second time</div>
+  <!-- Action list -->
+  <div class="dash-action-list">
+    <button class="dash-action-item" onclick="openPanel('roCoursePanel')">
+      <span class="dai-icon">🗺</span>
+      <div class="dai-text">
+        <div class="dai-title">Course Builder</div>
+        <div class="dai-sub" id="roCourseStatus">Not published</div>
+      </div>
+      <span class="dai-arrow">›</span>
+    </button>
+    <button class="dash-action-item" onclick="openPanel('roRegsPanel')">
+      <span class="dai-icon">⛵</span>
+      <div class="dai-text">
+        <div class="dai-title">Registrations</div>
+        <div class="dai-sub" id="roRegsStatus">No registrations yet</div>
+      </div>
+      <span class="dai-arrow">›</span>
+    </button>
+    <button class="dash-action-item" onclick="openPanel('roProtestsPanel')">
+      <span class="dai-icon">🚩</span>
+      <div class="dai-text">
+        <div class="dai-title">Protests</div>
+        <div class="dai-sub" id="roProtestsStatus">None filed</div>
+      </div>
+      <span class="dai-arrow">›</span>
+    </button>
+    <button class="dash-action-item" onclick="openPanel('roMarksPanel')">
+      <span class="dai-icon">📍</span>
+      <div class="dai-text">
+        <div class="dai-title">Marks Manager</div>
+        <div class="dai-sub">Toggle &amp; add marks</div>
+      </div>
+      <span class="dai-arrow">›</span>
+    </button>
+    <button class="dash-action-item" onclick="openPanel('roBoatsPanel')">
+      <span class="dai-icon">🔑</span>
+      <div class="dai-text">
+        <div class="dai-title">Boat Management</div>
+        <div class="dai-sub">PINs &amp; Revolut links</div>
+      </div>
+      <span class="dai-arrow">›</span>
+    </button>
+    <button class="dash-action-item" onclick="generatePaymentReport()">
+      <span class="dai-icon">📄</span>
+      <div class="dai-text">
+        <div class="dai-title">Payment Report</div>
+        <div class="dai-sub" id="roDashReportSub">Generate PDF of all submissions</div>
+      </div>
+      <span class="dai-arrow">›</span>
+    </button>
+  </div>
+  <div id="reportStatus" style="font-size:.75rem;color:var(--muted);margin-top:4px;text-align:center"></div>
+</div><!-- /roTab -->
+
+</main>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PANEL OVERLAYS
+════════════════════════════════════════════════════════════ -->
+
+<!-- crewPanel — Crew Roster -->
+<div class="panel-overlay" id="crewPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('crewPanel')">‹</button>
+    <span class="panel-title">👥 Crew Roster</span>
+    <button class="btn btn-ghost" style="padding:5px 12px;font-size:.8rem" onclick="toggleCrewForm()">+ Add</button>
+  </div>
+  <div class="panel-body">
+    <!-- Race bar context -->
+    <div class="race-bar" style="margin-bottom:16px">
+      <div class="race-bar-icon">🏁</div>
+      <div class="race-bar-text">
+        <div class="race-bar-label">Race</div>
+        <div id="crewPanelRaceName" style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;color:var(--white)">—</div>
+      </div>
+    </div>
+    <div class="sec-head">
+      <div class="sec-title">Crew on Board</div>
+      <div class="crew-count" id="crewCount">0 selected</div>
+    </div>
+    <div class="crew-list" id="crewList"></div>
+    <div class="add-form" id="crewForm">
+      <h3>Add to Roster</h3>
+      <div class="form-row">
+        <div class="form-group"><label>First Name</label><input type="text" id="cf-first" placeholder="e.g. Ciarán"></div>
+        <div class="form-group"><label>Last Name</label><input type="text" id="cf-last" placeholder="e.g. Murphy"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Membership Type</label>
+          <select id="cf-type" onchange="onCrewTypeChange()">
+            <option value="full">Full Member — €4</option>
+            <option value="crew">Crew Member — €4</option>
+            <option value="student">Student — €5</option>
+            <option value="visitor">Visitor — €10</option>
+            <option value="kid">Junior — Free</option>
+          </select>
+        </div>
+        <div class="form-group" id="cf-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="cf-join" placeholder="2023" min="2015" max="2030"></div>
+        <div class="form-group" id="cf-outGrp" style="display:none"><label>Prev Outings</label><input type="number" id="cf-out" value="0" min="0" max="6"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1"><label>Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="tel" id="cf-phone" placeholder="+353 87 123 4567"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" onclick="addCrewMember()">Add to Roster</button>
+        <button class="btn btn-ghost" onclick="toggleCrewForm()">Cancel</button>
+      </div>
+    </div>
+    <div class="totals-panel">
+      <div class="totals-title">Race Summary</div>
+      <div class="totals-rows">
+        <div class="t-row"><span>Full / Crew members</span><span class="val-sm" id="s-mem">—</span></div>
+        <div class="t-row"><span>Students</span><span class="val-sm" id="s-stu">—</span></div>
+        <div class="t-row"><span>Visitors</span><span class="val-sm" id="s-vis">—</span></div>
+        <div class="t-row"><span>Juniors</span><span class="val-sm" id="s-kid">—</span></div>
+        <div class="t-row hi"><span>Paid</span><span class="val-sm c-ok" id="s-paid">€0</span></div>
+        <div class="t-row hi"><span>Outstanding</span><span class="val-sm c-bad" id="s-owed">€0</span></div>
+        <div class="t-row big"><span style="font-size:1rem;color:var(--white)">Race Total</span><span class="val-lg" id="s-total">€0</span></div>
+      </div>
+      <div class="pay-actions">
+        <button class="btn btn-primary" style="width:100%;padding:13px;font-size:.95rem" onclick="openCollectSheet()">
+          💳 Collect Payments
+        </button>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="btn btn-ghost" style="padding:11px" onclick="openSharePayLink()">
+            📲 Share Pay Link
+          </button>
+          <button class="btn btn-ghost" style="padding:11px" onclick="openSettingsSheet()">
+            ⚙ Settings
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- roCoursePanel — Course Builder -->
+<div class="panel-overlay" id="roCoursePanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roCoursePanel')">‹</button>
+    <span class="panel-title">🗺 Course Builder</span>
+  </div>
+  <div class="panel-body">
+    <div class="login-label" style="margin-bottom:12px">Tap a mark to add it to the sequence — tap again to add it a second time</div>
     <div class="marks-grid" id="marksGrid"></div>
     <div class="selected-marks-order" id="selectedMarksOrder" style="display:none">
       <div class="smo-title">Course order — tap to remove</div>
@@ -377,26 +512,49 @@
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="clearCourse()">Clear</button>
     </div>
   </div>
-  <div class="ro-panel">
-    <div class="ro-panel-title">🔑 Boat Management</div>
-    <div id="pinMgmtList" style="display:flex;flex-direction:column;gap:6px;"></div>
-  </div>
-  <div class="ro-panel">
-    <div class="ro-panel-title">📄 Payment Report</div>
-    <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">
-      Generates a printable PDF of all submitted fee reports for the current race.
-    </div>
-    <button class="btn btn-primary" style="width:100%;padding:12px" onclick="generatePaymentReport()">
-      📄 Generate PDF Report
+</div>
+
+<!-- roRegsPanel — Registrations -->
+<div class="panel-overlay" id="roRegsPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roRegsPanel')">‹</button>
+    <span class="panel-title">⛵ Registrations</span>
+    <button onclick="shareRegistrationInvite()" style="display:flex;align-items:center;gap:5px;
+      font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;
+      padding:5px 10px;border-radius:8px;border:1px solid rgba(37,211,102,.4);
+      background:rgba(37,211,102,.1);color:#25d366;cursor:pointer;letter-spacing:.04em;">
+      <span style="font-size:.95rem">💬</span> Invite
     </button>
-    <div id="reportStatus" style="font-size:.75rem;color:var(--muted);margin-top:8px;text-align:center"></div>
   </div>
-  <!-- Marks Manager -->
-  <div class="ro-panel">
-    <div class="ro-panel-title">📍 Marks Manager</div>
+  <div class="panel-body">
+    <div class="reg-list" id="regList">
+      <div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div>No registrations yet</div>
+    </div>
+  </div>
+</div>
+
+<!-- roProtestsPanel — Protests -->
+<div class="panel-overlay" id="roProtestsPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roProtestsPanel')">‹</button>
+    <span class="panel-title">🚩 Protests</span>
+  </div>
+  <div class="panel-body">
+    <div id="protestList">
+      <div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- roMarksPanel — Marks Manager -->
+<div class="panel-overlay" id="roMarksPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roMarksPanel')">‹</button>
+    <span class="panel-title">📍 Marks Manager</span>
+  </div>
+  <div class="panel-body">
     <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Toggle marks in/out of play. Add custom marks for KOTB and special races.</div>
     <div id="marksMgrList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
-    <!-- Add mark form -->
     <div id="markAddForm" style="display:none;background:var(--navy);border-radius:10px;padding:12px;margin-bottom:8px;">
       <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">New Mark</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
@@ -446,16 +604,18 @@
       + Add a mark
     </button>
   </div>
-  <!-- Protests -->
-  <div class="ro-panel">
-    <div class="ro-panel-title">🚩 Protests</div>
-    <div id="protestList">
-      <div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>
-    </div>
-  </div>
-</div><!-- /roTab -->
+</div>
 
-</main>
+<!-- roBoatsPanel — Boat Management -->
+<div class="panel-overlay" id="roBoatsPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roBoatsPanel')">‹</button>
+    <span class="panel-title">🔑 Boat Management</span>
+  </div>
+  <div class="panel-body">
+    <div id="pinMgmtList" style="display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+</div>
 
 <!-- Default PIN warning modal -->
 <div id="defaultPinModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:800;align-items:center;justify-content:center;padding:24px;">
