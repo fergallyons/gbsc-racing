@@ -138,7 +138,7 @@ function setSyncStatus(s){const el=document.getElementById('syncStatus');if(!el)
 // ═══════════════════════════════════════════════════════════════
 // MARKS DATA  (from GBSC Sailing Instructions 2026, Appendix A)
 // ═══════════════════════════════════════════════════════════════
-const MARKS = [
+let MARKS = [
   {id:'BR', name:'Black Rock',         lat:53+(14.001/60), lng:-(9+(6.547/60)),  colour:'#e63946', desc:'Channel Red'},
   {id:'C',  name:'Cockle',             lat:53+(14.537/60), lng:-(9+(1.886/60)),  colour:'#f4a261', desc:'Club Orange'},
   {id:'D',  name:'Dillisk',            lat:53+(14.665/60), lng:-(8+(59.991/60)), colour:'#f4a261', desc:'Club Orange'},
