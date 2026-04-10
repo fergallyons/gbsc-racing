@@ -2489,11 +2489,12 @@ function buildMarksMgrList(){
         `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${m.active?'':'opacity:.45'}">${m.name}</div>`+
         `<div style="font-size:.68rem;color:var(--muted)">${m.desc||''}</div>`+
       `</div>`+
-      `<div style="display:flex;align-items:center;gap:6px">`+
-        `<span style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:600;color:${m.active?'var(--teal)':'var(--muted)'};letter-spacing:.04em">${m.active?'IN PLAY':'OFF'}</span>`+
+      `<div style="display:flex;align-items:center;gap:5px">`+
         `<button onclick="toggleMarkActive('${m.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
         (m.active?'border:1px solid var(--border);background:transparent;color:var(--muted)':'border:1px solid var(--teal);background:transparent;color:var(--teal)')+`">`+
-        (m.active?'Disable':'Enable')+`</button>`+
+        (m.active?'Off':'On')+`</button>`+
+        `<button onclick="openEditMark('${m.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteMark('${m.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
       `</div>`;
     list.appendChild(row);
   });
@@ -2518,11 +2519,42 @@ function showMarkAddForm(){
   document.getElementById('markAddBtn').style.display='none';
   document.getElementById('mk-id').focus();
 }
+let editingMarkId=null;
 function hideMarkAddForm(){
   document.getElementById('markAddForm').style.display='none';
   document.getElementById('markAddBtn').style.display='block';
   ['mk-id','mk-name','mk-lat','mk-lng','mk-desc'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('mk-colour').value='#f4a261';
+  document.getElementById('mk-id').readOnly=false;
+  document.getElementById('markFormTitle').textContent='New Mark';
+  document.getElementById('markFormSubmitBtn').textContent='Add Mark';
+  editingMarkId=null;
+}
+function openEditMark(id){
+  const m=MARKS.find(x=>x.id===id); if(!m)return;
+  editingMarkId=id;
+  document.getElementById('mk-id').value=m.id;
+  document.getElementById('mk-id').readOnly=true; // ID is the primary key — don't allow changing
+  document.getElementById('mk-name').value=m.name;
+  document.getElementById('mk-lat').value=m.lat;
+  document.getElementById('mk-lng').value=m.lng;
+  document.getElementById('mk-desc').value=m.desc||'';
+  document.getElementById('mk-colour').value=m.colour||'#f4a261';
+  document.getElementById('markFormTitle').textContent='Edit Mark';
+  document.getElementById('markFormSubmitBtn').textContent='Save Changes';
+  document.getElementById('markAddForm').style.display='block';
+  document.getElementById('markAddBtn').style.display='none';
+  document.getElementById('mk-name').focus();
+}
+async function deleteMark(id){
+  const m=MARKS.find(x=>x.id===id); if(!m)return;
+  if(!confirm('Delete '+m.name+'?\n\nThis cannot be undone.'))return;
+  const r=await sbFetch('/rest/v1/marks?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
+  if(r===null){toast('⚠ Could not delete mark');return;}
+  MARKS.splice(MARKS.indexOf(m),1);
+  buildMarksMgrList();
+  buildMarksGrid();
+  toast('🗑 '+m.name+' deleted');
 }
 
 async function submitAddMark(){
@@ -2535,18 +2567,32 @@ async function submitAddMark(){
 
   if(!id||!name){toast('Enter an ID and name');return;}
   if(isNaN(lat)||isNaN(lng)){toast('Enter valid coordinates');return;}
-  if(MARKS.find(m=>m.id===id)){toast('Mark ID already exists');return;}
 
-  const r=await sbFetch('/rest/v1/marks',{method:'POST',
-    headers:{...SBH,'Prefer':'return=minimal'},
-    body:JSON.stringify({id,name,lat,lng,colour,description:desc,active:true,sort_order:99})});
-  if(r===null){toast('⚠ Could not save mark');return;}
-
-  MARKS.push({id,name,lat,lng,colour,desc,active:true});
-  hideMarkAddForm();
-  buildMarksMgrList();
-  buildMarksGrid();
-  toast('✅ '+name+' added');
+  if(editingMarkId){
+    // Edit existing mark
+    const r=await sbFetch('/rest/v1/marks?id=eq.'+editingMarkId,{method:'PATCH',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({name,lat,lng,colour,description:desc})});
+    if(r===null){toast('⚠ Could not save changes');return;}
+    const m=MARKS.find(x=>x.id===editingMarkId);
+    if(m){Object.assign(m,{name,lat,lng,colour,desc});}
+    hideMarkAddForm();
+    buildMarksMgrList();
+    buildMarksGrid();
+    toast('✅ '+name+' updated');
+  } else {
+    // Add new mark
+    if(MARKS.find(m=>m.id===id)){toast('Mark ID already exists');return;}
+    const r=await sbFetch('/rest/v1/marks',{method:'POST',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({id,name,lat,lng,colour,description:desc,active:true,sort_order:99})});
+    if(r===null){toast('⚠ Could not save mark');return;}
+    MARKS.push({id,name,lat,lng,colour,desc,active:true});
+    hideMarkAddForm();
+    buildMarksMgrList();
+    buildMarksGrid();
+    toast('✅ '+name+' added');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
