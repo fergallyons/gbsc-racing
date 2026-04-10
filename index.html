@@ -572,7 +572,7 @@
     <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Toggle marks in/out of play. Add custom marks for KOTB and special races.</div>
     <div id="marksMgrList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
     <div id="markAddForm" style="display:none;background:var(--navy);border-radius:10px;padding:12px;margin-bottom:8px;">
-      <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">New Mark</div>
+      <div id="markFormTitle" style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">New Mark</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <div>
           <label style="font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">ID / Code</label>
@@ -610,7 +610,7 @@
         </div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" style="flex:1;padding:9px" onclick="submitAddMark()">Add Mark</button>
+        <button id="markFormSubmitBtn" class="btn btn-primary" style="flex:1;padding:9px" onclick="submitAddMark()">Add Mark</button>
         <button class="btn btn-ghost" style="padding:9px 14px" onclick="hideMarkAddForm()">Cancel</button>
       </div>
     </div>
