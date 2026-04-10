@@ -808,6 +808,7 @@ async function addCrewMember(){
   document.getElementById('cf-type').value='full';document.getElementById('cf-phone').value='';
   document.getElementById('cf-joinGrp').style.display='none';document.getElementById('cf-outGrp').style.display='none';
   document.getElementById('crewForm').classList.remove('open');
+  const _ab=document.getElementById('crewAddBtn');if(_ab)_ab.style.display='flex';
   const newP=roster[roster.length-1];
   const result=await sbUpsertCrew(currentBoat.id,newP);
   if(result&&result._err){
