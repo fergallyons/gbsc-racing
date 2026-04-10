@@ -157,30 +157,6 @@
   </div>
 </header>
 
-<!-- ═══ BOTTOM NAV ═══ -->
-<nav id="bottomNav" style="display:none">
-  <button class="bn-item active" id="feesNavTab" data-tab="feesTab" onclick="showTab('feesTab',this)">
-    <span class="bn-icon">⛵</span><span class="bn-label">Fees</span>
-  </button>
-  <button class="bn-item" id="boatsNavTab" data-tab="registeredTab" style="display:none" onclick="showTab('registeredTab',this)">
-    <span class="bn-icon">🚢</span><span class="bn-label">Boats</span>
-  </button>
-  <button class="bn-item" data-tab="courseTab" onclick="showTab('courseTab',this)">
-    <span class="bn-icon">🗺</span><span class="bn-label">Course</span>
-  </button>
-  <button class="bn-item" data-tab="resultsTab" onclick="showTab('resultsTab',this);loadResultsIfNeeded()">
-    <span class="bn-icon">🏆</span><span class="bn-label">Results</span>
-  </button>
-  <button class="bn-item" data-tab="calendarTab" onclick="showTab('calendarTab',this);loadCalendarIfNeeded()">
-    <span class="bn-icon">📅</span><span class="bn-label">Calendar</span>
-  </button>
-  <button class="bn-item" data-tab="docsTab" onclick="showTab('docsTab',this)">
-    <span class="bn-icon">📄</span><span class="bn-label">Docs</span>
-  </button>
-  <button class="bn-item ro-tab" id="roNavTab" data-tab="roTab" style="display:none" onclick="showTab('roTab',this)">
-    <span class="bn-icon">🎌</span><span class="bn-label">RO</span>
-  </button>
-</nav>
 
 <main id="mainApp" style="display:none">
 
@@ -216,7 +192,7 @@
       <div class="dfs-label">Owed</div>
     </div>
   </div>
-  <!-- 2×2 action grid -->
+  <!-- 2-column tile grid -->
   <div class="dash-grid">
     <div class="dash-card" onclick="openPanel('crewPanel')">
       <div class="dash-card-icon">👥</div>
@@ -238,6 +214,26 @@
       <div class="dash-card-label">Settings</div>
       <div class="dash-card-sub">Revolut &amp; Stripe</div>
     </div>
+    <div class="dash-card" onclick="openPanel('coursePanel')">
+      <div class="dash-card-icon">🗺</div>
+      <div class="dash-card-label">Course</div>
+      <div class="dash-card-sub">Today's course</div>
+    </div>
+    <div class="dash-card" onclick="openPanel('docsPanel');loadAndRenderDocs()">
+      <div class="dash-card-icon">📄</div>
+      <div class="dash-card-label">Documents</div>
+      <div class="dash-card-sub">Sailing instructions</div>
+    </div>
+    <div class="dash-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
+      <div class="dash-card-icon">🏆</div>
+      <div class="dash-card-label">Results</div>
+      <div class="dash-card-sub">Series standings</div>
+    </div>
+    <div class="dash-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
+      <div class="dash-card-icon">📅</div>
+      <div class="dash-card-label">Calendar</div>
+      <div class="dash-card-sub">Race schedule</div>
+    </div>
   </div>
   <!-- Action buttons -->
   <div style="display:flex;flex-direction:column;gap:10px">
@@ -247,52 +243,76 @@
   </div>
 </div><!-- /feesTab -->
 
-<!-- ═══ TAB: COURSE ═══ -->
-<div class="tab-wrap" id="courseTab">
-  <div id="courseDisplay">
-    <div class="no-course-state"><div class="icon">🗺</div><div>No course published yet</div></div>
+<!-- ═══ PANEL: COURSE ═══ -->
+<div class="panel-overlay" id="coursePanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('coursePanel')">‹</button>
+    <span class="panel-title">🗺 Course</span>
   </div>
-</div><!-- /courseTab -->
-
-<!-- ═══ TAB: RESULTS ═══ -->
-<div class="tab-wrap" id="resultsTab">
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-    <div style="flex:1;min-width:0;">
-      <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Series</div>
-      <select id="resultSeriesSelect" onchange="onResultSeriesChange()" style="background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;padding:8px 10px;width:100%;outline:none;">
-        <option value="">Loading…</option>
-      </select>
-    </div>
-    <div style="display:flex;gap:6px;margin-top:18px;">
-      <button id="ircBtn"  onclick="showFleet('irc')"  style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;border:1px solid var(--teal);background:var(--teal);color:var(--navy);cursor:pointer;">IRC</button>
-      <button id="echoBtn" onclick="showFleet('echo')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">ECHO</button>
-      <button onclick="refreshResults()" title="Refresh from Halsail" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">↺</button>
+  <div class="panel-body">
+    <div id="courseDisplay">
+      <div class="no-course-state"><div class="icon">🗺</div><div>No course published yet</div></div>
     </div>
   </div>
-  <div id="resultsContent">
-    <div class="empty-state"><div class="icon">🏆</div><div>Loading results…</div></div>
-  </div>
-</div><!-- /resultsTab -->
+</div><!-- /coursePanel -->
 
-<!-- ═══ TAB: CALENDAR ═══ -->
-<div class="tab-wrap" id="calendarTab">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-    <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">2026 Race Schedule</div>
-    <div style="display:flex;gap:6px;">
-      <button id="calListBtn" onclick="setCalView('list')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid var(--teal);background:var(--teal);color:var(--navy-dark);cursor:pointer;">List</button>
-      <button id="calGridBtn" onclick="setCalView('grid')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">Grid</button>
+<!-- ═══ PANEL: RESULTS ═══ -->
+<div class="panel-overlay" id="resultsPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('resultsPanel')">‹</button>
+    <span class="panel-title">🏆 Results</span>
+  </div>
+  <div class="panel-body">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Series</div>
+        <select id="resultSeriesSelect" onchange="onResultSeriesChange()" style="background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;padding:8px 10px;width:100%;outline:none;">
+          <option value="">Loading…</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:18px;">
+        <button id="ircBtn"  onclick="showFleet('irc')"  style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;border:1px solid var(--teal);background:var(--teal);color:var(--navy);cursor:pointer;">IRC</button>
+        <button id="echoBtn" onclick="showFleet('echo')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">ECHO</button>
+        <button onclick="refreshResults()" title="Refresh from Halsail" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">↺</button>
+      </div>
+    </div>
+    <div id="resultsContent">
+      <div class="empty-state"><div class="icon">🏆</div><div>Loading results…</div></div>
     </div>
   </div>
-  <div id="calendarContent">
-    <div class="empty-state"><div class="icon">📅</div><div>Loading schedule…</div></div>
-  </div>
-</div><!-- /calendarTab -->
+</div><!-- /resultsPanel -->
 
-<!-- ═══ TAB: DOCS ═══ -->
-<div class="tab-wrap" id="docsTab">
-  <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px">Race Documents</div>
-  <div id="docsList"></div>
-</div><!-- /docsTab -->
+<!-- ═══ PANEL: CALENDAR ═══ -->
+<div class="panel-overlay" id="calendarPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('calendarPanel')">‹</button>
+    <span class="panel-title">📅 Calendar</span>
+  </div>
+  <div class="panel-body">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">2026 Race Schedule</div>
+      <div style="display:flex;gap:6px;">
+        <button id="calListBtn" onclick="setCalView('list')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid var(--teal);background:var(--teal);color:var(--navy-dark);cursor:pointer;">List</button>
+        <button id="calGridBtn" onclick="setCalView('grid')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">Grid</button>
+      </div>
+    </div>
+    <div id="calendarContent">
+      <div class="empty-state"><div class="icon">📅</div><div>Loading schedule…</div></div>
+    </div>
+  </div>
+</div><!-- /calendarPanel -->
+
+<!-- ═══ PANEL: DOCS ═══ -->
+<div class="panel-overlay" id="docsPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('docsPanel')">‹</button>
+    <span class="panel-title">📄 Documents</span>
+  </div>
+  <div class="panel-body">
+    <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px">Race Documents</div>
+    <div id="docsList"></div>
+  </div>
+</div><!-- /docsPanel -->
 
 <!-- ═══ TAB: REGISTERED BOATS (Guest Dashboard) ═══ -->
 <div class="tab-wrap" id="registeredTab">
@@ -303,19 +323,29 @@
     <div class="dash-race-meta" id="guestDashMeta"></div>
   </div>
   <!-- Starting line -->
-  <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">⛵ Starting Line</div>
-  <div id="registeredList" style="margin-bottom:20px"></div>
-  <!-- 2-tile grid -->
+  <div class="dash-section-label">⛵ Starting Line</div>
+  <div id="registeredList" style="margin-bottom:16px"></div>
+  <!-- 2-column tile grid -->
   <div class="dash-grid">
-    <div class="dash-card" onclick="guestNav('docsTab')">
+    <div class="dash-card" onclick="openPanel('coursePanel')">
+      <div class="dash-card-icon">🗺</div>
+      <div class="dash-card-label">Course</div>
+      <div class="dash-card-sub">Today's course</div>
+    </div>
+    <div class="dash-card" onclick="openPanel('docsPanel');loadAndRenderDocs()">
       <div class="dash-card-icon">📄</div>
       <div class="dash-card-label">Documents</div>
       <div class="dash-card-sub">Sailing instructions</div>
     </div>
-    <div class="dash-card" onclick="guestNav('resultsTab')">
+    <div class="dash-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
       <div class="dash-card-icon">🏆</div>
       <div class="dash-card-label">Results</div>
       <div class="dash-card-sub">Series standings</div>
+    </div>
+    <div class="dash-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
+      <div class="dash-card-icon">📅</div>
+      <div class="dash-card-label">Calendar</div>
+      <div class="dash-card-sub">Race schedule</div>
     </div>
   </div>
 </div><!-- /registeredTab -->
@@ -340,56 +370,53 @@
       <span class="dash-chip course-no">Course not set</span>
     </div>
   </div>
-  <!-- Action list -->
-  <div class="dash-action-list">
-    <button class="dash-action-item" onclick="openPanel('roCoursePanel')">
-      <span class="dai-icon">🗺</span>
-      <div class="dai-text">
-        <div class="dai-title">Course Builder</div>
-        <div class="dai-sub" id="roCourseStatus">Not published</div>
-      </div>
-      <span class="dai-arrow">›</span>
-    </button>
-    <button class="dash-action-item" onclick="openPanel('roRegsPanel')">
-      <span class="dai-icon">⛵</span>
-      <div class="dai-text">
-        <div class="dai-title">Registrations</div>
-        <div class="dai-sub" id="roRegsStatus">No registrations yet</div>
-      </div>
-      <span class="dai-arrow">›</span>
-    </button>
-    <button class="dash-action-item" onclick="openPanel('roProtestsPanel')">
-      <span class="dai-icon">🚩</span>
-      <div class="dai-text">
-        <div class="dai-title">Protests</div>
-        <div class="dai-sub" id="roProtestsStatus">None filed</div>
-      </div>
-      <span class="dai-arrow">›</span>
-    </button>
-    <button class="dash-action-item" onclick="openPanel('roMarksPanel')">
-      <span class="dai-icon">📍</span>
-      <div class="dai-text">
-        <div class="dai-title">Marks Manager</div>
-        <div class="dai-sub">Toggle &amp; add marks</div>
-      </div>
-      <span class="dai-arrow">›</span>
-    </button>
-    <button class="dash-action-item" onclick="openPanel('roBoatsPanel')">
-      <span class="dai-icon">🔑</span>
-      <div class="dai-text">
-        <div class="dai-title">Boat Management</div>
-        <div class="dai-sub">PINs &amp; Revolut links</div>
-      </div>
-      <span class="dai-arrow">›</span>
-    </button>
-    <button class="dash-action-item" onclick="generatePaymentReport()">
-      <span class="dai-icon">📄</span>
-      <div class="dai-text">
-        <div class="dai-title">Payment Report</div>
-        <div class="dai-sub" id="roDashReportSub">Generate PDF of all submissions</div>
-      </div>
-      <span class="dai-arrow">›</span>
-    </button>
+  <!-- 2-column tile grid -->
+  <div class="dash-grid">
+    <div class="dash-card ro-card" onclick="openPanel('roCoursePanel')">
+      <div class="dash-card-icon">🗺</div>
+      <div class="dash-card-label">Course Builder</div>
+      <div class="dash-card-sub" id="roCourseStatus">Not published</div>
+    </div>
+    <div class="dash-card ro-card" onclick="openPanel('roRegsPanel')">
+      <div class="dash-card-icon">⛵</div>
+      <div class="dash-card-label">Registrations</div>
+      <div class="dash-card-sub" id="roRegsStatus">No registrations yet</div>
+    </div>
+    <div class="dash-card ro-card" onclick="openPanel('roProtestsPanel')">
+      <div class="dash-card-icon">🚩</div>
+      <div class="dash-card-label">Protests</div>
+      <div class="dash-card-sub" id="roProtestsStatus">None filed</div>
+    </div>
+    <div class="dash-card ro-card" onclick="openPanel('roMarksPanel')">
+      <div class="dash-card-icon">📍</div>
+      <div class="dash-card-label">Marks Manager</div>
+      <div class="dash-card-sub">Toggle &amp; add marks</div>
+    </div>
+    <div class="dash-card ro-card" onclick="openPanel('roBoatsPanel')">
+      <div class="dash-card-icon">🔑</div>
+      <div class="dash-card-label">Boat Management</div>
+      <div class="dash-card-sub">PINs &amp; Revolut links</div>
+    </div>
+    <div class="dash-card ro-card" onclick="generatePaymentReport()">
+      <div class="dash-card-icon">📄</div>
+      <div class="dash-card-label">Payment Report</div>
+      <div class="dash-card-sub">Generate PDF</div>
+    </div>
+    <div class="dash-card ro-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
+      <div class="dash-card-icon">🏆</div>
+      <div class="dash-card-label">Results</div>
+      <div class="dash-card-sub">Series standings</div>
+    </div>
+    <div class="dash-card ro-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
+      <div class="dash-card-icon">📅</div>
+      <div class="dash-card-label">Calendar</div>
+      <div class="dash-card-sub">Race schedule</div>
+    </div>
+    <div class="dash-card ro-card full-width" onclick="openPanel('docsPanel');loadAndRenderDocs()">
+      <div class="dash-card-icon">📄</div>
+      <div class="dash-card-label">Documents</div>
+      <div class="dash-card-sub">Sailing instructions</div>
+    </div>
   </div>
   <div id="reportStatus" style="font-size:.75rem;color:var(--muted);margin-top:4px;text-align:center"></div>
 </div><!-- /roTab -->

@@ -169,7 +169,7 @@ header{background:rgba(36,61,115,.97);border-bottom:1px solid var(--border);
 .tab-wrap{display:none;} .tab-wrap.active{display:block;}
 
 /* ─── MAIN ────────────────────────────────────────────────── */
-main{max-width:680px;margin:0 auto;padding:20px 16px 100px;}
+main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 
 /* shared card/form styles */
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px;}
@@ -573,4 +573,17 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 100px;}
   line-height:1;padding:0;flex-shrink:0;}
 .panel-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;
   color:var(--white);text-transform:uppercase;letter-spacing:.06em;flex:1;}
-.panel-body{flex:1;overflow-y:auto;padding:20px 16px 100px;}
+.panel-body{flex:1;overflow-y:auto;padding:20px 16px 40px;}
+
+/* ─── RO CARD HOVER ──────────────────────────────────────── */
+.dash-card.ro-card:hover{border-color:rgba(254,224,30,.5);background:rgba(254,224,30,.06);}
+
+/* ─── FULL-WIDTH TILE ────────────────────────────────────── */
+.dash-card.full-width{grid-column:1 / -1;}
+
+/* ─── SECTION LABEL ─────────────────────────────────────── */
+.dash-section-label{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:.72rem;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:8px;margin-top:4px;}
