@@ -340,9 +340,11 @@ async function enterApp(b,ro){
     const roBtn=document.getElementById('roNavTab');
     showTab('roTab', roBtn);
     buildMarksGrid();
+    loadMarks();
     loadAndDrawCourse();
     loadRegistrations();
     buildPinMgmtList();
+    loadProtests();
     return;
   }
   document.getElementById('crewList').innerHTML='<div class="empty-state"><div class="icon">⏳</div>Loading…</div>';
@@ -2294,7 +2296,7 @@ function showCrewPayPage(data){
 let _tt;
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2600);}
 document.addEventListener('click',function(e){
-  ['collectSheet','editSheet','pnSheet','shareSheet','settingsSheet'].forEach(id=>{
+  ['collectSheet','editSheet','pnSheet','shareSheet','settingsSheet','protestSheet'].forEach(id=>{
     const el=document.getElementById(id);
     if(el&&el.classList.contains('open')&&e.target===el)closeSheet(id);
   });
@@ -2340,6 +2342,257 @@ async function loadWindWidget(){
     document.getElementById('windDir').textContent='Wind data unavailable';
     console.warn('Wind widget error:',e);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MARKS MANAGER
+// ═══════════════════════════════════════════════════════════════
+async function loadMarks(){
+  const rows=await sbFetch('/rest/v1/marks?order=sort_order.asc,name.asc');
+  if(rows&&rows.length){
+    MARKS=rows.map(r=>({
+      id:r.id, name:r.name, lat:r.lat, lng:r.lng,
+      colour:r.colour||'#f4a261', desc:r.description||'', active:r.active!==false
+    }));
+  }
+  // If RO is logged in, refresh the marks grid and manager list
+  if(isRO){
+    buildMarksGrid();
+    buildMarksMgrList();
+  }
+}
+
+function buildMarksMgrList(){
+  const list=document.getElementById('marksMgrList');
+  if(!list)return;
+  list.innerHTML='';
+  MARKS.forEach(m=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;background:var(--navy);border-radius:10px;padding:9px 12px;';
+    row.innerHTML=
+      `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${m.colour};flex-shrink:0"></span>`+
+      `<div style="flex:1;min-width:0;">`+
+        `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${m.active?'':'opacity:.45'}">${m.name}</div>`+
+        `<div style="font-size:.68rem;color:var(--muted)">${m.desc||''}</div>`+
+      `</div>`+
+      `<div style="display:flex;align-items:center;gap:6px">`+
+        `<span style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:600;color:${m.active?'var(--teal)':'var(--muted)'};letter-spacing:.04em">${m.active?'IN PLAY':'OFF'}</span>`+
+        `<button onclick="toggleMarkActive('${m.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        (m.active?'border:1px solid var(--border);background:transparent;color:var(--muted)':'border:1px solid var(--teal);background:transparent;color:var(--teal)')+`">`+
+        (m.active?'Disable':'Enable')+`</button>`+
+      `</div>`;
+    list.appendChild(row);
+  });
+}
+
+async function toggleMarkActive(id){
+  const m=MARKS.find(x=>x.id===id);
+  if(!m)return;
+  const newActive=!m.active;
+  const r=await sbFetch('/rest/v1/marks?id=eq.'+id,{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({active:newActive})});
+  if(r===null){toast('⚠ Could not update mark');return;}
+  m.active=newActive;
+  buildMarksMgrList();
+  buildMarksGrid(); // refresh course builder
+  toast((newActive?'✅ '+m.name+' now in play':'⛔ '+m.name+' disabled'));
+}
+
+function showMarkAddForm(){
+  document.getElementById('markAddForm').style.display='block';
+  document.getElementById('markAddBtn').style.display='none';
+  document.getElementById('mk-id').focus();
+}
+function hideMarkAddForm(){
+  document.getElementById('markAddForm').style.display='none';
+  document.getElementById('markAddBtn').style.display='block';
+  ['mk-id','mk-name','mk-lat','mk-lng','mk-desc'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mk-colour').value='#f4a261';
+}
+
+async function submitAddMark(){
+  const id=document.getElementById('mk-id').value.trim().toUpperCase();
+  const name=document.getElementById('mk-name').value.trim();
+  const lat=parseFloat(document.getElementById('mk-lat').value);
+  const lng=parseFloat(document.getElementById('mk-lng').value);
+  const desc=document.getElementById('mk-desc').value.trim();
+  const colour=document.getElementById('mk-colour').value;
+
+  if(!id||!name){toast('Enter an ID and name');return;}
+  if(isNaN(lat)||isNaN(lng)){toast('Enter valid coordinates');return;}
+  if(MARKS.find(m=>m.id===id)){toast('Mark ID already exists');return;}
+
+  const r=await sbFetch('/rest/v1/marks',{method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({id,name,lat,lng,colour,description:desc,active:true,sort_order:99})});
+  if(r===null){toast('⚠ Could not save mark');return;}
+
+  MARKS.push({id,name,lat,lng,colour,desc,active:true});
+  hideMarkAddForm();
+  buildMarksMgrList();
+  buildMarksGrid();
+  toast('✅ '+name+' added');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROTESTS
+// ═══════════════════════════════════════════════════════════════
+async function sbSaveProtest(p){
+  return sbFetch('/rest/v1/protests',{method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify(p)});
+}
+async function sbLoadProtests(raceName){
+  const r=await sbFetch('/rest/v1/protests?race_name=eq.'+encodeURIComponent(raceName)+'&order=filed_at.asc');
+  return r||[];
+}
+async function sbUpdateProtest(id,fields){
+  return sbFetch('/rest/v1/protests?id=eq.'+id,{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify(fields)});
+}
+
+const PROTEST_STATUSES=['Pending','Hearing Scheduled','Upheld','Dismissed','Withdrawn'];
+
+function openProtestSheet(){
+  if(!selectedRace){toast('Select a race first');return;}
+  const sel=document.getElementById('pr-protestee');
+  sel.innerHTML='<option value="">Select boat…</option>';
+  boats.filter(b=>b.id!==currentBoat.id).forEach(b=>{
+    const o=document.createElement('option');
+    o.value=b.id; o.textContent=b.name;
+    sel.appendChild(o);
+  });
+  document.getElementById('pr-where').value='';
+  document.getElementById('pr-time').value=new Date().toTimeString().slice(0,5);
+  document.getElementById('pr-description').value='';
+  document.querySelectorAll('.pr-rule-btn').forEach(b=>b.classList.remove('active'));
+  ['pr-flag','pr-hail'].forEach(id=>{
+    document.getElementById(id).style.borderColor='';
+    document.getElementById(id).style.background='var(--navy)';
+    document.getElementById(id+'-check').innerHTML='';
+    document.getElementById(id+'-check').style.borderColor='var(--muted)';
+    document.getElementById(id+'-check').style.background='';
+  });
+  document.getElementById('protestSheet').classList.add('open');
+}
+
+function toggleProtest(id){
+  const el=document.getElementById(id);
+  const check=document.getElementById(id+'-check');
+  const active=el.dataset.active==='1';
+  el.dataset.active=active?'0':'1';
+  if(!active){
+    el.style.borderColor='var(--success)';
+    el.style.background='rgba(45,198,83,.08)';
+    check.innerHTML='<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#2dc653" stroke-width="2.5" stroke-linecap="round"><polyline points="2,6 5,9 10,3"/></svg>';
+    check.style.borderColor='var(--success)';
+    check.style.background='rgba(45,198,83,.15)';
+  } else {
+    el.style.borderColor='';
+    el.style.background='var(--navy)';
+    check.innerHTML='';
+    check.style.borderColor='var(--muted)';
+    check.style.background='';
+  }
+}
+
+function toggleRule(btn,rule){
+  btn.classList.toggle('active');
+}
+
+async function submitProtest(){
+  const protesteeId=document.getElementById('pr-protestee').value;
+  const where=document.getElementById('pr-where').value.trim();
+  const time=document.getElementById('pr-time').value;
+  const description=document.getElementById('pr-description').value.trim();
+  const flagDisplayed=document.getElementById('pr-flag').dataset.active==='1';
+  const protestHailed=document.getElementById('pr-hail').dataset.active==='1';
+  const rulesBroken=Array.from(document.querySelectorAll('.pr-rule-btn.active')).map(b=>b.textContent.trim());
+
+  if(!protesteeId){toast('Select the boat you are protesting');return;}
+  if(!where){toast('Enter where the incident occurred');return;}
+  if(!description){toast('Describe what happened');return;}
+  if(rulesBroken.length===0){toast('Select at least one rule');return;}
+
+  const result=await sbSaveProtest({
+    race_name:selectedRace.label,
+    race_date:selectedRace.date.toISOString().split('T')[0],
+    protestor_id:currentBoat.id,
+    protestee_id:protesteeId,
+    incident_where:where,
+    incident_time:time,
+    flag_displayed:flagDisplayed,
+    protest_hailed:protestHailed,
+    rules_broken:rulesBroken,
+    description,
+    status:'Pending'
+  });
+
+  if(result&&result._err){
+    toast('⚠ Could not file protest — '+result._err.slice(0,60));
+    return;
+  }
+  closeSheet('protestSheet');
+  toast('🚩 Protest filed successfully');
+}
+
+async function loadProtests(){
+  const list=document.getElementById('protestList');
+  if(!list)return;
+  if(!nextRace){list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div>No upcoming race</div>';return;}
+  list.innerHTML='<div style="color:var(--muted);font-size:.82rem;padding:8px">Loading…</div>';
+
+  const protests=await sbLoadProtests(nextRace.label);
+  if(!protests.length){
+    list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>';
+    return;
+  }
+
+  list.innerHTML=protests.map(p=>{
+    const protestor=boats.find(b=>b.id===p.protestor_id);
+    const protestee=boats.find(b=>b.id===p.protestee_id);
+    const filedAt=new Date(p.filed_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const rules=(p.rules_broken||[]).join(', ');
+    const statusOpts=PROTEST_STATUSES.map(s=>
+      `<option value="${s}"${p.status===s?' selected':''}>${s}</option>`).join('');
+    return`<div class="protest-card status-${p.status.toLowerCase().replace(' ','-')}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem">${protestor?protestor.name:'Unknown'}</span>
+          <span style="color:var(--muted);font-size:.8rem"> → </span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem;color:var(--danger)">${protestee?protestee.name:'Unknown'}</span>
+        </div>
+        <span class="protest-status ${p.status}">${p.status}</span>
+      </div>
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">📍 ${p.incident_where} · ⏱ ${p.incident_time} · Filed ${filedAt}</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${p.flag_displayed?'🚩 Flag displayed':'⚠ No flag'} · ${p.protest_hailed?'📣 Hailed':'⚠ Not hailed'}</div>
+      <div style="font-size:.78rem;color:var(--teal);margin-bottom:8px">${rules}</div>
+      <div style="font-size:.82rem;color:var(--white);margin-bottom:12px;line-height:1.4">${p.description}</div>
+      <div style="border-top:1px solid var(--border);padding-top:10px">
+        <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">RO Decision</div>
+        <select onchange="updateProtestStatus('${p.id}',this.value)"
+          style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
+          color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.88rem;font-weight:700;
+          padding:7px 10px;outline:none;margin-bottom:8px">${statusOpts}</select>
+        <textarea placeholder="RO notes…" onchange="updateProtestNotes('${p.id}',this.value)"
+          style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
+          color:var(--white);font-family:'Barlow',sans-serif;font-size:.82rem;padding:8px 10px;
+          outline:none;box-sizing:border-box;resize:none;height:56px;line-height:1.4"
+          >${p.ro_notes||''}</textarea>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function updateProtestStatus(id,status){
+  const r=await sbUpdateProtest(id,{status});
+  if(r===null) toast('⚠ Could not update status');
+  else toast('✅ Status updated');
+}
+async function updateProtestNotes(id,notes){
+  await sbUpdateProtest(id,{ro_notes:notes});
 }
 
 // ═══════════════════════════════════════════════════════════════
