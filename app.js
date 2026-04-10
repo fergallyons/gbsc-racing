@@ -329,18 +329,14 @@ async function enterApp(b,ro){
   try{localStorage.setItem('gr_last',b.id);}catch(e){}
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
-  document.getElementById('bottomNav').style.display='flex';
   document.getElementById('headerBoat').textContent=ro?'Race Officer':b.name;
   document.getElementById('changePinBtn').style.display=ro?'none':'flex';
   if(ro){
     document.getElementById('boatTag').style.background='rgba(232,160,32,.1)';
     document.getElementById('boatTag').style.borderColor='rgba(232,160,32,.4)';
     document.getElementById('headerBoat').style.color='var(--ro)';
-    document.getElementById('roNavTab').style.display='block';
-    document.getElementById('feesNavTab').style.display='none';
     // Land directly on RO tab
-    const roBtn=document.getElementById('roNavTab');
-    showTab('roTab', roBtn);
+    showTab('roTab', null);
     updateRODash();
     buildMarksGrid();
     loadMarks();
@@ -378,23 +374,15 @@ function switchBoat(){
   halResultsLoaded=false;
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('mainApp').style.display='none';
-  document.getElementById('bottomNav').style.display='none';
-  document.getElementById('roNavTab').style.display='none';
-  document.getElementById('boatsNavTab').style.display='none';
-  document.getElementById('feesNavTab').style.display='flex'; // restore for next login
   document.getElementById('boatTag').removeAttribute('style');
   document.getElementById('headerBoat').removeAttribute('style');
-  showTab('feesTab',document.getElementById('feesNavTab'));
+  showTab('feesTab', null);
   buildBoatGrid();
 }
 function enterGuestMode(){
   isGuest=true; currentBoat=null; isRO=false;
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
-  document.getElementById('bottomNav').style.display='flex';
-  document.getElementById('feesNavTab').style.display='none';
-  document.getElementById('boatsNavTab').style.display='flex';
-  document.getElementById('roNavTab').style.display='none';
   document.getElementById('headerBoat').textContent='Guest';
   document.getElementById('boatTag').style.background='rgba(0,174,239,.08)';
   document.getElementById('boatTag').style.borderColor='rgba(0,174,239,.3)';
@@ -407,7 +395,7 @@ function enterGuestMode(){
   if(mel&&r) mel.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   loadAndDrawCourse();
   renderRegisteredTab();
-  showTab('registeredTab', document.getElementById('boatsNavTab'));
+  showTab('registeredTab', null);
 }
 async function renderRegisteredTab(){
   const label=document.getElementById('regRaceLabel'); // legacy — may be null in new dashboard
@@ -558,11 +546,9 @@ function confirmChangePin(){
 // ═══════════════════════════════════════════════════════════════
 function showTab(id,btn){
   document.querySelectorAll('.tab-wrap').forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll('.bn-item').forEach(t=>t.classList.remove('active'));
   const el=document.getElementById(id);
-  el.classList.add('active');
-  el.scrollTop=0;
-  if(btn)btn.classList.add('active');
+  if(el){ el.classList.add('active'); el.scrollTop=0; }
+  if(btn) btn.classList.add('active');
 }
 
 // ── Panel system ─────────────────────────────────────────────
@@ -625,10 +611,11 @@ function updateROChips(regsCount,protestsCount,coursePublished){
 
 // ── Guest nav helper ─────────────────────────────────────────
 function guestNav(tabId){
-  const btn=document.querySelector('.bn-item[data-tab="'+tabId+'"]');
-  showTab(tabId,btn);
+  const panelId=tabId.replace('Tab','Panel');
+  openPanel(panelId);
   if(tabId==='resultsTab') loadResultsIfNeeded();
   if(tabId==='calendarTab') loadCalendarIfNeeded();
+  if(tabId==='docsTab') loadAndRenderDocs();
 }
 
 // ═══════════════════════════════════════════════════════════════
