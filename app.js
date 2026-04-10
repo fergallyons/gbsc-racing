@@ -2396,70 +2396,114 @@ function checkPayHash(){
   }catch(e){ console.warn('Invalid pay hash',e); }
 }
 function showCrewPayPage(data){
-  // Build a standalone pay page that overlays everything
-  const tot=data.crew.reduce((a,c)=>a+c.a,0);
-  const crewRows=data.crew.map(c=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;
-      padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
-      <div>
-        <div style="font-weight:600;font-size:.95rem">${c.n}</div>
-        <div style="font-size:.72rem;color:#7a8fa6;text-transform:uppercase;
-          letter-spacing:.06em">${c.t==='full'?'Full Member':c.t==='crew'?'Crew Member':c.t==='student'?'Student':c.t==='kid'?'Junior':'Visitor'}</div>
-      </div>
-      <span style="font-family:Barlow Condensed,sans-serif;font-size:1.2rem;
-        font-weight:800;color:#f0f4f8">€${c.a}</span>
-    </div>`).join('');
-
-  const revBtn=data.rev?`
-    <a href="https://revolut.me/${data.rev}" target="_blank"
-      style="display:flex;align-items:center;justify-content:center;gap:10px;
-      background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:12px;
-      padding:14px;text-decoration:none;font-family:Barlow Condensed,sans-serif;
-      font-size:1rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px;">
-      💜 Pay €${tot} via Revolut
-    </a>`:'';
-
-  const stripeBtn=data.stripe?`
-    <a href="${data.stripe}" target="_blank"
-      style="display:flex;align-items:center;justify-content:center;gap:10px;
-      background:linear-gradient(135deg,#0d6efd,#0dcaf0);color:white;border-radius:12px;
-      padding:14px;text-decoration:none;font-family:Barlow Condensed,sans-serif;
-      font-size:1rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px;">
-      💳 Pay €${tot} by Card / Apple Pay / Google Pay
-    </a>`:'';
-
-  const noPayOptions=!data.rev&&!data.stripe?`
-    <div style="background:rgba(255,255,255,.05);border-radius:10px;padding:14px;
-      text-align:center;font-size:.85rem;color:#7a8fa6;margin-bottom:10px;">
-      Pay your skipper directly — cash or Revolut
-    </div>`:'';
-
   const overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:#0a1628;z-index:900;overflow-y:auto;'+
     'padding:24px 16px;font-family:Barlow,sans-serif;color:#f0f4f8;';
-  overlay.innerHTML=`
-    <div style="max-width:420px;margin:0 auto;">
-      <div style="text-align:center;margin-bottom:20px;">
-        <div style="font-family:Barlow Condensed,sans-serif;font-size:1.8rem;font-weight:800;
-          letter-spacing:.04em;color:#00b4d8;margin-bottom:2px">GBSC Racing</div>
-        <div style="font-size:.85rem;color:#7a8fa6">${data.race}</div>
-      </div>
-      <div style="background:#112240;border:1px solid rgba(0,180,216,.18);border-radius:14px;
-        padding:16px;margin-bottom:16px;">
-        <div style="font-size:.7rem;color:#7a8fa6;font-weight:600;letter-spacing:.1em;
-          text-transform:uppercase;margin-bottom:8px">Race Fees Due — ${data.boat}</div>
-        ${crewRows}
-        <div style="display:flex;justify-content:space-between;padding-top:12px;margin-top:4px">
-          <span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:1rem;color:#f0f4f8">Total Due</span>
-          <span style="font-family:Barlow Condensed,sans-serif;font-size:1.6rem;font-weight:800;color:#00b4d8">€${tot}</span>
-        </div>
-      </div>
-      ${revBtn}${stripeBtn}${noPayOptions}
-      <div style="text-align:center;font-size:.7rem;color:#7a8fa6;margin-top:16px">
-        GBSC Racing App · Race fees collected on behalf of Galway Bay Sailing Club
-      </div>
-    </div>`;
   document.body.appendChild(overlay);
+
+  const memberLabel=t=>t==='full'?'Full Member':t==='crew'?'Crew Member':t==='student'?'Student':t==='kid'?'Junior':'Visitor';
+
+  const pageHeader=`
+    <div style="text-align:center;margin-bottom:24px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;
+        letter-spacing:.04em;color:#00b4d8;margin-bottom:2px">GBSC Racing</div>
+      <div style="font-size:.85rem;color:#7a8fa6">${data.race} · ${data.boat}</div>
+    </div>`;
+
+  const footer=`<div style="text-align:center;font-size:.7rem;color:#4a5568;margin-top:24px">
+    GBSC Racing App · Race fees collected on behalf of Galway Bay Sailing Club
+  </div>`;
+
+  // ── Step 1: Who are you? ───────────────────────────────────────
+  function showStep1(){
+    const crewBtns=data.crew.map((c,i)=>`
+      <button onclick="window._cpStep2(${i})"
+        style="display:flex;align-items:center;justify-content:space-between;width:100%;
+        padding:16px 18px;background:#112240;border:1px solid rgba(0,180,216,.2);
+        border-radius:14px;margin-bottom:10px;cursor:pointer;color:#f0f4f8;text-align:left;
+        transition:background .15s;">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:700;letter-spacing:.02em">${c.n}</div>
+          <div style="font-size:.72rem;color:#7a8fa6;text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${memberLabel(c.t)}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;color:#00b4d8">€${c.a}</span>
+          <span style="font-size:1rem;color:#7a8fa6">›</span>
+        </div>
+      </button>`).join('');
+
+    overlay.innerHTML=`
+      <div style="max-width:420px;margin:0 auto;">
+        ${pageHeader}
+        <div style="margin-bottom:20px;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;font-weight:800;
+            color:#f0f4f8;margin-bottom:4px">Race Fees Due</div>
+          <div style="font-size:.85rem;color:#7a8fa6">Tap your name to pay your fee</div>
+        </div>
+        ${crewBtns}
+        ${footer}
+      </div>`;
+  }
+
+  // ── Step 2: Personal payment screen ───────────────────────────
+  window._cpStep2=function(idx){
+    const c=data.crew[idx];
+    const revUrl=data.rev?`https://revolut.me/${data.rev}/${c.a}?currency=EUR`:'';
+    const stripeUrl=data.stripe?`${data.stripe}?client_reference_id=${encodeURIComponent(c.n)}&amount=${c.a*100}`:'';
+
+    const revBtn=revUrl?`
+      <a href="${revUrl}" target="_blank"
+        style="display:flex;align-items:center;justify-content:center;gap:10px;
+        background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:14px;
+        padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
+        font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+        margin-bottom:12px;box-shadow:0 4px 24px rgba(110,64,216,.4);">
+        💜 Pay €${c.a} via Revolut
+      </a>`:'';
+
+    const stripeBtn=stripeUrl?`
+      <a href="${stripeUrl}" target="_blank"
+        style="display:flex;align-items:center;justify-content:center;gap:10px;
+        background:linear-gradient(135deg,#0d6efd,#0dcaf0);color:white;border-radius:14px;
+        padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
+        font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+        margin-bottom:12px;box-shadow:0 4px 24px rgba(13,110,253,.3);">
+        💳 Pay €${c.a} by Card / Apple Pay / Google Pay
+      </a>`:'';
+
+    const noOptions=!revUrl&&!stripeUrl?`
+      <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+        border-radius:12px;padding:16px;text-align:center;font-size:.9rem;color:#7a8fa6;margin-bottom:12px;">
+        Pay your skipper directly by cash or bank transfer
+      </div>`:'';
+
+    overlay.innerHTML=`
+      <div style="max-width:420px;margin:0 auto;">
+        ${pageHeader}
+        <div style="background:#112240;border:1px solid rgba(0,180,216,.22);border-radius:16px;
+          padding:24px 20px;margin-bottom:20px;text-align:center;">
+          <div style="font-size:.68rem;color:#7a8fa6;font-weight:700;letter-spacing:.12em;
+            text-transform:uppercase;margin-bottom:10px">Your Race Fee</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;
+            color:#f0f4f8;margin-bottom:8px">${c.n}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:3.5rem;font-weight:800;
+            color:#00b4d8;line-height:1;margin-bottom:6px">€${c.a}</div>
+          <div style="font-size:.72rem;color:#7a8fa6;text-transform:uppercase;letter-spacing:.06em">${memberLabel(c.t)}</div>
+        </div>
+        ${revBtn}${stripeBtn}${noOptions}
+        <button onclick="window._cpBack()"
+          style="display:block;width:100%;padding:13px;background:transparent;
+          border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#7a8fa6;cursor:pointer;
+          font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;
+          letter-spacing:.06em;text-transform:uppercase;">
+          ← Back to crew list
+        </button>
+        ${footer}
+      </div>`;
+  };
+
+  window._cpBack=function(){ showStep1(); };
+  showStep1();
 }
 let _tt;
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2600);}

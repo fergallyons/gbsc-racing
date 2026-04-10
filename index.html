@@ -195,7 +195,7 @@
     </div>
     <div class="dash-card" onclick="openSharePayLink()">
       <div class="dash-card-icon">📲</div>
-      <div class="dash-card-label">Pay Link</div>
+      <div class="dash-card-label">Request Payment</div>
       <div class="dash-card-sub">QR for crew</div>
     </div>
     <div class="dash-card" onclick="openSettingsSheet()">
@@ -484,7 +484,7 @@
         </button>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <button class="btn btn-ghost" style="padding:11px" onclick="openSharePayLink()">
-            📲 Share Pay Link
+            📲 Request Payment
           </button>
           <button class="btn btn-ghost" style="padding:11px" onclick="openSettingsSheet()">
             ⚙ Settings
@@ -755,9 +755,9 @@
 <div class="overlay" id="shareSheet">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Share Payment Link</div>
+    <div class="sheet-title">📲 Request Payment from Crew</div>
     <div style="font-size:.82rem;color:var(--muted);margin-bottom:14px">
-      Show this QR code to crew — they scan it to see what they owe and pay by their preferred method.
+      Show this QR to your crew — each person taps their name and is taken directly to Revolut to pay their fee.
     </div>
     <div id="shareQR" style="background:white;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px"></div>
     <div id="shareLinkBox" style="background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:.78rem;color:var(--muted);word-break:break-all;margin-bottom:14px"></div>
