@@ -156,6 +156,44 @@ let MARKS = [
 const START_POS = {lat:53+(14.5687/60), lng:-(8+(58.6148/60))};
 
 // ═══════════════════════════════════════════════════════════════
+// MAP TILE BACKGROUND
+// ═══════════════════════════════════════════════════════════════
+let mapTileMode=(()=>{try{return localStorage.getItem('mapTileMode')||'off';}catch(e){return 'off';}})();
+function toggleMapMode(){
+  mapTileMode=mapTileMode==='off'?'satellite':'off';
+  try{localStorage.setItem('mapTileMode',mapTileMode);}catch(e){}
+  renderCourseDiagram();
+}
+function buildSatTiles(refLat,refLng,cosLat,scale,ox,oy,W,H){
+  const z=13;
+  // Inverse projection: SVG px → lat/lng
+  const s2g=(sx,sy)=>({lng:(sx-ox)/scale/cosLat+refLng, lat:-((sy-oy)/scale)+refLat});
+  const tl=s2g(0,0), br=s2g(W,H);
+  // Tile index helpers
+  const lngToTX=lng=>Math.floor((lng+180)/360*Math.pow(2,z));
+  const latToTY=lat=>{const r=lat*Math.PI/180;return Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z));};
+  const txToLng=tx=>tx/Math.pow(2,z)*360-180;
+  const tyToLat=ty=>{const n=Math.PI*(1-2*ty/Math.pow(2,z));return 180/Math.PI*Math.atan((Math.exp(n)-Math.exp(-n))/2);};
+  const tx0=lngToTX(tl.lng)-1, tx1=lngToTX(br.lng)+1;
+  const ty0=latToTY(tl.lat)-1, ty1=latToTY(br.lat)+1;
+  // Forward projection: lat/lng → SVG px
+  const g2s=(lat,lng)=>({x:(lng-refLng)*cosLat*scale+ox, y:-(lat-refLat)*scale+oy});
+  const parts=[];
+  for(let tx=tx0;tx<=tx1;tx++){
+    for(let ty=ty0;ty<=ty1;ty++){
+      const lng0=txToLng(tx),lng1=txToLng(tx+1);
+      const lat0=tyToLat(ty),lat1=tyToLat(ty+1); // lat0 > lat1 (top > bottom)
+      const p0=g2s(lat0,lng0),p1=g2s(lat1,lng1);
+      const url=`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${ty}/${tx}`;
+      parts.push(`<image href="${url}" x="${p0.x.toFixed(1)}" y="${p0.y.toFixed(1)}" width="${(p1.x-p0.x).toFixed(1)}" height="${(p1.y-p0.y).toFixed(1)}" preserveAspectRatio="none"/>`);
+    }
+  }
+  // Semi-transparent dark overlay so marks stay readable
+  parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="rgba(3,10,28,0.45)"/>`);
+  return parts;
+}
+
+// ═══════════════════════════════════════════════════════════════
 // CONSTANTS & STATE
 // ═══════════════════════════════════════════════════════════════
 const FEES={full:4,crew:4,visitor:10,student:5,kid:0};
@@ -1693,7 +1731,9 @@ function renderCourseDiagram(){
 
   let svgParts=[];
 
-  // ── Defs: arrowhead markers ────────────────────────────────────
+  // ── Defs: arrowhead markers + optional text-shadow filter ─────
+  const satFilter=mapTileMode!=='off'?`<filter id="ts" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="1.8" flood-color="rgba(0,0,0,0.95)"/></filter>`:'';
+  const tf=mapTileMode!=='off'?' filter="url(#ts)"':'';
   svgParts.push(`<defs>
     <marker id="ca" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
       <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(0,180,216,0.8)"/>
@@ -1704,7 +1744,13 @@ function renderCourseDiagram(){
     <marker id="cw" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
       <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(255,170,0,0.9)"/>
     </marker>
+    ${satFilter}
   </defs>`);
+
+  // ── Satellite tile background ──────────────────────────────────
+  if(mapTileMode!=='off'){
+    svgParts.push(...buildSatTiles(refLat,refLng,cosLat,scale,ox,oy,SVG_W,SVG_H));
+  }
 
   // ── Course legs ────────────────────────────────────────────────
   const NR=4; // node radius for endpoint offsets
@@ -1736,8 +1782,8 @@ function renderCourseDiagram(){
     const labelLeft=p.x<=SVG_W/2;
     const lx=(labelLeft?p.x-NR-4:p.x+NR+4).toFixed(1);
     const anchor=labelLeft?'end':'start';
-    svgParts.push(`<text x="${lx}" y="${(p.y-3).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="400">${m.name}</text>`);
-    svgParts.push(`<text x="${lx}" y="${(p.y+6).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${rndSym}</text>`);
+    svgParts.push(`<text x="${lx}" y="${(p.y-3).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="400"${tf}>${m.name}</text>`);
+    svgParts.push(`<text x="${lx}" y="${(p.y+6).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>${rndSym}</text>`);
   });
 
   // ── Start / Finish node ────────────────────────────────────────
@@ -1752,7 +1798,7 @@ function renderCourseDiagram(){
   {
     const nx=SVG_W-18,ny=32,nh=14;
     svgParts.push(`<line x1="${nx}" y1="${ny+nh/2}" x2="${nx}" y2="${ny-nh/2}" stroke="rgba(180,200,220,0.55)" stroke-width="1.5" marker-end="url(#ca)"/>`);
-    svgParts.push(`<text x="${nx}" y="${ny+nh/2+10}" text-anchor="middle" fill="rgba(122,143,166,0.65)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">N</text>`);
+    svgParts.push(`<text x="${nx}" y="${ny+nh/2+10}" text-anchor="middle" fill="rgba(122,143,166,0.65)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>N</text>`);
   }
 
   // ── Wind direction arrow (top-left) ───────────────────────────
@@ -1763,7 +1809,7 @@ function renderCourseDiagram(){
     const arrowX=(wCX+Math.sin(wRad)*wLen).toFixed(1);
     const arrowY=(wCY-Math.cos(wRad)*wLen).toFixed(1);
     svgParts.push(`<line x1="${wCX}" y1="${wCY}" x2="${arrowX}" y2="${arrowY}" stroke="rgba(255,170,0,0.75)" stroke-width="2" marker-end="url(#cw)"/>`);
-    svgParts.push(`<text x="${wCX}" y="${wCY+13}" text-anchor="middle" fill="rgba(255,170,0,0.75)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${c.windDeg}°</text>`);
+    svgParts.push(`<text x="${wCX}" y="${wCY+13}" text-anchor="middle" fill="rgba(255,170,0,0.75)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>${c.windDeg}°</text>`);
   }
 
   const svgEl=`<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block">${svgParts.join('\n')}</svg>`;
@@ -1828,11 +1874,12 @@ function renderCourseDiagram(){
             <span style="font-size:.8rem">📏</span>
             <span style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--teal)">${totalNm} nm</span>
           </div>
+          <button onclick="toggleMapMode()" style="font-family:'Barlow Condensed',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:20px;cursor:pointer;transition:all .2s;${mapTileMode!=='off'?'border:1px solid rgba(0,174,239,.6);background:rgba(0,174,239,.15);color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)'}">🛰 Satellite</button>
         </div>
       </div>
       ${c.notes?`<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.82rem;color:var(--gold);line-height:1.4">📋 ${c.notes}</div>`:''}
       <div class="course-legs-list" style="margin-top:12px">${legRows}</div>
-      <div class="course-svg-wrap" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:rgba(4,14,32,0.7)">${svgEl}</div>
+      <div class="course-svg-wrap" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:${mapTileMode!=='off'?'#060d1c':'rgba(4,14,32,0.7)'}">${svgEl}</div>
     </div>
   `;
 }
