@@ -169,6 +169,7 @@ let windDeg=225;
 let courseMarks=[];
 let publishedCourse=null;
 let registeredBoatIds=new Set(); // boat IDs registered for the next race
+let roDashRegsCount=0, roDashProtestsCount=0, roDashCoursePublished=false;
 
 // ═══════════════════════════════════════════════════════════════
 // RACE SCHEDULE DATA  (must be before buildAllRaces)
@@ -315,6 +316,7 @@ function updateRegisterButton(){
   btn.textContent=isReg?'✓ Registered — Withdraw':'⛵ Register for This Race';
   if(isReg){btn.style.color='var(--success)';btn.style.borderColor='rgba(45,198,83,.4)';}
   else{btn.style.color='';btn.style.borderColor='';}
+  if(!isRO&&!isGuest) updateSkipperDash();
 }
 function loginAs(id){
   const b=boats.find(x=>x.id===id); if(!b)return;
@@ -339,6 +341,7 @@ async function enterApp(b,ro){
     // Land directly on RO tab
     const roBtn=document.getElementById('roNavTab');
     showTab('roTab', roBtn);
+    updateRODash();
     buildMarksGrid();
     loadMarks();
     loadAndDrawCourse();
@@ -368,6 +371,7 @@ async function enterApp(b,ro){
   updateRegisterButton();
   loadAndDrawCourse();
   renderCrew();
+  updateSkipperDash();
 }
 function switchBoat(){
   currentBoat=null;roster=[];isRO=false;isGuest=false;boatConfig={};
@@ -395,15 +399,21 @@ function enterGuestMode(){
   document.getElementById('boatTag').style.background='rgba(0,174,239,.08)';
   document.getElementById('boatTag').style.borderColor='rgba(0,174,239,.3)';
   document.getElementById('changePinBtn').style.display='none';
+  // Guest dash race card
+  const r=nextRace;
+  const el=document.getElementById('guestDashRaceName');
+  const mel=document.getElementById('guestDashMeta');
+  if(el&&r) el.textContent=r.label;
+  if(mel&&r) mel.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   loadAndDrawCourse();
   renderRegisteredTab();
   showTab('registeredTab', document.getElementById('boatsNavTab'));
 }
 async function renderRegisteredTab(){
-  const label=document.getElementById('regRaceLabel');
+  const label=document.getElementById('regRaceLabel'); // legacy — may be null in new dashboard
   const list=document.getElementById('registeredList');
-  if(!nextRace){list.innerHTML='<div class="empty-state"><div class="icon">📅</div><div>No upcoming race found</div></div>';return;}
-  label.textContent=nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  if(!nextRace){if(list)list.innerHTML='<div class="empty-state"><div class="icon">📅</div><div>No upcoming race found</div></div>';return;}
+  if(label) label.textContent=nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
   list.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading…</div></div>';
   const regs=await sbLoadRegistrations(nextRace);
   if(!regs||!regs.length){
@@ -555,6 +565,72 @@ function showTab(id,btn){
   if(btn)btn.classList.add('active');
 }
 
+// ── Panel system ─────────────────────────────────────────────
+function openPanel(id){
+  const p=document.getElementById(id);if(!p)return;
+  p.style.display='flex';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>p.classList.add('open')));
+}
+function closePanel(id){
+  const p=document.getElementById(id);if(!p)return;
+  p.classList.remove('open');
+  setTimeout(()=>{p.style.display='none';},300);
+}
+
+// ── Skipper dashboard update ─────────────────────────────────
+function updateSkipperDash(){
+  const r=selectedRace||nextRace;
+  const nameEl=document.getElementById('dashRaceName');
+  const metaEl=document.getElementById('dashRaceMeta');
+  const regEl=document.getElementById('dashRegStatus');
+  const crewRaceName=document.getElementById('crewPanelRaceName');
+  if(!nameEl)return;
+  if(r){
+    nameEl.textContent=r.label;
+    if(metaEl) metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+    if(crewRaceName) crewRaceName.textContent=r.label;
+  } else {
+    nameEl.textContent='No upcoming race';
+    if(metaEl) metaEl.textContent='';
+    if(crewRaceName) crewRaceName.textContent='—';
+  }
+  const isReg=registeredBoatIds.has(currentBoat?.id);
+  if(regEl) regEl.innerHTML=isReg
+    ?'<span class="dash-reg-pill registered">✓ Registered</span>'
+    :'<span class="dash-reg-pill unregistered">Not registered</span>';
+}
+
+// ── RO dashboard update ──────────────────────────────────────
+function updateRODash(){
+  const r=nextRace;
+  const nameEl=document.getElementById('roDashRaceName');
+  const metaEl=document.getElementById('roDashMeta');
+  if(nameEl&&r){ nameEl.textContent=r.label; }
+  if(metaEl&&r){ metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'}); }
+}
+function updateROChips(regsCount,protestsCount,coursePublished){
+  const chips=document.getElementById('roDashChips');
+  if(!chips)return;
+  chips.innerHTML=
+    '<span class="dash-chip regs">⛵ '+regsCount+' registered</span>'+
+    (protestsCount>0?'<span class="dash-chip protests">🚩 '+protestsCount+' protest'+(protestsCount>1?'s':'')+'</span>':'')+
+    (coursePublished?'<span class="dash-chip course-ok">✅ Course published</span>':'<span class="dash-chip course-no">Course not set</span>');
+  const regsStatus=document.getElementById('roRegsStatus');
+  const protestStatus=document.getElementById('roProtestsStatus');
+  const courseStatus=document.getElementById('roCourseStatus');
+  if(regsStatus) regsStatus.textContent=regsCount>0?regsCount+' boat'+(regsCount>1?'s':'')+' registered':'No registrations yet';
+  if(protestStatus) protestStatus.textContent=protestsCount>0?protestsCount+' filed':'None filed';
+  if(courseStatus) courseStatus.textContent=coursePublished?'Published — tap to edit':'Not published';
+}
+
+// ── Guest nav helper ─────────────────────────────────────────
+function guestNav(tabId){
+  const btn=document.querySelector('.bn-item[data-tab="'+tabId+'"]');
+  showTab(tabId,btn);
+  if(tabId==='resultsTab') loadResultsIfNeeded();
+  if(tabId==='calendarTab') loadCalendarIfNeeded();
+}
+
 // ═══════════════════════════════════════════════════════════════
 // RACE SCHEDULE FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
@@ -576,6 +652,7 @@ function onRaceSelect(el,silent){
   selectedRace=allRaces[i];
   document.getElementById('raceBadge').textContent=selectedRace.date.toLocaleDateString('en-IE',{day:'numeric',month:'short'});
   if(!silent)toast('Race set ✓');
+  if(!isRO&&!isGuest) updateSkipperDash();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -641,6 +718,15 @@ function updateTotals(){
   document.getElementById('s-total').textContent='€'+tot;
   document.getElementById('s-paid').textContent='€'+paid;
   document.getElementById('s-owed').textContent='€'+(tot-paid);
+  // Dash strip & crew badge
+  const dCrew=document.getElementById('dash-crew');
+  const dTotal=document.getElementById('dash-total');
+  const dOwed=document.getElementById('dash-owed');
+  const dBadge=document.getElementById('dc-crew-badge');
+  if(dCrew) dCrew.textContent=s.length;
+  if(dTotal) dTotal.textContent='€'+tot;
+  if(dOwed) dOwed.textContent='€'+(tot-paid);
+  if(dBadge) dBadge.textContent=s.length+' selected';
 }
 function toggleSel(id){const p=roster.find(r=>r.id===id);if(p){p.selected=!p.selected;if(!p.selected){p.paid=false;}}renderCrew();}
 function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid){p.paid=false;p.payMethod='';p.payNote='';renderCrew();toast(p.first+' marked unpaid');}else openPNSheet(id);}
@@ -1530,7 +1616,13 @@ function dist(lat1,lng1,lat2,lng2){
 // ═══════════════════════════════════════════════════════════════
 async function loadAndDrawCourse(){
   const c=await sbLoadCourse();
-  if(c){ publishedCourse=c; }
+  if(c){
+    publishedCourse=c;
+    if(isRO){
+      roDashCoursePublished=true;
+      updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+    }
+  }
   renderCourseDiagram();
 }
 
@@ -1819,6 +1911,8 @@ async function publishCourse(){
     publishedCourse=course;
     setSyncStatus('ok');
     renderCourseDiagram();
+    roDashCoursePublished=true;
+    updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
     toast('✅ Course published to all skippers!');
   } else {
     setSyncStatus('offline');
@@ -1923,6 +2017,8 @@ async function loadRegistrations(){
   registeredBoatIds=new Set(regs.map(r=>r.boat_id));
   if(!regs.length){
     list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div><div>No boats registered yet</div></div>';
+    roDashRegsCount=0;
+    updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
     return;
   }
   list.innerHTML='';
@@ -1943,6 +2039,8 @@ async function loadRegistrations(){
       '<div class="reg-status paid">#'+(i+1)+'</div>';
     list.appendChild(row);
   });
+  roDashRegsCount=regs.length;
+  updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2547,9 +2645,13 @@ async function loadProtests(){
   const protests=await sbLoadProtests(nextRace.label);
   if(!protests.length){
     list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>';
+    roDashProtestsCount=0;
+    updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
     return;
   }
 
+  roDashProtestsCount=protests.length;
+  updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
   list.innerHTML=protests.map(p=>{
     const protestor=boats.find(b=>b.id===p.protestor_id);
     const protestee=boats.find(b=>b.id===p.protestee_id);
@@ -2557,7 +2659,7 @@ async function loadProtests(){
     const rules=(p.rules_broken||[]).join(', ');
     const statusOpts=PROTEST_STATUSES.map(s=>
       `<option value="${s}"${p.status===s?' selected':''}>${s}</option>`).join('');
-    return`<div class="protest-card status-${p.status.toLowerCase().replace(' ','-')}">
+    return`<div class="protest-card status-${p.status.toLowerCase().replace(' ','-')}" data-protest-id="${p.id}">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div>
           <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem">${protestor?protestor.name:'Unknown'}</span>
@@ -2588,8 +2690,15 @@ async function loadProtests(){
 
 async function updateProtestStatus(id,status){
   const r=await sbUpdateProtest(id,{status});
-  if(r===null) toast('⚠ Could not update status');
-  else toast('✅ Status updated');
+  if(r===null){ toast('⚠ Could not update status'); return; }
+  toast('✅ Status updated');
+  // Immediately update the card in the DOM
+  const card=document.querySelector(`.protest-card[data-protest-id="${id}"]`);
+  if(card){
+    card.className=card.className.replace(/status-\S+/,`status-${status.toLowerCase().replace(/ /g,'-')}`);
+    const badge=card.querySelector('.protest-status');
+    if(badge){ badge.className=`protest-status ${status}`; badge.textContent=status; }
+  }
 }
 async function updateProtestNotes(id,notes){
   await sbUpdateProtest(id,{ro_notes:notes});
