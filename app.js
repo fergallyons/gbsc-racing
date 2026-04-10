@@ -1842,7 +1842,7 @@ function renderCourseDiagram(){
 // ═══════════════════════════════════════════════════════════════
 function buildMarksGrid(){
   const g=document.getElementById('marksGrid'); g.innerHTML='';
-  MARKS.forEach(m=>{
+  MARKS.filter(m=>m.active!==false).forEach(m=>{
     const el=document.createElement('div');
     el.className='mark-toggle'; el.id='mt-'+m.id;
     el.innerHTML=
