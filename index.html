@@ -227,8 +227,10 @@
   <!-- Action buttons -->
   <div style="display:flex;flex-direction:column;gap:10px">
     <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px" onclick="registerForRace()">⛵ Register for This Race</button>
-    <button class="btn btn-gold" style="width:100%;padding:12px" onclick="sendReport()">✅ Submit to Race Officer</button>
-    <button class="btn btn-ghost" style="width:100%;padding:11px;border-color:var(--danger);color:var(--danger)" onclick="openProtestSheet()">🚩 File a Protest</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn btn-gold" style="padding:12px" onclick="sendReport()">✅ Submit to RO</button>
+      <button class="btn btn-ghost" style="padding:11px;border-color:var(--danger);color:var(--danger)" onclick="openProtestSheet()">🚩 File Protest</button>
+    </div>
   </div>
 </div><!-- /feesTab -->
 
