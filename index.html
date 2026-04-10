@@ -223,15 +223,19 @@
       <div class="dash-card-label">Calendar</div>
       <div class="dash-card-sub">Race schedule</div>
     </div>
-  </div>
-  <!-- Action buttons -->
-  <div style="display:flex;flex-direction:column;gap:10px">
-    <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px" onclick="registerForRace()">⛵ Register for This Race</button>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <button class="btn btn-gold" style="padding:12px" onclick="sendReport()">✅ Submit to RO</button>
-      <button class="btn btn-ghost" style="padding:11px;border-color:var(--danger);color:var(--danger)" onclick="openProtestSheet()">🚩 File Protest</button>
+    <div class="dash-card" onclick="sendReport()">
+      <div class="dash-card-icon">✅</div>
+      <div class="dash-card-label">Submit Race Fees</div>
+      <div class="dash-card-sub">Send to Race Officer</div>
+    </div>
+    <div class="dash-card" onclick="openProtestSheet()">
+      <div class="dash-card-icon">🚩</div>
+      <div class="dash-card-label">File Protest</div>
+      <div class="dash-card-sub">Under RRS Rule 61</div>
     </div>
   </div>
+  <!-- Register CTA -->
+  <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px" onclick="registerForRace()">⛵ Register for This Race</button>
 </div><!-- /feesTab -->
 
 <!-- ═══ PANEL: COURSE ═══ -->
