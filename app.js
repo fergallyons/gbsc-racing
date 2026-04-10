@@ -443,6 +443,35 @@ function submitAddBoat(){
   setTimeout(()=>loginAs(id),80);
 }
 
+// RO-only add boat (no loginAs — just refresh the panel and boat grid)
+function roShowAddBoatForm(){
+  document.getElementById('roAddBoatForm').style.display='block';
+  document.getElementById('roAddBoatBtn').style.display='none';
+  document.getElementById('ro-newBoatName').focus();
+}
+function roHideAddBoatForm(){
+  document.getElementById('roAddBoatForm').style.display='none';
+  document.getElementById('roAddBoatBtn').style.display='block';
+  document.getElementById('ro-newBoatName').value='';
+}
+function roSubmitAddBoat(){
+  const name=document.getElementById('ro-newBoatName').value.trim();
+  if(!name){toast('Enter a boat name');return;}
+  const id=name.toLowerCase().replace(/[^a-z0-9]/g,'')||'boat'+Date.now();
+  if(boats.find(b=>b.id===id)){toast('Boat already exists');return;}
+  const nb={id,name,icon:'⛵'};
+  boats.push(nb);
+  const c=loadCustom();c.push(nb);saveCustom(c);
+  sbFetch('/rest/v1/boats',{method:'POST',
+    headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},
+    body:JSON.stringify({id,name,icon:'⛵',pin:'0000',revolut_user:'',stripe_link:''})
+  });
+  roHideAddBoatForm();
+  renderBoatGrid();
+  buildPinMgmtList();
+  toast('✅ '+name+' added');
+}
+
 // ═══════════════════════════════════════════════════════════════
 // PIN SYSTEM
 // ═══════════════════════════════════════════════════════════════

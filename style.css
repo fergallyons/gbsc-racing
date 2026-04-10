@@ -544,10 +544,10 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   padding:16px;display:flex;flex-direction:column;align-items:center;
   cursor:pointer;transition:border-color .15s,background .15s;text-align:center;}
 .dash-card:hover{border-color:var(--teal);background:rgba(0,174,239,.07);}
-.dash-card-icon{font-size:1.6rem;margin-bottom:6px;line-height:1;}
-.dash-card-label{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.9rem;
-  color:var(--white);margin-bottom:2px;}
-.dash-card-sub{font-size:.7rem;color:var(--muted);}
+.dash-card-icon{font-size:1.2rem;margin-bottom:5px;line-height:1;}
+.dash-card-label{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;
+  color:var(--white);margin-bottom:3px;letter-spacing:.02em;}
+.dash-card-sub{font-size:.8rem;color:var(--muted);}
 
 .dash-action-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;}
 .dash-action-item{display:flex;align-items:center;gap:10px;background:var(--card);
