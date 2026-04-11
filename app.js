@@ -37,7 +37,7 @@ async function sbSaveBoatConfig(id,fields){
   });
 }
 async function sbLoadClubSettings(){
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link');
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor');
   if(!r||!r.length) return null;
   return r[0];
 }
@@ -897,7 +897,7 @@ function deleteCrew(){
 // In-memory cache loaded from DB on login, written back on change
 // localStorage used as fallback when offline
 let boatConfig={};    // {pin, revolut_user} for currentBoat
-let clubSettings={stripe_link:''};  // club-wide settings (shared across all boats)
+let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:''};  // club-wide
 
 async function loadBoatConfig(boatId){
   // Try DB first
@@ -921,7 +921,7 @@ async function loadClubSettings(){
     try{
       const cached=localStorage.getItem('__club_settings__');
       clubSettings=cached?JSON.parse(cached):{stripe_link:''};
-    }catch(e){ clubSettings={stripe_link:''}; }
+    }catch(e){ clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:''}; }
   }
 }
 
@@ -948,8 +948,13 @@ async function setBoatPin(id,pin){
 function getRevolutUser(){
   return boatConfig.revolut_user||'';
 }
-function getStripeLink(){
-  return clubSettings.stripe_link||'';
+function getStripeLink(type){
+  if(type==='student') return clubSettings.stripe_link_student||'';
+  if(type==='visitor') return clubSettings.stripe_link_visitor||'';
+  return clubSettings.stripe_link_member||''; // full, crew, kid (kid is free anyway)
+}
+function hasAnyStripeLink(){
+  return !!(clubSettings.stripe_link_member||clubSettings.stripe_link_student||clubSettings.stripe_link_visitor);
 }
 async function saveBoatSettings(revolut_user){
   boatConfig.revolut_user=revolut_user;
@@ -961,10 +966,10 @@ async function saveBoatSettings(revolut_user){
   }catch(e){}
   await sbSaveBoatConfig(currentBoat.id,{revolut_user});
 }
-async function saveClubStripe(stripe_link){
-  clubSettings.stripe_link=stripe_link;
+async function saveClubStripeLinks(links){
+  Object.assign(clubSettings,links);
   try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
-  await sbSaveClubSettings({stripe_link});
+  await sbSaveClubSettings(links);
 }
 
 function openSettingsSheet(){
@@ -978,12 +983,17 @@ function saveSettings(){
   toast('Settings saved ✓');
 }
 function openROClubSettings(){
-  document.getElementById('ro-settings-stripe').value=getStripeLink();
+  document.getElementById('ro-stripe-member').value=getStripeLink('full');
+  document.getElementById('ro-stripe-student').value=getStripeLink('student');
+  document.getElementById('ro-stripe-visitor').value=getStripeLink('visitor');
   document.getElementById('roClubSettingsSheet').classList.add('open');
 }
 function saveROClubSettings(){
-  const stripe=document.getElementById('ro-settings-stripe').value.trim();
-  saveClubStripe(stripe);
+  saveClubStripeLinks({
+    stripe_link_member:  document.getElementById('ro-stripe-member').value.trim(),
+    stripe_link_student: document.getElementById('ro-stripe-student').value.trim(),
+    stripe_link_visitor: document.getElementById('ro-stripe-visitor').value.trim(),
+  });
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
 }
@@ -1018,11 +1028,15 @@ function openCollectSheet(){
     } else {
       // Payment buttons
       const revLink=revUser?`https://revolut.me/${revUser}`:'';
-      const stripeLink=getStripeLink();
-      // WhatsApp Revolut link — only when crew has a phone number
+      const stripeLink=getStripeLink(p.type);
+      // WhatsApp links — only when crew has a phone number
       const waRevLink=p.phone&&revLink
         ?'https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(
             `Hi ${p.first} — your GBSC racing fee is €${amt}. Tap to pay via Revolut: ${revLink} ⛵`)
+        :'';
+      const waStripeLink=p.phone&&stripeLink
+        ?'https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(
+            `Hi ${p.first} — your GBSC racing fee is €${amt}. Tap to pay by card: ${stripeLink} ⛵`)
         :'';
       row.innerHTML=
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
@@ -1062,16 +1076,24 @@ function openCollectSheet(){
           '<span style="font-size:1rem">💵</span>'+
           '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--success)">Cash</span></button>'+
 
-          (stripeLink?
-            '<a href="'+stripeLink+'?client_reference_id='+p.id+'&amount='+amt*100+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Card\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.08);'+
-            'border:1px solid rgba(0,180,216,.3);border-radius:8px;padding:8px 4px;text-decoration:none;">'+
-            '<span style="font-size:1rem">💳</span>'+
+          (stripeLink&&waStripeLink?
+            // Phone on file → WhatsApp with Stripe link
+            '<a href="'+waStripeLink+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Card\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.1);'+
+            'border:1px solid rgba(0,180,216,.4);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;" title="Send card payment link via WhatsApp">'+
+            '<span style="font-size:1rem">💬</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--teal)">Card</span></a>'
-            :
-            '<button onclick="toast(\'Add Stripe link in ⚙ Settings\')" '+
+          :stripeLink?
+            // No phone → QR code they can scan
+            '<button onclick="showStripeQR(\''+p.first+'\',\''+stripeLink+'\',\''+amt+'\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.08);'+
+            'border:1px solid rgba(0,180,216,.3);border-radius:8px;padding:8px 4px;cursor:pointer;" title="Show QR code for card payment">'+
+            '<span style="font-size:1rem">💳</span>'+
+            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--teal)">Card</span></button>'
+          :
+            '<button onclick="toast(\'Card payment links not configured — see RO Club Settings\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;'+
-            'border:1px dashed var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;opacity:.5;">'+
+            'border:1px dashed var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;opacity:.4;">'+
             '<span style="font-size:1rem">💳</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Card</span></button>'
           )+
@@ -1198,6 +1220,30 @@ function confirmPayNote(){
   else toast(p.first+' — '+pnMethod+' ✓');
 }
 
+// ── Stripe QR modal (no-phone fallback in Collect Payments) ──
+function showStripeQR(firstName, stripeLink, amt){
+  const existing=document.getElementById('_stripeQROverlay');
+  if(existing) existing.remove();
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(stripeLink);
+  const el=document.createElement('div');
+  el.id='_stripeQROverlay';
+  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px;';
+  el.innerHTML=`
+    <div style="background:#112240;border:1px solid rgba(0,180,216,.3);border-radius:16px;padding:24px;max-width:300px;width:100%;text-align:center;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#f0f4f8;margin-bottom:4px">Card Payment — ${firstName}</div>
+      <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:16px">Ask them to scan to pay €${amt}</div>
+      <div style="background:white;border-radius:10px;padding:12px;display:inline-block;margin-bottom:16px">
+        <img src="${qrUrl}" style="width:200px;height:200px;display:block">
+      </div>
+      <button onclick="document.getElementById('_stripeQROverlay').remove()"
+        style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
+        border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
+        font-size:.95rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Close</button>
+    </div>`;
+  el.addEventListener('click',e=>{if(e.target===el)el.remove();});
+  document.body.appendChild(el);
+}
+
 // ── Share Payment Link / QR ───────────────────────────────────
 function openSharePayLink(){
   const sel=roster.filter(p=>p.selected);
@@ -1210,7 +1256,11 @@ function openSharePayLink(){
     boat: currentBoat.name,
     race: selectedRace?selectedRace.label:'Race',
     rev: getRevolutUser(),
-    stripe: getStripeLink(),
+    stripeLinks:{
+      member:  getStripeLink('full'),
+      student: getStripeLink('student'),
+      visitor: getStripeLink('visitor'),
+    },
     crew: sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p)}))
   };
   const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(data))));
@@ -2507,7 +2557,8 @@ function showCrewPayPage(data){
   window._cpStep2=function(idx){
     const c=data.crew[idx];
     const revUrl=data.rev?`https://revolut.me/${data.rev}`:'';
-    const stripeUrl=data.stripe?`${data.stripe}?client_reference_id=${encodeURIComponent(c.n)}&amount=${c.a*100}`:'';
+    const sl=data.stripeLinks||{};
+    const stripeUrl=(c.t==='student'?sl.student:c.t==='visitor'?sl.visitor:sl.member)||data.stripe||'';
 
     const revBtn=revUrl?`
       <a href="${revUrl}" target="_blank"
