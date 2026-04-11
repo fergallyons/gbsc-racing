@@ -2223,11 +2223,39 @@ async function loadRegistrations(){
         '<div><div class="reg-boat-name">'+name+'</div>'+
         '<div class="reg-meta">Registered '+t+'</div></div>'+
       '</div>'+
-      '<div class="reg-status paid">#'+(i+1)+'</div>';
+      '<div style="display:flex;align-items:center;gap:8px">'+
+        '<div class="reg-status paid">#'+(i+1)+'</div>'+
+        '<button onclick="roUnregisterBoat(\''+r.boat_id+'\',\''+name+'\')" title="Remove registration" '+
+        'style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);'+
+        'font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">🗑</button>'+
+      '</div>';
     list.appendChild(row);
   });
   roDashRegsCount=regs.length;
   updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+}
+
+async function roUnregisterBoat(boatId,boatName){
+  if(!confirm('Remove '+boatName+' from this race?'))return;
+  await sbUnregisterBoat(boatId,nextRace);
+  registeredBoatIds.delete(boatId);
+  // Remove row from DOM immediately
+  const list=document.getElementById('regList');
+  const rows=list.querySelectorAll('.reg-row');
+  rows.forEach(row=>{ if(row.innerHTML.includes(boatName)) row.remove(); });
+  // Renumber remaining rows
+  list.querySelectorAll('.reg-row').forEach((row,i)=>{
+    const badge=row.querySelector('.reg-status');
+    if(badge) badge.textContent='#'+(i+1);
+  });
+  roDashRegsCount=Math.max(0,roDashRegsCount-1);
+  updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+  if(!list.querySelector('.reg-row')){
+    list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div><div>No boats registered yet</div></div>';
+  }
+  // Update skipper's own registered pill if they're logged in
+  updateRegStatus();
+  toast(boatName+' unregistered');
 }
 
 // ═══════════════════════════════════════════════════════════════
