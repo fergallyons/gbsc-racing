@@ -48,8 +48,9 @@ async function sbSaveClubSettings(fields){
     body:JSON.stringify(fields)
   });
 }
-async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+id+'&order=id.asc');if(r===null)return null;if(!r.length)return[];return r.map(x=>({id:x.id,first:x.first,last:x.last,type:x.type,joinYear:x.join_year,outings:x.outings,phone:x.phone||'',selected:false,paid:false}));}
-async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:p.id,boat_id:bid,first:p.first,last:p.last,type:p.type,join_year:p.joinYear||null,outings:p.outings||0,phone:p.phone||null})});}
+async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+id+'&order=id.asc');if(r===null)return null;if(!r.length)return[];return r.map(x=>({id:x.id,first:x.first,last:x.last,type:x.type,joinYear:x.join_year,outings:x.outings,phone:x.phone||'',selected:x.selected||false,paid:false}));}
+async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:p.id,boat_id:bid,first:p.first,last:p.last,type:p.type,join_year:p.joinYear||null,outings:p.outings||0,phone:p.phone||null,selected:p.selected||false})});}
+async function sbSetCrewSelected(crewId,selected){return sbFetch('/rest/v1/crew?id=eq.'+crewId,{method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify({selected})});}
 async function sbDeleteCrew(id){return sbFetch('/rest/v1/crew?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});}
 async function sbSaveRaceRecord(rec){return sbFetch('/rest/v1/race_records',{method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(rec)});}
 async function sbLoadRaceRecords(raceName){
@@ -414,15 +415,16 @@ async function enterApp(b,ro){
   // Load crew
   const sbCrew=await sbLoadCrew(b.id);
   if(sbCrew!==null){
-    roster=sbCrew; // always use DB data — empty or not
-    cacheRosterLocally(b.id, roster); // write to localStorage as offline cache
+    roster=sbCrew; // selected state comes from DB — no need to restore from localStorage
+    cacheRosterLocally(b.id, roster);
+    saveCrewSelection(b.id); // keep localStorage in sync for offline fallback
     setSyncStatus('ok');
   } else {
-    // Offline — use local cache, show warning
+    // Offline — use local cache and restore saved selection
     roster=loadRoster(b.id)||[];
+    restoreCrewSelection(b.id);
     setSyncStatus('offline');toast('⚠ Offline — using local data');
   }
-  restoreCrewSelection(b.id); // re-apply who was onboard last session
 
   buildRaceDropdown();
   // Refresh registration state for this boat
@@ -806,7 +808,15 @@ function updateTotals(){
   if(dOwed) dOwed.textContent='€'+(tot-paid);
   if(dBadge) dBadge.textContent=s.length+' selected';
 }
-function toggleSel(id){const p=roster.find(r=>r.id===id);if(p){p.selected=!p.selected;if(!p.selected){p.paid=false;}}renderCrew();saveCrewSelection(currentBoat?.id);}
+function toggleSel(id){
+  const p=roster.find(r=>r.id===id);
+  if(!p)return;
+  p.selected=!p.selected;
+  if(!p.selected)p.paid=false;
+  renderCrew();
+  saveCrewSelection(currentBoat?.id);       // localStorage (offline fallback)
+  sbSetCrewSelected(p.id,p.selected);       // DB (cross-device persistence)
+}
 function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid){p.paid=false;p.payMethod='';p.payNote='';renderCrew();toast(p.first+' marked unpaid');}else openPNSheet(id);}
 
 // add crew
