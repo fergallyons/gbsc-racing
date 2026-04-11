@@ -183,30 +183,16 @@
   </div>
   <!-- 2-column tile grid -->
   <div class="dash-grid">
-    <div class="dash-card" onclick="openPanel('crewPanel')">
-      <div class="dash-card-icon">👥</div>
-      <div class="dash-card-label">Crew Roster</div>
-      <div class="dash-card-sub" id="dc-crew-badge">0 selected</div>
-    </div>
-    <div class="dash-card" onclick="openCollectSheet()">
-      <div class="dash-card-icon">💳</div>
-      <div class="dash-card-label">Collect Fees</div>
-      <div class="dash-card-sub">Record payments</div>
-    </div>
-    <div class="dash-card" onclick="openSharePayLink()">
-      <div class="dash-card-icon">📲</div>
-      <div class="dash-card-label">Request Payment</div>
-      <div class="dash-card-sub">QR for crew</div>
-    </div>
-    <div class="dash-card" onclick="openSettingsSheet()">
-      <div class="dash-card-icon">⚙</div>
-      <div class="dash-card-label">Settings</div>
-      <div class="dash-card-sub">Revolut &amp; Stripe</div>
-    </div>
+    <!-- Race operations -->
     <div class="dash-card" onclick="openPanel('coursePanel')">
       <div class="dash-card-icon">🗺</div>
       <div class="dash-card-label">Course</div>
       <div class="dash-card-sub">Today's course</div>
+    </div>
+    <div class="dash-card" onclick="openPanel('crewPanel')">
+      <div class="dash-card-icon">👥</div>
+      <div class="dash-card-label">Crew Roster</div>
+      <div class="dash-card-sub" id="dc-crew-badge">0 selected</div>
     </div>
     <div class="dash-card" onclick="openPanel('docsPanel');loadAndRenderDocs()">
       <div class="dash-card-icon">📄</div>
@@ -223,15 +209,32 @@
       <div class="dash-card-label">Calendar</div>
       <div class="dash-card-sub">Race schedule</div>
     </div>
+    <!-- Fees -->
+    <div class="dash-card" onclick="openCollectSheet()">
+      <div class="dash-card-icon">💳</div>
+      <div class="dash-card-label">Collect Fees</div>
+      <div class="dash-card-sub">Record payments</div>
+    </div>
+    <div class="dash-card" onclick="openSharePayLink()">
+      <div class="dash-card-icon">📲</div>
+      <div class="dash-card-label">Request Payment</div>
+      <div class="dash-card-sub">QR for crew</div>
+    </div>
     <div class="dash-card" onclick="sendReport()">
       <div class="dash-card-icon">✅</div>
       <div class="dash-card-label">Submit Race Fees</div>
       <div class="dash-card-sub">Send to Race Officer</div>
     </div>
+    <!-- Actions & settings -->
     <div class="dash-card" onclick="openProtestSheet()">
       <div class="dash-card-icon">🚩</div>
       <div class="dash-card-label">File Protest</div>
       <div class="dash-card-sub">Under RRS Rule 61</div>
+    </div>
+    <div class="dash-card" onclick="openSettingsSheet()">
+      <div class="dash-card-icon">⚙</div>
+      <div class="dash-card-label">Settings</div>
+      <div class="dash-card-sub">Revolut username</div>
     </div>
   </div>
   <!-- Register CTA -->
@@ -327,11 +330,6 @@
       <div class="dash-card-label">Course</div>
       <div class="dash-card-sub">Today's course</div>
     </div>
-    <div class="dash-card" onclick="openPanel('docsPanel');loadAndRenderDocs()">
-      <div class="dash-card-icon">📄</div>
-      <div class="dash-card-label">Documents</div>
-      <div class="dash-card-sub">Sailing instructions</div>
-    </div>
     <div class="dash-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
       <div class="dash-card-icon">🏆</div>
       <div class="dash-card-label">Results</div>
@@ -341,6 +339,11 @@
       <div class="dash-card-icon">📅</div>
       <div class="dash-card-label">Calendar</div>
       <div class="dash-card-sub">Race schedule</div>
+    </div>
+    <div class="dash-card" onclick="openPanel('docsPanel');loadAndRenderDocs()">
+      <div class="dash-card-icon">📄</div>
+      <div class="dash-card-label">Documents</div>
+      <div class="dash-card-sub">Sailing instructions</div>
     </div>
   </div>
 </div><!-- /registeredTab -->
@@ -367,6 +370,7 @@
   </div>
   <!-- 2-column tile grid -->
   <div class="dash-grid">
+    <!-- Race operations -->
     <div class="dash-card ro-card" onclick="openPanel('roCoursePanel')">
       <div class="dash-card-icon">🗺</div>
       <div class="dash-card-label">Course Builder</div>
@@ -377,25 +381,15 @@
       <div class="dash-card-label">Registrations</div>
       <div class="dash-card-sub" id="roRegsStatus">No registrations yet</div>
     </div>
-    <div class="dash-card ro-card" onclick="openPanel('roProtestsPanel')">
-      <div class="dash-card-icon">🚩</div>
-      <div class="dash-card-label">Protests</div>
-      <div class="dash-card-sub" id="roProtestsStatus">None filed</div>
-    </div>
     <div class="dash-card ro-card" onclick="openPanel('roMarksPanel')">
       <div class="dash-card-icon">📍</div>
       <div class="dash-card-label">Marks Manager</div>
       <div class="dash-card-sub">Toggle &amp; add marks</div>
     </div>
-    <div class="dash-card ro-card" onclick="openPanel('roBoatsPanel')">
-      <div class="dash-card-icon">🔑</div>
-      <div class="dash-card-label">Boat Management</div>
-      <div class="dash-card-sub">PINs &amp; Revolut links</div>
-    </div>
-    <div class="dash-card ro-card" onclick="generatePaymentReport()">
-      <div class="dash-card-icon">📄</div>
-      <div class="dash-card-label">Payment Report</div>
-      <div class="dash-card-sub">Generate PDF</div>
+    <div class="dash-card ro-card" onclick="openPanel('roProtestsPanel')">
+      <div class="dash-card-icon">🚩</div>
+      <div class="dash-card-label">Protests</div>
+      <div class="dash-card-sub" id="roProtestsStatus">None filed</div>
     </div>
     <div class="dash-card ro-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
       <div class="dash-card-icon">🏆</div>
@@ -412,10 +406,22 @@
       <div class="dash-card-label">Documents</div>
       <div class="dash-card-sub">Sailing instructions</div>
     </div>
+    <!-- Fees & admin -->
+    <div class="dash-card ro-card" onclick="generatePaymentReport()">
+      <div class="dash-card-icon">💰</div>
+      <div class="dash-card-label">Payment Report</div>
+      <div class="dash-card-sub">Generate PDF</div>
+    </div>
+    <div class="dash-card ro-card" onclick="openPanel('roBoatsPanel')">
+      <div class="dash-card-icon">🔑</div>
+      <div class="dash-card-label">Boat Management</div>
+      <div class="dash-card-sub">PINs &amp; Revolut links</div>
+    </div>
+    <!-- Settings -->
     <div class="dash-card ro-card" onclick="openROClubSettings()">
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Club Settings</div>
-      <div class="dash-card-sub">Stripe &amp; payments</div>
+      <div class="dash-card-sub">Payment links</div>
     </div>
   </div>
   <div id="reportStatus" style="font-size:.75rem;color:var(--muted);margin-top:4px;text-align:center"></div>
