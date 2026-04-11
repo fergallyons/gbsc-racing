@@ -1048,17 +1048,17 @@ function openCollectSheet(){
           '</div>'+
           '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.2rem;font-weight:800;color:var(--danger)">€'+amt+'</span>'+
         '</div>'+
-        '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px">'+
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px">'+
           (waRevLink?
-            // Phone on file → WhatsApp with Revolut payment link
-            '<a href="'+waRevLink+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Revolut\')" '+
+            // Phone on file → WhatsApp with Revolut payment link (send only, no auto-mark)
+            '<a href="'+waRevLink+'" target="_blank" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
             'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;" title="Send Revolut request via WhatsApp">'+
             '<span style="font-size:1rem">💬</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></a>'
           :revLink&&isMobile()?
-            // No phone, mobile → direct Revolut deep-link
-            '<a href="'+revLink+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Revolut\')" '+
+            // No phone, mobile → direct Revolut deep-link (send only, no auto-mark)
+            '<a href="'+revLink+'" target="_blank" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
             'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;">'+
             '<span style="font-size:1rem">💜</span>'+
@@ -1071,6 +1071,7 @@ function openCollectSheet(){
             '<span style="font-size:1rem">💜</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Revolut</span></button>'
           )+
+          // Cash → auto-mark paid (physical money seen immediately)
           '<button onclick="markPaidCollect(\''+p.id+'\',\'Cash\')" '+
           'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(45,198,83,.08);'+
           'border:1px solid rgba(45,198,83,.3);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
@@ -1078,14 +1079,14 @@ function openCollectSheet(){
           '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--success)">Cash</span></button>'+
 
           (stripeLink&&waStripeLink?
-            // Phone on file → WhatsApp with Stripe link
-            '<a href="'+waStripeLink+'" target="_blank" onclick="markPaidCollect(\''+p.id+'\',\'Card\')" '+
+            // Phone on file → WhatsApp with Stripe link (send only, no auto-mark)
+            '<a href="'+waStripeLink+'" target="_blank" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.1);'+
             'border:1px solid rgba(0,180,216,.4);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;" title="Send card payment link via WhatsApp">'+
             '<span style="font-size:1rem">💬</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--teal)">Card</span></a>'
           :stripeLink?
-            // No phone → QR code they can scan
+            // No phone → QR code they can scan (send only, no auto-mark)
             '<button onclick="showStripeQR(\''+p.first+'\',\''+stripeLink+'\',\''+amt+'\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.08);'+
             'border:1px solid rgba(0,180,216,.3);border-radius:8px;padding:8px 4px;cursor:pointer;" title="Show QR code for card payment">'+
@@ -1098,7 +1099,14 @@ function openCollectSheet(){
             '<span style="font-size:1rem">💳</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Card</span></button>'
           )+
-        '</div>';
+        '</div>'+
+        // Manual confirm-paid button for Revolut/Card (skipper taps when payment arrives)
+        '<button onclick="markPaidCollect(\''+p.id+'\',\'Confirmed\')" '+
+        'style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;'+
+        'background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:8px;'+
+        'padding:7px 12px;cursor:pointer;font-family:Barlow Condensed,sans-serif;font-size:.78rem;'+
+        'font-weight:700;color:var(--success);letter-spacing:.04em;text-transform:uppercase;">'+
+        '✓ Mark as Paid</button>';
     }
     list.appendChild(row);
   });
@@ -2817,6 +2825,9 @@ async function sbLoadProtests(raceName){
   const r=await sbFetch('/rest/v1/protests?race_name=eq.'+encodeURIComponent(raceName)+'&order=filed_at.asc');
   return r||[];
 }
+async function sbDeleteProtest(id){
+  return sbFetch('/rest/v1/protests?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
+}
 async function sbUpdateProtest(id,fields){
   return sbFetch('/rest/v1/protests?id=eq.'+id,{method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
@@ -2938,7 +2949,12 @@ async function loadProtests(){
           <span style="color:var(--muted);font-size:.8rem"> → </span>
           <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem;color:var(--danger)">${protestee?protestee.name:'Unknown'}</span>
         </div>
-        <span class="protest-status ${p.status}">${p.status}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="protest-status ${p.status}">${p.status}</span>
+          <button onclick="deleteProtest('${p.id}')" title="Delete protest"
+            style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);
+            font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1" title="Delete">🗑</button>
+        </div>
       </div>
       <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">📍 ${p.incident_where} · ⏱ ${p.incident_time} · Filed ${filedAt}</div>
       <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${p.flag_displayed?'🚩 Flag displayed':'⚠ No flag'} · ${p.protest_hailed?'📣 Hailed':'⚠ Not hailed'}</div>
@@ -2974,6 +2990,21 @@ async function updateProtestStatus(id,status){
 }
 async function updateProtestNotes(id,notes){
   await sbUpdateProtest(id,{ro_notes:notes});
+}
+async function deleteProtest(id){
+  if(!confirm('Delete this protest? This cannot be undone.'))return;
+  const r=await sbDeleteProtest(id);
+  if(!r&&r!==undefined){ toast('⚠ Could not delete protest'); return; }
+  // Remove card from DOM immediately
+  const card=document.querySelector(`.protest-card[data-protest-id="${id}"]`);
+  if(card) card.remove();
+  roDashProtestsCount=Math.max(0,roDashProtestsCount-1);
+  updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+  const list=document.getElementById('protestList');
+  if(list&&!list.querySelector('.protest-card')){
+    list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>';
+  }
+  toast('Protest deleted');
 }
 
 // ═══════════════════════════════════════════════════════════════
