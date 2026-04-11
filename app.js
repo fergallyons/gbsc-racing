@@ -42,10 +42,11 @@ async function sbLoadClubSettings(){
   return r[0];
 }
 async function sbSaveClubSettings(fields){
-  return sbFetch('/rest/v1/settings?id=eq.club',{
-    method:'PATCH',
-    headers:{...SBH,'Prefer':'return=minimal'},
-    body:JSON.stringify(fields)
+  // Upsert: insert the row if it doesn't exist, merge if it does
+  return sbFetch('/rest/v1/settings',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify({id:'club',...fields})
   });
 }
 async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+id+'&order=id.asc');if(r===null)return null;if(!r.length)return[];return r.map(x=>({id:x.id,first:x.first,last:x.last,type:x.type,joinYear:x.join_year,outings:x.outings,phone:x.phone||'',selected:x.selected||false,paid:false}));}
@@ -920,7 +921,7 @@ async function loadClubSettings(){
   } else {
     try{
       const cached=localStorage.getItem('__club_settings__');
-      clubSettings=cached?JSON.parse(cached):{stripe_link:''};
+      clubSettings=cached?JSON.parse(cached):{stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:''};
     }catch(e){ clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:''}; }
   }
 }
