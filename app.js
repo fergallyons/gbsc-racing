@@ -262,6 +262,17 @@ function saveRoster(){
 }
 function loadRoster(id){try{const r=localStorage.getItem('gr_'+id);return r?JSON.parse(r).map(p=>({...p,selected:false,paid:false})):null;}catch(e){return null;}}
 function cacheRosterLocally(id,r){try{localStorage.setItem('gr_'+id,JSON.stringify(r.map(p=>({...p,selected:false,paid:false}))));}catch(e){}}
+function saveCrewSelection(boatId){
+  try{localStorage.setItem('sel_'+boatId,JSON.stringify(roster.filter(p=>p.selected).map(p=>p.id)));}catch(e){}
+}
+function restoreCrewSelection(boatId){
+  try{
+    const stored=localStorage.getItem('sel_'+boatId);
+    if(!stored)return;
+    const ids=new Set(JSON.parse(stored));
+    roster.forEach(p=>{p.selected=ids.has(p.id);});
+  }catch(e){}
+}
 function loadCustom(){try{return JSON.parse(localStorage.getItem('gr_custom')||'[]');}catch(e){return[];}}
 function saveCustom(a){try{localStorage.setItem('gr_custom',JSON.stringify(a));}catch(e){}}
 // Global ID high-water mark — ensures nextId never reuses an ID across boats or sessions
@@ -411,6 +422,7 @@ async function enterApp(b,ro){
     roster=loadRoster(b.id)||[];
     setSyncStatus('offline');toast('⚠ Offline — using local data');
   }
+  restoreCrewSelection(b.id); // re-apply who was onboard last session
 
   buildRaceDropdown();
   // Refresh registration state for this boat
@@ -794,7 +806,7 @@ function updateTotals(){
   if(dOwed) dOwed.textContent='€'+(tot-paid);
   if(dBadge) dBadge.textContent=s.length+' selected';
 }
-function toggleSel(id){const p=roster.find(r=>r.id===id);if(p){p.selected=!p.selected;if(!p.selected){p.paid=false;}}renderCrew();}
+function toggleSel(id){const p=roster.find(r=>r.id===id);if(p){p.selected=!p.selected;if(!p.selected){p.paid=false;}}renderCrew();saveCrewSelection(currentBoat?.id);}
 function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid){p.paid=false;p.payMethod='';p.payNote='';renderCrew();toast(p.first+' marked unpaid');}else openPNSheet(id);}
 
 // add crew
@@ -833,7 +845,7 @@ async function addCrewMember(){
     setSyncStatus('ok');
     cacheRosterLocally(currentBoat.id,roster);
   }
-  renderCrew();toast(first+' '+last+' added ✓');
+  renderCrew();saveCrewSelection(currentBoat?.id);toast(first+' '+last+' added ✓');
 }
 // edit sheet
 function onEditTypeChange(){const t=document.getElementById('ef-type').value;document.getElementById('ef-joinGrp').style.display=t==='crew'?'flex':'none';document.getElementById('ef-outGrp').style.display=t==='visitor'?'flex':'none';}
@@ -868,6 +880,7 @@ function deleteCrew(){
   const delId=editingId;
   roster=roster.filter(r=>r.id!==editingId);
   sbDeleteCrew(delId).then(()=>{setSyncStatus('ok');cacheRosterLocally(currentBoat.id,roster);});
+  saveCrewSelection(currentBoat?.id);
   closeSheet('editSheet');renderCrew();toast(p.first+' removed');
 }
 // ── Boat config: PIN, Revolut, Stripe ────────────────────────
