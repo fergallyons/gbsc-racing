@@ -796,16 +796,41 @@
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title">⚙ Club Settings</div>
-    <div class="form-group" style="margin-bottom:20px">
+    <div style="font-size:.7rem;color:var(--muted);margin-bottom:16px">Enter a separate Stripe Payment Link for each membership tier. These apply to all boats and enable card / Apple Pay / Google Pay on the crew payment page.</div>
+
+    <div class="form-group" style="margin-bottom:14px">
       <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
-        💳 Stripe Payment Link
+        💳 Member Fee Link
       </label>
-      <input type="text" id="ro-settings-stripe" placeholder="https://buy.stripe.com/…"
+      <input type="url" id="ro-stripe-member" placeholder="https://buy.stripe.com/…"
         style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
         outline:none;width:100%;box-sizing:border-box;">
-      <div style="font-size:.7rem;color:var(--muted);margin-top:6px">Applies to all boats — enables card / Apple Pay / Google Pay on the crew payment page.</div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Full members (e.g. €4)</div>
     </div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        💳 Student Fee Link
+      </label>
+      <input type="url" id="ro-stripe-student" placeholder="https://buy.stripe.com/…"
+        style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Student members (e.g. €5)</div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        💳 Visitor Fee Link
+      </label>
+      <input type="url" id="ro-stripe-visitor" placeholder="https://buy.stripe.com/…"
+        style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Non-members / visitors (e.g. €10)</div>
+    </div>
+
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveROClubSettings()">Save</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('roClubSettingsSheet')">Cancel</button>
