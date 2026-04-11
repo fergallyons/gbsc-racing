@@ -946,16 +946,23 @@ async function saveClubStripe(stripe_link){
 
 function openSettingsSheet(){
   document.getElementById('settings-revolut').value=getRevolutUser();
-  document.getElementById('settings-stripe').value=getStripeLink();
   document.getElementById('settingsSheet').classList.add('open');
 }
 function saveSettings(){
   const rev=document.getElementById('settings-revolut').value.trim().replace(/^@/,'');
-  const stripe=document.getElementById('settings-stripe').value.trim();
-  saveBoatSettings(rev);       // per-boat: Revolut username
-  saveClubStripe(stripe);      // club-wide: Stripe link
+  saveBoatSettings(rev);
   closeSheet('settingsSheet');
   toast('Settings saved ✓');
+}
+function openROClubSettings(){
+  document.getElementById('ro-settings-stripe').value=getStripeLink();
+  document.getElementById('roClubSettingsSheet').classList.add('open');
+}
+function saveROClubSettings(){
+  const stripe=document.getElementById('ro-settings-stripe').value.trim();
+  saveClubStripe(stripe);
+  closeSheet('roClubSettingsSheet');
+  toast('Club settings saved ✓');
 }
 
 // ── Collect Payments sheet ────────────────────────────────────
@@ -2539,7 +2546,7 @@ function showCrewPayPage(data){
 let _tt;
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2600);}
 document.addEventListener('click',function(e){
-  ['collectSheet','editSheet','pnSheet','shareSheet','settingsSheet','protestSheet'].forEach(id=>{
+  ['collectSheet','editSheet','pnSheet','shareSheet','settingsSheet','protestSheet','roClubSettingsSheet'].forEach(id=>{
     const el=document.getElementById(id);
     if(el&&el.classList.contains('open')&&e.target===el)closeSheet(id);
   });
