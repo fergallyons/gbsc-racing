@@ -23,14 +23,26 @@ async function sbEnsureBoat(b){
     body:JSON.stringify({id:b.id,name:b.name,icon:b.icon})});
 }
 async function sbLoadBoatConfig(id){
-  // Returns {pin, revolut_user, stripe_link} or null if offline
-  const r=await sbFetch('/rest/v1/boats?id=eq.'+id+'&select=pin,revolut_user,stripe_link');
+  // Returns {pin, revolut_user} or null if offline
+  const r=await sbFetch('/rest/v1/boats?id=eq.'+id+'&select=pin,revolut_user');
   if(!r||!r.length) return null;
   return r[0];
 }
 async function sbSaveBoatConfig(id,fields){
-  // fields: any subset of {pin, revolut_user, stripe_link}
+  // fields: any subset of {pin, revolut_user}
   return sbFetch('/rest/v1/boats?id=eq.'+id,{
+    method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify(fields)
+  });
+}
+async function sbLoadClubSettings(){
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link');
+  if(!r||!r.length) return null;
+  return r[0];
+}
+async function sbSaveClubSettings(fields){
+  return sbFetch('/rest/v1/settings?id=eq.club',{
     method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify(fields)
@@ -387,7 +399,7 @@ async function enterApp(b,ro){
   document.getElementById('crewList').innerHTML='<div class="empty-state"><div class="icon">⏳</div>Loading…</div>';
   setSyncStatus('syncing');
   await sbEnsureBoat(b);
-  await loadBoatConfig(b.id);
+  await Promise.all([loadBoatConfig(b.id), loadClubSettings()]);
   // Load crew
   const sbCrew=await sbLoadCrew(b.id);
   if(sbCrew!==null){
@@ -861,21 +873,32 @@ function deleteCrew(){
 // ── Boat config: PIN, Revolut, Stripe ────────────────────────
 // In-memory cache loaded from DB on login, written back on change
 // localStorage used as fallback when offline
-let boatConfig={}; // {pin, revolut_user, stripe_link} for currentBoat
+let boatConfig={};    // {pin, revolut_user} for currentBoat
+let clubSettings={stripe_link:''};  // club-wide settings (shared across all boats)
 
 async function loadBoatConfig(boatId){
   // Try DB first
   const cfg=await sbLoadBoatConfig(boatId);
   if(cfg){
     boatConfig=cfg;
-    // Sync to localStorage as offline cache
     try{localStorage.setItem('cfg_'+boatId,JSON.stringify(cfg));}catch(e){}
   } else {
-    // Fall back to localStorage cache
     try{
       const cached=localStorage.getItem('cfg_'+boatId);
-      boatConfig=cached?JSON.parse(cached):{pin:'0000',revolut_user:'',stripe_link:''};
-    }catch(e){ boatConfig={pin:'0000',revolut_user:'',stripe_link:''}; }
+      boatConfig=cached?JSON.parse(cached):{pin:'0000',revolut_user:''};
+    }catch(e){ boatConfig={pin:'0000',revolut_user:''}; }
+  }
+}
+async function loadClubSettings(){
+  const cfg=await sbLoadClubSettings();
+  if(cfg){
+    clubSettings=cfg;
+    try{localStorage.setItem('__club_settings__',JSON.stringify(cfg));}catch(e){}
+  } else {
+    try{
+      const cached=localStorage.getItem('__club_settings__');
+      clubSettings=cached?JSON.parse(cached):{stripe_link:''};
+    }catch(e){ clubSettings={stripe_link:''}; }
   }
 }
 
@@ -903,19 +926,22 @@ function getRevolutUser(){
   return boatConfig.revolut_user||'';
 }
 function getStripeLink(){
-  return boatConfig.stripe_link||'';
+  return clubSettings.stripe_link||'';
 }
-async function saveBoatSettings(revolut_user, stripe_link){
+async function saveBoatSettings(revolut_user){
   boatConfig.revolut_user=revolut_user;
-  boatConfig.stripe_link=stripe_link;
-  // Sync to localStorage cache
   try{
     const c=localStorage.getItem('cfg_'+currentBoat?.id)||'{}';
     const obj=JSON.parse(c);
-    obj.revolut_user=revolut_user; obj.stripe_link=stripe_link;
+    obj.revolut_user=revolut_user;
     localStorage.setItem('cfg_'+currentBoat?.id,JSON.stringify(obj));
   }catch(e){}
-  await sbSaveBoatConfig(currentBoat.id,{revolut_user,stripe_link});
+  await sbSaveBoatConfig(currentBoat.id,{revolut_user});
+}
+async function saveClubStripe(stripe_link){
+  clubSettings.stripe_link=stripe_link;
+  try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
+  await sbSaveClubSettings({stripe_link});
 }
 
 function openSettingsSheet(){
@@ -926,7 +952,8 @@ function openSettingsSheet(){
 function saveSettings(){
   const rev=document.getElementById('settings-revolut').value.trim().replace(/^@/,'');
   const stripe=document.getElementById('settings-stripe').value.trim();
-  saveBoatSettings(rev,stripe); // async — persists to DB + localStorage cache
+  saveBoatSettings(rev);       // per-boat: Revolut username
+  saveClubStripe(stripe);      // club-wide: Stripe link
   closeSheet('settingsSheet');
   toast('Settings saved ✓');
 }
