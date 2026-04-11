@@ -236,11 +236,17 @@ const WED=[
 ];
 const KOTB=["King of the Bay: Spring Cup|May 2, 2026","King of the Bay: Barna|May 16, 2026","King of the Bay: Ballyvaughan|May 30, 2026","King of the Bay: Aran Cup|Jun 19, 2026","King of the Bay: Kinvara|Aug 15, 2026","King of the Bay: Clarinbridge Cup|Aug 29, 2026","King of the Bay: Morans|Sep 12, 2026","King of the Bay: Oyster Festival|Sep 26, 2026"];
 
+function raceDate(dateStr,hour=19,min=0){
+  // Parse a date string and set local time explicitly, avoiding UTC midnight issues
+  const d=new Date(dateStr);
+  d.setHours(hour,min,0,0);
+  return d;
+}
 function buildAllRaces(){
   allRaces=[];
-  WED.forEach(s=>s.d.forEach(d=>allRaces.push({label:s.name+' — Wed '+d,date:new Date(d+' 2026'),g:'w'})));
-  KOTB.forEach(r=>{const[n,d]=r.split('|');allRaces.push({label:n,date:new Date(d),g:'k'});});
-  allRaces.push({label:'Expert Forklifts October Series',date:new Date('Oct 7, 2026'),g:'o'});
+  WED.forEach(s=>s.d.forEach(d=>allRaces.push({label:s.name+' — Wed '+d,date:raceDate(d+' 2026',19,0),g:'w'})));
+  KOTB.forEach(r=>{const[n,d]=r.split('|');allRaces.push({label:n,date:raceDate(d,11,0),g:'k'});});
+  allRaces.push({label:'Expert Forklifts October Series',date:raceDate('Oct 7, 2026',19,0),g:'o'});
   allRaces.sort((a,b)=>a.date-b.date);
 }
 function getNextRace(){
