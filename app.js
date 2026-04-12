@@ -37,7 +37,7 @@ async function sbSaveBoatConfig(id,fields){
   });
 }
 async function sbLoadClubSettings(){
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor');
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours');
   if(!r||!r.length) return null;
   return r[0];
 }
@@ -706,7 +706,13 @@ function updateROChips(regsCount,protestsCount,coursePublished){
   const courseStatus=document.getElementById('roCourseStatus');
   if(regsStatus) regsStatus.textContent=regsCount>0?regsCount+' boat'+(regsCount>1?'s':'')+' registered':'No registrations yet';
   if(protestStatus) protestStatus.textContent=protestsCount>0?protestsCount+' filed':'None filed';
-  if(courseStatus) courseStatus.textContent=coursePublished?'Published — tap to edit':'Not published';
+  if(courseStatus){
+    const state=getCourseState();
+    if(state==='live') courseStatus.textContent='✅ Published for today';
+    else if(state==='pending') courseStatus.textContent='⚠ Not yet set for today';
+    else if(state==='stale') courseStatus.textContent='Previous course — update needed';
+    else courseStatus.textContent='Not published';
+  }
 }
 
 // ── Guest nav helper ─────────────────────────────────────────
@@ -904,7 +910,7 @@ function deleteCrew(){
 // In-memory cache loaded from DB on login, written back on change
 // localStorage used as fallback when offline
 let boatConfig={};    // {pin, revolut_user} for currentBoat
-let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:''};  // club-wide
+let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12};  // club-wide
 
 async function loadBoatConfig(boatId){
   // Try DB first
@@ -927,7 +933,7 @@ async function loadClubSettings(){
   } else {
     try{
       const cached=localStorage.getItem('__club_settings__');
-      clubSettings=cached?JSON.parse(cached):{stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:''};
+      clubSettings=cached?JSON.parse(cached):{stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12};
     }catch(e){ clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:''}; }
   }
 }
@@ -993,16 +999,22 @@ function openROClubSettings(){
   document.getElementById('ro-stripe-member').value=getStripeLink('full');
   document.getElementById('ro-stripe-student').value=getStripeLink('student');
   document.getElementById('ro-stripe-visitor').value=getStripeLink('visitor');
+  document.getElementById('ro-pre-race-window').value=clubSettings.pre_race_window_hours||12;
   document.getElementById('roClubSettingsSheet').classList.add('open');
 }
 function saveROClubSettings(){
+  const windowHours=parseInt(document.getElementById('ro-pre-race-window').value)||12;
   saveClubStripeLinks({
-    stripe_link_member:  document.getElementById('ro-stripe-member').value.trim(),
-    stripe_link_student: document.getElementById('ro-stripe-student').value.trim(),
-    stripe_link_visitor: document.getElementById('ro-stripe-visitor').value.trim(),
+    stripe_link_member:   document.getElementById('ro-stripe-member').value.trim(),
+    stripe_link_student:  document.getElementById('ro-stripe-student').value.trim(),
+    stripe_link_visitor:  document.getElementById('ro-stripe-visitor').value.trim(),
+    pre_race_window_hours: windowHours,
   });
+  clubSettings.pre_race_window_hours=windowHours;
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
+  // Re-render course display immediately so new window takes effect
+  renderCourseDiagram();
 }
 
 // ── Collect Payments sheet ────────────────────────────────────
@@ -1810,12 +1822,48 @@ async function loadAndDrawCourse(){
   renderCourseDiagram();
 }
 
+function getCourseState(){
+  // Returns 'none' | 'pending' | 'stale' | 'live'
+  // none    — no course has ever been published
+  // pending — within pre-race window but course not yet published today
+  // stale   — outside pre-race window, showing a previous course for reference
+  // live    — course published within the pre-race window; treat as today's course
+  if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length) return 'none';
+  const now=new Date();
+  const windowMs=(clubSettings.pre_race_window_hours||12)*3600000;
+  const hoursToRace=nextRace?(nextRace.date-now):Infinity;
+  const hoursSincePublish=publishedCourse.published_at?(now-new Date(publishedCourse.published_at)):Infinity;
+  const withinWindow=hoursToRace>=0&&hoursToRace<=windowMs;  // race is coming up soon
+  const publishedToday=hoursSincePublish<=windowMs;            // published within the window period
+  if(withinWindow&&!publishedToday) return 'pending';
+  if(!withinWindow&&!publishedToday) return 'stale';
+  return 'live';
+}
+
 function renderCourseDiagram(){
   const wrap=document.getElementById('courseDisplay');
-  if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){
+  const state=getCourseState();
+
+  if(state==='none'){
     wrap.innerHTML='<div class="no-course-state"><div class="icon">🗺</div><div>No course published yet</div></div>';
     return;
   }
+
+  if(state==='pending'){
+    const raceTime=nextRace?nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'today';
+    wrap.innerHTML=
+      '<div class="no-course-state" style="gap:10px">'+
+        '<div class="icon">🕐</div>'+
+        '<div style="font-size:1rem;font-weight:700;color:var(--white)">Course Not Yet Set</div>'+
+        '<div style="font-size:.82rem;color:var(--muted);line-height:1.5;max-width:260px;text-align:center">'+
+          'The Race Officer will publish today\'s course before the '+(nextRace?nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'')+' start.<br>Check back closer to race time.'+
+        '</div>'+
+      '</div>';
+    return;
+  }
+
+  // stale or live — render the full diagram with a banner if stale
+  const isStale=state==='stale';
   const c=publishedCourse;
   const markEntries=(c.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
@@ -1990,10 +2038,21 @@ function renderCourseDiagram(){
 
   wrap.innerHTML=`
     <div class="course-diagram-wrap">
+      ${isStale?`
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.35);border-radius:10px;margin-bottom:12px">
+        <span style="font-size:1.1rem">⚠️</span>
+        <div>
+          <div style="font-size:.75rem;font-weight:700;color:var(--gold);letter-spacing:.04em;text-transform:uppercase">Previous Course — For Reference Only</div>
+          <div style="font-size:.68rem;color:var(--muted);margin-top:1px">Today's course has not been published yet. Check back before race time.</div>
+        </div>
+      </div>`:''}
       <div class="course-header">
         <div>
-          <div class="course-title-label">Course</div>
+          <div class="course-title-label">${isStale?'Last Published Course':'Course'}</div>
           <div class="course-name-text">${c.name||'Published Course'}</div>
+          <div style="font-size:.68rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
+            ${c.published_at?'Set '+new Date(c.published_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}
+          </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
           <div class="wind-badge">
@@ -2008,8 +2067,12 @@ function renderCourseDiagram(){
         </div>
       </div>
       ${c.notes?`<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.82rem;color:var(--gold);line-height:1.4">📋 ${c.notes}</div>`:''}
-      <div class="course-legs-list" style="margin-top:12px">${legRows}</div>
-      <div class="course-svg-wrap" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:${mapTileMode!=='off'?'#060d1c':'rgba(4,14,32,0.7)'}">${svgEl}</div>
+      <div class="course-legs-list" style="margin-top:12px;${isStale?'opacity:0.6':''}">
+        ${legRows}
+      </div>
+      <div class="course-svg-wrap" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:${mapTileMode!=='off'?'#060d1c':'rgba(4,14,32,0.7)'};${isStale?'opacity:0.6':''}">
+        ${svgEl}
+      </div>
     </div>
   `;
 }

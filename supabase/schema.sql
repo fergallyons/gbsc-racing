@@ -50,11 +50,12 @@ CREATE POLICY "boats_delete" ON boats FOR DELETE USING (true);
 -- Single club-wide config row. Only the 'club' row is meaningful.
 -- No DELETE permitted — the row should never be removed.
 CREATE TABLE IF NOT EXISTS settings (
-  id                   text PRIMARY KEY,   -- always 'club'
-  stripe_link_member   text DEFAULT '',
-  stripe_link_student  text DEFAULT '',
-  stripe_link_visitor  text DEFAULT '',
-  updated_at           timestamptz DEFAULT now()
+  id                    text PRIMARY KEY,   -- always 'club'
+  stripe_link_member    text DEFAULT '',
+  stripe_link_student   text DEFAULT '',
+  stripe_link_visitor   text DEFAULT '',
+  pre_race_window_hours int  DEFAULT 12,    -- hours before race start to show "pending" state
+  updated_at            timestamptz DEFAULT now()
 );
 
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
