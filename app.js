@@ -1380,6 +1380,15 @@ async function confirmSubmit(){
   } else {
     setSyncStatus('ok');
     toast('✅ Submitted to Race Officer');
+    // Auto-increment outings for visitors who raced tonight
+    const visitors=s.filter(p=>p.type==='visitor');
+    visitors.forEach(p=>{
+      p.outings=(p.outings||0)+1;
+      sbFetch('/rest/v1/crew?id=eq.'+p.id,{method:'PATCH',
+        headers:{...SBH,'Prefer':'return=minimal'},
+        body:JSON.stringify({outings:p.outings})});
+    });
+    if(visitors.length) renderCrew();
   }
 }
 
