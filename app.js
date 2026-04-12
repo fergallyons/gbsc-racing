@@ -1003,25 +1003,35 @@ function saveSettings(){
   closeSheet('settingsSheet');
   toast('Settings saved ✓');
 }
-function openROClubSettings(){
-  document.getElementById('ro-stripe-member').value=getStripeLink('full');
-  document.getElementById('ro-stripe-student').value=getStripeLink('student');
-  document.getElementById('ro-stripe-visitor').value=getStripeLink('visitor');
+async function openROClubSettings(){
+  // Always reload from DB first so form reflects actual saved values,
+  // not potentially stale in-memory state
+  const fresh=await sbLoadClubSettings();
+  if(fresh) { clubSettings=fresh; try{localStorage.setItem('__club_settings__',JSON.stringify(fresh));}catch(e){} }
+  document.getElementById('ro-stripe-member').value=clubSettings.stripe_link_member||'';
+  document.getElementById('ro-stripe-student').value=clubSettings.stripe_link_student||'';
+  document.getElementById('ro-stripe-visitor').value=clubSettings.stripe_link_visitor||'';
   document.getElementById('ro-pre-race-window').value=clubSettings.pre_race_window_hours||12;
   document.getElementById('roClubSettingsSheet').classList.add('open');
 }
 function saveROClubSettings(){
   const windowHours=parseInt(document.getElementById('ro-pre-race-window').value)||12;
+
+  // For each stripe link: use the typed value if non-empty,
+  // otherwise keep the existing saved value — never overwrite with blank
+  const memberVal =document.getElementById('ro-stripe-member').value.trim();
+  const studentVal=document.getElementById('ro-stripe-student').value.trim();
+  const visitorVal=document.getElementById('ro-stripe-visitor').value.trim();
+
   saveClubStripeLinks({
-    stripe_link_member:   document.getElementById('ro-stripe-member').value.trim(),
-    stripe_link_student:  document.getElementById('ro-stripe-student').value.trim(),
-    stripe_link_visitor:  document.getElementById('ro-stripe-visitor').value.trim(),
+    stripe_link_member:   memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'',
+    stripe_link_student:  studentVal !==''?studentVal :clubSettings.stripe_link_student||'',
+    stripe_link_visitor:  visitorVal !==''?visitorVal :clubSettings.stripe_link_visitor||'',
     pre_race_window_hours: windowHours,
   });
   clubSettings.pre_race_window_hours=windowHours;
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
-  // Re-render course display immediately so new window takes effect
   renderCourseDiagram();
 }
 
