@@ -3003,7 +3003,9 @@ async function sbLoadProtests(raceName){
   return r||[];
 }
 async function sbDeleteProtest(id){
-  return sbFetch('/rest/v1/protests?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
+  // Use return=representation so Supabase returns the deleted row.
+  // If the array is empty, RLS silently blocked the delete (still 204).
+  return sbFetch('/rest/v1/protests?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=representation'}});
 }
 async function sbUpdateProtest(id,fields){
   return sbFetch('/rest/v1/protests?id=eq.'+id,{method:'PATCH',
@@ -3172,6 +3174,8 @@ async function deleteProtest(id){
   if(!confirm('Delete this protest? This cannot be undone.'))return;
   const r=await sbDeleteProtest(id);
   if(!r||r._err){ toast('⚠ Could not delete protest'+(r&&r._err?': '+r._err.slice(0,50):'')); return; }
+  // r is the array of deleted rows — if empty, RLS silently blocked the delete
+  if(Array.isArray(r)&&r.length===0){ toast('⚠ Delete blocked — check RLS policy on protests table'); return; }
   // Remove card from DOM immediately
   const card=document.querySelector(`.protest-card[data-protest-id="${id}"]`);
   if(card) card.remove();
