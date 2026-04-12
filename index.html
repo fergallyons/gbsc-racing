@@ -861,6 +861,12 @@
       <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveROClubSettings()">Save</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('roClubSettingsSheet')">Cancel</button>
     </div>
+
+    <div style="border-top:1px solid var(--border);margin-top:20px;padding-top:16px">
+      <div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">💾 Data Backup</div>
+      <div style="font-size:.7rem;color:var(--muted);line-height:1.4;margin-bottom:10px">Downloads a full snapshot of all club data as a JSON file. Keep a copy somewhere safe.</div>
+      <button class="btn btn-ghost" style="width:100%;padding:11px" onclick="downloadDatabaseBackup()">⬇ Download Backup Now</button>
+    </div>
   </div>
 </div>
 

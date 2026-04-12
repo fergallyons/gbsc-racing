@@ -1025,6 +1025,59 @@ function saveROClubSettings(){
   renderCourseDiagram();
 }
 
+async function downloadDatabaseBackup(){
+  toast('⏳ Preparing backup…');
+  try{
+    // Fetch all tables in parallel
+    const [boats,settings,crew,registrations,courses,marks,records,protests]=await Promise.all([
+      sbFetch('/rest/v1/boats?order=name.asc'),
+      sbFetch('/rest/v1/settings'),
+      sbFetch('/rest/v1/crew?order=boat_id.asc,last.asc'),
+      sbFetch('/rest/v1/registrations?order=race_date.desc'),
+      sbFetch('/rest/v1/published_courses'),
+      sbFetch('/rest/v1/marks?order=sort_order.asc'),
+      sbFetch('/rest/v1/race_records?order=submitted_at.desc'),
+      sbFetch('/rest/v1/protests?order=filed_at.desc'),
+    ]);
+
+    const backup={
+      _meta:{
+        generated_at: new Date().toISOString(),
+        app: 'GBSC Racing App',
+        tables: ['boats','settings','crew','registrations','published_courses','marks','race_records','protests'],
+      },
+      boats:            boats||[],
+      settings:         settings||[],
+      crew:             crew||[],
+      registrations:    registrations||[],
+      published_courses:courses||[],
+      marks:            marks||[],
+      race_records:     records||[],
+      protests:         protests||[],
+    };
+
+    const json=JSON.stringify(backup,null,2);
+    const blob=new Blob([json],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const date=new Date().toISOString().split('T')[0];
+    a.href=url;
+    a.download='gbsc-backup-'+date+'.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    const rowCount=Object.entries(backup)
+      .filter(([k])=>k!=='_meta')
+      .reduce((n,[,v])=>n+v.length,0);
+    toast('✅ Backup downloaded — '+rowCount+' records');
+  }catch(e){
+    console.error('Backup failed',e);
+    toast('⚠ Backup failed — check console');
+  }
+}
+
 // ── Collect Payments sheet ────────────────────────────────────
 function openCollectSheet(){
   const sel=roster.filter(p=>p.selected);
