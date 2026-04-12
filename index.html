@@ -843,6 +843,20 @@
       <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Non-members / visitors (e.g. €10)</div>
     </div>
 
+    <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        🕐 Pre-Race Window
+      </label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+        <input type="number" id="ro-pre-race-window" min="1" max="48" value="12"
+          style="width:70px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+          color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:9px 12px;
+          outline:none;text-align:center;">
+        <span style="font-size:.85rem;color:var(--muted)">hours before race start</span>
+      </div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:6px;line-height:1.4">Within this window, crew will see a "Course not yet set" message if the course hasn't been published today. Outside the window, the previous course is shown for reference.</div>
+    </div>
+
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveROClubSettings()">Save</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('roClubSettingsSheet')">Cancel</button>
