@@ -38,7 +38,11 @@ async function sbSaveBoatConfig(id,fields){
 }
 async function sbLoadClubSettings(){
   const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours');
-  if(!r||!r.length) return null;
+  if(!r||r._err){
+    console.error('sbLoadClubSettings failed — columns may be missing from settings table. Run: ALTER TABLE settings ADD COLUMN IF NOT EXISTS stripe_link_member text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_student text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_visitor text DEFAULT \'\', ADD COLUMN IF NOT EXISTS pre_race_window_hours int DEFAULT 12;',r);
+    return null;
+  }
+  if(!r.length) return null;
   return r[0];
 }
 async function sbSaveClubSettings(fields){
@@ -982,7 +986,11 @@ async function saveBoatSettings(revolut_user){
 async function saveClubStripeLinks(links){
   Object.assign(clubSettings,links);
   try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
-  await sbSaveClubSettings(links);
+  const r=await sbSaveClubSettings(links);
+  if(!r||r._err){
+    toast('⚠ Settings saved locally only — DB error: '+(r&&r._err?r._err.slice(0,60):'network error'));
+    console.error('sbSaveClubSettings failed',r);
+  }
 }
 
 function openSettingsSheet(){
