@@ -3161,7 +3161,7 @@ async function updateProtestNotes(id,notes){
 async function deleteProtest(id){
   if(!confirm('Delete this protest? This cannot be undone.'))return;
   const r=await sbDeleteProtest(id);
-  if(!r&&r!==undefined){ toast('⚠ Could not delete protest'); return; }
+  if(!r||r._err){ toast('⚠ Could not delete protest'+(r&&r._err?': '+r._err.slice(0,50):'')); return; }
   // Remove card from DOM immediately
   const card=document.querySelector(`.protest-card[data-protest-id="${id}"]`);
   if(card) card.remove();
