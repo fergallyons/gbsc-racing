@@ -40,9 +40,10 @@ Deno.serve(async (req) => {
     return new Response("Bad request", { status: 400 });
   }
 
-  // Only act on INSERT and UPDATE events (not DELETE)
-  const eventType = body.type as string;
-  if (eventType !== "INSERT" && eventType !== "UPDATE") {
+  // Only block explicit DELETE or unrecognised events
+  // (type is absent when invoked directly via the Supabase test button)
+  const eventType = body.type as string | undefined;
+  if (eventType && eventType !== "INSERT" && eventType !== "UPDATE") {
     return new Response("Ignored event type: " + eventType, { status: 200 });
   }
 
