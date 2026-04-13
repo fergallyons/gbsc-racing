@@ -23,3 +23,6 @@ CREATE POLICY "push_sub_delete" ON push_subscriptions
 
 -- Grant table-level access to anon (RLS policies alone are not sufficient)
 GRANT INSERT, DELETE ON public.push_subscriptions TO anon;
+
+-- Grant SELECT to service_role so the Edge Function can read subscriptions
+GRANT SELECT ON public.push_subscriptions TO service_role;
