@@ -21,7 +21,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const VAPID_PUBLIC_KEY       = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE_KEY      = Deno.env.get("VAPID_PRIVATE_KEY")!;
-const VAPID_EMAIL            = Deno.env.get("VAPID_EMAIL") ?? "mailto:info@gbsc.ie";
+const VAPID_EMAIL            = Deno.env.get("VAPID_EMAIL") ?? "https://gbsc-racing.netlify.app";
 const SUPABASE_URL           = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY   = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
