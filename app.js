@@ -1034,32 +1034,60 @@ async function openSettingsSheet(){
 
 async function onNotifToggle(enabled){
   const hint=document.getElementById('notif-hint');
+  const setHint=(msg,color)=>{if(hint){hint.textContent=msg;hint.style.color=color||'var(--muted)';}};
+  const uncheck=()=>{document.getElementById('notif-toggle').checked=false;};
+
   if(enabled){
+    // iOS requires the app to be installed to the home screen
+    const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode:standalone)').matches;
+    if(isIOS&&!isStandalone){
+      uncheck();
+      setHint('On iPhone, install the app to your home screen first — see Help → Install as an App');
+      toast('Install app to home screen first');
+      return;
+    }
+
     if(Notification.permission==='denied'){
-      document.getElementById('notif-toggle').checked=false;
-      if(hint) hint.textContent='Notifications are blocked — enable them in your browser/phone settings';
+      uncheck();
+      setHint('Notifications blocked — enable them in iPhone Settings → Notifications → GBSC Racing');
       return;
     }
-    const permission=await Notification.requestPermission();
+
+    let permission;
+    try{ permission=await Notification.requestPermission(); }
+    catch(e){ uncheck(); setHint('Notifications not supported on this browser'); return; }
+
     if(permission!=='granted'){
-      document.getElementById('notif-toggle').checked=false;
-      if(hint) hint.textContent='Permission not granted';
+      uncheck();
+      setHint('Permission not granted');
       return;
     }
+
     try{
       const reg=await navigator.serviceWorker.ready;
       const sub=await reg.pushManager.subscribe({
         userVisibleOnly:true,
         applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       });
-      await savePushSub(sub);
-      toast('Notifications enabled ✓');
-      if(hint) hint.textContent='You\'ll be notified when the RO publishes today\'s course';
+      const ok=await savePushSub(sub);
+      if(ok){
+        toast('Notifications enabled ✓');
+        setHint('You\'ll be notified when the RO publishes today\'s course','var(--teal)');
+      } else {
+        uncheck();
+        setHint('Subscribed but could not save to server — check your connection','var(--danger)');
+        toast('⚠ Could not save notification subscription');
+      }
     }catch(err){
       console.error('Push subscribe error',err);
-      document.getElementById('notif-toggle').checked=false;
-      toast('Could not enable notifications');
+      uncheck();
+      // Surface the actual error message so it's debuggable without DevTools
+      const msg=err.message||String(err);
+      setHint('Error: '+msg,'var(--danger)');
+      toast('⚠ '+msg.slice(0,60));
     }
+
   } else {
     try{
       const reg=await navigator.serviceWorker.ready;
@@ -1070,7 +1098,7 @@ async function onNotifToggle(enabled){
         await sub.unsubscribe();
       }
       toast('Notifications disabled');
-      if(hint) hint.textContent='';
+      setHint('');
     }catch(err){
       console.error('Push unsubscribe error',err);
       toast('Could not disable notifications');
@@ -1079,13 +1107,16 @@ async function onNotifToggle(enabled){
 }
 
 async function savePushSub(sub){
-  if(!currentBoat) return;
+  if(!currentBoat){ console.error('savePushSub: no currentBoat'); return false; }
   const j=sub.toJSON();
-  await sbFetch('/rest/v1/push_subscriptions',{
+  const r=await sbFetch('/rest/v1/push_subscriptions',{
     method:'POST',
     headers:{...SBH,'Prefer':'resolution=merge-duplicates'},
     body:JSON.stringify({boat_id:currentBoat.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
   });
+  if(r&&r._err){ console.error('savePushSub DB error',r._err); return false; }
+  if(r===null){ console.error('savePushSub network error'); return false; }
+  return true;
 }
 
 // ── Help sheet ────────────────────────────────────────────────
