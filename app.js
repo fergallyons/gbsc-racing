@@ -1111,7 +1111,7 @@ async function savePushSub(sub){
   const j=sub.toJSON();
   const r=await sbFetch('/rest/v1/push_subscriptions',{
     method:'POST',
-    headers:{...SBH,'Prefer':'resolution=merge-duplicates'},
+    headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
     body:JSON.stringify({boat_id:currentBoat.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
   });
   if(r&&r._err){ console.error('savePushSub DB error',r._err); return false; }
