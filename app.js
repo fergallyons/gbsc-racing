@@ -997,6 +997,18 @@ function openSettingsSheet(){
   document.getElementById('settings-revolut').value=getRevolutUser();
   document.getElementById('settingsSheet').classList.add('open');
 }
+
+// ── Help sheet ────────────────────────────────────────────────
+function openHelpSheet(){
+  document.getElementById('helpSheet').classList.add('open');
+}
+function toggleHelpSection(id){
+  const body=document.getElementById(id);
+  const chev=document.getElementById(id+'-chev');
+  const isOpen=body.classList.contains('open');
+  body.classList.toggle('open',!isOpen);
+  chev.classList.toggle('open',!isOpen);
+}
 function saveSettings(){
   const rev=document.getElementById('settings-revolut').value.trim().replace(/^@/,'');
   saveBoatSettings(rev);
