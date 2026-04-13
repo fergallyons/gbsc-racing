@@ -993,9 +993,99 @@ async function saveClubStripeLinks(links){
   }
 }
 
-function openSettingsSheet(){
+// ── Push notifications ────────────────────────────────────────
+const VAPID_PUBLIC_KEY='BAkBjGrQFkuo_6Rev9aZfzz0sSfAQZyO1NLdd-1Vbxa74brAp12wpHKEh6toUkoMjrmv-vaV1wMwrJpb4d8YL_Q';
+
+function urlBase64ToUint8Array(b64){
+  const pad='='.repeat((4-b64.length%4)%4);
+  const raw=atob((b64+pad).replace(/-/g,'+').replace(/_/g,'/'));
+  return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));
+}
+
+async function checkNotifSupport(){
+  return ('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
+}
+
+async function openSettingsSheet(){
   document.getElementById('settings-revolut').value=getRevolutUser();
+  // Notification toggle state
+  const supported=await checkNotifSupport();
+  const row=document.getElementById('notif-row');
+  const hint=document.getElementById('notif-hint');
+  if(!supported){
+    if(row) row.style.display='none';
+  } else {
+    if(row) row.style.display='';
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    const granted=Notification.permission==='granted';
+    document.getElementById('notif-toggle').checked=!!(sub&&granted);
+    if(hint){
+      if(Notification.permission==='denied')
+        hint.textContent='Notifications blocked in browser settings — enable them there first';
+      else if(sub&&granted)
+        hint.textContent='You\'ll be notified when the RO publishes today\'s course';
+      else
+        hint.textContent='';
+    }
+  }
   document.getElementById('settingsSheet').classList.add('open');
+}
+
+async function onNotifToggle(enabled){
+  const hint=document.getElementById('notif-hint');
+  if(enabled){
+    if(Notification.permission==='denied'){
+      document.getElementById('notif-toggle').checked=false;
+      if(hint) hint.textContent='Notifications are blocked — enable them in your browser/phone settings';
+      return;
+    }
+    const permission=await Notification.requestPermission();
+    if(permission!=='granted'){
+      document.getElementById('notif-toggle').checked=false;
+      if(hint) hint.textContent='Permission not granted';
+      return;
+    }
+    try{
+      const reg=await navigator.serviceWorker.ready;
+      const sub=await reg.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+      await savePushSub(sub);
+      toast('Notifications enabled ✓');
+      if(hint) hint.textContent='You\'ll be notified when the RO publishes today\'s course';
+    }catch(err){
+      console.error('Push subscribe error',err);
+      document.getElementById('notif-toggle').checked=false;
+      toast('Could not enable notifications');
+    }
+  } else {
+    try{
+      const reg=await navigator.serviceWorker.ready;
+      const sub=await reg.pushManager.getSubscription();
+      if(sub){
+        await sbFetch('/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),
+          {method:'DELETE',headers:{...SBH}});
+        await sub.unsubscribe();
+      }
+      toast('Notifications disabled');
+      if(hint) hint.textContent='';
+    }catch(err){
+      console.error('Push unsubscribe error',err);
+      toast('Could not disable notifications');
+    }
+  }
+}
+
+async function savePushSub(sub){
+  if(!currentBoat) return;
+  const j=sub.toJSON();
+  await sbFetch('/rest/v1/push_subscriptions',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'resolution=merge-duplicates'},
+    body:JSON.stringify({boat_id:currentBoat.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
+  });
 }
 
 // ── Help sheet ────────────────────────────────────────────────

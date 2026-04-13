@@ -807,6 +807,20 @@
       </div>
       <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Used to generate Revolut payment request links for your crew</div>
     </div>
+    <!-- Notifications toggle -->
+    <div class="form-group" style="margin-bottom:20px" id="notif-row">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        🔔 Course Notifications
+      </label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <div style="font-size:.8rem;color:var(--muted);max-width:220px;line-height:1.4">Notify me when the RO publishes today's course</div>
+        <label class="toggle-sw">
+          <input type="checkbox" id="notif-toggle" onchange="onNotifToggle(this.checked)">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+      <div id="notif-hint" style="font-size:.7rem;color:var(--muted);margin-top:6px"></div>
+    </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveSettings()">Save Settings</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('settingsSheet')">Cancel</button>
