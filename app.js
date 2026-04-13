@@ -1422,6 +1422,14 @@ function copyShareLink(){
   });
 }
 
+function shareToWhatsApp(){
+  const link=document.getElementById('shareLinkBox').textContent;
+  const race=selectedRace?selectedRace.label:'this race';
+  const boat=currentBoat?currentBoat.name:'our boat';
+  const msg=`Hi all — racing fees for ${race} on ${boat}. Tap the link, find your name and pay your share 👇\n\n${link}`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+
 // ── Submit to RC ──────────────────────────────────────────────
 let settlementMethods=new Set();
 
