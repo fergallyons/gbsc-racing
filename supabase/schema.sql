@@ -250,7 +250,7 @@ CREATE POLICY "protests_delete" ON protests FOR DELETE USING (true);
 -- ============================================================
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id         uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
-  boat_id    int         REFERENCES boats(id) ON DELETE CASCADE,
+  boat_id    text        REFERENCES boats(id) ON DELETE CASCADE,
   endpoint   text        NOT NULL UNIQUE,
   p256dh     text        NOT NULL,
   auth       text        NOT NULL,
