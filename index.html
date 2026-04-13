@@ -243,6 +243,11 @@
       <div class="dash-card-label">Settings</div>
       <div class="dash-card-sub">Revolut username</div>
     </div>
+    <div class="dash-card" onclick="openHelpSheet()">
+      <div class="dash-card-icon">❓</div>
+      <div class="dash-card-label">Help</div>
+      <div class="dash-card-sub">Guide &amp; setup</div>
+    </div>
   </div>
 </div><!-- /feesTab -->
 
@@ -969,6 +974,149 @@
       <button class="btn btn-danger" style="flex:1;padding:12px" onclick="submitProtest()">🚩 File Protest</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('protestSheet')">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══ HELP SHEET ══════════════════════════════════════════ -->
+<div class="overlay" id="helpSheet">
+  <div class="sheet" style="max-height:90vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">❓ Help &amp; Setup</div>
+
+    <!-- ── Install as an App ───────────────────────── -->
+    <div class="help-section">
+      <div class="help-hd" onclick="toggleHelpSection('hs-install')">
+        <span>📲 Install as an App</span>
+        <span class="help-chevron" id="hs-install-chev">›</span>
+      </div>
+      <div class="help-body" id="hs-install">
+        <p>Installing GBSC Racing on your home screen gives you a full-screen app experience, faster loading and offline access.</p>
+        <div class="help-tip" style="margin-bottom:12px">
+          <p>⚠ <strong>iOS:</strong> You must use <strong>Safari</strong>. Chrome and Firefox on iPhone cannot install web apps.</p>
+        </div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">🍎 iPhone / iPad</div>
+        <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Open this page in <strong>Safari</strong></div></div>
+        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Tap the <strong>Share button</strong> — the box with an arrow pointing up (⬆) at the bottom of the screen</div></div>
+        <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">Scroll down in the share menu and tap <strong>"Add to Home Screen"</strong></div></div>
+        <div class="help-step"><div class="help-step-num">4</div><div class="help-step-text">Tap <strong>"Add"</strong> in the top-right corner — the GBSC Racing icon will appear on your home screen</div></div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin:14px 0 8px">🤖 Android</div>
+        <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Open this page in <strong>Chrome</strong></div></div>
+        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Tap the <strong>⋮ menu</strong> (three dots) in the top-right corner</div></div>
+        <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">Tap <strong>"Add to Home Screen"</strong> or <strong>"Install App"</strong></div></div>
+        <div class="help-step"><div class="help-step-num">4</div><div class="help-step-text">Tap <strong>"Add"</strong> or <strong>"Install"</strong> to confirm. Some Android phones show an install banner automatically — tap it if it appears.</div></div>
+      </div>
+    </div>
+
+    <!-- ── Race Fees ────────────────────────────────── -->
+    <div class="help-section">
+      <div class="help-hd" onclick="toggleHelpSection('hs-fees')">
+        <span>💳 Collecting Race Fees</span>
+        <span class="help-chevron" id="hs-fees-chev">›</span>
+      </div>
+      <div class="help-body" id="hs-fees">
+        <p>There are two ways to collect fees depending on the situation:</p>
+        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Collect Fees — you're with your crew</div>
+        <p>Use this at the marina or on the water. Each crew member gets three buttons: <strong>Revolut</strong>, <strong>Cash</strong> and <strong>Card</strong>.</p>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Revolut</strong> — if the crew member has a phone number on file, opens a pre-written WhatsApp message with your Revolut link. If no number, shows a QR code they can scan.</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Cash</strong> — immediately marks as paid. Use when you physically receive the money.</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Card</strong> — sends a card payment link via WhatsApp, or shows a QR code. Requires the RO to have configured card payment links in Club Settings.</div></div>
+        <div class="help-tip" style="margin-bottom:12px">
+          <p>💡 Revolut and Card payments do <strong>not</strong> auto-confirm. Once you see the money arrive, tap <strong>"Mark as Paid"</strong> on the crew member's row.</p>
+        </div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Request Payment — crew pay in their own time</div>
+        <p>Generates a link and QR code. Share it to your boat WhatsApp group — each person taps their name and is taken directly to pay. Use the <strong>💬 WhatsApp</strong> button to drop it straight into a group chat.</p>
+        <div class="help-tip">
+          <p>⚙ <strong>Setup:</strong> Add your Revolut <strong>@username</strong> in Skipper Settings before using Revolut. Card links are set by the RO in Club Settings.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Crew Roster ─────────────────────────────── -->
+    <div class="help-section">
+      <div class="help-hd" onclick="toggleHelpSection('hs-crew')">
+        <span>👥 Managing Your Crew</span>
+        <span class="help-chevron" id="hs-crew-chev">›</span>
+      </div>
+      <div class="help-body" id="hs-crew">
+        <p>Crew records are saved and reused each race — you only need to add people once.</p>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Member</strong> — full club member rate</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Student</strong> — reduced rate for students</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Visitor</strong> — visitor day rate; the app automatically tracks and increments their number of outings each time you submit race fees</div></div>
+        <div class="help-tip">
+          <p>📱 Adding a <strong>phone number</strong> for each crew member unlocks WhatsApp payment requests — the most convenient way to collect fees remotely.</p>
+        </div>
+        <p style="margin-top:10px">Before collecting fees, <strong>select all crew sailing today</strong> using the checkboxes in the Crew Roster panel.</p>
+      </div>
+    </div>
+
+    <!-- ── Race Registration ───────────────────────── -->
+    <div class="help-section">
+      <div class="help-hd" onclick="toggleHelpSection('hs-reg')">
+        <span>⛵ Race Registration</span>
+        <span class="help-chevron" id="hs-reg-chev">›</span>
+      </div>
+      <div class="help-body" id="hs-reg">
+        <p>Registration is per-race. You need to register before each race — it doesn't carry over from week to week.</p>
+        <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Tap <strong>Register for Race</strong> at the top of your dashboard</div></div>
+        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">A confirmation message is generated — share it to your boat WhatsApp group or save it for your records</div></div>
+        <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">The RO can see all registered boats from the Registrations tile and can unregister a boat if needed</div></div>
+      </div>
+    </div>
+
+    <!-- ── Course Display ─────────────────────────── -->
+    <div class="help-section">
+      <div class="help-hd" onclick="toggleHelpSection('hs-course')">
+        <span>🗺 Course Display</span>
+        <span class="help-chevron" id="hs-course-chev">›</span>
+      </div>
+      <div class="help-body" id="hs-course">
+        <p>The Course tile shows the current race course. It has three states:</p>
+        <div class="help-step"><div class="help-step-num">🟢</div><div class="help-step-text"><strong>Live</strong> — the RO published this course within the pre-race window (default: 12 hours before the start). This is today's course.</div></div>
+        <div class="help-step"><div class="help-step-num">🟡</div><div class="help-step-text"><strong>Pending</strong> — the race is coming up but no course has been published yet. Check back closer to the start time.</div></div>
+        <div class="help-step"><div class="help-step-num">⚪</div><div class="help-step-text"><strong>Stale</strong> — a course exists but was published outside the pre-race window. It may be from a previous race and should not be relied on.</div></div>
+        <div class="help-tip">
+          <p>⚙ The RO can adjust the pre-race window in Club Settings.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── RO Setup ───────────────────────────────── -->
+    <div class="help-section">
+      <div class="help-hd" onclick="toggleHelpSection('hs-ro')">
+        <span>🎌 Race Officer Setup</span>
+        <span class="help-chevron" id="hs-ro-chev">›</span>
+      </div>
+      <div class="help-body" id="hs-ro">
+        <p>Race Officer mode is accessed from the login screen using the RO PIN.</p>
+        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">First-time setup</div>
+        <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Enter RO mode and tap <strong>Club Settings</strong></div></div>
+        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Add <strong>card payment links</strong> for member, student and visitor rates (e.g. Stripe or Revolut payment links)</div></div>
+        <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">Set the <strong>pre-race window</strong> — how many hours before a race the course is shown as "Live" to skippers</div></div>
+        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin:12px 0 8px">Race day</div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text">Use <strong>Course Builder</strong> to set and publish the course before the start</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Registrations</strong> shows all boats that have registered for the upcoming race</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Marks Manager</strong> lets you enable or reposition course marks</div></div>
+      </div>
+    </div>
+
+    <!-- ── Protests ───────────────────────────────── -->
+    <div class="help-section" style="border-bottom:none">
+      <div class="help-hd" onclick="toggleHelpSection('hs-protest')">
+        <span>🚩 Protests</span>
+        <span class="help-chevron" id="hs-protest-chev">›</span>
+      </div>
+      <div class="help-body" id="hs-protest">
+        <p>Protests are filed under RRS Rule 61 and must be lodged promptly after the race.</p>
+        <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Tap <strong>File Protest</strong> on your Skipper dashboard</div></div>
+        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Enter the boat being protested and the rule infringed</div></div>
+        <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">The RO will see the protest under the Protests tile and will arrange a hearing</div></div>
+        <div class="help-tip">
+          <p>Only the Race Officer can delete a protest. Contact the RO if a protest was filed in error.</p>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-ghost" style="width:100%;padding:12px;margin-top:16px" onclick="closeSheet('helpSheet')">Close</button>
   </div>
 </div>
 
