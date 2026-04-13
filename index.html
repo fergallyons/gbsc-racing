@@ -431,6 +431,11 @@
       <div class="dash-card-label">Club Settings</div>
       <div class="dash-card-sub">Payment links</div>
     </div>
+    <div class="dash-card ro-card" onclick="loadUsageStats()">
+      <div class="dash-card-icon">📊</div>
+      <div class="dash-card-label">Usage Stats</div>
+      <div class="dash-card-sub">Sessions &amp; logins</div>
+    </div>
   </div>
   <div id="reportStatus" style="font-size:.75rem;color:var(--muted);margin-top:4px;text-align:center"></div>
 </div><!-- /roTab -->
@@ -986,6 +991,17 @@
       <button class="btn btn-danger" style="flex:1;padding:12px" onclick="submitProtest()">🚩 File Protest</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('protestSheet')">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- usagePanel — Usage Stats (RO only) -->
+<div class="panel-overlay" id="usagePanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('usagePanel')">‹</button>
+    <span class="panel-title">📊 Usage Stats</span>
+  </div>
+  <div class="panel-body" id="usageContent">
+    <div class="empty-state"><div class="icon">📊</div>Loading…</div>
   </div>
 </div>
 

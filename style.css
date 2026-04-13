@@ -548,6 +548,21 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .protest-status.Dismissed{background:rgba(122,164,204,.1);color:var(--muted);border:1px solid var(--border);}
 .protest-status.Withdrawn{background:rgba(122,164,204,.08);color:var(--muted);border:1px solid var(--border);}
 
+/* Usage Stats panel */
+.usage-strip{display:flex;align-items:stretch;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 0;}
+.usage-stat{flex:1;text-align:center;}
+.usage-val{font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:var(--white);}
+.usage-lbl{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:2px;}
+.usage-sep{width:1px;background:var(--border);align-self:stretch;margin:0 4px;}
+.usage-log{display:flex;flex-direction:column;gap:2px;margin-top:6px;}
+.usage-row{display:flex;flex-direction:column;gap:2px;padding:10px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;}
+.usage-row-who{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:600;color:var(--white);}
+.usage-row-meta{font-size:.75rem;color:var(--muted);}
+.usage-badge{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:4px;}
+.usage-badge.skipper{background:rgba(0,174,239,.15);color:var(--teal);border:1px solid rgba(0,174,239,.3);}
+.usage-badge.ro{background:rgba(232,160,32,.15);color:var(--ro);border:1px solid rgba(232,160,32,.3);}
+.usage-badge.guest{background:rgba(122,164,204,.1);color:var(--muted);border:1px solid var(--border);}
+
 /* ─── DASHBOARD ─────────────────────────────────────────────── */
 .dash-race-card{background:linear-gradient(135deg,rgba(27,62,147,.55),rgba(0,174,239,.12));
   border:1px solid var(--border);border-radius:16px;padding:18px 20px;margin-bottom:16px;}

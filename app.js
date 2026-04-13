@@ -218,7 +218,7 @@ const FEES={full:4,crew:4,visitor:10,student:5,kid:0};
 const VISITOR_MAX=6; const CREW_MAX_YRS=2; const CY=new Date().getFullYear();
 const RO_PIN='2026';
 
-let boats=[], currentBoat=null, isRO=false, isGuest=false;
+let boats=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
 let roster=[], allRaces=[], selectedRace=null, nextRace=null;
 let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225;
@@ -400,6 +400,7 @@ function loginAs(id){
 async function enterApp(b,ro){
   currentBoat=b; isRO=ro;
   try{localStorage.setItem('gr_last',b.id);}catch(e){}
+  sbStartSession(ro?'ro':'skipper', b.id, b.name).then(id=>{currentSessionId=id;}).catch(()=>{});
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
   document.getElementById('headerBoat').textContent=ro?'Race Officer':b.name;
@@ -445,6 +446,8 @@ async function enterApp(b,ro){
   updateSkipperDash();
 }
 function switchBoat(){
+  sbEndSession(currentSessionId).catch(()=>{});
+  currentSessionId=null;
   currentBoat=null;roster=[];isRO=false;isGuest=false;boatConfig={};
   halResultsLoaded=false;
   document.getElementById('loginScreen').style.display='flex';
@@ -456,6 +459,7 @@ function switchBoat(){
 }
 function enterGuestMode(){
   isGuest=true; currentBoat=null; isRO=false;
+  sbStartSession('guest',null,null).then(id=>{currentSessionId=id;}).catch(()=>{});
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
   document.getElementById('headerBoat').textContent='Guest';
@@ -3203,6 +3207,24 @@ async function sbUpdateProtest(id,fields){
     body:JSON.stringify(fields)});
 }
 
+// ── Session logging ──────────────────────────────────────────────
+async function sbStartSession(type, boatId, boatName){
+  const r=await sbFetch('/rest/v1/session_logs',{method:'POST',
+    headers:{...SBH,'Prefer':'return=representation'},
+    body:JSON.stringify({session_type:type,boat_id:boatId||null,boat_name:boatName||null})});
+  return Array.isArray(r)&&r.length?r[0].id:null;
+}
+async function sbEndSession(sessionId){
+  if(!sessionId)return;
+  return sbFetch('/rest/v1/session_logs?id=eq.'+sessionId,{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({logged_out_at:new Date().toISOString()})});
+}
+async function sbLoadSessionStats(){
+  // All sessions, newest first, capped at 500 for stats
+  return sbFetch('/rest/v1/session_logs?order=logged_in_at.desc&limit=500');
+}
+
 const PROTEST_STATUSES=['Pending','Hearing Scheduled','Upheld','Dismissed','Withdrawn'];
 
 function openProtestSheet(){
@@ -3446,6 +3468,75 @@ async function deleteProtest(id){
     if (_depth > 0) history.back();
   };
 })();
+
+// ═══════════════════════════════════════════════════════════════
+// USAGE STATS (RO only)
+// ═══════════════════════════════════════════════════════════════
+async function loadUsageStats(){
+  openPanel('usagePanel');
+  const el=document.getElementById('usageContent');
+  el.innerHTML='<div class="empty-state"><div class="icon">⏳</div>Loading…</div>';
+  const rows=await sbLoadSessionStats();
+  if(!rows||rows._err){
+    el.innerHTML='<div class="empty-state"><div class="icon">⚠️</div>Could not load stats</div>';
+    return;
+  }
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state"><div class="icon">📊</div>No sessions recorded yet</div>';
+    return;
+  }
+
+  // Aggregate
+  const total=rows.length;
+  const guests=rows.filter(r=>r.session_type==='guest').length;
+  const skippers=rows.filter(r=>r.session_type==='skipper').length;
+  const ros=rows.filter(r=>r.session_type==='ro').length;
+  const uniqueBoats=new Set(rows.filter(r=>r.boat_id).map(r=>r.boat_id)).size;
+  const now=new Date();
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1).toISOString();
+  const thisMonth=rows.filter(r=>r.logged_in_at>=monthStart).length;
+
+  function dur(r){
+    if(!r.logged_out_at)return'—';
+    const ms=new Date(r.logged_out_at)-new Date(r.logged_in_at);
+    const m=Math.floor(ms/60000); const s=Math.floor((ms%60000)/1000);
+    return m>0?m+'m '+s+'s':s+'s';
+  }
+  function fmt(iso){
+    const d=new Date(iso);
+    return d.toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'})+
+      ' '+d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  }
+  function badge(type){
+    if(type==='ro')return'<span class="usage-badge ro">RO</span>';
+    if(type==='guest')return'<span class="usage-badge guest">Guest</span>';
+    return'<span class="usage-badge skipper">Skipper</span>';
+  }
+
+  const recentRows=rows.slice(0,50).map(r=>`
+    <div class="usage-row">
+      <div class="usage-row-who">${badge(r.session_type)} ${r.boat_name||'—'}</div>
+      <div class="usage-row-meta">${fmt(r.logged_in_at)} · ${dur(r)}</div>
+    </div>`).join('');
+
+  el.innerHTML=`
+    <div class="usage-strip">
+      <div class="usage-stat"><div class="usage-val">${total}</div><div class="usage-lbl">Total Sessions</div></div>
+      <div class="usage-sep"></div>
+      <div class="usage-stat"><div class="usage-val">${thisMonth}</div><div class="usage-lbl">This Month</div></div>
+      <div class="usage-sep"></div>
+      <div class="usage-stat"><div class="usage-val">${uniqueBoats}</div><div class="usage-lbl">Unique Boats</div></div>
+    </div>
+    <div class="usage-strip" style="margin-top:8px">
+      <div class="usage-stat"><div class="usage-val">${skippers}</div><div class="usage-lbl">Skipper</div></div>
+      <div class="usage-sep"></div>
+      <div class="usage-stat"><div class="usage-val">${ros}</div><div class="usage-lbl">RO</div></div>
+      <div class="usage-sep"></div>
+      <div class="usage-stat"><div class="usage-val">${guests}</div><div class="usage-lbl">Guest</div></div>
+    </div>
+    <div class="sec-head" style="margin-top:20px"><div class="sec-title">Recent Sessions</div><div style="font-size:.75rem;color:var(--muted)">Last 50</div></div>
+    <div class="usage-log">${recentRows}</div>`;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // INIT
