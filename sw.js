@@ -73,3 +73,32 @@ self.addEventListener('fetch', e => {
     })
   );
 });
+
+// ── Push notifications ────────────────────────────────────────
+self.addEventListener('push', e => {
+  const data = e.data?.json() ?? {};
+  const title   = data.title ?? 'GBSC Racing';
+  const options = {
+    body:    data.body ?? '',
+    icon:    '/favicon.svg',
+    badge:   '/favicon.svg',
+    data:    { url: data.url ?? '/' },
+    tag:     data.tag ?? 'gbsc',   // replaces previous notification of same tag
+    renotify: false,
+    vibrate: [100, 50, 100],
+  };
+  e.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = e.notification.data?.url ?? '/';
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(wins => {
+      for (const w of wins) {
+        if (w.url.startsWith(self.registration.scope) && 'focus' in w) return w.focus();
+      }
+      return clients.openWindow(url);
+    })
+  );
+});

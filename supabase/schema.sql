@@ -243,6 +243,26 @@ CREATE POLICY "protests_delete" ON protests FOR DELETE USING (true);
 
 
 -- ============================================================
+-- TABLE: push_subscriptions
+-- Web Push API subscriptions — one row per device per boat.
+-- The Edge Function (notify-course-published) reads this table
+-- via the service role key and sends push notifications.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id         uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  boat_id    int         REFERENCES boats(id) ON DELETE CASCADE,
+  endpoint   text        NOT NULL UNIQUE,
+  p256dh     text        NOT NULL,
+  auth       text        NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "push_sub_insert" ON push_subscriptions FOR INSERT WITH CHECK (true);
+CREATE POLICY "push_sub_delete" ON push_subscriptions FOR DELETE USING (true);
+-- No SELECT for anon — Edge Function reads via service role key only.
+
+
+-- ============================================================
 -- RECOVERY INSTRUCTIONS
 -- ============================================================
 -- 1. Create a new Supabase project at https://supabase.com
