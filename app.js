@@ -400,7 +400,7 @@ function loginAs(id){
 async function enterApp(b,ro){
   currentBoat=b; isRO=ro;
   try{localStorage.setItem('gr_last',b.id);}catch(e){}
-  sbStartSession(ro?'ro':'skipper', b.id, b.name).then(id=>{currentSessionId=id;}).catch(()=>{});
+  sbStartSession(ro?'ro':'skipper', ro?null:b.id, b.name).then(id=>{currentSessionId=id;}).catch(()=>{});
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
   document.getElementById('headerBoat').textContent=ro?'Race Officer':b.name;
