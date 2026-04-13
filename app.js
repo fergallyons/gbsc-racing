@@ -1104,15 +1104,17 @@ function openCollectSheet(){
     // Paid state
     if(isPaid){
       row.innerHTML=
-        '<div style="display:flex;align-items:center;justify-content:space-between">'+
-          '<div style="display:flex;align-items:center;gap:8px">'+
-            '<div class="cc-avatar" style="width:30px;height:30px;font-size:.72rem">'+ini(p)+'</div>'+
-            '<div><div style="font-size:.88rem;font-weight:600">'+p.first+' '+p.last+'</div>'+
-            '<div style="font-size:.7rem;color:var(--success)">✓ '+( p.payMethod||'Paid')+'</div></div>'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:2px 0">'+
+          '<div style="display:flex;align-items:center;gap:10px">'+
+            '<div class="cc-avatar" style="width:34px;height:34px;font-size:.78rem">'+ini(p)+'</div>'+
+            '<div>'+
+              '<div style="font-size:.95rem;font-weight:700">'+p.first+' '+p.last+'</div>'+
+              '<div style="font-size:.78rem;color:var(--success);font-weight:600">✓ '+(p.payMethod||'Paid')+'</div>'+
+            '</div>'+
           '</div>'+
-          '<div style="display:flex;align-items:center;gap:8px">'+
-            '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;color:var(--success)">€'+amt+'</span>'+
-            '<button onclick="unpayCrewCollect(\''+p.id+'\')" style="font-size:.68rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">Undo</button>'+
+          '<div style="display:flex;align-items:center;gap:10px">'+
+            '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.3rem;font-weight:800;color:var(--success)">€'+amt+'</span>'+
+            '<button onclick="unpayCrewCollect(\''+p.id+'\')" style="font-size:.75rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;letter-spacing:.03em;">Undo</button>'+
           '</div>'+
         '</div>';
     } else {
@@ -1128,73 +1130,82 @@ function openCollectSheet(){
         ?'https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(
             `Hi ${p.first} — your GBSC racing fee is €${amt}. Tap to pay by card: ${stripeLink} ⛵`)
         :'';
+      // shared button label style helpers
+      const btnLabel=(text,sub,color)=>
+        '<span style="font-family:Barlow Condensed,sans-serif;font-size:.9rem;font-weight:800;'+
+        'letter-spacing:.04em;text-transform:uppercase;color:'+color+'">'+text+'</span>'+
+        '<span style="font-size:.68rem;color:'+color+';opacity:.75;letter-spacing:.02em">'+sub+'</span>';
       row.innerHTML=
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'+
-          '<div style="display:flex;align-items:center;gap:8px">'+
-            '<div class="cc-avatar" style="width:30px;height:30px;font-size:.72rem">'+ini(p)+'</div>'+
-            '<div><div style="font-size:.88rem;font-weight:600">'+p.first+' '+p.last+'</div>'+
-            '<div style="font-size:.7rem;color:var(--muted)">'+(p.type==='visitor'?'Visitor':'Member')+' · €'+amt+'</div></div>'+
+        // ── Name / amount header ──────────────────────────────
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+          '<div style="display:flex;align-items:center;gap:10px">'+
+            '<div class="cc-avatar" style="width:34px;height:34px;font-size:.78rem">'+ini(p)+'</div>'+
+            '<div>'+
+              '<div style="font-size:.95rem;font-weight:700">'+p.first+' '+p.last+'</div>'+
+              '<div style="font-size:.78rem;color:var(--muted)">'+(p.type==='visitor'?'Visitor':'Member')+'</div>'+
+            '</div>'+
           '</div>'+
-          '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.2rem;font-weight:800;color:var(--danger)">€'+amt+'</span>'+
+          '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.5rem;font-weight:800;color:var(--danger)">€'+amt+'</span>'+
         '</div>'+
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px">'+
-          (waRevLink?
-            // Phone on file → send payment request via WhatsApp
-            '<a href="'+waRevLink+'" target="_blank" '+
-            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
-            'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;" title="Send Revolut request via WhatsApp">'+
-            '<span style="font-size:1rem">💬</span>'+
-            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></a>'
-          :revLink?
-            // No phone → show QR code of revolut.me link for crew to scan
-            '<button onclick="showRevolutQR(\''+p.first+'\',\''+revLink+'\',\''+amt+'\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
-            'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;cursor:pointer;" title="Show Revolut QR code">'+
-            '<span style="font-size:1rem">💜</span>'+
-            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></button>'
-          :
-            // Revolut not configured
-            '<button onclick="toast(\'Set your Revolut @username in Skipper Settings\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;'+
-            'border:1px dashed var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;opacity:.4;">'+
-            '<span style="font-size:1rem">💜</span>'+
-            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Revolut</span></button>'
-          )+
-          // Cash → auto-mark paid (physical money seen immediately)
-          '<button onclick="markPaidCollect(\''+p.id+'\',\'Cash\')" '+
-          'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(45,198,83,.08);'+
-          'border:1px solid rgba(45,198,83,.3);border-radius:8px;padding:8px 4px;cursor:pointer;">'+
-          '<span style="font-size:1rem">💵</span>'+
-          '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--success)">Cash</span></button>'+
+        // ── Payment buttons ───────────────────────────────────
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">'+
 
+          // ── Revolut ──
+          (waRevLink?
+            '<a href="'+waRevLink+'" target="_blank" '+
+            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
+            'background:rgba(110,64,216,.2);border:1px solid rgba(110,64,216,.5);border-radius:10px;'+
+            'padding:11px 6px;text-decoration:none;cursor:pointer;">'+
+            btnLabel('Revolut','WhatsApp','#a78bfa')+'</a>'
+          :revLink?
+            '<button onclick="showRevolutQR(\''+p.first+'\',\''+revLink+'\',\''+amt+'\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
+            'background:rgba(110,64,216,.2);border:1px solid rgba(110,64,216,.5);border-radius:10px;'+
+            'padding:11px 6px;cursor:pointer;">'+
+            btnLabel('Revolut','QR Code','#a78bfa')+'</button>'
+          :
+            '<button onclick="toast(\'Set your Revolut @username in Skipper Settings\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
+            'background:transparent;border:1px dashed var(--border);border-radius:10px;'+
+            'padding:11px 6px;cursor:pointer;opacity:.35;">'+
+            btnLabel('Revolut','not set','var(--muted)')+'</button>'
+          )+
+
+          // ── Cash ──
+          '<button onclick="markPaidCollect(\''+p.id+'\',\'Cash\')" '+
+          'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
+          'background:rgba(45,198,83,.1);border:1px solid rgba(45,198,83,.4);border-radius:10px;'+
+          'padding:11px 6px;cursor:pointer;">'+
+          btnLabel('Cash','mark paid','var(--success)')+'</button>'+
+
+          // ── Card ──
           (stripeLink&&waStripeLink?
-            // Phone on file → WhatsApp with Stripe link (send only, no auto-mark)
             '<a href="'+waStripeLink+'" target="_blank" '+
-            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.1);'+
-            'border:1px solid rgba(0,180,216,.4);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;" title="Send card payment link via WhatsApp">'+
-            '<span style="font-size:1rem">💬</span>'+
-            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--teal)">Card</span></a>'
+            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
+            'background:rgba(0,180,216,.1);border:1px solid rgba(0,180,216,.4);border-radius:10px;'+
+            'padding:11px 6px;text-decoration:none;cursor:pointer;">'+
+            btnLabel('Card','WhatsApp','var(--teal)')+'</a>'
           :stripeLink?
-            // No phone → QR code they can scan (send only, no auto-mark)
             '<button onclick="showStripeQR(\''+p.first+'\',\''+stripeLink+'\',\''+amt+'\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(0,180,216,.08);'+
-            'border:1px solid rgba(0,180,216,.3);border-radius:8px;padding:8px 4px;cursor:pointer;" title="Show QR code for card payment">'+
-            '<span style="font-size:1rem">💳</span>'+
-            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--teal)">Card</span></button>'
+            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
+            'background:rgba(0,180,216,.08);border:1px solid rgba(0,180,216,.3);border-radius:10px;'+
+            'padding:11px 6px;cursor:pointer;">'+
+            btnLabel('Card','QR Code','var(--teal)')+'</button>'
           :
             '<button onclick="toast(\'Card payment links not configured — see RO Club Settings\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;'+
-            'border:1px dashed var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;opacity:.4;">'+
-            '<span style="font-size:1rem">💳</span>'+
-            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Card</span></button>'
+            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
+            'background:transparent;border:1px dashed var(--border);border-radius:10px;'+
+            'padding:11px 6px;cursor:pointer;opacity:.35;">'+
+            btnLabel('Card','not set','var(--muted)')+'</button>'
           )+
+
         '</div>'+
-        // Manual confirm-paid button for Revolut/Card (skipper taps when payment arrives)
+        // ── Mark as Paid (manual confirmation after Revolut/Card) ──
         '<button onclick="markPaidCollect(\''+p.id+'\',\'Confirmed\')" '+
         'style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;'+
-        'background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:8px;'+
-        'padding:7px 12px;cursor:pointer;font-family:Barlow Condensed,sans-serif;font-size:.78rem;'+
-        'font-weight:700;color:var(--success);letter-spacing:.04em;text-transform:uppercase;">'+
+        'background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:10px;'+
+        'padding:9px 12px;cursor:pointer;font-family:Barlow Condensed,sans-serif;font-size:.88rem;'+
+        'font-weight:800;color:var(--success);letter-spacing:.06em;text-transform:uppercase;">'+
         '✓ Mark as Paid</button>';
     }
     list.appendChild(row);
