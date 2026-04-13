@@ -1139,24 +1139,24 @@ function openCollectSheet(){
         '</div>'+
         '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px">'+
           (waRevLink?
-            // Phone on file → WhatsApp with Revolut payment link (send only, no auto-mark)
+            // Phone on file → send payment request via WhatsApp
             '<a href="'+waRevLink+'" target="_blank" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
             'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;" title="Send Revolut request via WhatsApp">'+
             '<span style="font-size:1rem">💬</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></a>'
-          :revLink&&isMobile()?
-            // No phone, mobile → direct Revolut deep-link (send only, no auto-mark)
-            '<a href="'+revLink+'" target="_blank" '+
+          :revLink?
+            // No phone → show QR code of revolut.me link for crew to scan
+            '<button onclick="showRevolutQR(\''+p.first+'\',\''+revLink+'\',\''+amt+'\')" '+
             'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.2);'+
-            'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;text-decoration:none;cursor:pointer;">'+
+            'border:1px solid rgba(110,64,216,.5);border-radius:8px;padding:8px 4px;cursor:pointer;" title="Show Revolut QR code">'+
             '<span style="font-size:1rem">💜</span>'+
-            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></a>'
+            '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:#a78bfa">Revolut</span></button>'
           :
-            // No phone, desktop → QR / PN sheet
-            '<button onclick="openPNSheet(\''+p.id+'\',\'Revolut\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:rgba(110,64,216,.1);'+
-            'border:1px solid var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;" title="Show QR code">'+
+            // Revolut not configured
+            '<button onclick="toast(\'Set your Revolut @username in Skipper Settings\')" '+
+            'style="display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;'+
+            'border:1px dashed var(--border);border-radius:8px;padding:8px 4px;cursor:pointer;opacity:.4;">'+
             '<span style="font-size:1rem">💜</span>'+
             '<span style="font-size:.6rem;font-family:Barlow Condensed,sans-serif;font-weight:700;color:var(--muted)">Revolut</span></button>'
           )+
@@ -1334,6 +1334,31 @@ function showStripeQR(firstName, stripeLink, amt){
         <img src="${qrUrl}" style="width:200px;height:200px;display:block">
       </div>
       <button onclick="document.getElementById('_stripeQROverlay').remove()"
+        style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
+        border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
+        font-size:.95rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Close</button>
+    </div>`;
+  el.addEventListener('click',e=>{if(e.target===el)el.remove();});
+  document.body.appendChild(el);
+}
+
+function showRevolutQR(firstName, revLink, amt){
+  const existing=document.getElementById('_revolutQROverlay');
+  if(existing) existing.remove();
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(revLink);
+  const el=document.createElement('div');
+  el.id='_revolutQROverlay';
+  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px;';
+  el.innerHTML=`
+    <div style="background:#112240;border:1px solid rgba(110,64,216,.4);border-radius:16px;padding:24px;max-width:300px;width:100%;text-align:center;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#f0f4f8;margin-bottom:4px">💜 Revolut — ${firstName}</div>
+      <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:4px">Ask them to scan with their camera</div>
+      <div style="font-size:.75rem;color:#a78bfa;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-weight:600">Amount: €${amt}</div>
+      <div style="background:white;border-radius:10px;padding:12px;display:inline-block;margin-bottom:16px">
+        <img src="${qrUrl}" style="width:200px;height:200px;display:block">
+      </div>
+      <div style="font-size:.7rem;color:#7a8fa6;margin-bottom:14px">${revLink}</div>
+      <button onclick="document.getElementById('_revolutQROverlay').remove()"
         style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
         border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
         font-size:.95rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Close</button>
