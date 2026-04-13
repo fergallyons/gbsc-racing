@@ -20,3 +20,6 @@ CREATE POLICY "push_sub_delete" ON push_subscriptions
   FOR DELETE USING (true);
 
 -- No SELECT policy for anon — only the service role (Edge Function) can read subscriptions
+
+-- Grant table-level access to anon (RLS policies alone are not sufficient)
+GRANT INSERT, DELETE ON public.push_subscriptions TO anon;
