@@ -3369,6 +3369,75 @@ async function deleteProtest(id){
 }
 
 // ═══════════════════════════════════════════════════════════════
+// BACK BUTTON — keep Android hardware/gesture back inside the app
+// ═══════════════════════════════════════════════════════════════
+(function(){
+  // IDs that the back button should never dismiss
+  const SKIP_IDS = new Set(['pinOverlay','changePinOverlay']);
+
+  let _depth = 0; // how many history entries we've pushed
+
+  // Watch for any .overlay or .panel-overlay gaining the 'open' class
+  const obs = new MutationObserver(mutations => {
+    for (const m of mutations) {
+      if (m.attributeName !== 'class') continue;
+      const el = m.target;
+      if (!el.matches('.overlay,.panel-overlay')) continue;
+      if (SKIP_IDS.has(el.id)) continue;
+      const hadOpen = (m.oldValue || '').split(/\s+/).includes('open');
+      const hasOpen = el.classList.contains('open');
+      if (hasOpen && !hadOpen) {
+        _depth++;
+        history.pushState({ gbsc: _depth, id: el.id }, '');
+      }
+    }
+  });
+  obs.observe(document.body, {
+    subtree: true, attributes: true,
+    attributeOldValue: true, attributeFilter: ['class']
+  });
+
+  // On back button: close the topmost open overlay or panel, don't leave the app
+  window.addEventListener('popstate', () => {
+    _depth = Math.max(0, _depth - 1);
+
+    // Dynamic QR overlays (no .overlay class — created by showRevolutQR / showStripeQR)
+    const qr = document.getElementById('_revolutQROverlay') || document.getElementById('_stripeQROverlay');
+    if (qr) { qr.remove(); return; }
+
+    // Bottom sheets (.overlay)
+    const sheets = [...document.querySelectorAll('.overlay.open')]
+      .filter(el => !SKIP_IDS.has(el.id));
+    if (sheets.length) {
+      const top = sheets[sheets.length - 1];
+      top.classList.remove('open');
+      if (top.id === 'collectSheet' || top.id === 'pnSheet') renderCrew();
+      return;
+    }
+
+    // Full-screen panels (.panel-overlay)
+    const panels = [...document.querySelectorAll('.panel-overlay.open')];
+    if (panels.length) {
+      const top = panels[panels.length - 1];
+      top.classList.remove('open');
+      setTimeout(() => { top.style.display = 'none'; }, 300);
+    }
+  });
+
+  // Patch closeSheet and closePanel to also pop history so the stack stays in sync
+  const _origCloseSheet = closeSheet;
+  closeSheet = function(id) {
+    _origCloseSheet(id);
+    if (_depth > 0) history.back();
+  };
+  const _origClosePanel = closePanel;
+  closePanel = function(id) {
+    _origClosePanel(id);
+    if (_depth > 0) history.back();
+  };
+})();
+
+// ═══════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════
 checkPayHash();
