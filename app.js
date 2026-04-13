@@ -1113,7 +1113,7 @@ async function savePushSub(sub){
   console.log('savePushSub: boat='+currentBoat.id+' endpoint='+j.endpoint.slice(0,40));
   const r=await sbFetch('/rest/v1/push_subscriptions',{
     method:'POST',
-    headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},
     body:JSON.stringify({boat_id:currentBoat.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
   });
   console.log('savePushSub response:',r);
