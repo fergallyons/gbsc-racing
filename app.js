@@ -1019,11 +1019,14 @@ async function openSettingsSheet(){
     const reg=await navigator.serviceWorker.ready;
     const sub=await reg.pushManager.getSubscription();
     const granted=Notification.permission==='granted';
-    document.getElementById('notif-toggle').checked=!!(sub&&granted);
+    // Only show as enabled when browser subscription + permission + DB save all confirmed
+    const savedEndpoint=localStorage.getItem('_push_endpoint');
+    const isEnabled=!!(sub&&granted&&savedEndpoint&&savedEndpoint===sub.endpoint);
+    document.getElementById('notif-toggle').checked=isEnabled;
     if(hint){
       if(Notification.permission==='denied')
         hint.textContent='Notifications blocked in browser settings — enable them there first';
-      else if(sub&&granted)
+      else if(isEnabled)
         hint.textContent='You\'ll be notified when the RO publishes today\'s course';
       else
         hint.textContent='';
@@ -1072,17 +1075,21 @@ async function onNotifToggle(enabled){
       });
       const saveErr=await savePushSub(sub);
       if(!saveErr){
+        localStorage.setItem('_push_endpoint', sub.endpoint);
         toast('Notifications enabled ✓');
         setHint('You\'ll be notified when the RO publishes today\'s course','var(--teal)');
       } else {
+        // DB save failed — clean up the browser subscription too so state stays in sync
+        try{ await sub.unsubscribe(); }catch(e){}
+        localStorage.removeItem('_push_endpoint');
         uncheck();
         setHint('Save failed: '+saveErr,'var(--danger)');
         toast('⚠ '+saveErr.slice(0,60));
       }
     }catch(err){
       console.error('Push subscribe error',err);
+      localStorage.removeItem('_push_endpoint');
       uncheck();
-      // Surface the actual error message so it's debuggable without DevTools
       const msg=err.message||String(err);
       setHint('Error: '+msg,'var(--danger)');
       toast('⚠ '+msg.slice(0,60));
@@ -1097,6 +1104,7 @@ async function onNotifToggle(enabled){
           {method:'DELETE',headers:{...SBH}});
         await sub.unsubscribe();
       }
+      localStorage.removeItem('_push_endpoint');
       toast('Notifications disabled');
       setHint('');
     }catch(err){
