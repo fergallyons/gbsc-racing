@@ -445,6 +445,7 @@ async function enterApp(b,ro){
     setSyncStatus('offline');toast('⚠ Offline — using local data');
   }
 
+  showTab('feesTab', null);
   buildRaceDropdown();
   // Refresh registration state for this boat
   updateRegisterButton();
