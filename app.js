@@ -3121,7 +3121,9 @@ let editingMarkId=null;
 function hideMarkAddForm(){
   document.getElementById('markAddForm').style.display='none';
   document.getElementById('markAddBtn').style.display='block';
-  ['mk-id','mk-name','mk-lat','mk-lng','mk-desc'].forEach(id=>document.getElementById(id).value='');
+  ['mk-id','mk-name','mk-lat-d','mk-lat-m','mk-lng-d','mk-lng-m','mk-desc'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mk-lat-h').value='N';
+  document.getElementById('mk-lng-h').value='W';
   document.getElementById('mk-colour').value='#f4a261';
   document.getElementById('mk-id').readOnly=false;
   document.getElementById('markFormTitle').textContent='New Mark';
@@ -3134,8 +3136,14 @@ function openEditMark(id){
   document.getElementById('mk-id').value=m.id;
   document.getElementById('mk-id').readOnly=true; // ID is the primary key — don't allow changing
   document.getElementById('mk-name').value=m.name;
-  document.getElementById('mk-lat').value=m.lat;
-  document.getElementById('mk-lng').value=m.lng;
+  function toDF(dec){return{d:Math.floor(Math.abs(dec)),m:((Math.abs(dec)-Math.floor(Math.abs(dec)))*60).toFixed(3)};}
+  const latDM=toDF(m.lat), lngDM=toDF(m.lng);
+  document.getElementById('mk-lat-d').value=latDM.d;
+  document.getElementById('mk-lat-m').value=latDM.m;
+  document.getElementById('mk-lat-h').value=m.lat>=0?'N':'S';
+  document.getElementById('mk-lng-d').value=lngDM.d;
+  document.getElementById('mk-lng-m').value=lngDM.m;
+  document.getElementById('mk-lng-h').value=m.lng>=0?'E':'W';
   document.getElementById('mk-desc').value=m.desc||'';
   document.getElementById('mk-colour').value=m.colour||'#f4a261';
   document.getElementById('markFormTitle').textContent='Edit Mark';
@@ -3158,13 +3166,19 @@ async function deleteMark(id){
 async function submitAddMark(){
   const id=document.getElementById('mk-id').value.trim().toUpperCase();
   const name=document.getElementById('mk-name').value.trim();
-  const lat=parseFloat(document.getElementById('mk-lat').value);
-  const lng=parseFloat(document.getElementById('mk-lng').value);
+  const latD=parseFloat(document.getElementById('mk-lat-d').value);
+  const latM=parseFloat(document.getElementById('mk-lat-m').value);
+  const latH=document.getElementById('mk-lat-h').value;
+  const lngD=parseFloat(document.getElementById('mk-lng-d').value);
+  const lngM=parseFloat(document.getElementById('mk-lng-m').value);
+  const lngH=document.getElementById('mk-lng-h').value;
   const desc=document.getElementById('mk-desc').value.trim();
   const colour=document.getElementById('mk-colour').value;
 
   if(!id||!name){toast('Enter an ID and name');return;}
-  if(isNaN(lat)||isNaN(lng)){toast('Enter valid coordinates');return;}
+  if(isNaN(latD)||isNaN(latM)||isNaN(lngD)||isNaN(lngM)){toast('Enter valid coordinates');return;}
+  const lat=(latD+latM/60)*(latH==='S'?-1:1);
+  const lng=(lngD+lngM/60)*(lngH==='W'?-1:1);
 
   if(editingMarkId){
     // Edit existing mark
