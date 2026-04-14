@@ -2283,7 +2283,7 @@ function renderCourseDiagram(){
     const dir=dirs[Math.round(brg/22.5)%16];
     const rnd=me.rounding||'port';
     const rndLabel=rnd==='port'?'◄ Port':'Stbd ►';
-    legRows+=`<div class="leg-row">
+    legRows+=`<div class="leg-row" onclick="showMarkCoords('${m.name.replace(/'/g,"\\'")}',${m.lat},${m.lng})" style="cursor:pointer">
       <span class="leg-num">${i+1}</span>
       <span class="mark-colour" style="background:${m.colour}"></span>
       <span class="leg-mark">${m.name}</span>
@@ -2998,7 +2998,11 @@ function showCrewPayPage(data){
   showStep1();
 }
 let _tt;
-function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),2600);}
+function toast(msg,ms=2600){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),ms);}
+function showMarkCoords(name,lat,lng){
+  const ns=lat>=0?'N':'S', ew=lng>=0?'E':'W';
+  toast(`📍 ${name}  ${Math.abs(lat).toFixed(4)}° ${ns}, ${Math.abs(lng).toFixed(4)}° ${ew}`,4500);
+}
 document.addEventListener('click',function(e){
   ['collectSheet','editSheet','pnSheet','shareSheet','settingsSheet','protestSheet','roClubSettingsSheet'].forEach(id=>{
     const el=document.getElementById(id);
