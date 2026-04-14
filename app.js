@@ -3000,8 +3000,12 @@ function showCrewPayPage(data){
 let _tt;
 function toast(msg,ms=2600){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(_tt);_tt=setTimeout(()=>t.classList.remove('show'),ms);}
 function showMarkCoords(name,lat,lng){
-  const ns=lat>=0?'N':'S', ew=lng>=0?'E':'W';
-  toast(`📍 ${name}  ${Math.abs(lat).toFixed(4)}° ${ns}, ${Math.abs(lng).toFixed(4)}° ${ew}`,4500);
+  function toDM(deg,pos,neg){
+    const d=Math.floor(Math.abs(deg));
+    const m=((Math.abs(deg)-d)*60).toFixed(3);
+    return `${d}° ${m}' ${deg>=0?pos:neg}`;
+  }
+  toast(`📍 ${name}  ${toDM(lat,'N','S')}  ${toDM(lng,'E','W')}`,4500);
 }
 document.addEventListener('click',function(e){
   ['collectSheet','editSheet','pnSheet','shareSheet','settingsSheet','protestSheet','roClubSettingsSheet'].forEach(id=>{
