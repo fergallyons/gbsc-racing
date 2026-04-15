@@ -223,6 +223,9 @@ let roster=[], allRaces=[], selectedRace=null, nextRace=null;
 let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225;
 let courseMarks=[];
+let _geoParams=null;   // projection saved by renderCourseDiagram for GPS overlay
+let _gpsWatchId=null;  // navigator.geolocation watch handle
+let _lastGpsPos=null;  // {lat,lng,accuracy} — reapplied after diagram re-render
 let publishedCourse=null;
 let registeredBoatIds=new Set(); // boat IDs registered for the next race
 let roDashRegsCount=0, roDashProtestsCount=0, roDashCoursePublished=false;
@@ -657,11 +660,13 @@ function openPanel(id){
   const p=document.getElementById(id);if(!p)return;
   p.style.display='flex';
   requestAnimationFrame(()=>requestAnimationFrame(()=>p.classList.add('open')));
+  if(id==='coursePanel') startGpsWatch();
 }
 function closePanel(id){
   const p=document.getElementById(id);if(!p)return;
   p.classList.remove('open');
   setTimeout(()=>{p.style.display='none';},300);
+  if(id==='coursePanel') stopGpsWatch();
 }
 
 // ── Skipper dashboard update ─────────────────────────────────
@@ -2224,6 +2229,7 @@ function renderCourseDiagram(){
   const ox=PAD+(usableW-scaledW)/2-minX*scale;
   const oy=PAD+(usableH-scaledH)/2-minY*scale;
   const toSvg=p=>({x:p.x*scale+ox,y:p.y*scale+oy});
+  _geoParams={refLat,refLng,cosLat,scale,ox,oy}; // persist for GPS dot updates
   const svgPts=raw.map(toSvg);
   const sfPt=svgPts[0];
   const markPts=svgPts.slice(1);
@@ -2314,6 +2320,12 @@ function renderCourseDiagram(){
     svgParts.push(`<text x="${wCX}" y="${wCY+13}" text-anchor="middle" fill="rgba(255,170,0,0.75)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>${c.windDeg}°</text>`);
   }
 
+  // GPS position dot — updated live by watchPosition while panel is open
+  svgParts.push(
+    `<circle id="gpsAccRing" cx="0" cy="0" r="15" fill="rgba(0,174,239,.08)" stroke="rgba(0,174,239,.25)" stroke-width="1" visibility="hidden"/>`,
+    `<circle id="gpsDot" cx="0" cy="0" r="5" fill="#00aeef" stroke="rgba(255,255,255,.85)" stroke-width="1.5" visibility="hidden"/>`
+  );
+
   const svgEl=`<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block">${svgParts.join('\n')}</svg>`;
 
   // ── Leg table (preserved) ──────────────────────────────────────
@@ -2399,6 +2411,8 @@ function renderCourseDiagram(){
       </div>
     </div>
   `;
+  // Re-apply GPS dot if we already have a position (e.g. diagram re-rendered mid-race)
+  if(_lastGpsPos) updateGpsDot(_lastGpsPos.lat,_lastGpsPos.lng,_lastGpsPos.accuracy);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3072,6 +3086,42 @@ document.addEventListener('click',function(e){
 // WIND WIDGET — Open-Meteo (no API key required)
 // ═══════════════════════════════════════════════════════════════
 const GBSC_LAT=53.2744, GBSC_LNG=-9.0490; // Galway Bay
+
+// ── GPS live position on course diagram ──────────────────────
+function startGpsWatch(){
+  if(!navigator.geolocation||_gpsWatchId!==null) return;
+  _gpsWatchId=navigator.geolocation.watchPosition(
+    pos=>updateGpsDot(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy),
+    err=>console.warn('GPS',err.code,err.message),
+    {enableHighAccuracy:true,maximumAge:3000,timeout:10000}
+  );
+}
+function stopGpsWatch(){
+  if(_gpsWatchId===null) return;
+  navigator.geolocation.clearWatch(_gpsWatchId);
+  _gpsWatchId=null;
+}
+function updateGpsDot(lat,lng,accuracy){
+  _lastGpsPos={lat,lng,accuracy};
+  if(!_geoParams) return;
+  const {refLat,refLng,cosLat,scale,ox,oy}=_geoParams;
+  const x=((lng-refLng)*cosLat)*scale+ox;
+  const y=(-(lat-refLat))*scale+oy;
+  const dot=document.getElementById('gpsDot');
+  const ring=document.getElementById('gpsAccRing');
+  if(!dot) return;
+  dot.setAttribute('cx',x.toFixed(1));
+  dot.setAttribute('cy',y.toFixed(1));
+  dot.setAttribute('visibility','visible');
+  if(ring){
+    ring.setAttribute('cx',x.toFixed(1));
+    ring.setAttribute('cy',y.toFixed(1));
+    // accuracy metres → SVG pixels (1° lat ≈ 111320m)
+    const accPx=Math.min((accuracy/111320)*scale,50);
+    ring.setAttribute('r',accPx.toFixed(1));
+    ring.setAttribute('visibility',accPx>4?'visible':'hidden');
+  }
+}
 
 async function loadWindWidget(){
   try{
