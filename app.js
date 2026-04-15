@@ -337,6 +337,7 @@ async function buildBoatGrid(){
   sbLoadRegistrations(nextRace).then(regs=>{
     registeredBoatIds=new Set((regs||[]).map(r=>r.boat_id));
     renderBoatGrid();
+    updateHomeChips();
   }).catch(()=>{});
 }
 
@@ -3553,6 +3554,53 @@ async function loadUsageStats(){
 }
 
 // ═══════════════════════════════════════════════════════════════
+// PUBLIC HOME — chips & countdown
+// ═══════════════════════════════════════════════════════════════
+function updateHomeChips(){
+  const chips=document.getElementById('guestDashChips'); if(!chips)return;
+  const count=registeredBoatIds.size;
+  const state=getCourseState();
+  const regChip=count>0
+    ?`<span class="dash-chip regs">⛵ ${count} boat${count===1?'':'s'} registered</span>`
+    :'<span class="dash-chip course-no">No registrations yet</span>';
+  let courseChip='';
+  if(state==='live')  courseChip='<span class="dash-chip course-ok">🟢 Course live</span>';
+  else if(state==='pending') courseChip='<span class="dash-chip course-no">🕐 Course pending</span>';
+  chips.innerHTML=regChip+courseChip;
+}
+
+let _countdownInterval=null;
+function startCountdown(){
+  if(_countdownInterval){clearInterval(_countdownInterval);_countdownInterval=null;}
+  function tick(){
+    const el=document.getElementById('guestDashCountdown'); if(!el||!nextRace)return;
+    const now=new Date();
+    const diffMs=nextRace.date-now;
+    const isToday=nextRace.date.toDateString()===now.toDateString();
+    if(!isToday){el.style.display='none';return;}
+    if(diffMs<=-3600000){el.style.display='none';return;} // race >1h ago
+    if(diffMs<=0){
+      el.style.display='block';
+      el.style.color='var(--success)';
+      el.textContent='🏁 Race in progress';
+      return;
+    }
+    const hrs=Math.floor(diffMs/3600000);
+    const mins=Math.floor((diffMs%3600000)/60000);
+    const secs=Math.floor((diffMs%60000)/1000);
+    let txt='⏱ ';
+    if(hrs>0) txt+=hrs+'h ';
+    txt+=String(mins).padStart(2,'0')+'m ';
+    txt+=String(secs).padStart(2,'0')+'s to start';
+    el.style.display='block';
+    el.style.color='var(--warn)';
+    el.textContent=txt;
+  }
+  tick();
+  _countdownInterval=setInterval(tick,1000);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // INIT — open directly to public view, no login gate
 // ═══════════════════════════════════════════════════════════════
 checkPayHash();
@@ -3563,9 +3611,12 @@ nextRace=getNextRace();
 (function initPublicView(){
   const el=document.getElementById('guestDashRaceName');
   const mel=document.getElementById('guestDashMeta');
+  const tel=document.getElementById('guestDashTime');
   if(el&&nextRace) el.textContent=nextRace.label;
   if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+  if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  startCountdown();
   showTab('registeredTab', null);
-  loadAndDrawCourse();
+  loadAndDrawCourse().then(()=>updateHomeChips());
 })();
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
