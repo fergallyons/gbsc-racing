@@ -277,21 +277,21 @@
     <div class="dash-race-meta" id="guestDashMeta"></div>
     <div id="guestDashCountdown" style="display:none;font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;color:var(--warn);margin-top:6px;letter-spacing:.03em"></div>
     <div class="dash-chips" id="guestDashChips" style="margin-top:8px"></div>
-  </div>
-  <!-- Wind widget — current conditions, not forecast -->
-  <div id="windWidget" style="display:flex;align-items:center;gap:12px;
-    margin-top:12px;padding:9px 14px;
-    background:rgba(0,174,239,.06);border:1px solid rgba(0,174,239,.15);border-radius:10px;">
-    <div id="windArrow" style="flex-shrink:0;transition:transform .6s ease">💨</div>
-    <div style="display:flex;align-items:baseline;gap:6px;flex:1;min-width:0;">
-      <div id="windSpeed" style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;
-        font-weight:800;color:var(--white)">—</div>
-      <div id="windDir" style="font-size:.68rem;color:var(--muted);font-weight:600;
-        letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-    </div>
-    <div style="font-size:.62rem;color:var(--muted);flex-shrink:0;text-align:right;line-height:1.4">
-      <div style="color:var(--teal);font-weight:700;letter-spacing:.06em;font-family:'Barlow Condensed',sans-serif;font-size:.7rem">NOW</div>
-      <div>Galway Bay</div>
+    <!-- Wind strip — merged into race card -->
+    <div id="windWidget" style="display:flex;align-items:center;gap:12px;
+      margin-top:14px;padding-top:12px;
+      border-top:1px solid rgba(0,174,239,.2);">
+      <div id="windArrow" style="flex-shrink:0;transition:transform .6s ease">💨</div>
+      <div style="display:flex;align-items:baseline;gap:6px;flex:1;min-width:0;">
+        <div id="windSpeed" style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;
+          font-weight:800;color:var(--white)">—</div>
+        <div id="windDir" style="font-size:.68rem;color:var(--muted);font-weight:600;
+          letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+      </div>
+      <div style="font-size:.62rem;color:var(--muted);flex-shrink:0;text-align:right;line-height:1.4">
+        <div style="color:var(--teal);font-weight:700;letter-spacing:.06em;font-family:'Barlow Condensed',sans-serif;font-size:.7rem">NOW</div>
+        <div>Galway Bay</div>
+      </div>
     </div>
   </div>
   <!-- Sponsor widget — shown when current race has a sponsor -->
