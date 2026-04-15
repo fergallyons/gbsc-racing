@@ -331,6 +331,7 @@ async function buildBoatGrid(){
   saveCustom(boats);
 
   renderBoatGrid();
+  renderRegisteredTab(); // boats now loaded — starting line will resolve correctly
 
   // Load registration badges in background
   sbLoadRegistrations(nextRace).then(regs=>{
@@ -3566,6 +3567,5 @@ nextRace=getNextRace();
   if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   showTab('registeredTab', null);
   loadAndDrawCourse();
-  renderRegisteredTab();
 })();
-buildBoatGrid(); // loads boats async — populates the login sheet boat grid
+buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
