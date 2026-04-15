@@ -397,17 +397,24 @@ function loginAs(id){
   const btn=document.getElementById('bb-'+id); if(btn)btn.classList.add('active');
   openPinOverlay(id);
 }
+function openLoginSheet(){
+  document.getElementById('loginSheet').classList.add('open');
+}
 async function enterApp(b,ro){
   currentBoat=b; isRO=ro;
   try{localStorage.setItem('gr_last',b.id);}catch(e){}
   sbStartSession(ro?'ro':'skipper', ro?null:b.id, b.name).then(id=>{currentSessionId=id;}).catch(()=>{});
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('mainApp').style.display='block';
+  closeSheet('loginSheet');
+  // Show boat tag, hide login button
+  document.getElementById('loginBtn').style.display='none';
+  const tag=document.getElementById('boatTag');
+  tag.removeAttribute('style'); // clear any previous inline styles
+  tag.style.display='';         // make visible (uses default CSS display)
   document.getElementById('headerBoat').textContent=ro?'Race Officer':b.name;
   document.getElementById('changePinBtn').style.display=ro?'none':'flex';
   if(ro){
-    document.getElementById('boatTag').style.background='rgba(232,160,32,.1)';
-    document.getElementById('boatTag').style.borderColor='rgba(232,160,32,.4)';
+    tag.style.background='rgba(232,160,32,.1)';
+    tag.style.borderColor='rgba(232,160,32,.4)';
     document.getElementById('headerBoat').style.color='var(--ro)';
     // Land directly on RO tab
     showTab('roTab', null);
@@ -438,6 +445,7 @@ async function enterApp(b,ro){
     setSyncStatus('offline');toast('⚠ Offline — using local data');
   }
 
+  showTab('feesTab', null);
   buildRaceDropdown();
   // Refresh registration state for this boat
   updateRegisterButton();
@@ -450,30 +458,13 @@ function switchBoat(){
   currentSessionId=null;
   currentBoat=null;roster=[];isRO=false;isGuest=false;boatConfig={};
   halResultsLoaded=false;
-  document.getElementById('loginScreen').style.display='flex';
-  document.getElementById('mainApp').style.display='none';
+  // Return to public view — show login button, hide boat tag
+  document.getElementById('boatTag').style.display='none';
   document.getElementById('boatTag').removeAttribute('style');
+  document.getElementById('boatTag').style.display='none';
   document.getElementById('headerBoat').removeAttribute('style');
-  showTab('feesTab', null);
-  buildBoatGrid();
-}
-function enterGuestMode(){
-  isGuest=true; currentBoat=null; isRO=false;
-  sbStartSession('guest',null,null).then(id=>{currentSessionId=id;}).catch(()=>{});
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('mainApp').style.display='block';
-  document.getElementById('headerBoat').textContent='Guest';
-  document.getElementById('boatTag').style.background='rgba(0,174,239,.08)';
-  document.getElementById('boatTag').style.borderColor='rgba(0,174,239,.3)';
+  document.getElementById('loginBtn').style.display='';
   document.getElementById('changePinBtn').style.display='none';
-  // Guest dash race card
-  const r=nextRace;
-  const el=document.getElementById('guestDashRaceName');
-  const mel=document.getElementById('guestDashMeta');
-  if(el&&r) el.textContent=r.label;
-  if(mel&&r) mel.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
-  loadAndDrawCourse();
-  renderRegisteredTab();
   showTab('registeredTab', null);
 }
 async function renderRegisteredTab(){
@@ -3561,8 +3552,20 @@ async function loadUsageStats(){
 }
 
 // ═══════════════════════════════════════════════════════════════
-// INIT
+// INIT — open directly to public view, no login gate
 // ═══════════════════════════════════════════════════════════════
 checkPayHash();
 loadWindWidget();
-buildBoatGrid();
+// Build race schedule synchronously so public race cards populate immediately
+buildAllRaces();
+nextRace=getNextRace();
+(function initPublicView(){
+  const el=document.getElementById('guestDashRaceName');
+  const mel=document.getElementById('guestDashMeta');
+  if(el&&nextRace) el.textContent=nextRace.label;
+  if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+  showTab('registeredTab', null);
+  loadAndDrawCourse();
+  renderRegisteredTab();
+})();
+buildBoatGrid(); // loads boats async — populates the login sheet boat grid
