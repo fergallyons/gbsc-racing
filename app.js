@@ -2652,6 +2652,10 @@ async function refreshResults(){
   await loadResultsIfNeeded();
 }
 async function loadResultsIfNeeded(){
+  // Show eStela link if a tracking URL is currently set
+  const elink=document.getElementById('resultEstellaLink');
+  if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
+
   if(halResultsLoaded) return;
   halResultsLoaded=true;
   const wrap=document.getElementById('resultsContent');
