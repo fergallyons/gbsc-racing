@@ -1183,6 +1183,58 @@ function saveROClubSettings(){
   renderCourseDiagram();
 }
 
+async function browseEstelaRaces(){
+  const content=document.getElementById('estelaPickerContent');
+  content.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading your races from eStela…</div></div>';
+  document.getElementById('estelaPickerSheet').classList.add('open');
+
+  let data;
+  try{ const r=await fetch('/.netlify/functions/estela-races'); data=await r.json(); }
+  catch(e){ data={error:String(e)}; }
+
+  if(data.error){
+    const isNotConfigured=data.error.includes('not configured');
+    content.innerHTML=
+      '<div class="empty-state">'+
+        '<div class="icon">⚠</div>'+
+        '<div style="font-size:.9rem;color:var(--white);margin-bottom:6px">'+(isNotConfigured?'API key not yet set up':'Could not reach eStela')+'</div>'+
+        '<div style="font-size:.75rem;color:var(--muted);line-height:1.5;max-width:280px;text-align:center">'+
+          (isNotConfigured
+            ? 'Add <strong style="color:var(--white)">ESTELA_API_KEY</strong> to your Netlify environment variables, then redeploy.'
+            : data.error.slice(0,120))+
+        '</div>'+
+      '</div>';
+    return;
+  }
+
+  if(!data.races||!data.races.length){
+    content.innerHTML='<div class="empty-state"><div class="icon">📡</div><div>No races found on your eStela account</div></div>';
+    return;
+  }
+
+  content.innerHTML=data.races.map(race=>{
+    const d=race.start_at?new Date(race.start_at).toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'}):'';
+    return `<div onclick="pickEstelaRace(${JSON.stringify(race.link)},${JSON.stringify(race.name)})"
+      style="display:flex;align-items:center;gap:12px;padding:12px 14px;
+        background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;
+        margin-bottom:8px;cursor:pointer;">
+      <span style="font-size:1.2rem;flex-shrink:0">📡</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:var(--white);
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${race.name}</div>
+        ${d?`<div style="font-size:.7rem;color:var(--muted);margin-top:2px">${d}</div>`:''}
+      </div>
+      <span style="font-size:.75rem;color:var(--teal);font-weight:700;flex-shrink:0">Select →</span>
+    </div>`;
+  }).join('');
+}
+
+function pickEstelaRace(url, name){
+  document.getElementById('ro-estella-url').value=url;
+  closeSheet('estelaPickerSheet');
+  toast('Selected: '+name);
+}
+
 async function downloadDatabaseBackup(){
   toast('⏳ Preparing backup…');
   try{

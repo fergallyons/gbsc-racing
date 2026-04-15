@@ -872,15 +872,18 @@
     </div>
 
     <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
-      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
-        📡 eStela Tracking URL
-      </label>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0">
+        <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+          📡 eStela Tracking URL
+        </label>
+        <button onclick="browseEstelaRaces()" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:6px;border:1px solid rgba(0,174,239,.35);background:rgba(0,174,239,.1);color:var(--teal);cursor:pointer;">🔍 Find on eStela</button>
+      </div>
       <input type="url" id="ro-estella-url" placeholder="https://estela.co/en/tracking-race/…"
         style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
         outline:none;width:100%;box-sizing:border-box;">
       <div style="font-size:.7rem;color:var(--muted);margin-top:5px;line-height:1.4">
-        Paste the eStela race URL to show a live tracking button on the public home screen. Clear it after the race.
+        Paste the eStela race URL, or use Find to pick from your recent races. Clear after the race.
       </div>
     </div>
 
@@ -908,6 +911,18 @@
       <div style="font-size:.7rem;color:var(--muted);line-height:1.4;margin-bottom:10px">Downloads a full snapshot of all club data as a JSON file. Keep a copy somewhere safe.</div>
       <button class="btn btn-ghost" style="width:100%;padding:11px" onclick="downloadDatabaseBackup()">⬇ Download Backup Now</button>
     </div>
+  </div>
+</div>
+
+<!-- eStela race picker sheet -->
+<div class="overlay" id="estelaPickerSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">📡 Pick eStela Race</div>
+    <div id="estelaPickerContent" style="margin-top:4px">
+      <div class="empty-state"><div class="icon">⏳</div><div>Loading your races from eStela…</div></div>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;padding:12px;margin-top:12px" onclick="closeSheet('estelaPickerSheet')">Cancel</button>
   </div>
 </div>
 
