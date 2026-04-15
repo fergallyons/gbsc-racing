@@ -277,6 +277,15 @@
     <div class="dash-race-meta" id="guestDashMeta"></div>
     <div id="guestDashCountdown" style="display:none;font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;color:var(--warn);margin-top:6px;letter-spacing:.03em"></div>
     <div class="dash-chips" id="guestDashChips" style="margin-top:8px"></div>
+    <!-- eStela live tracking link — shown when RO sets a URL in Club Settings -->
+    <a id="estellaLink" href="#" target="_blank" rel="noopener"
+      style="display:none;margin-top:10px;padding:8px 14px;
+        background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.3);border-radius:8px;
+        text-decoration:none;align-items:center;justify-content:center;gap:8px;
+        font-family:'Barlow Condensed',sans-serif;font-size:.88rem;font-weight:700;
+        color:var(--teal);letter-spacing:.04em;">
+      📡 Track Live on eStela →
+    </a>
     <!-- Wind strip — merged into race card -->
     <div id="windWidget" style="display:flex;align-items:center;gap:12px;
       margin-top:14px;padding-top:12px;
@@ -849,6 +858,19 @@
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
         outline:none;width:100%;box-sizing:border-box;">
       <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Non-members / visitors (e.g. €10)</div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        📡 eStela Tracking URL
+      </label>
+      <input type="url" id="ro-estella-url" placeholder="https://estela.co/en/tracking-race/…"
+        style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+      <div style="font-size:.7rem;color:var(--muted);margin-top:5px;line-height:1.4">
+        Paste the eStela race URL to show a live tracking button on the public home screen. Clear it after the race.
+      </div>
     </div>
 
     <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">

@@ -37,7 +37,7 @@ async function sbSaveBoatConfig(id,fields){
   });
 }
 async function sbLoadClubSettings(){
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours');
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours,estella_url');
   if(!r||r._err){
     console.error('sbLoadClubSettings failed — columns may be missing from settings table. Run: ALTER TABLE settings ADD COLUMN IF NOT EXISTS stripe_link_member text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_student text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_visitor text DEFAULT \'\', ADD COLUMN IF NOT EXISTS pre_race_window_hours int DEFAULT 12;',r);
     return null;
@@ -911,7 +911,7 @@ function deleteCrew(){
 // In-memory cache loaded from DB on login, written back on change
 // localStorage used as fallback when offline
 let boatConfig={};    // {pin, revolut_user} for currentBoat
-let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12};  // club-wide
+let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:''};  // club-wide
 
 async function loadBoatConfig(boatId){
   // Try DB first
@@ -934,8 +934,8 @@ async function loadClubSettings(){
   } else {
     try{
       const cached=localStorage.getItem('__club_settings__');
-      clubSettings=cached?JSON.parse(cached):{stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12};
-    }catch(e){ clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:''}; }
+      clubSettings=cached?JSON.parse(cached):{stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:''};
+    }catch(e){ clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',estella_url:''}; }
   }
 }
 
@@ -1155,6 +1155,7 @@ async function openROClubSettings(){
   document.getElementById('ro-stripe-student').value=clubSettings.stripe_link_student||'';
   document.getElementById('ro-stripe-visitor').value=clubSettings.stripe_link_visitor||'';
   document.getElementById('ro-pre-race-window').value=clubSettings.pre_race_window_hours||12;
+  document.getElementById('ro-estella-url').value=clubSettings.estella_url||'';
   document.getElementById('roClubSettingsSheet').classList.add('open');
 }
 function saveROClubSettings(){
@@ -1165,14 +1166,18 @@ function saveROClubSettings(){
   const memberVal =document.getElementById('ro-stripe-member').value.trim();
   const studentVal=document.getElementById('ro-stripe-student').value.trim();
   const visitorVal=document.getElementById('ro-stripe-visitor').value.trim();
+  const estellaVal=document.getElementById('ro-estella-url').value.trim();
 
   saveClubStripeLinks({
     stripe_link_member:   memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'',
     stripe_link_student:  studentVal !==''?studentVal :clubSettings.stripe_link_student||'',
     stripe_link_visitor:  visitorVal !==''?visitorVal :clubSettings.stripe_link_visitor||'',
     pre_race_window_hours: windowHours,
+    estella_url: estellaVal,
   });
   clubSettings.pre_race_window_hours=windowHours;
+  clubSettings.estella_url=estellaVal;
+  updateEstellaLink();
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
   renderCourseDiagram();
@@ -3556,6 +3561,13 @@ async function loadUsageStats(){
 // ═══════════════════════════════════════════════════════════════
 // PUBLIC HOME — chips & countdown
 // ═══════════════════════════════════════════════════════════════
+function updateEstellaLink(){
+  const link=document.getElementById('estellaLink'); if(!link)return;
+  const url=(clubSettings.estella_url||'').trim();
+  if(url){ link.href=url; link.style.display='flex'; }
+  else { link.style.display='none'; }
+}
+
 function updateHomeChips(){
   const chips=document.getElementById('guestDashChips'); if(!chips)return;
   const count=registeredBoatIds.size;
@@ -3605,6 +3617,7 @@ function startCountdown(){
 // ═══════════════════════════════════════════════════════════════
 checkPayHash();
 loadWindWidget();
+loadClubSettings().then(()=>updateEstellaLink()); // warm up settings cache for public view
 // Build race schedule synchronously so public race cards populate immediately
 buildAllRaces();
 nextRace=getNextRace();
