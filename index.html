@@ -24,19 +24,6 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title" style="margin-bottom:4px">⛵ Boat Login</div>
     <div id="loginRaceLabel" style="font-size:.72rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;margin-bottom:10px;text-align:center;min-height:14px"></div>
-    <!-- Sponsor widget — shown when current race has a sponsor -->
-    <a id="sponsorWidget" href="#" target="_blank" rel="noopener"
-      style="display:none;width:100%;text-decoration:none;
-        background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
-        border-radius:12px;padding:10px 14px;margin-bottom:12px;
-        align-items:center;gap:12px;">
-      <img id="sponsorLogo" src="" alt="" style="height:36px;width:auto;object-fit:contain;border-radius:4px;flex-shrink:0;" onerror="this.style.display='none'">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:.58rem;color:var(--muted);font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:1px">Series Sponsor</div>
-        <div id="sponsorName" style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-      </div>
-      <div style="font-size:.68rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;flex-shrink:0">Visit →</div>
-    </a>
     <div class="login-label">Select your boat</div>
     <div class="boat-grid" id="boatGrid"></div>
     <div style="margin-top:8px">
@@ -286,6 +273,19 @@
     <div class="dash-race-name" id="guestDashRaceName">Loading…</div>
     <div class="dash-race-meta" id="guestDashMeta"></div>
   </div>
+  <!-- Sponsor widget — shown when current race has a sponsor -->
+  <a id="sponsorWidget" href="#" target="_blank" rel="noopener"
+    style="display:none;width:100%;text-decoration:none;
+      background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+      border-radius:12px;padding:10px 14px;margin-bottom:4px;
+      align-items:center;gap:12px;box-sizing:border-box;">
+    <img id="sponsorLogo" src="" alt="" style="height:36px;width:auto;object-fit:contain;border-radius:4px;flex-shrink:0;" onerror="this.style.display='none'">
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:.58rem;color:var(--muted);font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:1px">Series Sponsor</div>
+      <div id="sponsorName" style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    </div>
+    <div style="font-size:.68rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;flex-shrink:0">Visit →</div>
+  </a>
   <!-- 2-column tile grid -->
   <div class="dash-grid">
     <div class="dash-card" onclick="openPanel('coursePanel')">
