@@ -1863,11 +1863,15 @@ async function generatePaymentReport(){
   ${boatRows}
 </body></html>`;
 
-  // Open in new window and trigger print
-  const win=window.open('','_blank','width=900,height=700');
-  win.document.write(printHtml);
-  win.document.close();
-  win.onload=()=>{ win.focus(); win.print(); };
+  // Open via Blob URL — works on iOS Safari where window.open() after async is blocked
+  const blob=new Blob([printHtml],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.target='_blank'; a.rel='noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
 
 // ═══════════════════════════════════════════════════════════════
