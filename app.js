@@ -4,6 +4,34 @@
 const _C = window.CLUB || {};
 if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have failed to load');
 
+// Apply club branding immediately — before any async work
+(function applyClubBranding(){
+  const short  = _C.short || 'GBSC';
+  const name   = _C.name  || 'Galway Bay Sailing Club';
+  const logoUrl= _C.logoUrl|| '';
+  // Page title
+  document.title = short + ' Racing \u2014 ' + name;
+  // Header: logo image
+  const img = document.getElementById('clubLogoImg');
+  if(img && logoUrl){
+    img.src = logoUrl;
+    img.alt = short;
+    img.style.display = '';
+    const fb = document.getElementById('hlf');
+    if(fb) fb.style.display = 'none';
+  } else if(img && !logoUrl){
+    // No logo URL — show text fallback immediately
+    img.style.display = 'none';
+    const fb = document.getElementById('hlf');
+    if(fb){ fb.textContent = short; fb.style.display = 'block'; }
+  }
+  // Header: text labels
+  const sl = document.getElementById('clubShortLabel');
+  if(sl) sl.textContent = short + ' Racing';
+  const fn = document.getElementById('clubFullName');
+  if(fn) fn.textContent = name;
+})();
+
 // ── Supabase ──────────────────────────────────────────────────
 const SB_URL = _C.sbUrl || '';
 const SB_KEY = _C.sbKey || '';

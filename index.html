@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>GBSC Racing — Galway Bay Sailing Club</title>
+<title>GBSC Racing — Galway Bay Sailing Club</title><!-- updated by applyClubBranding() -->
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.svg">
@@ -100,13 +100,14 @@
 <header>
   <div class="hdr">
     <div class="app-logo">
-      <img src="https://static.wixstatic.com/media/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg/v1/fill/w_300,h_175,al_c,q_80/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg"
+      <img id="clubLogoImg"
+        src="https://static.wixstatic.com/media/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg/v1/fill/w_300,h_175,al_c,q_80/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg"
         alt="GBSC" onerror="this.style.display='none';document.getElementById('hlf').style.display='block'">
       <div class="app-logo-fb2" id="hlf">GBSC</div>
       <div class="logo-div"></div>
       <div class="logo-text-stack">
-        <div class="logo-sub">GBSC Racing</div>
-        <div class="logo-sub-full">Galway Bay Sailing Club</div>
+        <div class="logo-sub" id="clubShortLabel">GBSC Racing</div>
+        <div class="logo-sub-full" id="clubFullName">Galway Bay Sailing Club</div>
       </div>
     </div>
     <div class="hdr-right">
