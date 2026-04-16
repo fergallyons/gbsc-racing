@@ -1,8 +1,12 @@
 // ═══════════════════════════════════════════════════════════════
-// SUPABASE
+// CLUB CONFIG  (populated by /club-config.js edge function)
 // ═══════════════════════════════════════════════════════════════
-const SB_URL='https://esqjcmwfnzkolwxfbcro.supabase.co';
-const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzcWpjbXdmbnprb2x3eGZiY3JvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE4MDgsImV4cCI6MjA4OTQ5NzgwOH0.FCNEwXrayFMuzwMlHBX6iWESoVFi63-1IKhzgoQTx2U';
+const _C = window.CLUB || {};
+if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have failed to load');
+
+// ── Supabase ──────────────────────────────────────────────────
+const SB_URL = _C.sbUrl || '';
+const SB_KEY = _C.sbKey || '';
 const SBH={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
 async function sbFetch(path,opts={}){
   try{
@@ -170,8 +174,11 @@ let MARKS = [
   {id:'TR', name:'Trout',              lat:53+(15.026/60), lng:-(9+(1.109/60)),  colour:'#f4a261', desc:'Club Orange'},
   {id:'WM', name:'W. Margaretta',      lat:53+(13.673/60), lng:-(9+(5.978/60)),  colour:'#2dc653', desc:'Channel Green'},
 ];
-// Club start line — 53°14.5687'N, 008°58.6148'W
-const START_POS = {lat:53+(14.5687/60), lng:-(8+(58.6148/60))};
+// Club start line — from window.CLUB (fallback: GBSC default)
+const START_POS = {
+  lat: _C.startLat != null ? _C.startLat : 53+(14.5687/60),
+  lng: _C.startLng != null ? _C.startLng : -(8+(58.6148/60))
+};
 
 // ═══════════════════════════════════════════════════════════════
 // MAP TILE BACKGROUND
@@ -214,9 +221,11 @@ function buildSatTiles(refLat,refLng,cosLat,scale,ox,oy,W,H){
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS & STATE
 // ═══════════════════════════════════════════════════════════════
-const FEES={full:4,crew:4,visitor:10,student:5,kid:0};
-const VISITOR_MAX=6; const CREW_MAX_YRS=2; const CY=new Date().getFullYear();
-const RO_PIN='2026';
+const FEES=Object.assign({full:4,crew:4,visitor:10,student:5,kid:0}, _C.fees||{});
+const VISITOR_MAX=_C.visitorMax||6;
+const CREW_MAX_YRS=_C.crewMaxYrs||2;
+const CY=new Date().getFullYear();
+const RO_PIN=_C.roPin||'0000';
 
 let boats=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
 let roster=[], allRaces=[], selectedRace=null, nextRace=null;
@@ -991,7 +1000,7 @@ async function saveClubStripeLinks(links){
 }
 
 // ── Push notifications ────────────────────────────────────────
-const VAPID_PUBLIC_KEY='BAkBjGrQFkuo_6Rev9aZfzz0sSfAQZyO1NLdd-1Vbxa74brAp12wpHKEh6toUkoMjrmv-vaV1wMwrJpb4d8YL_Q';
+const VAPID_PUBLIC_KEY=_C.vapidPublicKey||'';
 
 function urlBase64ToUint8Array(b64){
   const pad='='.repeat((4-b64.length%4)%4);
@@ -2067,23 +2076,9 @@ function closeDoc(){
 // ═══════════════════════════════════════════════════════════════
 // SPONSORS
 // ═══════════════════════════════════════════════════════════════
-const SPONSORS=[
-  {
-    match:/galway.?maritime/i,
-    name:'Galway Maritime',
-    tagline:'Marine Chandlery',
-    logo:'https://i0.wp.com/galwaymaritime.com/wp-content/uploads/2025/07/cropped-Web-Logo-scaled-1.webp',
-    url:'https://galwaymaritime.com'
-  },
-  {
-    match:/mcswiggans/i,
-    name:'McSwiggans',
-    tagline:'Steak & Seafood Restaurant',
-    logo:'https://www.google.com/s2/favicons?domain=mcswiggans.ie&sz=64',
-    url:'https://mcswiggans.ie'
-  },
-  // Add more sponsors here as series are added:
-];
+// Sponsors come from window.CLUB.sponsors — match strings are compiled to RegExp here.
+// Each entry: {match:"regex-string", name, tagline, logo, url}
+const SPONSORS=(_C.sponsors||[]).map(s=>({...s, match:new RegExp(s.match,'i')}));
 
 function showSponsor(raceName){
   const widget=document.getElementById('sponsorWidget');
@@ -2789,7 +2784,7 @@ async function roUnregisterBoat(boatId,boatName){
 // HALSAIL RESULTS
 // ═══════════════════════════════════════════════════════════════
 const HAL_URL='https://halsail.com/HalApi';
-const HAL_CLUB=3725;
+const HAL_CLUB=_C.halClub||0;
 // GBSC Halsail convention:
 //   GetSchedule only ever returns ECHO entries (Class "Cru - E")
 //   IRC is a tandem series — its SeryID is always echoId + 1

@@ -1,5 +1,10 @@
 [build]
   functions = "netlify/functions"
+  edge_functions = "netlify/edge-functions"
+
+[[edge_functions]]
+  path = "/club-config.js"
+  function = "club-config"
 
 # HTML and JS/CSS — never cache at CDN; always serve fresh
 # (no content-hash in filenames, so CDN must revalidate on every deploy)
