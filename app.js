@@ -228,37 +228,28 @@ let registeredBoatIds=new Set(); // boat IDs registered for the next race
 let roDashRegsCount=0, roDashProtestsCount=0, roDashCoursePublished=false;
 
 // ═══════════════════════════════════════════════════════════════
-// RACE SCHEDULE DATA  (must be before buildAllRaces)
+// RACE SCHEDULE — loaded from DB (races table)
 // ═══════════════════════════════════════════════════════════════
-const WED=[
-  {name:"McSwiggans Series",d:["Apr 8","Apr 15","Apr 22","Apr 29"]},
-  {name:"Grealy Stores Series",d:["May 6","May 13","May 20","May 27"]},
-  {name:"Seahorse Series",d:["Jun 3","Jun 10","Jun 17","Jun 24","Jul 1"]},
-  {name:"Aquabroker Series",d:["Jul 8","Jul 15","Jul 22","Jul 29"]},
-  {name:"GM Series",d:["Aug 5","Aug 12","Aug 19","Aug 26"]},
-  {name:"O'Tuairisg Series",d:["Sep 2","Sep 9","Sep 16","Sep 23","Sep 30"]},
-];
-const KOTB=["King of the Bay: Spring Cup|May 2, 2026","King of the Bay: Barna|May 16, 2026","King of the Bay: Ballyvaughan|May 30, 2026","King of the Bay: Aran Cup|Jun 19, 2026","King of the Bay: Kinvara|Aug 15, 2026","King of the Bay: Clarinbridge Cup|Aug 29, 2026","King of the Bay: Morans|Sep 12, 2026","King of the Bay: Oyster Festival|Sep 26, 2026"];
+// allRaces and nextRace are populated by loadRaceSchedule() at init.
+// Everything downstream uses the same interface as before.
 
-function raceDate(dateStr,hour=19,min=0){
-  // Parse a date string and set local time explicitly, avoiding UTC midnight issues
-  const d=new Date(dateStr);
-  d.setHours(hour,min,0,0);
-  return d;
-}
-function buildAllRaces(){
-  allRaces=[];
-  WED.forEach(s=>s.d.forEach(d=>allRaces.push({label:s.name+' — Wed '+d,date:raceDate(d+' 2026',19,0),g:'w'})));
-  KOTB.forEach(r=>{const[n,d]=r.split('|');allRaces.push({label:n,date:raceDate(d,11,0),g:'k'});});
-  allRaces.push({label:'Expert Forklifts October Series',date:raceDate('Oct 7, 2026',19,0),g:'o'});
-  allRaces.sort((a,b)=>a.date-b.date);
+async function loadRaceSchedule(){
+  const rows=await sbFetch('/rest/v1/races?active=eq.true&order=race_date.asc,sort_order.asc');
+  if(!rows||rows._err||!rows.length){
+    console.warn('Could not load race schedule from DB');
+    return;
+  }
+  allRaces=rows.map(r=>{
+    const d=new Date(r.race_date+'T00:00:00'); // local midnight, no UTC shift
+    d.setHours(r.start_hour||19, r.start_min||0, 0, 0);
+    return {id:r.id, label:r.label, date:d, series:r.series||''};
+  });
+  nextRace=getNextRace();
 }
 function getNextRace(){
-  // Returns the next future race; fall back to the last race if season is over
   const now=new Date();
   const upcoming=allRaces.filter(r=>r.date>=now);
-  if(!upcoming.length) return allRaces[allRaces.length-1];
-  return upcoming[0];
+  return upcoming.length?upcoming[0]:allRaces[allRaces.length-1]||null;
 }
 function raceKey(r){
   // Stable string key for a race — used as registration identifier
@@ -301,13 +292,12 @@ function newCrewId(){
 // LOGIN
 // ═══════════════════════════════════════════════════════════════
 async function buildBoatGrid(){
-  buildAllRaces();
-  nextRace=getNextRace();
+  await loadRaceSchedule(); // load from DB — populates allRaces + nextRace
 
   // Show next race label
   const raceEl=document.getElementById('loginRaceLabel');
-  if(raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
-  showSponsor(nextRace.label);
+  if(nextRace&&raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  if(nextRace) showSponsor(nextRace.label);
   renderDocs();
 
   // Show loading state
@@ -736,15 +726,18 @@ function guestNav(tabId){
 // RACE SCHEDULE FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
 function buildRaceDropdown(){
-  // allRaces already built by buildAllRaces() in buildBoatGrid
-  // Default to nextRace
+  // allRaces populated from DB by loadRaceSchedule()
   const nr=nextRace||getNextRace();
   const ci=allRaces.indexOf(nr)>=0?allRaces.indexOf(nr):0;
   const sel=document.getElementById('raceDropdown'); sel.innerHTML='';
-  const gmap={w:'Wednesday Night Racing',k:'King of the Bay',o:'Other'};
+  // Group by series name dynamically — no hardcoded group keys
   const og={};
-  Object.entries(gmap).forEach(([k,l])=>{og[k]=document.createElement('optgroup');og[k].label=l;});
-  allRaces.forEach((r,i)=>{const o=document.createElement('option');o.value=i;o.textContent=r.label;og[r.g].appendChild(o);});
+  allRaces.forEach((r,i)=>{
+    const grp=r.series||'Other';
+    if(!og[grp]){og[grp]=document.createElement('optgroup');og[grp].label=grp;}
+    const o=document.createElement('option');o.value=i;o.textContent=r.label;
+    og[grp].appendChild(o);
+  });
   Object.values(og).forEach(g=>sel.appendChild(g));
   sel.value=ci; onRaceSelect(sel,true);
 }
@@ -3687,18 +3680,19 @@ function startCountdown(){
 checkPayHash();
 loadWindWidget();
 loadClubSettings().then(()=>updateEstellaLink()); // warm up settings cache for public view
-// Build race schedule synchronously so public race cards populate immediately
-buildAllRaces();
-nextRace=getNextRace();
-(function initPublicView(){
+showTab('registeredTab', null);
+// Load schedule + boats in parallel, then populate public view
+buildBoatGrid().then(()=>{
+  // By now allRaces and nextRace are populated from DB
   const el=document.getElementById('guestDashRaceName');
   const mel=document.getElementById('guestDashMeta');
   const tel=document.getElementById('guestDashTime');
   if(el&&nextRace) el.textContent=nextRace.label;
+  else if(el) el.textContent='No races scheduled';
   if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   startCountdown();
-  showTab('registeredTab', null);
   loadAndDrawCourse().then(()=>updateHomeChips());
-})();
-buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
+});
+// Course can start loading immediately — doesn't depend on schedule
+
