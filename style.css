@@ -648,3 +648,33 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   font-size:.72rem;font-weight:700;
   letter-spacing:.1em;text-transform:uppercase;
   color:var(--muted);margin-bottom:8px;margin-top:4px;}
+
+/* ─── RACE SCHEDULE MANAGEMENT ──────────────────────────── */
+.field-label{display:block;font-size:.68rem;color:var(--muted);font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;}
+.race-form-input{width:100%;background:var(--navy-input);border:1px solid var(--border);
+  border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;
+  font-size:.95rem;padding:8px 10px;outline:none;box-sizing:border-box;}
+.race-mgmt-series{font-size:.68rem;font-weight:700;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.09em;margin:16px 0 6px;
+  padding-bottom:4px;border-bottom:1px solid var(--border);}
+.race-mgmt-series:first-child{margin-top:0;}
+.race-mgmt-row{display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:rgba(255,255,255,.04);border-radius:10px;margin-bottom:6px;
+  transition:opacity .2s;}
+.race-mgmt-row.cancelled{opacity:.45;}
+.race-mgmt-info{flex:1;min-width:0;}
+.race-mgmt-label{font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  font-size:.95rem;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.race-mgmt-row.cancelled .race-mgmt-label{text-decoration:line-through;}
+.race-mgmt-date{font-size:.72rem;color:var(--muted);margin-top:2px;}
+.race-mgmt-actions{display:flex;gap:6px;flex-shrink:0;}
+.race-mgmt-btn{width:34px;height:34px;border-radius:8px;border:none;
+  font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-family:'Barlow',sans-serif;transition:background .15s;}
+.race-mgmt-btn.edit{background:rgba(0,174,239,.15);color:var(--teal);}
+.race-mgmt-btn.edit:hover{background:rgba(0,174,239,.3);}
+.race-mgmt-btn.cancel{background:rgba(255,80,80,.12);color:#f87171;}
+.race-mgmt-btn.cancel:hover{background:rgba(255,80,80,.25);}
+.race-mgmt-btn.uncancel{background:rgba(34,197,94,.12);color:#4ade80;}
+.race-mgmt-btn.uncancel:hover{background:rgba(34,197,94,.25);}

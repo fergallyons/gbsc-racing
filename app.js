@@ -1183,6 +1183,135 @@ function saveROClubSettings(){
   renderCourseDiagram();
 }
 
+// ── Race Schedule Management (RO) ────────────────────────────────────────
+async function openRaceSchedulePanel(){
+  openPanel('roRacePanel');
+  hideRaceForm();
+  await renderRaceScheduleList();
+  // Update subtile count
+  const sub=document.getElementById('roRaceScheduleSub');
+  if(sub) sub.textContent=allRaces.length+' races loaded';
+}
+
+async function renderRaceScheduleList(){
+  const list=document.getElementById('roRaceList');
+  list.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px">Loading…</div>';
+  // Fetch ALL races (including cancelled) for management view
+  const rows=await sbFetch('/rest/v1/races?order=race_date.asc,sort_order.asc&select=*');
+  if(!rows||rows._err){
+    list.innerHTML='<div class="empty-state"><div class="icon">⚠️</div><div>Could not load races</div></div>';
+    return;
+  }
+  if(!rows.length){
+    list.innerHTML='<div class="empty-state"><div class="icon">📅</div><div>No races scheduled yet</div></div>';
+    return;
+  }
+  // Populate series datalist for the form
+  const seriesSet=new Set(rows.map(r=>r.series).filter(Boolean));
+  const dl=document.getElementById('rf-series-list');
+  if(dl) dl.innerHTML=[...seriesSet].map(s=>`<option value="${s}">`).join('');
+  // Group by series
+  const groups={};
+  rows.forEach(r=>{
+    const s=r.series||'Other';
+    if(!groups[s]) groups[s]=[];
+    groups[s].push(r);
+  });
+  let html='';
+  Object.entries(groups).forEach(([series,races])=>{
+    html+=`<div class="race-mgmt-series">${series}</div>`;
+    races.forEach(r=>{
+      const d=new Date(r.race_date+'T00:00:00');
+      const dateStr=d.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+      const hh=String(r.start_hour||19).padStart(2,'0');
+      const mm=String(r.start_min||0).padStart(2,'0');
+      const cancelled=!r.active;
+      html+=`<div class="race-mgmt-row${cancelled?' cancelled':''}" data-id="${r.id}">
+        <div class="race-mgmt-info">
+          <div class="race-mgmt-label">${r.label}</div>
+          <div class="race-mgmt-date">${dateStr} · ${hh}:${mm}</div>
+        </div>
+        <div class="race-mgmt-actions">
+          <button class="race-mgmt-btn edit" onclick="openEditRaceForm(${r.id})" title="Edit">✏️</button>
+          <button class="race-mgmt-btn ${cancelled?'uncancel':'cancel'}"
+            onclick="toggleRaceCancelled(${r.id},${r.active})"
+            title="${cancelled?'Restore':'Cancel'}">${cancelled?'↩':'✕'}</button>
+        </div>
+      </div>`;
+    });
+  });
+  list.innerHTML=html;
+}
+
+async function toggleRaceCancelled(id,currentlyActive){
+  await sbFetch('/rest/v1/races?id=eq.'+id,{
+    method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({active:!currentlyActive})
+  });
+  await renderRaceScheduleList();
+  await loadRaceSchedule(); // keep in-memory schedule in sync
+}
+
+function openAddRaceForm(){
+  const form=document.getElementById('roRaceForm');
+  document.getElementById('roRaceFormTitle').textContent='Add Race';
+  document.getElementById('rf-id').value='';
+  document.getElementById('rf-label').value='';
+  document.getElementById('rf-date').value='';
+  document.getElementById('rf-time').value='19:00';
+  document.getElementById('rf-series').value='';
+  document.getElementById('rf-sort').value='99';
+  form.style.display='block';
+  form.scrollIntoView({behavior:'smooth'});
+}
+
+async function openEditRaceForm(id){
+  const rows=await sbFetch('/rest/v1/races?id=eq.'+id+'&select=*');
+  if(!rows||!rows.length) return;
+  const r=rows[0];
+  const form=document.getElementById('roRaceForm');
+  document.getElementById('roRaceFormTitle').textContent='Edit Race';
+  document.getElementById('rf-id').value=r.id;
+  document.getElementById('rf-label').value=r.label;
+  document.getElementById('rf-date').value=r.race_date;
+  const hh=String(r.start_hour||19).padStart(2,'0');
+  const mm=String(r.start_min||0).padStart(2,'0');
+  document.getElementById('rf-time').value=hh+':'+mm;
+  document.getElementById('rf-series').value=r.series||'';
+  document.getElementById('rf-sort').value=r.sort_order||0;
+  form.style.display='block';
+  form.scrollIntoView({behavior:'smooth'});
+}
+
+function hideRaceForm(){
+  const f=document.getElementById('roRaceForm');
+  if(f) f.style.display='none';
+}
+
+async function saveRace(){
+  const id=document.getElementById('rf-id').value;
+  const label=document.getElementById('rf-label').value.trim();
+  const date=document.getElementById('rf-date').value;
+  const time=document.getElementById('rf-time').value||'19:00';
+  const [hourStr,minStr]=time.split(':');
+  const series=document.getElementById('rf-series').value.trim();
+  const sort=parseInt(document.getElementById('rf-sort').value,10)||0;
+  if(!label||!date){alert('Race name and date are required');return;}
+  const payload={label,race_date:date,start_hour:parseInt(hourStr,10),
+    start_min:parseInt(minStr,10),series,sort_order:sort};
+  if(id){
+    await sbFetch('/rest/v1/races?id=eq.'+id,{
+      method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(payload)});
+  } else {
+    await sbFetch('/rest/v1/races',{
+      method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(payload)});
+  }
+  hideRaceForm();
+  await renderRaceScheduleList();
+  await loadRaceSchedule();
+}
+
 async function browseEstelaRaces(){
   const content=document.getElementById('estelaPickerContent');
   content.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading your races from eStela…</div></div>';
