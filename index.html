@@ -1241,9 +1241,24 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- Club config — served by Netlify edge function, sets window.CLUB before app.js runs -->
-<script src="/club-config.js"></script>
-<script src="app.js"></script>
+<!-- Club config loader — sets window.CLUB before app.js runs.
+     ?club=<slug> on the page URL overrides hostname lookup (persists for the session). -->
+<script>
+  (function(){
+    var slug = new URLSearchParams(location.search).get('club');
+    if(slug) sessionStorage.setItem('_clubOverride', slug);
+    else slug = sessionStorage.getItem('_clubOverride') || '';
+    var cfgSrc = '/club-config.js' + (slug ? '?club=' + encodeURIComponent(slug) : '');
+    var cfg = document.createElement('script');
+    cfg.src = cfgSrc;
+    cfg.onload = function(){
+      var app = document.createElement('script');
+      app.src = 'app.js';
+      document.body.appendChild(app);
+    };
+    document.body.appendChild(cfg);
+  })();
+</script>
 <script>
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('SW registration failed:',e));

@@ -52,14 +52,22 @@
 export default async function handler(request) {
   const host = (request.headers.get('host') || '').split(':')[0]; // strip port
 
-  // ── 1. Resolve club slug from hostname ─────────────────────────────
+  // ── 1. Resolve club slug ───────────────────────────────────────────
+  // ?club=<slug> query param overrides hostname lookup — for testing only.
+  // Remove this override in production by unsetting ALLOW_CLUB_OVERRIDE.
+  const url = new URL(request.url);
+  const overrideSlug = url.searchParams.get('club');
+  const allowOverride = Deno.env.get('ALLOW_CLUB_OVERRIDE') !== 'false';
+
   let hostnameMap = {};
   try {
     hostnameMap = JSON.parse(Deno.env.get('HOSTNAME_MAP') || '{}');
   } catch (e) {
     console.error('club-config: bad HOSTNAME_MAP JSON', e);
   }
-  const slug = hostnameMap[host] || hostnameMap['default'] || 'gbsc';
+  const slug = (allowOverride && overrideSlug)
+    ? overrideSlug.toLowerCase().replace(/[^a-z0-9]/g, '')
+    : hostnameMap[host] || hostnameMap['default'] || 'gbsc';
 
   // ── 2. Load club config ────────────────────────────────────────────
   const envKey = 'CLUB_CONFIG_' + slug.toUpperCase();
