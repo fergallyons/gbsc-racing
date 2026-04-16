@@ -468,6 +468,7 @@ function switchBoat(){
   document.getElementById('loginBtn').style.display='';
   document.getElementById('changePinBtn').style.display='none';
   showTab('registeredTab', null);
+  renderRegisteredTab();  // refresh starting line on return to home
 }
 async function renderRegisteredTab(){
   const label=document.getElementById('regRaceLabel'); // legacy — may be null in new dashboard
