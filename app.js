@@ -1194,6 +1194,171 @@ function saveROClubSettings(){
   renderCourseDiagram();
 }
 
+// ═══════════════════════════════════════════════════════════════
+// CREW SELF-PAY — public flow: pick boat → pick yourself → pay
+// ═══════════════════════════════════════════════════════════════
+let _cpBoatConfig=null;
+let _cpStep=1;
+
+function openCrewPaySheet(){
+  _cpStep=1; _cpBoatConfig=null;
+  document.getElementById('crewPayBack').style.display='none';
+  document.getElementById('crewPayTitle').textContent='💳 Pay Race Fees';
+  _crewPayRenderBoats();
+  document.getElementById('crewPaySheet').classList.add('open');
+}
+
+function crewPayBack(){
+  if(_cpStep===3){
+    // Go back to crew list for the same boat
+    _cpStep=2;
+    crewPaySelectBoat(crewPaySelectBoat._lastBoatId);
+  } else if(_cpStep===2){
+    _cpStep=1;
+    document.getElementById('crewPayBack').style.display='none';
+    document.getElementById('crewPayTitle').textContent='💳 Pay Race Fees';
+    _crewPayRenderBoats();
+  }
+}
+
+function _crewPayRenderBoats(){
+  const content=document.getElementById('crewPayContent');
+  if(!boats.length){
+    content.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading boats…</div></div>';
+    return;
+  }
+  const raceName=nextRace?nextRace.label:'';
+  content.innerHTML=
+    (raceName
+      ?`<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;text-align:center">Select the boat you sailed on for<br><strong style="color:var(--white)">${raceName}</strong></div>`
+      :`<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;text-align:center">Select the boat you sailed on</div>`)+
+    boats.map(b=>
+      `<div onclick="crewPaySelectBoat('${b.id}')"
+        style="display:flex;align-items:center;gap:12px;padding:12px 14px;
+          background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;
+          margin-bottom:8px;cursor:pointer;">
+        <span style="font-size:1.4rem">${b.icon}</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
+          color:var(--white);flex:1">${b.name}</span>
+        <span style="font-size:.75rem;color:var(--teal);font-weight:700">Select →</span>
+      </div>`
+    ).join('');
+}
+
+async function crewPaySelectBoat(boatId){
+  crewPaySelectBoat._lastBoatId=boatId;
+  _cpStep=2;
+  document.getElementById('crewPayBack').style.display='';
+  const boat=boats.find(b=>b.id===boatId)||{name:boatId,icon:'⛵'};
+  document.getElementById('crewPayTitle').textContent=boat.icon+' '+boat.name;
+  const content=document.getElementById('crewPayContent');
+  content.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading crew…</div></div>';
+
+  // Fetch boat revolut_user and selected crew in parallel
+  const [cfg,crewRows]=await Promise.all([
+    sbFetch('/rest/v1/boats?id=eq.'+boatId+'&select=revolut_user'),
+    sbFetch('/rest/v1/crew?boat_id=eq.'+boatId+'&selected=eq.true&order=first.asc')
+  ]);
+  _cpBoatConfig={revolut_user:(cfg&&cfg[0]&&cfg[0].revolut_user)||''};
+
+  // Fall back to full roster if skipper hasn't marked anyone as selected
+  let crew=crewRows&&crewRows.length?crewRows:[];
+  if(!crew.length){
+    const all=await sbFetch('/rest/v1/crew?boat_id=eq.'+boatId+'&order=first.asc');
+    crew=all||[];
+  }
+
+  if(!crew.length){
+    content.innerHTML=
+      '<div class="empty-state"><div class="icon">⛵</div>'+
+      '<div>No crew found for this boat.<br>'+
+      '<span style="font-size:.75rem;color:var(--muted)">Ask your skipper to set up the crew roster.</span></div></div>';
+    return;
+  }
+
+  // Store crew on the function for use by back button
+  crewPaySelectBoat._crew=crew;
+
+  content.innerHTML=
+    `<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;text-align:center">Select your name</div>`+
+    crew.map((c,i)=>{
+      const amt=FEES[c.type]||0;
+      const typeLabel=c.type==='visitor'?'Visitor':c.type==='student'?'Student':'Member';
+      const initials=(c.first[0]+(c.last?c.last[0]:'')).toUpperCase();
+      return `<div onclick="crewPaySelectSelf(${i})"
+        style="display:flex;align-items:center;gap:12px;padding:12px 14px;
+          background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;
+          margin-bottom:8px;cursor:pointer;">
+        <div style="width:36px;height:36px;border-radius:50%;background:rgba(0,174,239,.15);
+          border:1px solid rgba(0,174,239,.3);display:flex;align-items:center;justify-content:center;
+          font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:800;color:var(--teal);flex-shrink:0;">
+          ${initials}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">${c.first} ${c.last||''}</div>
+          <div style="font-size:.7rem;color:var(--muted)">${typeLabel}</div>
+        </div>
+        ${amt
+          ?`<span style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--danger)">€${amt}</span>`
+          :`<span style="font-size:.75rem;color:var(--success);font-weight:700">No fee</span>`}
+      </div>`;
+    }).join('');
+}
+crewPaySelectBoat._lastBoatId=null;
+crewPaySelectBoat._crew=[];
+
+function crewPaySelectSelf(idx){
+  const c=crewPaySelectBoat._crew[idx];
+  if(!c) return;
+  const amt=FEES[c.type]||0;
+  _cpStep=3;
+  document.getElementById('crewPayTitle').textContent='Hi, '+c.first+' 👋';
+
+  const rev=_cpBoatConfig&&_cpBoatConfig.revolut_user;
+  const stripeUrl=(
+    c.type==='student'?clubSettings.stripe_link_student:
+    c.type==='visitor'?clubSettings.stripe_link_visitor:
+    clubSettings.stripe_link_member)||'';
+
+  const feeNote=amt
+    ?`<div style="text-align:center;font-size:.78rem;color:var(--muted);margin-bottom:8px">Your fee for ${nextRace?nextRace.label:'this race'}</div>
+       <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:800;color:var(--danger);margin-bottom:18px">€${amt}</div>`
+    :`<div style="text-align:center;font-size:.9rem;color:var(--success);font-weight:700;margin-bottom:18px">No fee due ✓</div>`;
+
+  const revBtn=rev&&amt
+    ?`<a href="https://revolut.me/${rev}" target="_blank" rel="noopener"
+        style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+        background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:14px;
+        padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
+        margin-bottom:6px;box-shadow:0 4px 24px rgba(110,64,216,.4);">
+        <span style="font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">💜 Open Revolut</span>
+        <span style="font-size:.85rem;font-weight:400;opacity:.85">then enter <strong style="font-size:1rem;font-weight:800">€${amt}</strong> as the amount</span>
+      </a>
+      <div style="text-align:center;font-size:.72rem;color:#a78bfa;margin-bottom:14px;letter-spacing:.02em">Send to <strong>@${rev}</strong></div>`
+    :'';
+
+  const stripeBtn=stripeUrl&&amt
+    ?`<a href="${stripeUrl}" target="_blank" rel="noopener"
+        style="display:flex;align-items:center;justify-content:center;gap:10px;
+        background:linear-gradient(135deg,#0d6efd,#0dcaf0);color:white;border-radius:14px;
+        padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
+        font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+        margin-bottom:12px;box-shadow:0 4px 24px rgba(13,110,253,.3);">
+        💳 Pay €${amt} by Card / Apple Pay
+      </a>`
+    :'';
+
+  const noOpts=!rev&&!stripeUrl&&amt
+    ?`<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+        border-radius:12px;padding:16px;text-align:center;font-size:.85rem;color:var(--muted)">
+        Payment links haven't been set up for this boat yet.<br>
+        <span style="font-size:.75rem">Ask your skipper to add their Revolut username in Settings.</span>
+      </div>`
+    :'';
+
+  document.getElementById('crewPayContent').innerHTML=feeNote+revBtn+stripeBtn+noOpts;
+}
+
 async function browseEstelaRaces(){
   const content=document.getElementById('estelaPickerContent');
   content.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading your races from eStela…</div></div>';

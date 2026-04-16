@@ -339,6 +339,11 @@
       <div class="dash-card-label">Results</div>
       <div class="dash-card-sub">Series standings</div>
     </div>
+    <div class="dash-card" onclick="openCrewPaySheet()">
+      <div class="dash-card-icon">💳</div>
+      <div class="dash-card-label">Pay Fees</div>
+      <div class="dash-card-sub">Pay your race fee</div>
+    </div>
     <div class="dash-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
       <div class="dash-card-icon">📅</div>
       <div class="dash-card-label">Calendar</div>
@@ -911,6 +916,23 @@
       <div style="font-size:.7rem;color:var(--muted);line-height:1.4;margin-bottom:10px">Downloads a full snapshot of all club data as a JSON file. Keep a copy somewhere safe.</div>
       <button class="btn btn-ghost" style="width:100%;padding:11px" onclick="downloadDatabaseBackup()">⬇ Download Backup Now</button>
     </div>
+  </div>
+</div>
+
+<!-- Crew self-pay sheet — 3 steps: pick boat → pick yourself → pay -->
+<div class="overlay" id="crewPaySheet">
+  <div class="sheet" style="max-height:88vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button id="crewPayBack" onclick="crewPayBack()"
+        style="display:none;background:rgba(255,255,255,.07);border:1px solid var(--border);
+        color:var(--white);border-radius:8px;padding:5px 12px;font-family:'Barlow Condensed',sans-serif;
+        font-weight:700;font-size:.9rem;cursor:pointer;">‹ Back</button>
+      <div class="sheet-title" id="crewPayTitle" style="margin-bottom:0">💳 Pay Race Fees</div>
+    </div>
+    <div id="crewPayContent"></div>
+    <button class="btn btn-ghost" style="width:100%;padding:12px;margin-top:12px"
+      onclick="closeSheet('crewPaySheet')">Close</button>
   </div>
 </div>
 
