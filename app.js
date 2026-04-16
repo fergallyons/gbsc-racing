@@ -703,10 +703,16 @@ function updateRODash(){
 function updateROChips(regsCount,protestsCount,coursePublished){
   const chips=document.getElementById('roDashChips');
   if(!chips)return;
+  const cstate=getCourseState();
+  const courseChip=
+    cstate==='live'   ?'<span class="dash-chip course-ok">✅ Course published</span>':
+    cstate==='pending'?'<span class="dash-chip course-no">🕐 Course not set</span>':
+    cstate==='stale'  ?'<span class="dash-chip course-no">⚠ Previous course</span>':
+                       '<span class="dash-chip course-no">Course not set</span>';
   chips.innerHTML=
     '<span class="dash-chip regs">⛵ '+regsCount+' registered</span>'+
     (protestsCount>0?'<span class="dash-chip protests">🚩 '+protestsCount+' protest'+(protestsCount>1?'s':'')+'</span>':'')+
-    (coursePublished?'<span class="dash-chip course-ok">✅ Course published</span>':'<span class="dash-chip course-no">Course not set</span>');
+    courseChip;
   const regsStatus=document.getElementById('roRegsStatus');
   const protestStatus=document.getElementById('roProtestsStatus');
   const courseStatus=document.getElementById('roCourseStatus');
