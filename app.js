@@ -2176,6 +2176,115 @@ function getCourseState(){
   return 'live';
 }
 
+// ── Shared SVG builder — used by both the published diagram and the RO live preview ──
+function buildCourseSvg(markEntries, wDeg){
+  const resolvedMarks=markEntries.map(me=>{
+    const m=MARKS.find(x=>x.id===me.id);
+    return m?{...m,rounding:me.rounding||'port'}:null;
+  }).filter(Boolean);
+
+  const geoPts=[{lat:START_POS.lat,lng:START_POS.lng},...resolvedMarks.map(m=>({lat:m.lat,lng:m.lng}))];
+  const refLat=geoPts.reduce((s,p)=>s+p.lat,0)/geoPts.length;
+  const refLng=geoPts.reduce((s,p)=>s+p.lng,0)/geoPts.length;
+  const cosLat=Math.cos(refLat*Math.PI/180);
+  const raw=geoPts.map(p=>({x:(p.lng-refLng)*cosLat,y:-(p.lat-refLat)}));
+
+  const SVG_W=320,SVG_H=300,PAD=44;
+  const rawXs=raw.map(p=>p.x),rawYs=raw.map(p=>p.y);
+  const minX=Math.min(...rawXs),maxX=Math.max(...rawXs);
+  const minY=Math.min(...rawYs),maxY=Math.max(...rawYs);
+  const rangeX=maxX-minX||0.001,rangeY=maxY-minY||0.001;
+  const usableW=SVG_W-PAD*2,usableH=SVG_H-PAD*2;
+  const scale=Math.min(usableW/rangeX,usableH/rangeY);
+  const scaledW=rangeX*scale,scaledH=rangeY*scale;
+  const ox=PAD+(usableW-scaledW)/2-minX*scale;
+  const oy=PAD+(usableH-scaledH)/2-minY*scale;
+  const toSvg=p=>({x:p.x*scale+ox,y:p.y*scale+oy});
+  const svgPts=raw.map(toSvg);
+  const sfPt=svgPts[0];
+  const markPts=svgPts.slice(1);
+  const route=[sfPt,...markPts,sfPt];
+
+  let svgParts=[];
+  const satFilter=mapTileMode!=='off'?`<filter id="ts" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="1.8" flood-color="rgba(0,0,0,0.95)"/></filter>`:'';
+  const tf=mapTileMode!=='off'?' filter="url(#ts)"':'';
+  svgParts.push(`<defs>
+    <marker id="ca" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(0,180,216,0.8)"/>
+    </marker>
+    <marker id="cr" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(122,143,166,0.45)"/>
+    </marker>
+    <marker id="cw" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(255,170,0,0.9)"/>
+    </marker>
+    ${satFilter}
+  </defs>`);
+
+  if(mapTileMode!=='off'){
+    svgParts.push(...buildSatTiles(refLat,refLng,cosLat,scale,ox,oy,SVG_W,SVG_H));
+  }
+
+  const NR=4;
+  for(let i=0;i<route.length-1;i++){
+    const p1=route[i],p2=route[i+1];
+    const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1;
+    const sx=p1.x+dx/len*NR,sy=p1.y+dy/len*NR;
+    const ex=p2.x-dx/len*(NR+2),ey=p2.y-dy/len*(NR+2);
+    svgParts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="rgba(0,180,216,0.6)" stroke-width="1.8" marker-end="url(#ca)"/>`);
+  }
+
+  resolvedMarks.forEach((m,i)=>{
+    const p=markPts[i];
+    const rnd=m.rounding;
+    const rndCol=rnd==='port'?'#e63946':'#2dc653';
+    const rndSym=rnd==='port'?'◄P':'S►';
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR+3}" fill="${m.colour}12" stroke="${m.colour}" stroke-width="0.7" opacity="0.55"/>`);
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR}" fill="${m.colour}30" stroke="${m.colour}" stroke-width="1.5"/>`);
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="1.5" fill="${m.colour}"/>`);
+    const labelLeft=p.x<=SVG_W/2;
+    const lx=(labelLeft?p.x-NR-4:p.x+NR+4).toFixed(1);
+    const anchor=labelLeft?'end':'start';
+    svgParts.push(`<text x="${lx}" y="${(p.y-3).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="400"${tf}>${m.name}</text>`);
+    svgParts.push(`<text x="${lx}" y="${(p.y+6).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>${rndSym}</text>`);
+  });
+
+  {
+    const p=sfPt,R=NR+1;
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${R+4}" fill="none" stroke="#00b4d8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.55"/>`);
+    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${R}" fill="rgba(0,180,216,0.15)" stroke="#00b4d8" stroke-width="2"/>`);
+    svgParts.push(`<text x="${p.x.toFixed(1)}" y="${(p.y+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="#00b4d8" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="800">S/F</text>`);
+  }
+
+  {
+    const nx=SVG_W-18,ny=32,nh=14;
+    svgParts.push(`<line x1="${nx}" y1="${ny+nh/2}" x2="${nx}" y2="${ny-nh/2}" stroke="rgba(180,200,220,0.55)" stroke-width="1.5" marker-end="url(#ca)"/>`);
+    svgParts.push(`<text x="${nx}" y="${ny+nh/2+10}" text-anchor="middle" fill="rgba(122,143,166,0.65)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>N</text>`);
+  }
+
+  if(wDeg!=null){
+    const wCX=20,wCY=24,wLen=13;
+    const wRad=(wDeg+180)*Math.PI/180;
+    const arrowX=(wCX+Math.sin(wRad)*wLen).toFixed(1);
+    const arrowY=(wCY-Math.cos(wRad)*wLen).toFixed(1);
+    svgParts.push(`<line x1="${wCX}" y1="${wCY}" x2="${arrowX}" y2="${arrowY}" stroke="rgba(255,170,0,0.75)" stroke-width="2" marker-end="url(#cw)"/>`);
+    svgParts.push(`<text x="${wCX}" y="${wCY+13}" text-anchor="middle" fill="rgba(255,170,0,0.75)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>${wDeg}°</text>`);
+  }
+
+  return `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block">${svgParts.join('\n')}</svg>`;
+}
+
+// ── RO live course preview ────────────────────────────────────────────────
+function renderRoCoursePreview(){
+  const wrap=document.getElementById('roCoursePreview');
+  if(!wrap) return;
+  if(!courseMarks.length){
+    wrap.innerHTML='<div class="ro-preview-empty">Tap marks above to preview the course</div>';
+    return;
+  }
+  wrap.innerHTML=buildCourseSvg(courseMarks, windDeg);
+}
+
 function renderCourseDiagram(){
   const wrap=document.getElementById('courseDisplay');
   const state=getCourseState();
@@ -2206,127 +2315,7 @@ function renderCourseDiagram(){
   const windDir=c.windDeg!=null?dirs[Math.round(c.windDeg/22.5)%16]:'—';
   const windDegDisp=c.windDeg!=null?c.windDeg+'° '+windDir:'—';
 
-  // ── Resolve marks ──────────────────────────────────────────────
-  const resolvedMarks=markEntries.map(me=>{
-    const m=MARKS.find(x=>x.id===me.id);
-    return m?{...m,rounding:me.rounding||'port'}:null;
-  }).filter(Boolean);
-
-  // ── Geo points for projection: start + marks ───────────────────
-  const geoPts=[{lat:START_POS.lat,lng:START_POS.lng},...resolvedMarks.map(m=>({lat:m.lat,lng:m.lng}))];
-
-  // ── Equirectangular projection (north=up, east=right) ──────────
-  const refLat=geoPts.reduce((s,p)=>s+p.lat,0)/geoPts.length;
-  const refLng=geoPts.reduce((s,p)=>s+p.lng,0)/geoPts.length;
-  const cosLat=Math.cos(refLat*Math.PI/180);
-  const raw=geoPts.map(p=>({
-    x:(p.lng-refLng)*cosLat,
-    y:-(p.lat-refLat)   // flip Y: north=up in SVG
-  }));
-
-  // ── Scale to SVG canvas ────────────────────────────────────────
-  const SVG_W=320,SVG_H=300,PAD=44;
-  const rawXs=raw.map(p=>p.x),rawYs=raw.map(p=>p.y);
-  const minX=Math.min(...rawXs),maxX=Math.max(...rawXs);
-  const minY=Math.min(...rawYs),maxY=Math.max(...rawYs);
-  const rangeX=maxX-minX||0.001,rangeY=maxY-minY||0.001;
-  const usableW=SVG_W-PAD*2,usableH=SVG_H-PAD*2;
-  const scale=Math.min(usableW/rangeX,usableH/rangeY);
-  const scaledW=rangeX*scale,scaledH=rangeY*scale;
-  const ox=PAD+(usableW-scaledW)/2-minX*scale;
-  const oy=PAD+(usableH-scaledH)/2-minY*scale;
-  const toSvg=p=>({x:p.x*scale+ox,y:p.y*scale+oy});
-  const svgPts=raw.map(toSvg);
-  const sfPt=svgPts[0];
-  const markPts=svgPts.slice(1);
-
-  // Full route for drawing legs: S → m1 → ... → mn → S
-  const route=[sfPt,...markPts,sfPt];
-
-  let svgParts=[];
-
-  // ── Defs: arrowhead markers + optional text-shadow filter ─────
-  const satFilter=mapTileMode!=='off'?`<filter id="ts" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="1.8" flood-color="rgba(0,0,0,0.95)"/></filter>`:'';
-  const tf=mapTileMode!=='off'?' filter="url(#ts)"':'';
-  svgParts.push(`<defs>
-    <marker id="ca" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
-      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(0,180,216,0.8)"/>
-    </marker>
-    <marker id="cr" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
-      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(122,143,166,0.45)"/>
-    </marker>
-    <marker id="cw" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
-      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(255,170,0,0.9)"/>
-    </marker>
-    ${satFilter}
-  </defs>`);
-
-  // ── Satellite tile background ──────────────────────────────────
-  if(mapTileMode!=='off'){
-    svgParts.push(...buildSatTiles(refLat,refLng,cosLat,scale,ox,oy,SVG_W,SVG_H));
-  }
-
-  // ── Course legs ────────────────────────────────────────────────
-  const NR=4; // node radius for endpoint offsets
-  for(let i=0;i<route.length-1;i++){
-    const p1=route[i],p2=route[i+1];
-    const isRet=i===route.length-2;
-    const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1;
-    const sx=p1.x+dx/len*NR,sy=p1.y+dy/len*NR;
-    const ex=p2.x-dx/len*(NR+2),ey=p2.y-dy/len*(NR+2);
-    const stroke='rgba(0,180,216,0.6)';
-    const marker='ca';
-    const dash='';
-    svgParts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${stroke}" stroke-width="1.8" ${dash} marker-end="url(#${marker})"/>`);
-  }
-
-  // ── Mark nodes ─────────────────────────────────────────────────
-  resolvedMarks.forEach((m,i)=>{
-    const p=markPts[i];
-    const rnd=m.rounding;
-    const rndCol=rnd==='port'?'#e63946':'#2dc653';
-    const rndSym=rnd==='port'?'◄P':'S►';
-    // Glow
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR+3}" fill="${m.colour}12" stroke="${m.colour}" stroke-width="0.7" opacity="0.55"/>`);
-    // Body
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR}" fill="${m.colour}30" stroke="${m.colour}" stroke-width="1.5"/>`);
-    // Core dot
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="1.5" fill="${m.colour}"/>`);
-    // Mark name and rounding — left of mark if on left half, right if on right half
-    const labelLeft=p.x<=SVG_W/2;
-    const lx=(labelLeft?p.x-NR-4:p.x+NR+4).toFixed(1);
-    const anchor=labelLeft?'end':'start';
-    svgParts.push(`<text x="${lx}" y="${(p.y-3).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="400"${tf}>${m.name}</text>`);
-    svgParts.push(`<text x="${lx}" y="${(p.y+6).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>${rndSym}</text>`);
-  });
-
-  // ── Start / Finish node ────────────────────────────────────────
-  {
-    const p=sfPt,R=NR+1;
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${R+4}" fill="none" stroke="#00b4d8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.55"/>`);
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${R}" fill="rgba(0,180,216,0.15)" stroke="#00b4d8" stroke-width="2"/>`);
-    svgParts.push(`<text x="${p.x.toFixed(1)}" y="${(p.y+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="#00b4d8" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="800">S/F</text>`);
-  }
-
-  // ── North arrow (top-right) ────────────────────────────────────
-  {
-    const nx=SVG_W-18,ny=32,nh=14;
-    svgParts.push(`<line x1="${nx}" y1="${ny+nh/2}" x2="${nx}" y2="${ny-nh/2}" stroke="rgba(180,200,220,0.55)" stroke-width="1.5" marker-end="url(#ca)"/>`);
-    svgParts.push(`<text x="${nx}" y="${ny+nh/2+10}" text-anchor="middle" fill="rgba(122,143,166,0.65)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>N</text>`);
-  }
-
-  // ── Wind direction arrow (top-left) ───────────────────────────
-  if(c.windDeg!=null){
-    // Arrow shows direction wind flows (downwind) — tail at FROM side, head downwind
-    const wCX=20,wCY=24,wLen=13;
-    const wRad=(c.windDeg+180)*Math.PI/180;
-    const arrowX=(wCX+Math.sin(wRad)*wLen).toFixed(1);
-    const arrowY=(wCY-Math.cos(wRad)*wLen).toFixed(1);
-    svgParts.push(`<line x1="${wCX}" y1="${wCY}" x2="${arrowX}" y2="${arrowY}" stroke="rgba(255,170,0,0.75)" stroke-width="2" marker-end="url(#cw)"/>`);
-    svgParts.push(`<text x="${wCX}" y="${wCY+13}" text-anchor="middle" fill="rgba(255,170,0,0.75)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>${c.windDeg}°</text>`);
-  }
-
-  const svgEl=`<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block">${svgParts.join('\n')}</svg>`;
+  const svgEl=buildCourseSvg(markEntries, c.windDeg);
 
   // ── Leg table (preserved) ──────────────────────────────────────
   let legRows='';
@@ -2437,6 +2426,7 @@ function addMarkToSequence(id){
   const btn=document.getElementById('mt-'+id);
   if(btn) btn.classList.add('selected');
   renderSelectedOrder();
+  renderRoCoursePreview();
 }
 function removeMarkFromSequence(idx){
   const removed=courseMarks[idx];
@@ -2447,10 +2437,12 @@ function removeMarkFromSequence(idx){
     if(btn) btn.classList.remove('selected');
   }
   renderSelectedOrder();
+  renderRoCoursePreview();
 }
 function setRounding(idx,rnd){
   if(courseMarks[idx]) courseMarks[idx].rounding=rnd;
   renderSelectedOrder();
+  renderRoCoursePreview();
 }
 function renderSelectedOrder(){
   const wrap=document.getElementById('selectedMarksOrder');
@@ -2480,6 +2472,7 @@ function updateWind(v){
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   const dir=dirs[Math.round(windDeg/22.5)%16];
   document.getElementById('windDegLabel').textContent=windDeg+'° '+dir;
+  renderRoCoursePreview();
 }
 async function publishCourse(){
   if(!courseMarks.length){toast('Select at least one mark');return;}
