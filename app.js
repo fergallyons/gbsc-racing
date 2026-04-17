@@ -313,8 +313,9 @@ function restoreCrewSelection(boatId){
     roster.forEach(p=>{p.selected=ids.has(p.id);});
   }catch(e){}
 }
-function loadCustom(){try{return JSON.parse(localStorage.getItem('gr_custom')||'[]');}catch(e){return[];}}
-function saveCustom(a){try{localStorage.setItem('gr_custom',JSON.stringify(a));}catch(e){}}
+const _cacheKey='gr_custom_'+(_C.slug||'gbsc');
+function loadCustom(){try{return JSON.parse(localStorage.getItem(_cacheKey)||'[]');}catch(e){return[];}}
+function saveCustom(a){try{localStorage.setItem(_cacheKey,JSON.stringify(a));}catch(e){}}
 // Global ID high-water mark — ensures nextId never reuses an ID across boats or sessions
 function newCrewId(){
   // Generate a UUID v4 — works in all modern browsers
