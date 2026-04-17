@@ -2170,10 +2170,10 @@ function getCourseState(){
   const hoursToRace=nextRace?(nextRace.date-now):Infinity;
   const hoursSincePublish=publishedCourse.published_at?(now-new Date(publishedCourse.published_at)):Infinity;
   const withinWindow=hoursToRace>=0&&hoursToRace<=windowMs;  // race is coming up soon
-  const publishedToday=hoursSincePublish<=windowMs;            // published within the window period
-  if(withinWindow&&!publishedToday) return 'pending';
-  if(!withinWindow&&!publishedToday) return 'stale';
-  return 'live';
+  const publishedRecently=hoursSincePublish<=windowMs;         // published within the window period
+  if(withinWindow&&!publishedRecently) return 'pending';       // race soon, no course yet
+  if(withinWindow&&publishedRecently)  return 'live';          // race soon AND course published
+  return 'stale';                                              // no imminent race — show for reference
 }
 
 // ── Shared SVG builder — used by both the published diagram and the RO live preview ──
