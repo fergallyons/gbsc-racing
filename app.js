@@ -3487,41 +3487,60 @@ async function deleteProtest(id){
 // ═══════════════════════════════════════════════════════════════
 (function(){
   const SKIP_IDS = new Set(['pinOverlay','changePinOverlay']);
+  let _depth = 0;
 
-  // Push a baseline entry on load so the very first back press always
-  // fires popstate rather than navigating away from the PWA cold.
-  history.pushState({gbsc:true}, '');
+  // Baseline entry — the very first back press fires popstate instead of exiting
+  history.pushState({gbsc:_depth}, '');
+
+  // Push a history entry each time a panel or sheet opens, so each
+  // back press maps 1:1 to closing one layer of UI.
+  const obs = new MutationObserver(mutations => {
+    for(const m of mutations){
+      if(m.attributeName !== 'class') continue;
+      const el = m.target;
+      if(!el.matches('.overlay,.panel-overlay')) continue;
+      if(SKIP_IDS.has(el.id)) continue;
+      const hadOpen = (m.oldValue||'').split(/\s+/).includes('open');
+      const hasOpen = el.classList.contains('open');
+      if(hasOpen && !hadOpen){
+        _depth++;
+        history.pushState({gbsc:_depth, id:el.id}, '');
+      }
+    }
+  });
+  obs.observe(document.body, {subtree:true, attributes:true, attributeOldValue:true, attributeFilter:['class']});
 
   window.addEventListener('popstate', () => {
-    // Re-push immediately — this is what keeps the app alive.
-    // No matter what, the user can never accidentally back out of the PWA.
-    history.pushState({gbsc:true}, '');
+    // Always re-push — belt-and-suspenders so the stack never runs dry
+    // even if MutationObserver and actual open-state drift slightly.
+    _depth++;
+    history.pushState({gbsc:_depth}, '');
 
     // Dynamic QR overlays
     const qr = document.getElementById('_revolutQROverlay') || document.getElementById('_stripeQROverlay');
     if(qr){ qr.remove(); return; }
 
     // Bottom sheets (.overlay.open) — skip pin overlays
-    const sheets=[...document.querySelectorAll('.overlay.open')].filter(el=>!SKIP_IDS.has(el.id));
+    const sheets = [...document.querySelectorAll('.overlay.open')].filter(el=>!SKIP_IDS.has(el.id));
     if(sheets.length){
-      const top=sheets[sheets.length-1];
+      const top = sheets[sheets.length-1];
       top.classList.remove('open');
       if(top.id==='collectSheet'||top.id==='pnSheet') renderCrew();
       return;
     }
 
     // Full-screen panels (.panel-overlay.open)
-    const panels=[...document.querySelectorAll('.panel-overlay.open')];
+    const panels = [...document.querySelectorAll('.panel-overlay.open')];
     if(panels.length){
-      const top=panels[panels.length-1];
+      const top = panels[panels.length-1];
       top.classList.remove('open');
-      setTimeout(()=>{top.style.display='none';},300);
+      setTimeout(()=>{top.style.display='none';}, 300);
       return;
     }
 
     // Nothing open — back pressed from the home screen
     if(currentBoat||isRO) showLogoutConfirm();
-    // Guest: back is silently swallowed (re-push above keeps app alive)
+    // Guest: silently swallowed — re-push above keeps the app alive
   });
 })();
 
