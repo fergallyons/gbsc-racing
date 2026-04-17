@@ -1180,6 +1180,18 @@
   </div>
 </div>
 
+<!-- Logout confirm — shown when back is pressed from home screen while logged in -->
+<div class="overlay" id="logoutConfirmSheet">
+  <div class="sheet-handle"></div>
+  <div style="padding:24px 20px 32px;text-align:center">
+    <div style="font-size:2rem;margin-bottom:10px">👋</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;color:var(--white);margin-bottom:6px">Log out?</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-bottom:24px">You'll return to the guest view.<br>Your boat and crew are saved.</div>
+    <button class="btn btn-primary" style="width:100%;padding:14px;margin-bottom:10px;font-size:1rem" onclick="confirmLogout()">Log out</button>
+    <button class="btn btn-ghost" style="width:100%;padding:14px;font-size:1rem" onclick="closeLogoutConfirm()">Stay in app</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="app.js"></script>

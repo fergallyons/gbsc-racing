@@ -3486,70 +3486,55 @@ async function deleteProtest(id){
 // BACK BUTTON — keep Android hardware/gesture back inside the app
 // ═══════════════════════════════════════════════════════════════
 (function(){
-  // IDs that the back button should never dismiss
   const SKIP_IDS = new Set(['pinOverlay','changePinOverlay']);
 
-  let _depth = 0; // how many history entries we've pushed
+  // Push a baseline entry on load so the very first back press always
+  // fires popstate rather than navigating away from the PWA cold.
+  history.pushState({gbsc:true}, '');
 
-  // Watch for any .overlay or .panel-overlay gaining the 'open' class
-  const obs = new MutationObserver(mutations => {
-    for (const m of mutations) {
-      if (m.attributeName !== 'class') continue;
-      const el = m.target;
-      if (!el.matches('.overlay,.panel-overlay')) continue;
-      if (SKIP_IDS.has(el.id)) continue;
-      const hadOpen = (m.oldValue || '').split(/\s+/).includes('open');
-      const hasOpen = el.classList.contains('open');
-      if (hasOpen && !hadOpen) {
-        _depth++;
-        history.pushState({ gbsc: _depth, id: el.id }, '');
-      }
-    }
-  });
-  obs.observe(document.body, {
-    subtree: true, attributes: true,
-    attributeOldValue: true, attributeFilter: ['class']
-  });
-
-  // On back button: close the topmost open overlay or panel, don't leave the app
   window.addEventListener('popstate', () => {
-    _depth = Math.max(0, _depth - 1);
+    // Re-push immediately — this is what keeps the app alive.
+    // No matter what, the user can never accidentally back out of the PWA.
+    history.pushState({gbsc:true}, '');
 
-    // Dynamic QR overlays (no .overlay class — created by showRevolutQR / showStripeQR)
+    // Dynamic QR overlays
     const qr = document.getElementById('_revolutQROverlay') || document.getElementById('_stripeQROverlay');
-    if (qr) { qr.remove(); return; }
+    if(qr){ qr.remove(); return; }
 
-    // Bottom sheets (.overlay)
-    const sheets = [...document.querySelectorAll('.overlay.open')]
-      .filter(el => !SKIP_IDS.has(el.id));
-    if (sheets.length) {
-      const top = sheets[sheets.length - 1];
+    // Bottom sheets (.overlay.open) — skip pin overlays
+    const sheets=[...document.querySelectorAll('.overlay.open')].filter(el=>!SKIP_IDS.has(el.id));
+    if(sheets.length){
+      const top=sheets[sheets.length-1];
       top.classList.remove('open');
-      if (top.id === 'collectSheet' || top.id === 'pnSheet') renderCrew();
+      if(top.id==='collectSheet'||top.id==='pnSheet') renderCrew();
       return;
     }
 
-    // Full-screen panels (.panel-overlay)
-    const panels = [...document.querySelectorAll('.panel-overlay.open')];
-    if (panels.length) {
-      const top = panels[panels.length - 1];
+    // Full-screen panels (.panel-overlay.open)
+    const panels=[...document.querySelectorAll('.panel-overlay.open')];
+    if(panels.length){
+      const top=panels[panels.length-1];
       top.classList.remove('open');
-      setTimeout(() => { top.style.display = 'none'; }, 300);
+      setTimeout(()=>{top.style.display='none';},300);
+      return;
     }
-  });
 
-  // Patch closeSheet and closePanel to also pop history so the stack stays in sync
-  const _origCloseSheet = closeSheet;
-  closeSheet = function(id) {
-    _origCloseSheet(id);
-    if (_depth > 0) history.back();
-  };
-  const _origClosePanel = closePanel;
-  closePanel = function(id) {
-    _origClosePanel(id);
-    if (_depth > 0) history.back();
-  };
+    // Nothing open — back pressed from the home screen
+    if(currentBoat||isRO) showLogoutConfirm();
+    // Guest: back is silently swallowed (re-push above keeps app alive)
+  });
 })();
+
+function showLogoutConfirm(){
+  document.getElementById('logoutConfirmSheet').classList.add('open');
+}
+function closeLogoutConfirm(){
+  document.getElementById('logoutConfirmSheet').classList.remove('open');
+}
+function confirmLogout(){
+  closeLogoutConfirm();
+  switchBoat(); // returns to guest/home view
+}
 
 // ═══════════════════════════════════════════════════════════════
 // USAGE STATS (RO only)
