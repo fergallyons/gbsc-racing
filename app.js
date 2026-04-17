@@ -8,7 +8,7 @@ if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have 
 (function applyClubBranding(){
   const short  = _C.short || 'GBSC';
   const name   = _C.name  || 'Galway Bay Sailing Club';
-  const logoUrl= _C.logoUrl|| '';
+  const logoUrl= _C.logoUrl|| _C.logourl|| _C.logo_url|| _C.logo|| '';
   // Page title
   document.title = short + ' Racing \u2014 ' + name;
   // Header: logo image
@@ -3229,11 +3229,12 @@ document.addEventListener('click',function(e){
 // ═══════════════════════════════════════════════════════════════
 // WIND WIDGET — Open-Meteo (no API key required)
 // ═══════════════════════════════════════════════════════════════
-const GBSC_LAT=53.2744, GBSC_LNG=-9.0490; // Galway Bay
-
 async function loadWindWidget(){
   try{
-    const url='/.netlify/functions/wind';
+    // Use windLat/windLng if set, otherwise fall back to startLat/startLng
+    const lat=_C.windLat||_C.startLat||53.2744;
+    const lng=_C.windLng||_C.startLng||-9.0490;
+    const url='/.netlify/functions/wind?lat='+lat+'&lng='+lng;
     const r=await fetch(url);
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json();
