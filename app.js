@@ -2195,15 +2195,24 @@ function downloadCourseGpx(source){
     markEntries=(publishedCourse.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
   }
 
-  const resolvedMarks=markEntries.map(me=>{
-    const m=MARKS.find(x=>x.id===me.id);
-    return m?{...m,rounding:me.rounding||'port'}:null;
-  }).filter(Boolean);
+  let resolvedMarks, clubName, raceName, raceDate, dateStr;
+  try {
+    resolvedMarks=markEntries.map(me=>{
+      const m=MARKS.find(x=>x.id===me.id);
+      return m?{...m,rounding:me.rounding||'port'}:null;
+    }).filter(Boolean);
+    alert('resolvedMarks: '+resolvedMarks.length+' — markEntries: '+JSON.stringify(markEntries).slice(0,80));
+  } catch(e){ alert('CRASH resolvedMarks: '+e); return; }
 
-  const clubName=(_C.short||'GBSC')+' Racing';
-  const raceName=nextRace?nextRace.label:'Course';
-  const raceDate=nextRace?nextRace.date.toISOString():new Date().toISOString();
-  const dateStr=(nextRace?nextRace.date:new Date()).toISOString().split('T')[0];
+  try {
+    clubName=(_C.short||'GBSC')+' Racing';
+    raceName=nextRace?nextRace.label:'Course';
+    alert('nextRace: '+JSON.stringify(nextRace).slice(0,80));
+    const nd=nextRace?nextRace.date:null;
+    alert('nextRace.date type: '+(nd===null?'null':typeof nd)+' value: '+nd);
+    raceDate=nd?(nd instanceof Date?nd:new Date(nd)).toISOString():new Date().toISOString();
+    dateStr=raceDate.split('T')[0];
+  } catch(e){ alert('CRASH raceDate: '+e); return; }
 
   // ── Waypoints ─────────────────────────────────────────────────
   const wptLines=[];
