@@ -2187,10 +2187,11 @@ function downloadCourseGpx(source){
   alert('downloadCourseGpx called — source: '+source+', courseMarks: '+(window.courseMarks?courseMarks.length:'undefined'));
   let markEntries;
   if(source==='builder'){
-    if(!courseMarks.length){toast('Add at least one mark first');return;}
+    if(!courseMarks.length){alert('EXIT: courseMarks is empty');toast('Add at least one mark first');return;}
     markEntries=courseMarks;
   } else {
-    if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){toast('No course published yet');return;}
+    alert('published path — publishedCourse: '+JSON.stringify(publishedCourse).slice(0,120));
+    if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){alert('EXIT: publishedCourse has no marks');toast('No course published yet');return;}
     markEntries=(publishedCourse.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
   }
 
