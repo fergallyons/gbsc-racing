@@ -298,7 +298,8 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   z-index:250;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);}
 .overlay.open{display:flex;}
 .sheet{background:var(--navy-lt);border:1px solid var(--border);border-radius:20px 20px 0 0;
-  padding:24px 20px 40px;width:100%;max-width:680px;animation:slideUp .25s ease;}
+  padding:24px 20px 40px;width:100%;max-width:680px;animation:slideUp .25s ease;
+  max-height:90vh;overflow-y:auto;overscroll-behavior:contain;}
 @keyframes slideUp{from{transform:translateY(40px);opacity:0;}to{transform:translateY(0);opacity:1;}}
 .sheet-handle{width:40px;height:4px;background:var(--muted);border-radius:2px;margin:0 auto 20px;}
 .sheet-title{font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:800;
