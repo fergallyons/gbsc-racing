@@ -3560,6 +3560,45 @@ function confirmLogout(){
 }
 
 // ═══════════════════════════════════════════════════════════════
+// ── Start Timer integration ───────────────────────────────────────────────
+// Launches "Voice Sail Start Timer" by Egor Leonenko.
+// Android: Intent URL with known package name — reliable launch or Play Store.
+// iOS:     Try custom URL scheme; if app not installed, visibilitychange
+//          detection bounces to App Store after 1.5s.
+// URL scheme 'starttimer://' is an educated guess — confirm with developer
+// at support@starttimerapp.com and update ST_IOS_SCHEME if different.
+const ST_IOS_SCHEME   = 'starttimer://';
+const ST_IOS_STORE    = 'https://apps.apple.com/app/id1492557181';
+const ST_ANDROID_INTENT = 'intent://open#Intent;scheme=starttimer;package=info.leonenko.starttimer;S.browser_fallback_url=https%3A%2F%2Fplay.google.com%2Fstore%2Fapps%2Fdetails%3Fid%3Dinfo.leonenko.starttimer;end';
+
+function openStartTimer(){
+  const ua = navigator.userAgent;
+  const isAndroid = /Android/i.test(ua);
+  const isIOS = /iPad|iPhone|iPod/i.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+
+  if(isAndroid){
+    // Intent URL: Chrome launches the app if installed, Play Store if not
+    window.location.href = ST_ANDROID_INTENT;
+    return;
+  }
+
+  if(isIOS){
+    // Attempt to open via URL scheme; if page stays visible after 1.5s
+    // the app isn't installed — redirect to App Store instead
+    const t = Date.now();
+    window.location.href = ST_IOS_SCHEME;
+    setTimeout(()=>{
+      // If we're still here and the page wasn't hidden, scheme didn't work
+      if(Date.now() - t < 2000) window.location.href = ST_IOS_STORE;
+    }, 1500);
+    return;
+  }
+
+  // Desktop / unknown — open the website
+  window.open('https://starttimerapp.com', '_blank');
+}
+
+// ═══════════════════════════════════════════════════════════════
 // USAGE STATS (RO only)
 // ═══════════════════════════════════════════════════════════════
 async function loadUsageStats(){
