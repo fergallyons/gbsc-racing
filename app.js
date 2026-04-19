@@ -2348,15 +2348,32 @@ function buildCourseSvg(markEntries, wDeg){
     const p=markPts[i];
     const rnd=m.rounding;
     const rndCol=rnd==='port'?'#e63946':'#2dc653';
-    const rndSym=rnd==='port'?'◄P':'S►';
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR+3}" fill="${m.colour}12" stroke="${m.colour}" stroke-width="0.7" opacity="0.55"/>`);
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${NR}" fill="${m.colour}30" stroke="${m.colour}" stroke-width="1.5"/>`);
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="1.5" fill="${m.colour}"/>`);
+    const cx=p.x.toFixed(1), cy=p.y.toFixed(1);
+    const r=NR, top=(p.y-r).toFixed(1), bot=(p.y+r).toFixed(1);
+    // Half-circle paths split vertically at cx:
+    //   left  half: arc sweeps counterclockwise (flag 0)
+    //   right half: arc sweeps clockwise       (flag 1)
+    const leftHalf =`M ${cx} ${top} A ${r} ${r} 0 0 0 ${cx} ${bot} Z`;
+    const rightHalf=`M ${cx} ${top} A ${r} ${r} 0 0 1 ${cx} ${bot} Z`;
+    // Port rounding  → red   left half,  mark-colour right half
+    // Stbd rounding  → mark-colour left, green right half
+    const [leftFill,rightFill]=rnd==='port'
+      ?[rndCol, m.colour+'cc']
+      :[m.colour+'cc', rndCol];
+    // Outer glow
+    svgParts.push(`<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="${m.colour}12" stroke="${m.colour}" stroke-width="0.7" opacity="0.55"/>`);
+    // Split halves
+    svgParts.push(`<path d="${leftHalf}"  fill="${leftFill}"  opacity="0.85"/>`);
+    svgParts.push(`<path d="${rightHalf}" fill="${rightFill}" opacity="0.85"/>`);
+    // Circle outline & centre dot
+    svgParts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${m.colour}" stroke-width="1.5"/>`);
+    svgParts.push(`<circle cx="${cx}" cy="${cy}" r="1.5" fill="${m.colour}"/>`);
+    // Label: name above, small P/S below in rounding colour
     const labelLeft=p.x<=SVG_W/2;
-    const lx=(labelLeft?p.x-NR-4:p.x+NR+4).toFixed(1);
+    const lx=(labelLeft?p.x-r-4:p.x+r+4).toFixed(1);
     const anchor=labelLeft?'end':'start';
-    svgParts.push(`<text x="${lx}" y="${(p.y-3).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="400"${tf}>${m.name}</text>`);
-    svgParts.push(`<text x="${lx}" y="${(p.y+6).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700"${tf}>${rndSym}</text>`);
+    svgParts.push(`<text x="${lx}" y="${(p.y-2).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="400"${tf}>${m.name}</text>`);
+    svgParts.push(`<text x="${lx}" y="${(p.y+7).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="7.5" font-weight="700"${tf}>${rnd==='port'?'PORT':'STBD'}</text>`);
   });
 
   {
