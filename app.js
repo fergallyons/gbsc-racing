@@ -2184,35 +2184,31 @@ function getCourseState(){
 // source: 'builder' → use live courseMarks from the RO Course Builder
 //         'published' → use the last published course (skipper view)
 function downloadCourseGpx(source){
-  alert('downloadCourseGpx called — source: '+source+', courseMarks: '+(window.courseMarks?courseMarks.length:'undefined'));
   let markEntries;
   if(source==='builder'){
-    if(!courseMarks.length){alert('EXIT: courseMarks is empty');toast('Add at least one mark first');return;}
+    if(!courseMarks.length){toast('Add at least one mark first');return;}
     markEntries=courseMarks;
   } else {
-    alert('published path — publishedCourse: '+JSON.stringify(publishedCourse).slice(0,120));
-    if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){alert('EXIT: publishedCourse has no marks');toast('No course published yet');return;}
+    if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){toast('No course published yet');return;}
     markEntries=(publishedCourse.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
   }
 
-  let resolvedMarks, clubName, raceName, raceDate, dateStr;
-  try {
-    resolvedMarks=markEntries.map(me=>{
-      const m=MARKS.find(x=>x.id===me.id);
-      return m?{...m,rounding:me.rounding||'port'}:null;
-    }).filter(Boolean);
-    alert('resolvedMarks: '+resolvedMarks.length+' — markEntries: '+JSON.stringify(markEntries).slice(0,80));
-  } catch(e){ alert('CRASH resolvedMarks: '+e); return; }
+  const resolvedMarks=markEntries.map(me=>{
+    const m=MARKS.find(x=>x.id===me.id);
+    return m?{...m,rounding:me.rounding||'port'}:null;
+  }).filter(Boolean);
 
-  try {
-    clubName=(_C.short||'GBSC')+' Racing';
-    raceName=nextRace?nextRace.label:'Course';
-    alert('nextRace: '+JSON.stringify(nextRace).slice(0,80));
-    const nd=nextRace?nextRace.date:null;
-    alert('nextRace.date type: '+(nd===null?'null':typeof nd)+' value: '+nd);
-    raceDate=nd?(nd instanceof Date?nd:new Date(nd)).toISOString():new Date().toISOString();
-    dateStr=raceDate.split('T')[0];
-  } catch(e){ alert('CRASH raceDate: '+e); return; }
+  // Use window.CLUB if available (multi-club branch), fall back to hardcoded GBSC
+  const clubShort=(window.CLUB&&window.CLUB.short)||'GBSC';
+  const clubName=clubShort+' Racing';
+  const raceName=nextRace?nextRace.label:'Course';
+
+  // nextRace.date may be a string from the DB or a Date object — normalise it
+  const rawDate=nextRace?nextRace.date:null;
+  const raceDate=rawDate
+    ?(rawDate instanceof Date?rawDate:new Date(rawDate)).toISOString()
+    :new Date().toISOString();
+  const dateStr=raceDate.split('T')[0];
 
   // ── Waypoints ─────────────────────────────────────────────────
   const wptLines=[];
@@ -2263,31 +2259,19 @@ ${rteptLines.join('\n')}
   </rte>
 </gpx>`;
 
-  const filename=`${(_C.short||'gbsc').toLowerCase()}-course-${dateStr}.gpx`;
+  const filename=`${clubShort.toLowerCase()}-course-${dateStr}.gpx`;
   const blob=new Blob([gpx],{type:'application/gpx+xml'});
 
-  // ── DEBUG: report environment so we can diagnose download issues ──
-  const dbg=[
-    'navigator.share: '+(typeof navigator.share),
-    'navigator.canShare: '+(typeof navigator.canShare),
-    'standalone: '+(window.matchMedia('(display-mode:standalone)').matches||navigator.standalone||false),
-    'UA: '+navigator.userAgent.slice(0,60)
-  ];
+  // Web Share API — iOS Safari 15+ and Android Chrome 86+.
+  // Use text/xml (in Chrome's allowlist); apps identify GPX by .gpx extension.
   const shareFile=new File([blob],filename,{type:'text/xml'});
-  dbg.push('canShare(file): '+(navigator.canShare?navigator.canShare({files:[shareFile]}):'n/a'));
-  alert('GPX debug:\n'+dbg.join('\n'));  // temporary — remove after diagnosis
-
   if(navigator.share && navigator.canShare && navigator.canShare({files:[shareFile]})){
     navigator.share({files:[shareFile],title:raceName})
-      .catch(e=>{
-        alert('share() error: '+e.name+' — '+e.message);
-        if(e.name!=='AbortError') _gpxAnchorDownload(blob,filename);
-      });
+      .catch(e=>{ if(e.name!=='AbortError') _gpxAnchorDownload(blob,filename); });
     return;
   }
 
   // Desktop / older browser fallback: anchor download
-  alert('Falling back to anchor download');
   _gpxAnchorDownload(blob,filename);
 }
 
