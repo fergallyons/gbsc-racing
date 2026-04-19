@@ -2255,17 +2255,28 @@ ${rteptLines.join('\n')}
   const filename=`${(_C.short||'gbsc').toLowerCase()}-course-${dateStr}.gpx`;
   const blob=new Blob([gpx],{type:'application/gpx+xml'});
 
-  // Web Share API — iOS Safari 15+ and Android Chrome 86+.
-  // GPX files are XML, so use text/xml which is in Chrome's share allowlist.
-  // Both iOS and Android apps identify GPX files by the .gpx extension anyway.
+  // ── DEBUG: report environment so we can diagnose download issues ──
+  const dbg=[
+    'navigator.share: '+(typeof navigator.share),
+    'navigator.canShare: '+(typeof navigator.canShare),
+    'standalone: '+(window.matchMedia('(display-mode:standalone)').matches||navigator.standalone||false),
+    'UA: '+navigator.userAgent.slice(0,60)
+  ];
   const shareFile=new File([blob],filename,{type:'text/xml'});
+  dbg.push('canShare(file): '+(navigator.canShare?navigator.canShare({files:[shareFile]}):'n/a'));
+  alert('GPX debug:\n'+dbg.join('\n'));  // temporary — remove after diagnosis
+
   if(navigator.share && navigator.canShare && navigator.canShare({files:[shareFile]})){
     navigator.share({files:[shareFile],title:raceName})
-      .catch(e=>{ if(e.name!=='AbortError') _gpxAnchorDownload(blob,filename); });
+      .catch(e=>{
+        alert('share() error: '+e.name+' — '+e.message);
+        if(e.name!=='AbortError') _gpxAnchorDownload(blob,filename);
+      });
     return;
   }
 
   // Desktop / older browser fallback: anchor download
+  alert('Falling back to anchor download');
   _gpxAnchorDownload(blob,filename);
 }
 
@@ -2277,7 +2288,7 @@ function _gpxAnchorDownload(blob,filename){
   document.body.appendChild(a);
   a.click();
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
-  toast('GPX downloaded');
+  toast('GPX downloaded — check your Downloads folder');
 }
 
 // ── Shared SVG builder — used by both the published diagram and the RO live preview ──
