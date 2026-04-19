@@ -2180,6 +2180,90 @@ function getCourseState(){
   return 'stale';                                              // no imminent race — show for reference
 }
 
+// ── GPX export ───────────────────────────────────────────────────────────────
+// source: 'builder' → use live courseMarks from the RO Course Builder
+//         'published' → use the last published course (skipper view)
+function downloadCourseGpx(source){
+  let markEntries;
+  if(source==='builder'){
+    if(!courseMarks.length){toast('Add at least one mark first');return;}
+    markEntries=courseMarks;
+  } else {
+    if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){toast('No course published yet');return;}
+    markEntries=(publishedCourse.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
+  }
+
+  const resolvedMarks=markEntries.map(me=>{
+    const m=MARKS.find(x=>x.id===me.id);
+    return m?{...m,rounding:me.rounding||'port'}:null;
+  }).filter(Boolean);
+
+  const clubName=(_C.short||'GBSC')+' Racing';
+  const raceName=nextRace?nextRace.label:'Course';
+  const raceDate=nextRace?nextRace.date.toISOString():new Date().toISOString();
+  const dateStr=(nextRace?nextRace.date:new Date()).toISOString().split('T')[0];
+
+  // ── Waypoints ─────────────────────────────────────────────────
+  const wptLines=[];
+  wptLines.push(
+    `  <wpt lat="${START_POS.lat.toFixed(6)}" lon="${START_POS.lng.toFixed(6)}">\n`+
+    `    <name>Start/Finish</name>\n    <desc>Club Start Line</desc>\n    <sym>Flag, Blue</sym>\n  </wpt>`
+  );
+  resolvedMarks.forEach((m,i)=>{
+    wptLines.push(
+      `  <wpt lat="${m.lat.toFixed(6)}" lon="${m.lng.toFixed(6)}">\n`+
+      `    <name>${m.name}</name>\n`+
+      `    <desc>Mark ${i+1} \u2014 ${m.rounding==='port'?'Port rounding':'Starboard rounding'}</desc>\n`+
+      `    <sym>Waypoint</sym>\n  </wpt>`
+    );
+  });
+
+  // ── Route ─────────────────────────────────────────────────────
+  const rteptLines=[];
+  rteptLines.push(
+    `    <rtept lat="${START_POS.lat.toFixed(6)}" lon="${START_POS.lng.toFixed(6)}">\n      <name>Start</name>\n    </rtept>`
+  );
+  resolvedMarks.forEach(m=>{
+    rteptLines.push(
+      `    <rtept lat="${m.lat.toFixed(6)}" lon="${m.lng.toFixed(6)}">\n`+
+      `      <name>${m.name}</name>\n`+
+      `      <desc>${m.rounding==='port'?'Port':'Stbd'}</desc>\n    </rtept>`
+    );
+  });
+  rteptLines.push(
+    `    <rtept lat="${START_POS.lat.toFixed(6)}" lon="${START_POS.lng.toFixed(6)}">\n      <name>Finish</name>\n    </rtept>`
+  );
+
+  const gpx=
+`<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="${clubName}"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${raceName}</name>
+    <desc>Course published by ${clubName}</desc>
+    <time>${raceDate}</time>
+  </metadata>
+${wptLines.join('\n')}
+  <rte>
+    <name>${raceName}</name>
+${rteptLines.join('\n')}
+  </rte>
+</gpx>`;
+
+  // Blob download — works on iOS Safari (no window.open needed)
+  const blob=new Blob([gpx],{type:'application/gpx+xml'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`${(_C.short||'gbsc').toLowerCase()}-course-${dateStr}.gpx`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+  toast('GPX file downloaded');
+}
+
 // ── Shared SVG builder — used by both the published diagram and the RO live preview ──
 function buildCourseSvg(markEntries, wDeg){
   const resolvedMarks=markEntries.map(me=>{
@@ -2402,6 +2486,14 @@ function renderCourseDiagram(){
       <div class="course-svg-wrap" style="margin-top:12px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:${mapTileMode!=='off'?'#060d1c':'rgba(4,14,32,0.7)'};${isStale?'opacity:0.6':''}">
         ${svgEl}
       </div>
+      <button onclick="downloadCourseGpx('published')"
+        style="width:100%;margin-top:12px;padding:10px;background:transparent;
+        border:1px solid rgba(0,174,239,.3);border-radius:10px;color:var(--teal);
+        font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;
+        letter-spacing:.04em;cursor:pointer;display:flex;align-items:center;
+        justify-content:center;gap:7px">
+        ⬇ Download GPX for chartplotter / navigation app
+      </button>
     </div>
   `;
 }
