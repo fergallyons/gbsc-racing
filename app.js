@@ -254,7 +254,9 @@ function buildAllRaces(){
   allRaces.sort((a,b)=>a.date-b.date);
 }
 function getNextRace(){
-  // Returns the next future race; fall back to the last race if season is over
+  // Returns the next future race; fall back to the last race if season is over.
+  // Returns null if allRaces is empty (DB unreachable or season not yet seeded).
+  if(!allRaces.length) return null;
   const now=new Date();
   const upcoming=allRaces.filter(r=>r.date>=now);
   if(!upcoming.length) return allRaces[allRaces.length-1];
@@ -459,6 +461,8 @@ function switchBoat(){
   sbEndSession(currentSessionId).catch(()=>{});
   currentSessionId=null;
   currentBoat=null;roster=[];isRO=false;isGuest=false;boatConfig={};
+  // Stop countdown timer so it doesn't keep firing after logout
+  if(_countdownInterval){clearInterval(_countdownInterval);_countdownInterval=null;}
   halResultsLoaded=false;
   // Return to public view — show login button, hide boat tag
   document.getElementById('boatTag').style.display='none';
