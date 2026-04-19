@@ -2184,6 +2184,7 @@ function getCourseState(){
 // source: 'builder' → use live courseMarks from the RO Course Builder
 //         'published' → use the last published course (skipper view)
 function downloadCourseGpx(source){
+  alert('downloadCourseGpx called — source: '+source+', courseMarks: '+(window.courseMarks?courseMarks.length:'undefined'));
   let markEntries;
   if(source==='builder'){
     if(!courseMarks.length){toast('Add at least one mark first');return;}
