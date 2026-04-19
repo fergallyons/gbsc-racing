@@ -2255,19 +2255,21 @@ ${rteptLines.join('\n')}
   const filename=`${(_C.short||'gbsc').toLowerCase()}-course-${dateStr}.gpx`;
   const blob=new Blob([gpx],{type:'application/gpx+xml'});
 
-  // Prefer Web Share API with file — works on iOS Safari 15+ and Android Chrome 86+.
-  // This opens the native share sheet so the user can save to Files/Downloads,
-  // open directly in Navionics, iSailor, etc.
-  if(navigator.share && navigator.canShare){
-    const file=new File([blob],filename,{type:'application/gpx+xml'});
-    if(navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:raceName})
-        .catch(e=>{ if(e.name!=='AbortError') toast('Could not share file'); });
-      return;
-    }
+  // Web Share API — iOS Safari 15+ and Android Chrome 86+.
+  // GPX files are XML, so use text/xml which is in Chrome's share allowlist.
+  // Both iOS and Android apps identify GPX files by the .gpx extension anyway.
+  const shareFile=new File([blob],filename,{type:'text/xml'});
+  if(navigator.share && navigator.canShare && navigator.canShare({files:[shareFile]})){
+    navigator.share({files:[shareFile],title:raceName})
+      .catch(e=>{ if(e.name!=='AbortError') _gpxAnchorDownload(blob,filename); });
+    return;
   }
 
-  // Desktop fallback: anchor download
+  // Desktop / older browser fallback: anchor download
+  _gpxAnchorDownload(blob,filename);
+}
+
+function _gpxAnchorDownload(blob,filename){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;
