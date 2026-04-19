@@ -2252,16 +2252,30 @@ ${rteptLines.join('\n')}
   </rte>
 </gpx>`;
 
-  // Blob download — works on iOS Safari (no window.open needed)
+  const filename=`${(_C.short||'gbsc').toLowerCase()}-course-${dateStr}.gpx`;
   const blob=new Blob([gpx],{type:'application/gpx+xml'});
+
+  // Prefer Web Share API with file — works on iOS Safari 15+ and Android Chrome 86+.
+  // This opens the native share sheet so the user can save to Files/Downloads,
+  // open directly in Navionics, iSailor, etc.
+  if(navigator.share && navigator.canShare){
+    const file=new File([blob],filename,{type:'application/gpx+xml'});
+    if(navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:raceName})
+        .catch(e=>{ if(e.name!=='AbortError') toast('Could not share file'); });
+      return;
+    }
+  }
+
+  // Desktop fallback: anchor download
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;
-  a.download=`${(_C.short||'gbsc').toLowerCase()}-course-${dateStr}.gpx`;
+  a.setAttribute('download',filename);
   document.body.appendChild(a);
   a.click();
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
-  toast('GPX file downloaded');
+  toast('GPX downloaded');
 }
 
 // ── Shared SVG builder — used by both the published diagram and the RO live preview ──
