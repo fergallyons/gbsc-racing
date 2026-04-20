@@ -3729,6 +3729,13 @@ function openStartTimer(){
   window.open('https://starttimerapp.com', '_blank');
 }
 
+// ── Halsail integration ───────────────────────────────────────────────────
+// Halsail is a PWA (no native app). Open in a new tab — the RO will already
+// be logged in on their device and can navigate straight to the active race.
+function openHalsail(){
+  window.open('https://halsail.com', '_blank');
+}
+
 // ═══════════════════════════════════════════════════════════════
 // USAGE STATS (RO only)
 // ═══════════════════════════════════════════════════════════════
