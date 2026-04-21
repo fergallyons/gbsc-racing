@@ -23,7 +23,7 @@
   <div class="sheet" style="max-height:85vh;overflow-y:auto">
     <div class="sheet-handle"></div>
     <div class="sheet-title" style="margin-bottom:4px">⛵ Boat Login</div>
-    <div id="loginRaceLabel" style="font-size:.72rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;margin-bottom:10px;text-align:center;min-height:14px"></div>
+    <div id="loginRaceLabel" style="font-size:.8rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;margin-bottom:10px;text-align:center;min-height:14px"></div>
     <div class="login-label">Select your boat</div>
     <div class="boat-grid" id="boatGrid"></div>
     <div style="margin-top:8px">
@@ -110,7 +110,7 @@
       </div>
     </div>
     <div class="hdr-right">
-      <span id="syncStatus" style="font-size:.72rem;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;min-width:60px;text-align:right"></span>
+      <span id="syncStatus" style="font-size:.8rem;font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;min-width:60px;text-align:right"></span>
       <div class="badge outline" id="raceBadge"></div>
       <button id="loginBtn" onclick="openLoginSheet()" style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.04em;background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.35);color:var(--teal);border-radius:8px;padding:5px 12px;cursor:pointer;">⛵ Login</button>
       <div class="boat-tag" onclick="switchBoat()" id="boatTag" style="display:none">⛵ <span id="headerBoat">—</span></div>
@@ -222,12 +222,12 @@
       <span style="font-size:1.2rem">📡</span>
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:var(--white)">Race Tracking</div>
-        <div style="font-size:.7rem;color:var(--muted);margin-top:1px">View live or replay on eStela →</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:1px">View live or replay on eStela →</div>
       </div>
     </a>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Series</div>
+        <div style="font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Series</div>
         <select id="resultSeriesSelect" onchange="onResultSeriesChange()" style="background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;padding:8px 10px;width:100%;outline:none;">
           <option value="">Loading…</option>
         </select>
@@ -252,7 +252,7 @@
   </div>
   <div class="panel-body">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">2026 Race Schedule</div>
+      <div style="font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">2026 Race Schedule</div>
       <div style="display:flex;gap:6px;">
         <button id="calListBtn" onclick="setCalView('list')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid var(--teal);background:var(--teal);color:var(--navy-dark);cursor:pointer;">List</button>
         <button id="calGridBtn" onclick="setCalView('grid')" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">Grid</button>
@@ -271,7 +271,7 @@
     <span class="panel-title">📄 Documents</span>
   </div>
   <div class="panel-body">
-    <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px">Race Documents</div>
+    <div style="font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px">Race Documents</div>
     <div id="docsList"></div>
   </div>
 </div><!-- /docsPanel -->
@@ -305,11 +305,11 @@
       <div style="display:flex;align-items:baseline;gap:6px;flex:1;min-width:0;">
         <div id="windSpeed" style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;
           font-weight:800;color:var(--white)">—</div>
-        <div id="windDir" style="font-size:.68rem;color:var(--muted);font-weight:600;
+        <div id="windDir" style="font-size:.78rem;color:var(--muted);font-weight:600;
           letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
       </div>
-      <div style="font-size:.62rem;color:var(--muted);flex-shrink:0;text-align:right;line-height:1.4">
-        <div style="color:var(--teal);font-weight:700;letter-spacing:.06em;font-family:'Barlow Condensed',sans-serif;font-size:.7rem">NOW</div>
+      <div style="font-size:.75rem;color:var(--muted);flex-shrink:0;text-align:right;line-height:1.4">
+        <div style="color:var(--teal);font-weight:700;letter-spacing:.06em;font-family:'Barlow Condensed',sans-serif;font-size:.8rem">NOW</div>
         <div>Galway Bay</div>
       </div>
     </div>
@@ -322,10 +322,10 @@
       align-items:center;gap:12px;box-sizing:border-box;">
     <img id="sponsorLogo" src="" alt="" style="height:36px;width:auto;object-fit:contain;border-radius:4px;flex-shrink:0;" onerror="this.style.display='none'">
     <div style="flex:1;min-width:0;">
-      <div style="font-size:.58rem;color:var(--muted);font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:1px">Series Sponsor</div>
+      <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:1px">Series Sponsor</div>
       <div id="sponsorName" style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
     </div>
-    <div style="font-size:.68rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;flex-shrink:0">Visit →</div>
+    <div style="font-size:.78rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;flex-shrink:0">Visit →</div>
   </a>
   <!-- 2-column tile grid -->
   <div class="dash-grid">
@@ -486,7 +486,7 @@
       <div class="form-row">
         <div class="form-group" style="flex:1"><label>Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="tel" id="cf-phone" placeholder="+353 87 123 4567"></div>
       </div>
-      <div style="font-size:.68rem;color:var(--muted);line-height:1.4;padding:6px 2px">
+      <div style="font-size:.78rem;color:var(--muted);line-height:1.4;padding:6px 2px">
         🔒 Phone numbers are stored securely and used only to send race fee payment reminders. Crew members may request deletion at any time by contacting the club.
       </div>
       <div class="form-actions">
@@ -507,7 +507,7 @@
       </div>
     </div>
     <button class="btn btn-primary" style="width:100%;padding:15px;font-size:1.05rem;margin-top:8px" onclick="closePanel('crewPanel')">Done</button>
-    <div style="text-align:center;font-size:.62rem;color:var(--muted);margin-top:10px;line-height:1.4">
+    <div style="text-align:center;font-size:.75rem;color:var(--muted);margin-top:10px;line-height:1.4">
       Personal data handled in accordance with GBSC's privacy policy.<br>Contact the club to request access or deletion of your data.
     </div>
   </div>
@@ -597,21 +597,21 @@
     <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Toggle marks in/out of play. Add custom marks for KOTB and special races.</div>
     <div id="marksMgrList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
     <div id="markAddForm" style="display:none;background:var(--navy);border-radius:10px;padding:12px;margin-bottom:8px;">
-      <div id="markFormTitle" style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">New Mark</div>
+      <div id="markFormTitle" style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">New Mark</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
         <div>
-          <label style="font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">ID / Code</label>
+          <label style="font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">ID / Code</label>
           <input id="mk-id" type="text" placeholder="e.g. IL" maxlength="4"
             style="margin-top:4px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;padding:8px 10px;outline:none;box-sizing:border-box;text-transform:uppercase">
         </div>
         <div>
-          <label style="font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Name</label>
+          <label style="font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Name</label>
           <input id="mk-name" type="text" placeholder="e.g. Ilaunloo"
             style="margin-top:4px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:8px 10px;outline:none;box-sizing:border-box;">
         </div>
       </div>
       <div style="margin-bottom:8px">
-        <label style="font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Latitude</label>
+        <label style="font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Latitude</label>
         <div style="display:flex;align-items:center;gap:4px;margin-top:4px">
           <input id="mk-lat-d" type="number" min="0" max="90" placeholder="53"
             style="width:54px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:8px 8px;outline:none;box-sizing:border-box;">
@@ -625,7 +625,7 @@
         </div>
       </div>
       <div style="margin-bottom:8px">
-        <label style="font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Longitude</label>
+        <label style="font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Longitude</label>
         <div style="display:flex;align-items:center;gap:4px;margin-top:4px">
           <input id="mk-lng-d" type="number" min="0" max="180" placeholder="9"
             style="width:54px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:8px 8px;outline:none;box-sizing:border-box;">
@@ -640,12 +640,12 @@
       </div>
       <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px;align-items:end">
         <div>
-          <label style="font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Description</label>
+          <label style="font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Description</label>
           <input id="mk-desc" type="text" placeholder="e.g. KOTB — rocky outcrop"
             style="margin-top:4px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:8px 10px;outline:none;box-sizing:border-box;">
         </div>
         <div>
-          <label style="font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Colour</label>
+          <label style="font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Colour</label>
           <input id="mk-colour" type="color" value="#f4a261"
             style="margin-top:4px;width:44px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--navy-input);cursor:pointer;padding:2px;">
         </div>
@@ -756,7 +756,7 @@
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title">Record Payment — <span id="pn-name"></span></div>
-    <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">How did they pay?</div>
+    <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">How did they pay?</div>
     <div class="pm-grid">
       <button class="pm-btn" id="pm-revolut" onclick="pickMethod(this,'Revolut')">💜 Revolut</button>
       <button class="pm-btn" id="pm-cash"    onclick="pickMethod(this,'Cash')">💵 Cash</button>
@@ -770,7 +770,7 @@
         font-size:.95rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
         💜 Open Revolut Request
       </a>
-      <div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:5px">Opens Revolut on crew member's phone</div>
+      <div style="font-size:.8rem;color:var(--muted);text-align:center;margin-top:5px">Opens Revolut on crew member's phone</div>
     </div>
     <div id="pn-stripe-link" style="display:none;margin-bottom:12px">
       <div style="background:var(--card);border:1px dashed var(--border);border-radius:10px;padding:12px;text-align:center;font-size:.82rem;color:var(--muted)">
@@ -778,7 +778,7 @@
       </div>
     </div>
     <div class="form-group" style="margin-bottom:14px">
-      <label style="font-size:.72rem;color:var(--muted);font-weight:500">Note (optional)</label>
+      <label style="font-size:.8rem;color:var(--muted);font-weight:500">Note (optional)</label>
       <input type="text" id="pn-note" placeholder="e.g. paid at bar after race"
         style="margin-top:4px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;
@@ -823,7 +823,7 @@
           color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:9px 12px;
           outline:none;box-sizing:border-box;">
       </div>
-      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Used to generate Revolut payment request links for your crew</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px">Used to generate Revolut payment request links for your crew</div>
     </div>
     <!-- Notifications toggle -->
     <div class="form-group" style="margin-bottom:20px" id="notif-row">
@@ -837,7 +837,7 @@
           <span class="toggle-track"><span class="toggle-thumb"></span></span>
         </label>
       </div>
-      <div id="notif-hint" style="font-size:.7rem;color:var(--muted);margin-top:6px"></div>
+      <div id="notif-hint" style="font-size:.8rem;color:var(--muted);margin-top:6px"></div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveSettings()">Save Settings</button>
@@ -851,7 +851,7 @@
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title">⚙ Club Settings</div>
-    <div style="font-size:.7rem;color:var(--muted);margin-bottom:16px">Enter a separate Stripe Payment Link for each membership tier. These apply to all boats and enable card / Apple Pay / Google Pay on the crew payment page.</div>
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:16px">Enter a separate Stripe Payment Link for each membership tier. These apply to all boats and enable card / Apple Pay / Google Pay on the crew payment page.</div>
 
     <div class="form-group" style="margin-bottom:14px">
       <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
@@ -861,7 +861,7 @@
         style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
         outline:none;width:100%;box-sizing:border-box;">
-      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Full members (e.g. €4)</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px">Full members (e.g. €4)</div>
     </div>
 
     <div class="form-group" style="margin-bottom:14px">
@@ -872,7 +872,7 @@
         style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
         outline:none;width:100%;box-sizing:border-box;">
-      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Student members (e.g. €5)</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px">Student members (e.g. €5)</div>
     </div>
 
     <div class="form-group" style="margin-bottom:20px">
@@ -883,7 +883,7 @@
         style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
         outline:none;width:100%;box-sizing:border-box;">
-      <div style="font-size:.7rem;color:var(--muted);margin-top:5px">Non-members / visitors (e.g. €10)</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px">Non-members / visitors (e.g. €10)</div>
     </div>
 
     <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
@@ -897,7 +897,7 @@
         style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
         outline:none;width:100%;box-sizing:border-box;">
-      <div style="font-size:.7rem;color:var(--muted);margin-top:5px;line-height:1.4">
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
         Paste the eStela race URL, or use Find to pick from your recent races. Clear after the race.
       </div>
     </div>
@@ -913,7 +913,7 @@
           outline:none;text-align:center;">
         <span style="font-size:.85rem;color:var(--muted)">hours before race start</span>
       </div>
-      <div style="font-size:.7rem;color:var(--muted);margin-top:6px;line-height:1.4">Within this window, crew will see a "Course not yet set" message if the course hasn't been published today. Outside the window, the previous course is shown for reference.</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:6px;line-height:1.4">Within this window, crew will see a "Course not yet set" message if the course hasn't been published today. Outside the window, the previous course is shown for reference.</div>
     </div>
 
     <div style="display:flex;gap:8px">
@@ -923,7 +923,7 @@
 
     <div style="border-top:1px solid var(--border);margin-top:20px;padding-top:16px">
       <div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">💾 Data Backup</div>
-      <div style="font-size:.7rem;color:var(--muted);line-height:1.4;margin-bottom:10px">Downloads a full snapshot of all club data as a JSON file. Keep a copy somewhere safe.</div>
+      <div style="font-size:.8rem;color:var(--muted);line-height:1.4;margin-bottom:10px">Downloads a full snapshot of all club data as a JSON file. Keep a copy somewhere safe.</div>
       <button class="btn btn-ghost" style="width:100%;padding:11px" onclick="downloadDatabaseBackup()">⬇ Download Backup Now</button>
     </div>
   </div>
@@ -947,7 +947,7 @@
     <div class="sheet-title">Submit to Race Officer</div>
     <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px">How are you settling the total with the club?</div>
 
-    <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Settlement method</div>
+    <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Settlement method</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
       <button class="settle-btn" id="sb-cash"    onclick="toggleSettle('cash')"   >💵<br>Cash</button>
       <button class="settle-btn" id="sb-revolut" onclick="toggleSettle('revolut')">💜<br>Revolut</button>
@@ -955,7 +955,7 @@
     </div>
 
     <div class="form-group" style="margin-bottom:16px">
-      <label style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Note (optional)</label>
+      <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Note (optional)</label>
       <input type="text" id="settlement-note" placeholder="e.g. Paid at the bar after racing"
         style="margin-top:6px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;
@@ -977,7 +977,7 @@
     <div style="font-size:.75rem;color:var(--muted);margin-bottom:14px">Under RRS Rule 61.2 — must be submitted within 2 hours of the last boat finishing.</div>
 
     <div class="form-group" style="margin-bottom:12px">
-      <label style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Boat being protested</label>
+      <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Boat being protested</label>
       <select id="pr-protestee" style="margin-top:6px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;outline:none;">
         <option value="">Select boat…</option>
       </select>
@@ -985,11 +985,11 @@
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
       <div class="form-group">
-        <label style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Where</label>
+        <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Where</label>
         <input type="text" id="pr-where" placeholder="e.g. Rounding Black Rock" style="margin-top:6px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;outline:none;box-sizing:border-box;">
       </div>
       <div class="form-group">
-        <label style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">When</label>
+        <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">When</label>
         <input type="time" id="pr-time" style="margin-top:6px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;outline:none;box-sizing:border-box;">
       </div>
     </div>
@@ -1009,7 +1009,7 @@
       </div>
     </div>
 
-    <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Rules alleged broken</div>
+    <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Rules alleged broken</div>
     <div id="pr-rules" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
       <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 10 — Port/Starboard')">Rule 10 Port/Stbd</button>
       <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 11 — Windward/Leeward')">Rule 11 W/L</button>
@@ -1023,7 +1023,7 @@
     </div>
 
     <div class="form-group" style="margin-bottom:16px">
-      <label style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Description of incident</label>
+      <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Description of incident</label>
       <textarea id="pr-description" rows="4" placeholder="Describe what happened — include positions, courses, speeds and any contact…"
         style="margin-top:6px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;

@@ -494,7 +494,7 @@ async function renderRegisteredTab(){
     'border:1px solid var(--border);border-radius:10px;margin-bottom:8px;">'+
     '<span style="font-size:1.4rem">'+b.icon+'</span>'+
     '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">'+b.name+'</span>'+
-    '<span style="margin-left:auto;font-size:.72rem;color:var(--success);font-weight:600">✓ Registered</span>'+
+    '<span style="margin-left:auto;font-size:.8rem;color:var(--success);font-weight:600">✓ Registered</span>'+
     '</div>'
   ).join('');
 }
@@ -791,9 +791,9 @@ function renderCrew(){
           (p.type==='visitor'?'<span class="tag tag-visitor">Visitor</span>':'')+
           (p.type==='student'?'<span class="tag tag-student">Student</span>':'')+
           (p.type==='kid'?'<span class="tag tag-kid">Junior</span>':'')+
-          (p.type==='visitor'?'<span style="font-size:.7rem;color:'+(warn?'var(--warn)':'var(--muted)')+'">'+p.outings+'/'+VISITOR_MAX+' outings</span>':'')+
-          (p.type==='crew'&&p.joinYear?'<span style="font-size:.72rem;color:var(--muted)">since '+p.joinYear+'</span>':'')+
-          (p.phone?'<span style="font-size:.7rem;color:var(--muted)">📱 '+p.phone+'</span>':'')+
+          (p.type==='visitor'?'<span style="font-size:.8rem;color:'+(warn?'var(--warn)':'var(--muted)')+'">'+p.outings+'/'+VISITOR_MAX+' outings</span>':'')+
+          (p.type==='crew'&&p.joinYear?'<span style="font-size:.8rem;color:var(--muted)">since '+p.joinYear+'</span>':'')+
+          (p.phone?'<span style="font-size:.8rem;color:var(--muted)">📱 '+p.phone+'</span>':'')+
         '</div>'+
         (over(p)?'<div class="cc-alert">⚠ Should convert to Full Member</div>':'')+
         (vmax(p)?'<div class="cc-alert">⚠ Max outings — must join as Crew</div>':'')+
@@ -1233,7 +1233,7 @@ async function browseEstelaRaces(){
       <div style="flex:1;min-width:0;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:var(--white);
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${race.name}</div>
-        ${d?`<div style="font-size:.7rem;color:var(--muted);margin-top:2px">${d}</div>`:''}
+        ${d?`<div style="font-size:.8rem;color:var(--muted);margin-top:2px">${d}</div>`:''}
       </div>
       <span style="font-size:.75rem;color:var(--teal);font-weight:700;flex-shrink:0">Select →</span>
     </div>`;
@@ -1345,7 +1345,7 @@ function openCollectSheet(){
       const btnLabel=(text,sub,color)=>
         '<span style="font-family:Barlow Condensed,sans-serif;font-size:.9rem;font-weight:800;'+
         'letter-spacing:.04em;text-transform:uppercase;color:'+color+'">'+text+'</span>'+
-        '<span style="font-size:.68rem;color:'+color+';opacity:.75;letter-spacing:.02em">'+sub+'</span>';
+        '<span style="font-size:.78rem;color:'+color+';opacity:.75;letter-spacing:.02em">'+sub+'</span>';
       row.innerHTML=
         // ── Name / amount header ──────────────────────────────
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
@@ -1436,9 +1436,9 @@ function markPaidCollect(id,method){
     row.innerHTML=
       '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0">'+
         '<div style="display:flex;align-items:center;gap:8px">'+
-          '<div class="cc-avatar" style="width:30px;height:30px;font-size:.72rem">'+ini(p)+'</div>'+
+          '<div class="cc-avatar" style="width:30px;height:30px;font-size:.8rem">'+ini(p)+'</div>'+
           '<div><div style="font-size:.88rem;font-weight:600">'+p.first+' '+p.last+'</div>'+
-          '<div style="font-size:.7rem;color:var(--success)">✓ '+method+'</div></div>'+
+          '<div style="font-size:.8rem;color:var(--success)">✓ '+method+'</div></div>'+
         '</div>'+
         '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;color:var(--success)">€'+fee(p)+'</span>'+
       '</div>';
@@ -1579,7 +1579,7 @@ function showRevolutQR(firstName, revLink, amt){
       <div style="background:white;border-radius:10px;padding:12px;display:inline-block;margin-bottom:16px">
         <img src="${qrUrl}" style="width:200px;height:200px;display:block">
       </div>
-      <div style="font-size:.7rem;color:#7a8fa6;margin-bottom:14px">${revLink}</div>
+      <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:14px">${revLink}</div>
       <button onclick="document.getElementById('_revolutQROverlay').remove()"
         style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
         border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
@@ -1845,20 +1845,20 @@ async function generatePaymentReport(){
   </div>
 
   <div style="display:flex;gap:24px;background:#f0f4ff;border-radius:8px;padding:14px;margin-bottom:28px;flex-wrap:wrap;">
-    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Registered</div>
+    <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Registered</div>
       <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">${(regs||[]).length}</div></div>
-    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Submitted</div>
+    <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Submitted</div>
       <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">${records.length}</div></div>
-    ${missingBoats.length?`<div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Missing</div>
+    ${missingBoats.length?`<div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Missing</div>
       <div style="font-size:1.6rem;font-weight:800;color:#c0392b;font-family:'Barlow Condensed',sans-serif">${missingBoats.length}</div></div>`:''}
-    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Total Due</div>
+    <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Total Due</div>
       <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">€${grandDue}</div></div>
-    <div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Collected</div>
+    <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Collected</div>
       <div style="font-size:1.6rem;font-weight:800;color:#1a7a3a;font-family:'Barlow Condensed',sans-serif">€${grandPaid}</div></div>
-    ${grandOutstanding>0?`<div><div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Outstanding</div>
+    ${grandOutstanding>0?`<div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Outstanding</div>
       <div style="font-size:1.6rem;font-weight:800;color:#c0392b;font-family:'Barlow Condensed',sans-serif">€${grandOutstanding}</div></div>`:''}
     <div style="margin-left:auto">
-      <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">By Method</div>
+      <div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">By Method</div>
       <table style="margin-top:2px">${methodSummaryRows}</table>
     </div>
   </div>
@@ -1903,15 +1903,15 @@ async function loadAndRenderDocs(){
     const other=files.filter(f=>!/sailing.instruct|notice.of.race/i.test(f.name));
     let html='';
     if(si.length){
-      html+='<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Always Available</div>';
+      html+='<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Always Available</div>';
       si.forEach(f=>{ html+=docCard({id:f.id,title:f.name.replace(/\.pdf$/i,''),subtitle:'Applies to all Wednesday & KOTB races'},'📋'); });
     }
     if(nor.length){
-      html+='<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Notice of Race</div>';
+      html+='<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Notice of Race</div>';
       nor.forEach(f=>{ html+=docCard({id:f.id,title:f.name.replace(/\.pdf$/i,''),subtitle:'Wednesday Series'},'🏁'); });
     }
     if(other.length){
-      html+='<div style="font-size:.62rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Other Documents</div>';
+      html+='<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Other Documents</div>';
       other.forEach(f=>{ html+=docCard({id:f.id,title:f.name.replace(/\.pdf$/i,''),subtitle:''},'📄'); });
     }
     el.innerHTML=html;
@@ -1929,7 +1929,7 @@ function docCard(doc,icon){
     '<div style="font-size:1.8rem;flex-shrink:0">'+icon+'</div>'+
     '<div style="flex:1;min-width:0">'+
       '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">'+doc.title+'</div>'+
-      '<div style="font-size:.72rem;color:var(--muted);margin-top:2px">'+doc.subtitle+'</div>'+
+      '<div style="font-size:.8rem;color:var(--muted);margin-top:2px">'+doc.subtitle+'</div>'+
     '</div>'+
     '<button onclick="openDoc(\''+doc.id+'\',\''+doc.title.replace(/'/g,'&#39;')+'\')"\n'+
     '  style="flex-shrink:0;background:var(--teal);color:var(--navy-dark);border:none;border-radius:8px;'+
@@ -2495,14 +2495,14 @@ function renderCourseDiagram(){
         <span style="font-size:1.1rem">⚠️</span>
         <div>
           <div style="font-size:.75rem;font-weight:700;color:var(--gold);letter-spacing:.04em;text-transform:uppercase">Previous Course — For Reference Only</div>
-          <div style="font-size:.68rem;color:var(--muted);margin-top:1px">Today's course has not been published yet. Check back before race time.</div>
+          <div style="font-size:.78rem;color:var(--muted);margin-top:1px">Today's course has not been published yet. Check back before race time.</div>
         </div>
       </div>`:''}
       <div class="course-header">
         <div>
           <div class="course-title-label">${isStale?'Last Published Course':'Course'}</div>
           <div class="course-name-text">${c.name||'Published Course'}</div>
-          <div style="font-size:.68rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
+          <div style="font-size:.78rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
             ${c.published_at?'Set '+new Date(c.published_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}
           </div>
         </div>
@@ -2515,7 +2515,7 @@ function renderCourseDiagram(){
             <span style="font-size:.8rem">📏</span>
             <span style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--teal)">${totalNm} nm</span>
           </div>
-          <button onclick="toggleMapMode()" style="font-family:'Barlow Condensed',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:20px;cursor:pointer;transition:all .2s;${mapTileMode!=='off'?'border:1px solid rgba(0,174,239,.6);background:rgba(0,174,239,.15);color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)'}">🛰 Satellite</button>
+          <button onclick="toggleMapMode()" style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;letter-spacing:.04em;padding:3px 10px;border-radius:20px;cursor:pointer;transition:all .2s;${mapTileMode!=='off'?'border:1px solid rgba(0,174,239,.6);background:rgba(0,174,239,.15);color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)'}">🛰 Satellite</button>
         </div>
       </div>
       ${c.notes?`<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.82rem;color:var(--gold);line-height:1.4">📋 ${c.notes}</div>`:''}
@@ -2549,7 +2549,7 @@ function buildMarksGrid(){
       '<div class="mark-toggle-id" style="display:flex;align-items:center;gap:4px">'+
         '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+m.colour+';flex-shrink:0"></span>'+
         m.name+'</div>'+
-      '<div style="font-size:.62rem;color:var(--teal);margin-top:3px;font-family:Barlow Condensed,sans-serif;font-weight:600">+ ADD</div>';
+      '<div style="font-size:.75rem;color:var(--teal);margin-top:3px;font-family:Barlow Condensed,sans-serif;font-weight:600">+ ADD</div>';
     el.onclick=()=>addMarkToSequence(m.id);
     g.appendChild(el);
   });
@@ -2596,8 +2596,8 @@ function renderSelectedOrder(){
       '<span style="font-family:Barlow Condensed,sans-serif;font-size:.75rem;color:var(--teal);font-weight:700;min-width:16px">'+(i+1)+'.</span>'+
       '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+colour+';flex-shrink:0"></span>'+
       '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:.95rem;flex:1">'+(m?m.name:entry.id)+'</span>'+
-      '<button onclick="setRounding('+i+',\'port\')" style="font-size:.65rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'#e63946':'var(--border)')+';background:'+(isPort?'rgba(230,57,70,.2)':'transparent')+';color:'+(isPort?'#e63946':'var(--muted)')+';cursor:pointer">◄ Port</button>'+
-      '<button onclick="setRounding('+i+',\'stbd\')" style="font-size:.65rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'var(--border)':'#2dc653')+';background:'+(isPort?'transparent':'rgba(45,198,83,.2)')+';color:'+(isPort?'var(--muted)':'#2dc653')+';cursor:pointer">Stbd ►</button>'+
+      '<button onclick="setRounding('+i+',\'port\')" style="font-size:.75rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'#e63946':'var(--border)')+';background:'+(isPort?'rgba(230,57,70,.2)':'transparent')+';color:'+(isPort?'#e63946':'var(--muted)')+';cursor:pointer">◄ Port</button>'+
+      '<button onclick="setRounding('+i+',\'stbd\')" style="font-size:.75rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'var(--border)':'#2dc653')+';background:'+(isPort?'transparent':'rgba(45,198,83,.2)')+';color:'+(isPort?'var(--muted)':'#2dc653')+';cursor:pointer">Stbd ►</button>'+
       '<span onclick="removeMarkFromSequence('+i+')" style="color:var(--muted);cursor:pointer;font-size:.9rem;padding:0 2px;line-height:1" title="Remove">✕</span>';
     list.appendChild(el);
   });
@@ -2653,8 +2653,8 @@ function buildPinMgmtList(){
       '</div>'+
       '<div style="display:flex;align-items:center;gap:6px">'+
         '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.15em">'+pin+'</span>'+
-        '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">PIN</button>'+
-        '<button onclick="deleteBoat(\''+b.id+'\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">Delete</button>'+
+        '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">PIN</button>'+
+        '<button onclick="deleteBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">Delete</button>'+
       '</div>';
     list.appendChild(row);
   });
@@ -2666,7 +2666,7 @@ function buildPinMgmtList(){
     '</div>'+
     '<div style="display:flex;align-items:center;gap:6px">'+
       '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.15em">'+getRoPin()+'</span>'+
-      '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.7rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(254,224,30,.4);background:transparent;color:var(--ro);cursor:pointer">PIN</button>'+
+      '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(254,224,30,.4);background:transparent;color:var(--ro);cursor:pointer">PIN</button>'+
     '</div>';
   list.appendChild(roRow);
 }
@@ -3018,7 +3018,7 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap){
 
     const nameCell=display.secondary
       ? `<div style="font-weight:600;line-height:1.2">${display.primary}</div>`+
-        `<div style="font-size:.7rem;color:var(--muted)">${display.secondary}</div>`
+        `<div style="font-size:.8rem;color:var(--muted)">${display.secondary}</div>`
       : `<div style="font-weight:600">${display.primary}</div>`;
 
     // Per-race points cells
@@ -3059,7 +3059,7 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap){
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <div style="font-size:.7rem;color:var(--muted);margin-top:10px;text-align:center">
+    <div style="font-size:.8rem;color:var(--muted);margin-top:10px;text-align:center">
       Points in () are discards · Red = DNS/DNF/OCS
     </div>
   `;
@@ -3093,7 +3093,7 @@ function showCrewPayPage(data){
       <div style="font-size:.85rem;color:#7a8fa6">${data.race} · ${data.boat}</div>
     </div>`;
 
-  const footer=`<div style="text-align:center;font-size:.7rem;color:#4a5568;margin-top:24px">
+  const footer=`<div style="text-align:center;font-size:.8rem;color:#4a5568;margin-top:24px">
     GBSC Racing App · Race fees collected on behalf of Galway Bay Sailing Club
   </div>`;
 
@@ -3107,7 +3107,7 @@ function showCrewPayPage(data){
         transition:background .15s;">
         <div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:700;letter-spacing:.02em">${c.n}</div>
-          <div style="font-size:.72rem;color:#7a8fa6;text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${memberLabel(c.t)}</div>
+          <div style="font-size:.8rem;color:#7a8fa6;text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${memberLabel(c.t)}</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;color:#00b4d8">€${c.a}</span>
@@ -3144,7 +3144,7 @@ function showCrewPayPage(data){
         <span style="font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">💜 Open Revolut</span>
         <span style="font-size:.85rem;font-weight:400;opacity:.85">then enter <strong style="font-size:1rem;font-weight:800">€${c.a}</strong> as the amount</span>
       </a>
-      <div style="text-align:center;font-size:.72rem;color:#a78bfa;margin-bottom:12px;letter-spacing:.02em">
+      <div style="text-align:center;font-size:.8rem;color:#a78bfa;margin-bottom:12px;letter-spacing:.02em">
         Send to <strong>@${data.rev}</strong>
       </div>`:'';
 
@@ -3169,13 +3169,13 @@ function showCrewPayPage(data){
         ${pageHeader}
         <div style="background:#112240;border:1px solid rgba(0,180,216,.22);border-radius:16px;
           padding:24px 20px;margin-bottom:20px;text-align:center;">
-          <div style="font-size:.68rem;color:#7a8fa6;font-weight:700;letter-spacing:.12em;
+          <div style="font-size:.78rem;color:#7a8fa6;font-weight:700;letter-spacing:.12em;
             text-transform:uppercase;margin-bottom:10px">Your Race Fee</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;
             color:#f0f4f8;margin-bottom:8px">${c.n}</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:3.5rem;font-weight:800;
             color:#00b4d8;line-height:1;margin-bottom:6px">€${c.a}</div>
-          <div style="font-size:.72rem;color:#7a8fa6;text-transform:uppercase;letter-spacing:.06em">${memberLabel(c.t)}</div>
+          <div style="font-size:.8rem;color:#7a8fa6;text-transform:uppercase;letter-spacing:.06em">${memberLabel(c.t)}</div>
         </div>
         ${revBtn}${stripeBtn}${noOptions}
         <button onclick="window._cpBack()"
@@ -3280,14 +3280,14 @@ function buildMarksMgrList(){
       `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${m.colour};flex-shrink:0"></span>`+
       `<div style="flex:1;min-width:0;">`+
         `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${m.active?'':'opacity:.45'}">${m.name}</div>`+
-        `<div style="font-size:.68rem;color:var(--muted)">${m.desc||''}</div>`+
+        `<div style="font-size:.78rem;color:var(--muted)">${m.desc||''}</div>`+
       `</div>`+
       `<div style="display:flex;align-items:center;gap:5px">`+
-        `<button onclick="toggleMarkActive('${m.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        `<button onclick="toggleMarkActive('${m.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
         (m.active?'border:1px solid var(--border);background:transparent;color:var(--muted)':'border:1px solid var(--teal);background:transparent;color:var(--teal)')+`">`+
         (m.active?'Off':'On')+`</button>`+
-        `<button onclick="openEditMark('${m.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
-        `<button onclick="deleteMark('${m.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
+        `<button onclick="openEditMark('${m.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteMark('${m.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
       `</div>`;
     list.appendChild(row);
   });
@@ -3569,7 +3569,7 @@ async function loadProtests(){
       <div style="font-size:.78rem;color:var(--teal);margin-bottom:8px">${rules}</div>
       <div style="font-size:.82rem;color:var(--white);margin-bottom:12px;line-height:1.4">${p.description}</div>
       <div style="border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-size:.68rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">RO Decision</div>
+        <div style="font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">RO Decision</div>
         <select onchange="updateProtestStatus('${p.id}',this.value)"
           style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
           color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.88rem;font-weight:700;
