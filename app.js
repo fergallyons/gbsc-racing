@@ -192,9 +192,9 @@ const LINES=[
     lat2:53.1155, lng2:-9.1495 },
   { id:'galway_docks',
     name:'Galway Docks Start',
-    // TODO: replace with real start-line coords once confirmed
-    lat1:53.2695, lng1:-9.0497,
-    lat2:53.2698, lng2:-9.0490 },
+    lat1:53+(16.0355/60), lng1:-(9+(2.6577/60)),  // 53°16.0355'N 009°02.6577'W
+    lat2:53+(16.0090/60), lng2:-(9+(2.8005/60)),  // 53°16.0090'N 009°02.8005'W
+  },
 ];
 function getLineById(id){ return LINES.find(l=>l.id===id)||LINES[0]; }
 function lineMidpoint(l){ return {lat:(l.lat1+l.lat2)/2, lng:(l.lng1+l.lng2)/2}; }
