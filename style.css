@@ -498,30 +498,6 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .cal-badge.kotb{background:rgba(254,224,30,.12);color:var(--gold);border:1px solid rgba(254,224,30,.3);}
 .cal-badge.past{background:rgba(122,164,204,.08);color:var(--muted);border:1px solid var(--border);}
 
-/* Grid view */
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;}
-.cal-grid-header{font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;
-  letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center;
-  padding:6px 2px;border-bottom:1px solid var(--border);}
-.cal-cell{min-height:52px;padding:3px;border-right:1px solid var(--border);
-  border-bottom:1px solid var(--border);position:relative;}
-.cal-cell:nth-child(7n){border-right:none;}
-.cal-cell-num{font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
-  color:var(--muted);line-height:1;margin-bottom:2px;}
-.cal-cell.today .cal-cell-num{color:var(--teal);}
-.cal-cell.other-month{opacity:.3;}
-.cal-event{font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;
-  padding:1px 3px;border-radius:3px;margin-bottom:1px;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;cursor:default;}
-.cal-event.wed{background:rgba(0,174,239,.2);color:var(--teal);}
-.cal-event.kotb{background:rgba(254,224,30,.2);color:var(--gold);}
-.cal-event.other{background:rgba(122,164,204,.15);color:var(--muted);}
-.cal-month-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-.cal-month-label{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
-  letter-spacing:.04em;color:var(--white);}
-.cal-nav-btn{background:transparent;border:1px solid var(--border);border-radius:7px;
-  color:var(--muted);font-size:1rem;padding:4px 10px;cursor:pointer;transition:all .15s;}
-.cal-nav-btn:hover{border-color:var(--teal);color:var(--white);}
 
 /* ─── SETTLEMENT SHEET ────────────────────────────────────── */
 .settle-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;
