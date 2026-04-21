@@ -862,25 +862,40 @@ async function addCrewMember(){
   const joinYear=type==='crew'?(parseInt(document.getElementById('cf-join').value)||CY):null;
   const outings=type==='visitor'?(parseInt(document.getElementById('cf-out').value)||0):0;
   const phone=document.getElementById('cf-phone').value.trim();
-  roster.push({id:newCrewId(),first,last,type,joinYear,outings,phone,selected:true,paid:false});
+
+  // Close the form immediately so the UI feels responsive
   document.getElementById('cf-first').value='';document.getElementById('cf-last').value='';
   document.getElementById('cf-type').value='full';document.getElementById('cf-phone').value='';
   document.getElementById('cf-joinGrp').style.display='none';document.getElementById('cf-outGrp').style.display='none';
   document.getElementById('crewForm').classList.remove('open');
   const _ab=document.getElementById('crewAddBtn');if(_ab)_ab.style.display='flex';
-  const newP=roster[roster.length-1];
+
+  const newP={id:newCrewId(),first,last,type,joinYear,outings,phone,selected:true,paid:false};
+
+  // Save to DB first — only add to roster / show success if it works
+  setSyncStatus('syncing');
   const result=await sbUpsertCrew(currentBoat.id,newP);
+
   if(result&&result._err){
-    toast('⚠ DB error: '+result._err.slice(0,80));
+    // HTTP error from Supabase (e.g. RLS denied, constraint violation)
+    toast('⚠ Could not save '+first+' — '+result._err.slice(0,60));
     setSyncStatus('offline');
-  } else if(result===null){
-    toast('⚠ Could not reach database');
-    setSyncStatus('offline');
-  } else {
-    setSyncStatus('ok');
-    cacheRosterLocally(currentBoat.id,roster);
+    return; // do NOT add to in-memory roster — stay in sync with DB
   }
-  renderCrew();saveCrewSelection(currentBoat?.id);toast(first+' '+last+' added ✓');
+  if(result===null){
+    // Network failure
+    toast('⚠ No database connection — '+first+' was not saved');
+    setSyncStatus('offline');
+    return;
+  }
+
+  // DB save succeeded — now update in-memory state
+  roster.push(newP);
+  setSyncStatus('ok');
+  cacheRosterLocally(currentBoat.id,roster);
+  saveCrewSelection(currentBoat?.id);
+  renderCrew();
+  toast(first+' '+last+' added ✓');
 }
 // edit sheet
 function onEditTypeChange(){const t=document.getElementById('ef-type').value;document.getElementById('ef-joinGrp').style.display=t==='crew'?'flex':'none';document.getElementById('ef-outGrp').style.display=t==='visitor'?'flex':'none';}
@@ -897,17 +912,38 @@ function openEditSheet(id){
   onEditTypeChange();
   document.getElementById('editSheet').classList.add('open');
 }
-function saveEdit(){
+async function saveEdit(){
   const p=roster.find(r=>r.id===editingId);if(!p)return;
   const first=document.getElementById('ef-first').value.trim();
   const last=document.getElementById('ef-last').value.trim();
   if(!first||!last){toast('Enter a name');return;}
+  // Capture original values in case we need to roll back
+  const orig={first:p.first,last:p.last,type:p.type,joinYear:p.joinYear,outings:p.outings,phone:p.phone};
   p.first=first;p.last=last;p.type=document.getElementById('ef-type').value;
   p.joinYear=p.type==='crew'?(parseInt(document.getElementById('ef-join').value)||CY):null;
   p.outings=p.type==='visitor'?(parseInt(document.getElementById('ef-out').value)||0):0;
   p.phone=document.getElementById('ef-phone').value.trim();
-  sbUpsertCrew(currentBoat.id,p).then(()=>{setSyncStatus('ok');cacheRosterLocally(currentBoat.id,roster);}).catch(()=>setSyncStatus('offline'));
-  closeSheet('editSheet');renderCrew();toast(first+' updated ✓');
+  closeSheet('editSheet');
+  setSyncStatus('syncing');
+  const result=await sbUpsertCrew(currentBoat.id,p);
+  if(result&&result._err){
+    Object.assign(p,orig); // roll back in-memory change
+    toast('⚠ Could not save changes — '+result._err.slice(0,60));
+    setSyncStatus('offline');
+    renderCrew();
+    return;
+  }
+  if(result===null){
+    Object.assign(p,orig);
+    toast('⚠ No database connection — changes not saved');
+    setSyncStatus('offline');
+    renderCrew();
+    return;
+  }
+  setSyncStatus('ok');
+  cacheRosterLocally(currentBoat.id,roster);
+  renderCrew();
+  toast(first+' updated ✓');
 }
 function deleteCrew(){
   const p=roster.find(r=>r.id===editingId);if(!p)return;
