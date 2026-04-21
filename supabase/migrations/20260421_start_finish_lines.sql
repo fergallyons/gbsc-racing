@@ -27,6 +27,19 @@ INSERT INTO start_finish_lines (id, name, lat1, lng1, lat2, lng2, is_default, so
    false, 2)
 ON CONFLICT (id) DO NOTHING;
 
+-- RLS — same pattern as marks table
+ALTER TABLE start_finish_lines ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "anon read lines"   ON start_finish_lines;
+DROP POLICY IF EXISTS "anon insert lines" ON start_finish_lines;
+DROP POLICY IF EXISTS "anon update lines" ON start_finish_lines;
+DROP POLICY IF EXISTS "anon delete lines" ON start_finish_lines;
+CREATE POLICY "anon read lines"   ON start_finish_lines FOR SELECT USING (true);
+CREATE POLICY "anon insert lines" ON start_finish_lines FOR INSERT WITH CHECK (true);
+CREATE POLICY "anon update lines" ON start_finish_lines FOR UPDATE USING (true);
+CREATE POLICY "anon delete lines" ON start_finish_lines FOR DELETE USING (true);
+GRANT SELECT, INSERT, UPDATE, DELETE ON start_finish_lines TO anon;
+
 -- Add line ID columns to published_courses (idempotent)
 ALTER TABLE published_courses
   ADD COLUMN IF NOT EXISTS start_line_id  TEXT DEFAULT 'club',
