@@ -179,22 +179,23 @@ let MARKS = [
 // lat2/lng2 = committee boat / outer mark end.
 // TODO: Replace placeholder coords for Ballyvaughan and Galway Docks
 //       with the real transits / GPS fixes once confirmed on the water.
-const LINES=[
+let LINES=[
   { id:'club',
     name:'Club Start/Finish',
     lat1:53+(14.5687/60), lng1:-(8+(58.6148/60)),  // pin end  53°14.5687'N 008°58.6148'W
     lat2:53+(14.7106/60), lng2:-(8+(58.6084/60)),  // committee boat end  53°14.7106'N 008°58.6084'W
-    isDefault:true },
+    isDefault:true, isActive:true },
   { id:'ballyvaughan',
     name:'Ballyvaughan Finish',
     // TODO: replace with real finish-line coords once confirmed
     lat1:53.1165, lng1:-9.1490,
-    lat2:53.1155, lng2:-9.1495 },
+    lat2:53.1155, lng2:-9.1495,
+    isActive:true },
   { id:'galway_docks',
     name:'Galway Docks Start',
     lat1:53+(16.0355/60), lng1:-(9+(2.6577/60)),  // 53°16.0355'N 009°02.6577'W
     lat2:53+(16.0090/60), lng2:-(9+(2.8005/60)),  // 53°16.0090'N 009°02.8005'W
-  },
+    isActive:true },
 ];
 function getLineById(id){ return LINES.find(l=>l.id===id)||LINES[0]; }
 function lineMidpoint(l){ return {lat:(l.lat1+l.lat2)/2, lng:(l.lng1+l.lng2)/2}; }
@@ -456,6 +457,7 @@ async function enterApp(b,ro){
     updateRODash();
     buildMarksGrid();
     loadMarks();
+    loadLines();
     loadAndDrawCourse();
     loadRegistrations();
     buildPinMgmtList();
@@ -695,6 +697,7 @@ function openPanel(id){
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     p.classList.add('open');
     if(id==='roCoursePanel') populateLineSelects();
+    if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
   }));
 }
 function closePanel(id){
@@ -2716,7 +2719,7 @@ function populateLineSelects(){
   const startSel=document.getElementById('startLineSelect');
   const finishSel=document.getElementById('finishLineSelect');
   if(!startSel||!finishSel) return;
-  const makeOpts=(selectedId)=>LINES.map(l=>
+  const makeOpts=(selectedId)=>LINES.filter(l=>l.isActive!==false||l.isDefault).map(l=>
     `<option value="${l.id}"${l.id===selectedId?' selected':''}>${l.isDefault?'★ ':''}${l.name}</option>`
   ).join('');
   startSel.innerHTML=makeOpts(selectedStartLineId);
@@ -3395,6 +3398,19 @@ async function loadMarks(){
     buildMarksMgrList();
   }
 }
+async function loadLines(){
+  const rows=await sbFetch('/rest/v1/start_finish_lines?order=sort_order.asc,name.asc');
+  if(rows&&rows.length){
+    LINES=rows.map(r=>({
+      id:r.id, name:r.name,
+      lat1:r.lat1, lng1:r.lng1,
+      lat2:r.lat2, lng2:r.lng2,
+      isDefault:r.is_default||false,
+      isActive:r.is_active!==false
+    }));
+  }
+  if(isRO) buildLinesMgrList();
+}
 
 function buildMarksMgrList(){
   const list=document.getElementById('marksMgrList');
@@ -3524,6 +3540,152 @@ async function submitAddMark(){
     // Reload marks from DB to confirm save and pick up server-generated fields
     await loadMarks();
     hideMarkAddForm();
+    toast('✅ '+name+' added');
+  }
+}
+
+// ── Lines Manager ──────────────────────────────────────────────────────────
+function fmtDM(dec,isLat){
+  const h=dec>=0?(isLat?'N':'E'):(isLat?'S':'W');
+  const abs=Math.abs(dec);
+  const d=Math.floor(abs);
+  const m=((abs-d)*60).toFixed(3);
+  return d+'°'+m+"'"+h;
+}
+function buildLinesMgrList(){
+  const list=document.getElementById('linesMgrList');
+  if(!list)return;
+  list.innerHTML='';
+  LINES.forEach(l=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;background:var(--navy);border-radius:10px;padding:9px 12px;';
+    const inactive=l.isActive===false;
+    row.innerHTML=
+      `<div style="flex:1;min-width:0;">`+
+        `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${inactive?'opacity:.45':''}">${l.name}${l.isDefault?' ★':''}</div>`+
+        `<div style="font-size:.65rem;color:var(--muted)">Pin: ${fmtDM(l.lat1,true)} ${fmtDM(l.lng1,false)}</div>`+
+      `</div>`+
+      `<div style="display:flex;align-items:center;gap:5px">`+
+        `<button onclick="toggleLineActive('${l.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        (!inactive?'border:1px solid var(--border);background:transparent;color:var(--muted)':'border:1px solid var(--teal);background:transparent;color:var(--teal)')+`">`+
+        (!inactive?'Off':'On')+`</button>`+
+        `<button onclick="openEditLine('${l.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteLine('${l.id}')" ${l.isDefault?'disabled':''} style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer;${l.isDefault?'opacity:.35;cursor:not-allowed':''}">🗑</button>`+
+      `</div>`;
+    list.appendChild(row);
+  });
+}
+async function toggleLineActive(id){
+  const l=LINES.find(x=>x.id===id); if(!l)return;
+  const newActive=!l.isActive;
+  const r=await sbFetch('/rest/v1/start_finish_lines?id=eq.'+id,{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({is_active:newActive})});
+  if(!r||r._err){toast('⚠ Could not update line');return;}
+  l.isActive=newActive;
+  buildLinesMgrList();
+  populateLineSelects();
+  toast((newActive?'✅ '+l.name+' active':'⛔ '+l.name+' disabled'));
+}
+function showLineAddForm(){
+  document.getElementById('lineAddForm').style.display='block';
+  document.getElementById('lineAddBtn').style.display='none';
+}
+let editingLineId=null;
+function hideLineAddForm(){
+  document.getElementById('lineAddForm').style.display='none';
+  document.getElementById('lineAddBtn').style.display='block';
+  ['ln-name','ln-lat1-d','ln-lat1-m','ln-lng1-d','ln-lng1-m','ln-lat2-d','ln-lat2-m','ln-lng2-d','ln-lng2-m'].forEach(fid=>document.getElementById(fid).value='');
+  document.getElementById('ln-lat1-h').value='N';
+  document.getElementById('ln-lng1-h').value='W';
+  document.getElementById('ln-lat2-h').value='N';
+  document.getElementById('ln-lng2-h').value='W';
+  document.getElementById('lineFormTitle').textContent='New Line';
+  document.getElementById('lineFormSubmitBtn').textContent='Add Line';
+  editingLineId=null;
+}
+function openEditLine(id){
+  const l=LINES.find(x=>x.id===id); if(!l)return;
+  editingLineId=id;
+  function toDF(dec){return{d:Math.floor(Math.abs(dec)),m:((Math.abs(dec)-Math.floor(Math.abs(dec)))*60).toFixed(4)};}
+  document.getElementById('ln-name').value=l.name;
+  const lat1DM=toDF(l.lat1), lng1DM=toDF(l.lng1);
+  document.getElementById('ln-lat1-d').value=lat1DM.d;
+  document.getElementById('ln-lat1-m').value=lat1DM.m;
+  document.getElementById('ln-lat1-h').value=l.lat1>=0?'N':'S';
+  document.getElementById('ln-lng1-d').value=lng1DM.d;
+  document.getElementById('ln-lng1-m').value=lng1DM.m;
+  document.getElementById('ln-lng1-h').value=l.lng1>=0?'E':'W';
+  const lat2DM=toDF(l.lat2), lng2DM=toDF(l.lng2);
+  document.getElementById('ln-lat2-d').value=lat2DM.d;
+  document.getElementById('ln-lat2-m').value=lat2DM.m;
+  document.getElementById('ln-lat2-h').value=l.lat2>=0?'N':'S';
+  document.getElementById('ln-lng2-d').value=lng2DM.d;
+  document.getElementById('ln-lng2-m').value=lng2DM.m;
+  document.getElementById('ln-lng2-h').value=l.lng2>=0?'E':'W';
+  document.getElementById('lineFormTitle').textContent='Edit Line';
+  document.getElementById('lineFormSubmitBtn').textContent='Save Changes';
+  document.getElementById('lineAddForm').style.display='block';
+  document.getElementById('lineAddBtn').style.display='none';
+  document.getElementById('ln-name').focus();
+}
+async function deleteLine(id){
+  const l=LINES.find(x=>x.id===id); if(!l)return;
+  if(l.isDefault){toast('Cannot delete the default club line');return;}
+  if(!confirm('Delete "'+l.name+'"?\n\nThis cannot be undone.'))return;
+  const r=await sbFetch('/rest/v1/start_finish_lines?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
+  if(!r||r._err){toast('⚠ Could not delete: '+(r&&r._err||'network error'));return;}
+  LINES.splice(LINES.indexOf(l),1);
+  buildLinesMgrList();
+  populateLineSelects();
+  toast('🗑 '+l.name+' deleted');
+}
+async function submitAddLine(){
+  const name=document.getElementById('ln-name').value.trim();
+  const lat1D=parseFloat(document.getElementById('ln-lat1-d').value);
+  const lat1M=parseFloat(document.getElementById('ln-lat1-m').value);
+  const lat1H=document.getElementById('ln-lat1-h').value;
+  const lng1D=parseFloat(document.getElementById('ln-lng1-d').value);
+  const lng1M=parseFloat(document.getElementById('ln-lng1-m').value);
+  const lng1H=document.getElementById('ln-lng1-h').value;
+  const lat2D=parseFloat(document.getElementById('ln-lat2-d').value);
+  const lat2M=parseFloat(document.getElementById('ln-lat2-m').value);
+  const lat2H=document.getElementById('ln-lat2-h').value;
+  const lng2D=parseFloat(document.getElementById('ln-lng2-d').value);
+  const lng2M=parseFloat(document.getElementById('ln-lng2-m').value);
+  const lng2H=document.getElementById('ln-lng2-h').value;
+
+  if(!name){toast('Enter a line name');return;}
+  if(isNaN(lat1D)||isNaN(lat1M)||isNaN(lng1D)||isNaN(lng1M)||
+     isNaN(lat2D)||isNaN(lat2M)||isNaN(lng2D)||isNaN(lng2M)){
+    toast('Enter valid coordinates for both endpoints');return;
+  }
+  const lat1=(lat1D+lat1M/60)*(lat1H==='S'?-1:1);
+  const lng1=(lng1D+lng1M/60)*(lng1H==='W'?-1:1);
+  const lat2=(lat2D+lat2M/60)*(lat2H==='S'?-1:1);
+  const lng2=(lng2D+lng2M/60)*(lng2H==='W'?-1:1);
+
+  if(editingLineId){
+    const r=await sbFetch('/rest/v1/start_finish_lines?id=eq.'+editingLineId,{method:'PATCH',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({name,lat1,lng1,lat2,lng2})});
+    if(!r||r._err){toast('⚠ Could not save changes: '+(r&&r._err||'network error'));return;}
+    const l=LINES.find(x=>x.id===editingLineId);
+    if(l){Object.assign(l,{name,lat1,lng1,lat2,lng2});}
+    hideLineAddForm();
+    buildLinesMgrList();
+    populateLineSelects();
+    toast('✅ '+name+' updated');
+  } else {
+    const newId=name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'').substring(0,40);
+    const r=await sbFetch('/rest/v1/start_finish_lines',{method:'POST',
+      headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},
+      body:JSON.stringify({id:newId,name,lat1,lng1,lat2,lng2,is_default:false,is_active:true,sort_order:99})});
+    if(!r||r._err){toast('⚠ Could not save line: '+(r&&r._err||'network error'));return;}
+    LINES.push({id:newId,name,lat1,lng1,lat2,lng2,isDefault:false,isActive:true});
+    hideLineAddForm();
+    buildLinesMgrList();
+    populateLineSelects();
     toast('✅ '+name+' added');
   }
 }
