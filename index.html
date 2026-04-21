@@ -539,8 +539,16 @@
         </div>
       </div>
       <div class="ro-row">
-        <label>Start/Finish</label>
-        <span style="font-size:.82rem;color:var(--white)">Club Start Line (outer)</span>
+        <label>Start Line</label>
+        <select id="startLineSelect" onchange="updateStartLine(this.value)"
+          style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+        </select>
+      </div>
+      <div class="ro-row">
+        <label>Finish Line</label>
+        <select id="finishLineSelect" onchange="updateFinishLine(this.value)"
+          style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+        </select>
       </div>
     </div>
     <div class="ro-row" style="margin-top:10px">
