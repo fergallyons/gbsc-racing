@@ -98,7 +98,7 @@ CREATE POLICY "crew_insert" ON crew FOR INSERT WITH CHECK (
 );
 CREATE POLICY "crew_update" ON crew FOR UPDATE USING (true);
 CREATE POLICY "crew_delete" ON crew FOR DELETE USING (true);
-
+GRANT SELECT, INSERT, UPDATE, DELETE ON crew TO anon;  -- required: anon only gets SELECT by default
 
 -- ── registrations ───────────────────────────────────────────
 -- Needed: SELECT all (start list), INSERT (register), DELETE (unregister/RO remove)
