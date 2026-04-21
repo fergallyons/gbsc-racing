@@ -182,7 +182,7 @@ let MARKS = [
 const LINES=[
   { id:'club',
     name:'Club Start/Finish',
-    lat1:53+(14.5687/60), lng1:-(8+(58.6148/60)),  // pin end (placeholder — TODO: real coords)
+    lat1:53+(14.5687/60), lng1:-(8+(58.6148/60)),  // pin end  53°14.5687'N 008°58.6148'W
     lat2:53+(14.7106/60), lng2:-(8+(58.6084/60)),  // committee boat end  53°14.7106'N 008°58.6084'W
     isDefault:true },
   { id:'ballyvaughan',
