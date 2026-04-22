@@ -1632,16 +1632,13 @@ function openSharePayLink(){
   const tot=sel.filter(p=>!p.paid).reduce((a,p)=>a+fee(p),0);
   if(!tot){toast('All crew already paid ✓');return;}
 
-  // Build a data URL encoding the payment context
+  // Build a data URL encoding the payment context.
+  // stripeLinks are intentionally omitted — they are loaded from clubSettings
+  // at render time, which keeps the URL short (saves ~300 chars of base64).
   const data={
     boat: currentBoat.name,
     race: selectedRace?selectedRace.label:'Race',
     rev: getRevolutUser(),
-    stripeLinks:{
-      member:  getStripeLink('full'),
-      student: getStripeLink('student'),
-      visitor: getStripeLink('visitor'),
-    },
     crew: sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p)}))
   };
   const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(data))));
@@ -3173,8 +3170,9 @@ function showCrewPayPage(data){
   window._cpStep2=function(idx){
     const c=data.crew[idx];
     const revUrl=data.rev?`https://revolut.me/${data.rev}`:'';
+    // Prefer clubSettings (loaded at startup); fall back to embedded stripeLinks for old shared URLs
     const sl=data.stripeLinks||{};
-    const stripeUrl=(c.t==='student'?sl.student:c.t==='visitor'?sl.visitor:sl.member)||data.stripe||'';
+    const stripeUrl=getStripeLink(c.t)||(c.t==='student'?sl.student:c.t==='visitor'?sl.visitor:sl.member)||data.stripe||'';
 
     const revBtn=revUrl?`
       <a href="${revUrl}" target="_blank"
@@ -3903,9 +3901,9 @@ function startCountdown(){
 // ═══════════════════════════════════════════════════════════════
 // INIT — open directly to public view, no login gate
 // ═══════════════════════════════════════════════════════════════
-checkPayHash();
 loadWindWidget();
-loadClubSettings().then(()=>updateEstellaLink()); // warm up settings cache for public view
+// Load club settings first so the pay page has stripe links available, then check hash
+loadClubSettings().then(()=>{updateEstellaLink();checkPayHash();});
 // Build race schedule synchronously so public race cards populate immediately
 buildAllRaces();
 nextRace=getNextRace();
