@@ -463,7 +463,7 @@ function switchBoat(){
   currentBoat=null;roster=[];isRO=false;isGuest=false;boatConfig={};
   // Stop countdown timer so it doesn't keep firing after logout
   if(_countdownInterval){clearInterval(_countdownInterval);_countdownInterval=null;}
-  halResultsLoaded=false;
+  halResultsCache={};halBoatCache={};
   // Return to public view — show login button, hide boat tag
   document.getElementById('boatTag').style.display='none';
   document.getElementById('boatTag').removeAttribute('style');
@@ -2859,9 +2859,8 @@ let halSchedule=null;       // raw GetSchedule response
 let halSeriesList=[];        // [{label, ircId, echoId}] — one per series name
 let halCurrentFleet='irc';  // 'irc' | 'echo' — auto-set to whichever has data
 let halCurrentSeries=null;  // currently selected {label, ircId, echoId}
-let halResultsCache={};     // seriesId -> GetSeriesResult response
-let halBoatCache={};        // BoatID -> {name, sailText, helm}
-let halResultsLoaded=false;
+let halResultsCache={};     // seriesId -> GetSeriesResult response (cleared on each panel open)
+let halBoatCache={};        // BoatID -> {name, sailText, helm} (cleared on each panel open)
 
 // Halsail fetch — tries direct first, falls back to Supabase proxy if CORS blocks it
 const HAL_PROXY=SB_URL+'/functions/v1/halsail-proxy'; // Edge Function (deploy if needed)
@@ -2887,35 +2886,35 @@ async function halFetch(path){
 }
 
 async function refreshResults(){
-  halResultsLoaded=false;
-  halResultsCache={};
-  halBoatCache={};
-  halSeriesList=[];
-  document.getElementById('resultSeriesSelect').innerHTML='<option value="">Loading…</option>';
-  document.getElementById('resultsContent').innerHTML=
-    '<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Refreshing from Halsail…</div></div>';
+  // Manual refresh button — just delegate to the standard load (which always fetches fresh now)
   await loadResultsIfNeeded();
 }
 async function loadResultsIfNeeded(){
+  // Always fetch live from Halsail — no session cache so results are never stale.
+  // Clear result/boat caches but preserve the user's current series selection.
+  const prevSeriesLabel=halCurrentSeries?halCurrentSeries.label:null;
+  halResultsCache={};
+  halBoatCache={};
+  halSeriesList=[];
+
   // Show eStela link if a tracking URL is currently set
   const elink=document.getElementById('resultEstellaLink');
   if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
 
-  if(halResultsLoaded) return;
-  halResultsLoaded=true;
   const wrap=document.getElementById('resultsContent');
   wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading GBSC results from Halsail…</div></div>';
+  document.getElementById('resultSeriesSelect').innerHTML='<option value="">Loading…</option>';
 
   const schedule=await halFetch('/GetSchedule/'+HAL_CLUB);
 
   if(!schedule||schedule._err||!Array.isArray(schedule)){
     const errMsg=schedule&&schedule._err?schedule._err:'No data returned';
-    halResultsLoaded=false; // allow retry
+
     wrap.innerHTML=`
       <div class="empty-state">
         <div class="icon">⚠</div>
         <div style="margin-bottom:10px">Could not reach Halsail<br><span style="font-size:.75rem;color:var(--muted)">${errMsg}</span></div>
-        <button class="btn btn-ghost" style="padding:8px 16px" onclick="halResultsLoaded=false;loadResultsIfNeeded()">Try Again</button>
+        <button class="btn btn-ghost" style="padding:8px 16px" onclick="loadResultsIfNeeded()">Try Again</button>
       </div>`;
     return;
   }
@@ -2939,9 +2938,12 @@ async function loadResultsIfNeeded(){
     .filter(s=>s.ircId||s.echoId)
     .sort((a,b)=>a.firstStart-b.firstStart);
 
-  // Default to the series matching the current/next race
+  // Restore previous selection if still available; otherwise default to the next race's series
   const currentLabel=nextRace?nextRace.label.toLowerCase():'';
-  let defaultIdx=halSeriesList.findIndex(s=>currentLabel.includes(s.label.toLowerCase()));
+  let defaultIdx=prevSeriesLabel
+    ?halSeriesList.findIndex(s=>s.label===prevSeriesLabel)
+    :-1;
+  if(defaultIdx<0) defaultIdx=halSeriesList.findIndex(s=>currentLabel.includes(s.label.toLowerCase()));
   if(defaultIdx<0) defaultIdx=0;
 
   // Populate selector
