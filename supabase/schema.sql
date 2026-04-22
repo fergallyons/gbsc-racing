@@ -44,6 +44,7 @@ CREATE POLICY "boats_insert" ON boats FOR INSERT WITH CHECK (
 );
 CREATE POLICY "boats_update" ON boats FOR UPDATE USING (true);
 CREATE POLICY "boats_delete" ON boats FOR DELETE USING (true);
+GRANT SELECT, INSERT, UPDATE, DELETE ON boats TO anon;  -- required: anon only gets SELECT by default
 
 
 -- ── settings ────────────────────────────────────────────────

@@ -637,12 +637,22 @@ function cpKey(k){ if(cpEntry.length>=4)return; cpEntry+=k; updateCpDots(); if(c
 function cpBack(){ cpEntry=cpEntry.slice(0,-1); updateCpDots(); }
 function cpClear(){ cpEntry=''; updateCpDots(); }
 function updateCpDots(){ for(let i=0;i<4;i++) document.getElementById('cpd'+i).classList.toggle('filled',i<cpEntry.length); }
-function confirmChangePin(){
+async function confirmChangePin(){
   if(cpEntry.length!==4){ document.getElementById('cpError').textContent='Enter 4 digits'; return; }
-  if(cpTargetId==='ro'){ setRoPin(cpEntry); }
-  else { setBoatPin(cpTargetId,cpEntry); } // async — fires and doesn't block
+  if(cpTargetId==='ro'){
+    setRoPin(cpEntry);
+    closeChangePinOverlay();
+    toast('✅ RO PIN updated');
+    return;
+  }
+  const b=boats.find(x=>x.id===cpTargetId);
+  const ok=await setBoatPin(cpTargetId,cpEntry);
+  if(!ok){
+    document.getElementById('cpError').textContent='Could not save — check connection';
+    cpEntry=''; updateCpDots();
+    return;
+  }
   closeChangePinOverlay();
-  const b=cpTargetId&&cpTargetId!=='ro'?boats.find(x=>x.id===cpTargetId):null;
   toast('✅ PIN updated'+(b?' for '+b.name:''));
   if(isRO) buildPinMgmtList();
 }
@@ -995,7 +1005,9 @@ function getRoPin(){ try{return localStorage.getItem('pin_ro')||RO_PIN;}catch(e)
 function setRoPin(pin){ try{localStorage.setItem('pin_ro',pin);}catch(e){} }
 
 async function setBoatPin(id,pin){
-  // Update in-memory + localStorage immediately, then persist to DB
+  // Persist to DB first — only update local cache on success
+  const result=await sbSaveBoatConfig(id,{pin});
+  if(!result||result._err) return false;
   if(currentBoat&&currentBoat.id===id) boatConfig.pin=pin;
   try{
     const c=localStorage.getItem('cfg_'+id);
@@ -1003,7 +1015,7 @@ async function setBoatPin(id,pin){
     obj.pin=pin;
     localStorage.setItem('cfg_'+id,JSON.stringify(obj));
   }catch(e){}
-  await sbSaveBoatConfig(id,{pin});
+  return true;
 }
 
 function getRevolutUser(){
