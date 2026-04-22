@@ -2603,22 +2603,44 @@ function renderSelectedOrder(){
   list.innerHTML='';
   if(!courseMarks.length){wrap.style.display='none';return;}
   wrap.style.display='block';
+  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  let prevLat=START_POS.lat, prevLng=START_POS.lng;
+  let totalDist=0;
   courseMarks.forEach((entry,i)=>{
     const m=MARKS.find(x=>x.id===entry.id);
     const colour=m?m.colour:'#888';
     const isPort=entry.rounding==='port';
+    const brg=m?Math.round(bearing(prevLat,prevLng,m.lat,m.lng)):null;
+    const d=m?Math.round(dist(prevLat,prevLng,m.lat,m.lng)/1852*10)/10:null;
+    const dir=brg!=null?dirs[Math.round(brg/22.5)%16]:'';
+    if(m){totalDist+=dist(prevLat,prevLng,m.lat,m.lng);prevLat=m.lat;prevLng=m.lng;}
     const el=document.createElement('div');
     el.className='smo-item';
     el.style.cssText='display:flex;align-items:center;gap:6px;background:var(--navy);border:1px solid var(--border);border-radius:10px;padding:7px 10px;margin-bottom:6px;';
     el.innerHTML=
       '<span style="font-family:Barlow Condensed,sans-serif;font-size:.75rem;color:var(--teal);font-weight:700;min-width:16px">'+(i+1)+'.</span>'+
       '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+colour+';flex-shrink:0"></span>'+
-      '<span style="font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:.95rem;flex:1">'+(m?m.name:entry.id)+'</span>'+
+      '<span style="flex:1;min-width:0">'+
+        '<span style="display:block;font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:.95rem">'+(m?m.name:entry.id)+'</span>'+
+        (brg!=null?'<span style="display:block;font-family:Barlow Condensed,sans-serif;font-size:.75rem;color:var(--muted);margin-top:1px">'+brg+'° '+dir+' · '+d+'nm</span>':'')+
+      '</span>'+
       '<button onclick="setRounding('+i+',\'port\')" style="font-size:.75rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'#e63946':'var(--border)')+';background:'+(isPort?'rgba(230,57,70,.2)':'transparent')+';color:'+(isPort?'#e63946':'var(--muted)')+';cursor:pointer">◄ Port</button>'+
       '<button onclick="setRounding('+i+',\'stbd\')" style="font-size:.75rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'var(--border)':'#2dc653')+';background:'+(isPort?'transparent':'rgba(45,198,83,.2)')+';color:'+(isPort?'var(--muted)':'#2dc653')+';cursor:pointer">Stbd ►</button>'+
       '<span onclick="removeMarkFromSequence('+i+')" style="color:var(--muted);cursor:pointer;font-size:.9rem;padding:0 2px;line-height:1" title="Remove">✕</span>';
     list.appendChild(el);
   });
+  // Return leg + total distance summary
+  const retBrg=Math.round(bearing(prevLat,prevLng,START_POS.lat,START_POS.lng));
+  const retD=Math.round(dist(prevLat,prevLng,START_POS.lat,START_POS.lng)/1852*10)/10;
+  totalDist+=dist(prevLat,prevLng,START_POS.lat,START_POS.lng);
+  const totalNm=Math.round(totalDist/1852*10)/10;
+  const retDir=dirs[Math.round(retBrg/22.5)%16];
+  const summary=document.createElement('div');
+  summary.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border:1px solid rgba(0,174,239,.2);border-radius:8px;background:rgba(0,174,239,.05);margin-top:2px';
+  summary.innerHTML=
+    '<span style="font-family:Barlow Condensed,sans-serif;font-size:.78rem;color:var(--muted)">↩ Finish: '+retBrg+'° '+retDir+' · '+retD+'nm</span>'+
+    '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;font-weight:700;color:var(--teal)">📏 '+totalNm+'nm</span>';
+  list.appendChild(summary);
 }
 function updateWind(v){
   windDeg=parseInt(v);

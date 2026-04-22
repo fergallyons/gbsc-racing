@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS crew (
   boat_id     text NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
   first       text NOT NULL,
   last        text NOT NULL DEFAULT '',
-  type        text NOT NULL DEFAULT 'full', -- 'full' | 'student' | 'visitor' | 'kid'
+  type        text NOT NULL DEFAULT 'full'
+                   CHECK (type IN ('full','crew','student','visitor','kid')),
   join_year   int,
   outings     int DEFAULT 0,
   phone       text,
