@@ -2673,6 +2673,7 @@ async function publishCourse(){
     try{renderCourseDiagram();}catch(e){console.error('renderCourseDiagram error',e);}
     roDashCoursePublished=true;
     updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+    updateHomeChips();
     toast('✅ Course published to all skippers!');
   } else {
     setSyncStatus('offline');
