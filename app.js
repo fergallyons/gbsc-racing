@@ -1641,9 +1641,11 @@ function openSharePayLink(){
     rev: getRevolutUser(),
     crew: sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p)}))
   };
-  const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  // Self-contained link — opens the pay page embedded in this same file
-  const link=window.location.href.split('#')[0]+'#pay='+encoded;
+  // base64url encoding: no +, /, or = characters — iOS truncates URLs at '='
+  const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(data))))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  // Use #pay/ separator (not #pay=) so iOS doesn't truncate at the equals sign
+  const link=window.location.href.split('#')[0]+'#pay/'+encoded;
 
   document.getElementById('shareLinkBox').textContent=link;
 
@@ -3110,9 +3112,17 @@ function closeSheet(id){
 // ── Crew Pay Page (opened via shared QR link) ─────────────────
 function checkPayHash(){
   const hash=window.location.hash;
-  if(!hash.startsWith('#pay=')) return;
+  let raw;
+  if(hash.startsWith('#pay/')){
+    // base64url: restore standard base64 chars and re-add padding
+    const b64url=hash.slice(5);
+    const b64=b64url.replace(/-/g,'+').replace(/_/g,'/');
+    raw=b64+'=='.slice(0,(4-b64.length%4)%4);
+  } else if(hash.startsWith('#pay=')){
+    raw=hash.slice(5); // legacy format — backward compat
+  } else return;
   try{
-    const data=JSON.parse(decodeURIComponent(escape(atob(hash.slice(5)))));
+    const data=JSON.parse(decodeURIComponent(escape(atob(raw))));
     showCrewPayPage(data);
   }catch(e){ console.warn('Invalid pay hash',e); }
 }
