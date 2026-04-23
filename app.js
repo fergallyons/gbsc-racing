@@ -1401,9 +1401,10 @@ async function openRaceFeesPanel(){
   // Restore payment state from DB — self-payments (crew-initiated) + race_payments (skipper-marked)
   const race=selectedRace||nextRace;
   if(race&&currentBoat){
+    const key=raceKey(race);
     const [selfPays,racePayments]=await Promise.all([
-      sbLoadSelfPayments(currentBoat.id,race.key),
-      sbLoadRacePayments(currentBoat.id,race.key)
+      sbLoadSelfPayments(currentBoat.id,key),
+      sbLoadRacePayments(currentBoat.id,key)
     ]);
     // Reset all paid state first so we don't carry stale in-memory marks
     roster.forEach(p=>{p.paid=false;p.payMethod='';});
@@ -1546,7 +1547,7 @@ function rfMarkPaid(id,method){
   if(race&&currentBoat){
     sbUpsertRacePayment({
       boat_id:currentBoat.id, crew_id:id,
-      race_key:race.key, race_name:race.label,
+      race_key:raceKey(race), race_name:race.label,
       race_date:race.date.toISOString().split('T')[0],
       method, amount:fee(p)
     });
@@ -1559,7 +1560,7 @@ function rfUnpay(id){
   renderRaceFeesPanel();
   // Remove from DB
   const race=selectedRace||nextRace;
-  if(race) sbDeleteRacePayment(id,race.key);
+  if(race) sbDeleteRacePayment(id,raceKey(race));
 }
 function rfMarkAllCash(){
   const unpaid=roster.filter(p=>p.selected&&!p.paid);
@@ -1571,10 +1572,11 @@ function rfMarkAllCash(){
   // Persist all to DB
   const race=selectedRace||nextRace;
   if(race&&currentBoat){
+    const key=raceKey(race);
     unpaid.forEach(p=>{
       sbUpsertRacePayment({
         boat_id:currentBoat.id, crew_id:p.id,
-        race_key:race.key, race_name:race.label,
+        race_key:key, race_name:race.label,
         race_date:race.date.toISOString().split('T')[0],
         method:'Cash', amount:fee(p)
       });
@@ -1927,7 +1929,7 @@ async function spConfirm(method){
   const record={
     boat_id:b.id,
     crew_id:p.id,
-    race_key:race.key,
+    race_key:raceKey(race),
     race_name:race.label,
     race_date:race.date.toISOString().split('T')[0],
     method,
