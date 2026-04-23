@@ -584,23 +584,42 @@ function pinKey(k){ if(pinEntry.length>=4)return; pinEntry+=k; updatePinDots(); 
 function pinBack(){ pinEntry=pinEntry.slice(0,-1); updatePinDots(); }
 function pinClear(){ pinEntry=''; updatePinDots(); }
 function updatePinDots(){ for(let i=0;i<4;i++) document.getElementById('pd'+i).classList.toggle('filled',i<pinEntry.length); }
-function checkPin(){
+async function checkPin(){
   const ctx=pinContext; // save before closePinOverlay nulls it
-  const correct = ctx==='ro' ? getRoPin() : getBoatPin(ctx);
-  if(pinEntry===correct){
-    closePinOverlay();
-    if(ctx==='ro'){
+  const errEl=document.getElementById('pinError');
+
+  // RO PIN lives only in localStorage — no DB lookup needed
+  if(ctx==='ro'){
+    const correct=getRoPin();
+    if(pinEntry===correct){
+      closePinOverlay();
       enterApp({id:'ro',name:'Race Officer',icon:'🎌'},true);
     } else {
-      const b=boats.find(x=>x.id===ctx);
-      if(b) enterApp(b,false).then(()=>{
-        if(correct==='0000') showDefaultPinModal();
-      });
+      errEl.textContent='Incorrect PIN';
+      pinEntry=''; updatePinDots();
+      setTimeout(()=>{ errEl.textContent=''; },2000);
     }
+    return;
+  }
+
+  // Boat PIN — always fetch live from DB, fall back to cache if offline
+  errEl.textContent='Checking…';
+  const cfg=await sbLoadBoatConfig(ctx);
+  const correct=cfg ? cfg.pin||'0000' : getBoatPin(ctx); // cache fallback if offline
+  // Update local cache with fresh value
+  if(cfg){ try{localStorage.setItem('cfg_'+ctx,JSON.stringify(cfg));}catch(e){} }
+
+  if(pinEntry===correct){
+    errEl.textContent='';
+    closePinOverlay();
+    const b=boats.find(x=>x.id===ctx);
+    if(b) enterApp(b,false).then(()=>{
+      if(correct==='0000') showDefaultPinModal();
+    });
   } else {
-    document.getElementById('pinError').textContent='Incorrect PIN';
+    errEl.textContent='Incorrect PIN';
     pinEntry=''; updatePinDots();
-    setTimeout(()=>{ document.getElementById('pinError').textContent=''; },2000);
+    setTimeout(()=>{ errEl.textContent=''; },2000);
   }
 }
 
