@@ -3300,11 +3300,16 @@ async function publishCourse(){
     toast('⚠ Could not save to database');
   }
 }
-function buildPinMgmtList(){
+async function buildPinMgmtList(){
   const list=document.getElementById('pinMgmtList'); if(!list)return;
+  list.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted);font-size:.85rem">Loading…</div>';
+  // Fetch live PINs from DB — never trust localStorage for the RO view
+  const rows=await sbFetch('/rest/v1/boats?select=id,pin');
+  const pinMap={};
+  if(Array.isArray(rows)) rows.forEach(r=>{ pinMap[r.id]=r.pin||'0000'; });
   list.innerHTML='';
   boats.forEach(b=>{
-    const pin=getBoatPin(b.id);
+    const pin=pinMap[b.id]||'0000'; // live DB value; fall back to 0000 if not found
     const row=document.createElement('div');
     row.id='pinrow-'+b.id;
     row.style.cssText='display:flex;align-items:center;justify-content:space-between;background:var(--navy);border-radius:10px;padding:9px 12px;margin-bottom:5px;';
