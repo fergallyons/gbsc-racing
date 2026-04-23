@@ -1702,10 +1702,10 @@ function spStep1(){
     html+=`<button onclick="spPickCrew('${p.id}')"
       style="width:100%;display:flex;align-items:center;gap:12px;padding:13px;
       border-radius:12px;background:var(--card);border:1px solid var(--border);
-      cursor:pointer;margin-bottom:8px;text-align:left">
+      cursor:pointer;margin-bottom:8px;text-align:left;color:var(--white)">
       <div class="cc-avatar" style="width:38px;height:38px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
       <div style="flex:1">
-        <div style="font-weight:700;font-size:.95rem">${p.first} ${p.last}</div>
+        <div style="font-weight:700;font-size:.95rem;color:var(--white)">${p.first} ${p.last}</div>
         <div style="font-size:.78rem;color:var(--muted)">${typeLabel}</div>
       </div>
       ${amt>0
@@ -1739,7 +1739,7 @@ function spStep2(){
     <div style="display:flex;align-items:center;gap:12px">
       <div class="cc-avatar" style="width:42px;height:42px;font-size:.9rem;flex-shrink:0">${ini(p)}</div>
       <div style="flex:1">
-        <div style="font-weight:700;font-size:1rem">${p.first} ${p.last}</div>
+        <div style="font-weight:700;font-size:1rem;color:var(--white)">${p.first} ${p.last}</div>
         <div style="font-size:.78rem;color:var(--muted)">${typeLabel} · ${b.name} · ${raceLabel}</div>
       </div>
       ${amt>0
