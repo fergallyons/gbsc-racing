@@ -254,13 +254,18 @@ function buildAllRaces(){
   allRaces.sort((a,b)=>a.date-b.date);
 }
 function getNextRace(){
-  // Returns the next future race; fall back to the last race if season is over.
-  // Returns null if allRaces is empty (DB unreachable or season not yet seeded).
+  // Returns the "current" race — either the next upcoming race, or the most
+  // recently past race if it started within the last 48 hours. This keeps
+  // registrations and payments pointing at the right race until the following
+  // day, even after the scheduled start time has passed.
+  // Falls back to the last race of the season if nothing is within the window.
   if(!allRaces.length) return null;
   const now=new Date();
-  const upcoming=allRaces.filter(r=>r.date>=now);
-  if(!upcoming.length) return allRaces[allRaces.length-1];
-  return upcoming[0];
+  const LINGER_MS=48*3600*1000; // 48 hours
+  const windowStart=new Date(now-LINGER_MS);
+  const current=allRaces.filter(r=>r.date>=windowStart);
+  if(!current.length) return allRaces[allRaces.length-1];
+  return current[0];
 }
 function raceKey(r){
   // Stable string key for a race — used as registration identifier
