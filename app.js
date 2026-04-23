@@ -847,6 +847,12 @@ function updateTotals(){
   if(dTotal) dTotal.textContent='€'+tot;
   if(dOwed) dOwed.textContent='€'+(tot-paid);
   if(dBadge) dBadge.textContent=s.length+' selected';
+  // Fees tile badge
+  const fBadge=document.getElementById('dc-fees-badge');
+  if(fBadge){
+    const unpaid=s.filter(p=>!p.paid);
+    fBadge.textContent=s.length===0?'Collect & submit':unpaid.length===0?'All paid ✓':'€'+(tot-paid)+' outstanding';
+  }
 }
 function toggleSel(id){
   const p=roster.find(r=>r.id===id);
@@ -1352,8 +1358,606 @@ async function downloadDatabaseBackup(){
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// RACE FEES PANEL — unified collect / send / submit flow
+// ═══════════════════════════════════════════════════════════════
+async function openRaceFeesPanel(){
+  const sel=roster.filter(p=>p.selected);
+  if(!sel.length){toast('Select crew in the Crew Roster first');return;}
+  // Pre-mark any crew who have self-paid via the "Pay My Fee" flow
+  const race=selectedRace||nextRace;
+  if(race&&currentBoat){
+    const selfPays=await sbLoadSelfPayments(currentBoat.id,race.key);
+    if(Array.isArray(selfPays)){
+      selfPays.forEach(sp=>{
+        const p=roster.find(r=>r.id===sp.crew_id);
+        if(p&&!p.paid){p.paid=true;p.payMethod=(sp.method||'Paid')+' ✦ self-paid';}
+      });
+    }
+  }
+  renderRaceFeesPanel();
+  openPanel('raceFeesPanel');
+}
+
+function renderRaceFeesPanel(){
+  const body=document.getElementById('raceFeesBody'); if(!body)return;
+  const sel=roster.filter(p=>p.selected);
+  const unpaid=sel.filter(p=>!p.paid);
+  const outstanding=unpaid.reduce((a,p)=>a+fee(p),0);
+  const race=(selectedRace||nextRace)?.label||'Race';
+  const revUser=getRevolutUser();
+
+  // ── Summary ─────────────────────────────────────────────────
+  const summary=outstanding>0
+    ?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${outstanding} outstanding</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${unpaid.length} of ${sel.length} unpaid · ${race}</div>`
+    :`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">All paid ✓</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${sel.length} crew · ${race}</div>`;
+
+  // ── Send link button ─────────────────────────────────────────
+  const sendBtn=unpaid.length
+    ?`<button onclick="openSharePayLink()"
+        style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;
+        background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.3);border-radius:12px;
+        padding:13px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+        font-weight:800;color:var(--teal);letter-spacing:.04em;margin-bottom:16px">
+        📲 Send payment link to crew
+      </button>`:'';
+
+  // ── Crew rows ────────────────────────────────────────────────
+  const rfBtn=(label,onclick,style)=>
+    `<button onclick="${onclick}"
+      style="display:flex;align-items:center;justify-content:center;gap:5px;
+      font-family:'Barlow Condensed',sans-serif;font-size:.92rem;font-weight:800;
+      letter-spacing:.03em;padding:11px 6px;border-radius:10px;cursor:pointer;width:100%;${style}">
+      ${label}</button>`;
+
+  const revStyle='background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);color:#a78bfa';
+  const cashStyle='background:rgba(45,198,83,.12);border:1px solid rgba(45,198,83,.4);color:var(--success)';
+  const cardStyle='background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);color:var(--teal)';
+  const offStyle='background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default';
+
+  let crewRows='';
+  sel.forEach(p=>{
+    const amt=fee(p);
+    const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+    if(p.paid){
+      crewRows+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div class="cc-avatar" style="width:36px;height:36px;font-size:.8rem;flex-shrink:0">${ini(p)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.92rem;font-weight:700">${p.first} ${p.last}</div>
+          <div style="font-size:.78rem;color:var(--success);font-weight:600">✓ ${p.payMethod||'Paid'}</div>
+        </div>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:800;color:var(--success)">€${amt}</span>
+        <button onclick="rfUnpay('${p.id}')"
+          style="font-size:.75rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+          padding:4px 10px;border-radius:6px;border:1px solid var(--border);
+          background:transparent;color:var(--muted);cursor:pointer">Undo</button>
+      </div>`;
+    } else {
+      const revBtn=revUser
+        ?rfBtn('💜 Revolut',`rfPayRevolut('${p.id}')`,revStyle)
+        :rfBtn('💜 Revolut',`toast('Set your Revolut @username in Settings ⚙')`,offStyle);
+      const cashBtn=rfBtn('💵 Cash',`rfMarkPaid('${p.id}','Cash')`,cashStyle);
+      const stripeLink=getStripeLink(p.type);
+      const cardBtn=stripeLink
+        ?rfBtn('💳 Card',`rfPayCard('${p.id}')`,cardStyle)
+        :rfBtn('💳 Card',`toast('Card links not configured — see RO Club Settings')`,offStyle);
+      crewRows+=`<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="cc-avatar" style="width:36px;height:36px;font-size:.8rem;flex-shrink:0">${ini(p)}</div>
+          <div style="flex:1">
+            <div style="font-size:.95rem;font-weight:700">${p.first} ${p.last}</div>
+            <div style="font-size:.78rem;color:var(--muted)">${typeLabel}</div>
+          </div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${amt}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          ${revBtn}${cashBtn}${cardBtn}
+        </div>
+      </div>`;
+    }
+  });
+
+  // ── Footer ───────────────────────────────────────────────────
+  const allPaid=unpaid.length===0;
+  const allCashBtn=unpaid.length>1
+    ?`<button onclick="rfMarkAllCash()"
+        style="flex:1;padding:12px;font-family:'Barlow Condensed',sans-serif;font-size:.92rem;
+        font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:pointer;
+        background:rgba(45,198,83,.12);border:1px solid rgba(45,198,83,.4);color:var(--success)">
+        ✓ All Cash</button>`:'';
+  const submitStyle=allPaid
+    ?'background:var(--teal);color:var(--navy-dark);border:none'
+    :'background:rgba(0,174,239,.1);color:var(--teal);border:1px solid rgba(0,174,239,.3)';
+  const submitLabel=allPaid?'✅ Submit to Race Officer':`✅ Submit${unpaid.length?' ('+unpaid.length+' unpaid)':''}`;
+  const footer=`<div style="display:flex;gap:8px;padding:16px 0 4px;border-top:1px solid var(--border);
+      margin-top:4px;position:sticky;bottom:0;background:var(--navy)">
+      ${allCashBtn}
+      <button onclick="sendReport()"
+        style="flex:2;padding:12px;font-family:'Barlow Condensed',sans-serif;font-size:.92rem;
+        font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:pointer;${submitStyle}">
+        ${submitLabel}</button>
+    </div>`;
+
+  body.innerHTML=
+    `<div style="padding:4px 0 16px;border-bottom:1px solid var(--border);margin-bottom:16px">${summary}</div>`+
+    sendBtn+
+    `<div>${crewRows}</div>`+
+    footer;
+}
+
+// ── Race Fees panel actions ───────────────────────────────────
+function rfMarkPaid(id,method){
+  const p=roster.find(r=>r.id===id); if(!p)return;
+  p.paid=true; p.payMethod=method;
+  renderCrew();
+  renderRaceFeesPanel();
+  toast(p.first+' — '+method+' ✓');
+}
+function rfUnpay(id){
+  const p=roster.find(r=>r.id===id); if(!p)return;
+  p.paid=false; p.payMethod='';
+  renderCrew();
+  renderRaceFeesPanel();
+}
+function rfMarkAllCash(){
+  const unpaid=roster.filter(p=>p.selected&&!p.paid);
+  if(!unpaid.length){toast('All already paid ✓');return;}
+  unpaid.forEach(p=>{p.paid=true;p.payMethod='Cash';});
+  renderCrew();
+  renderRaceFeesPanel();
+  toast('All '+unpaid.length+' marked Cash ✓');
+}
+function rfPayRevolut(id){
+  const p=roster.find(r=>r.id===id); if(!p)return;
+  const revUser=getRevolutUser();
+  const revUrl=`https://revolut.me/${revUser}`;
+  const amt=fee(p);
+  if(p.phone){
+    const msg=`Hi ${p.first} — your GBSC racing fee is €${amt}. Please send to @${revUser} on Revolut 💜`;
+    window.open('https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(msg),'_blank');
+    toast('WhatsApp sent — tap 💵 Cash once received');
+  } else {
+    // No phone — show QR for them to scan
+    showRevolutQR(p.first, revUrl, amt);
+  }
+}
+function rfPayCard(id){
+  const p=roster.find(r=>r.id===id); if(!p)return;
+  const stripeLink=getStripeLink(p.type);
+  const amt=fee(p);
+  if(p.phone){
+    const msg=`Hi ${p.first} — your GBSC racing fee is €${amt}. Pay by card here 💳 ${stripeLink}`;
+    window.open('https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(msg),'_blank');
+    toast('WhatsApp sent — tap 💵 Cash once paid');
+  } else {
+    // No phone — open Stripe link directly and show QR
+    showStripeQR(p.first, stripeLink, amt);
+  }
+}
+
+// ── Phone number normaliser (wa.me format) ────────────────────
+function isMobile(){ return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
+function fmtWaPhone(ph){
+  let d=ph.replace(/[^\d+]/g,'');
+  if(d.startsWith('+')) d=d.slice(1);
+  else if(d.startsWith('00')) d=d.slice(2);
+  else if(d.startsWith('0')) d='353'+d.slice(1);
+  return d;
+}
+
+// ── Stripe QR modal ───────────────────────────────────────────
+function showStripeQR(firstName,stripeLink,amt){
+  const existing=document.getElementById('_stripeQROverlay');
+  if(existing) existing.remove();
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(stripeLink);
+  const el=document.createElement('div');
+  el.id='_stripeQROverlay';
+  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px;';
+  el.innerHTML=`
+    <div style="background:#112240;border:1px solid rgba(0,180,216,.3);border-radius:16px;padding:24px;max-width:300px;width:100%;text-align:center;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#f0f4f8;margin-bottom:4px">💳 Card Payment — ${firstName}</div>
+      <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:16px">Ask them to scan to pay €${amt}</div>
+      <div style="background:white;border-radius:10px;padding:12px;display:inline-block;margin-bottom:16px">
+        <img src="${qrUrl}" style="width:200px;height:200px;display:block">
+      </div>
+      <button onclick="document.getElementById('_stripeQROverlay').remove()"
+        style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
+        border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
+        font-size:.95rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Close</button>
+    </div>`;
+  el.addEventListener('click',e=>{if(e.target===el)el.remove();});
+  document.body.appendChild(el);
+}
+
+// ── Revolut QR modal ──────────────────────────────────────────
+function showRevolutQR(firstName,revLink,amt){
+  const existing=document.getElementById('_revolutQROverlay');
+  if(existing) existing.remove();
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(revLink);
+  const el=document.createElement('div');
+  el.id='_revolutQROverlay';
+  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px;';
+  el.innerHTML=`
+    <div style="background:#112240;border:1px solid rgba(110,64,216,.4);border-radius:16px;padding:24px;max-width:300px;width:100%;text-align:center;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#f0f4f8;margin-bottom:4px">💜 Revolut — ${firstName}</div>
+      <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:4px">Ask them to scan with their camera</div>
+      <div style="font-size:.78rem;color:#a78bfa;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-weight:600">Amount: €${amt}</div>
+      <div style="background:white;border-radius:10px;padding:12px;display:inline-block;margin-bottom:16px">
+        <img src="${qrUrl}" style="width:200px;height:200px;display:block">
+      </div>
+      <div style="font-size:.78rem;color:#7a8fa6;margin-bottom:14px">${revLink}</div>
+      <button onclick="document.getElementById('_revolutQROverlay').remove()"
+        style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
+        border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
+        font-size:.95rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Close</button>
+    </div>`;
+  el.addEventListener('click',e=>{if(e.target===el)el.remove();});
+  document.body.appendChild(el);
+}
+
+// ════════════════════════════════════════════════════════════
+// SELF-PAY — crew member pays their own fee independently
+// Flow: Pick Boat → Pick Yourself → Pay → Done (no PIN required)
+// ════════════════════════════════════════════════════════════
+
+// ── DB helpers ────────────────────────────────────────────────
+async function sbSaveSelfPayment(data){
+  return sbFetch('/rest/v1/self_payments',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal,resolution=ignore-duplicates'},
+    body:JSON.stringify(data)
+  });
+}
+async function sbLoadSelfPayments(boatId,raceKey){
+  return sbFetch('/rest/v1/self_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(raceKey));
+}
+
+// ── State ─────────────────────────────────────────────────────
+let selfPayState={step:0,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
+
+function openSelfPayPanel(){
+  selfPayState={step:0,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
+  renderSelfPayPanel();
+  openPanel('selfPayPanel');
+}
+
+function selfPayBack(){
+  if(selfPayState.step===4){closePanel('selfPayPanel');return;}
+  if(selfPayState.step<=0){closePanel('selfPayPanel');return;}
+  selfPayState.step--;
+  if(selfPayState.step===0){selfPayState.boatId=null;selfPayState.boat=null;}
+  if(selfPayState.step===1){selfPayState.crewId=null;selfPayState.person=null;}
+  renderSelfPayPanel();
+}
+
+function renderSelfPayPanel(){
+  const body=document.getElementById('selfPayBody');
+  const titleEl=document.getElementById('selfPayTitle');
+  if(!body) return;
+  const titles=['💰 Pay My Fee','👤 Who Are You?','💳 Pay Your Fee','✅ Recorded!'];
+  if(titleEl) titleEl.textContent=titles[selfPayState.step]||'💰 Pay My Fee';
+  if(selfPayState.step===0) body.innerHTML=spStep0();
+  else if(selfPayState.step===1) body.innerHTML=spStep1();
+  else if(selfPayState.step===2) body.innerHTML=spStep2();
+  else if(selfPayState.step===3) body.innerHTML=spStep3();
+}
+
+// ── Step 0: Pick Boat ─────────────────────────────────────────
+function spStep0(){
+  const race=getNextRace();
+  const raceLabel=race?race.label:'the next race';
+  let html=`<div style="font-size:.85rem;color:var(--muted);margin-bottom:20px;text-align:center">
+    Select your boat to pay your fee for<br><strong style="color:var(--teal)">${raceLabel}</strong>
+  </div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">`;
+  boats.forEach(b=>{
+    html+=`<button onclick="spPickBoat('${b.id}')"
+      style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+      padding:18px 8px;border-radius:14px;background:var(--card);border:2px solid var(--border);
+      cursor:pointer">
+      <span style="font-size:2.2rem">${b.icon||'⛵'}</span>
+      <span style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;
+        color:var(--white);letter-spacing:.03em;text-align:center">${b.name}</span>
+    </button>`;
+  });
+  return html+'</div>';
+}
+
+async function spPickBoat(boatId){
+  const b=boats.find(x=>x.id===boatId);
+  if(!b) return;
+  selfPayState.boatId=boatId;
+  selfPayState.boat=b;
+  selfPayState.step=1;
+  // Start fetching crew straight away — show loading state
+  const body=document.getElementById('selfPayBody');
+  const titleEl=document.getElementById('selfPayTitle');
+  if(titleEl) titleEl.textContent='👤 Who Are You?';
+  if(body) body.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem">Loading crew…</div>`;
+  const crewList=await sbLoadCrew(boatId);
+  selfPayState.loadedCrew=crewList||[];
+  // Guard: user may have navigated away
+  if(selfPayState.step===1&&document.getElementById('selfPayPanel')?.classList.contains('open')){
+    if(body) body.innerHTML=spStep1();
+  }
+}
+
+// ── Step 1: Pick yourself from roster ────────────────────────
+function spStep1(){
+  const b=selfPayState.boat;
+  const crewList=selfPayState.loadedCrew;
+  if(!crewList.length){
+    return `<div style="text-align:center;padding:40px 20px;color:var(--muted)">
+      No crew registered for <strong>${b.name}</strong> yet.<br><br>
+      Ask the skipper to add you to the crew roster first.
+    </div>`;
+  }
+  let html=`<div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
+    Tap your name on the <strong style="color:var(--white)">${b.name}</strong> crew list
+  </div>`;
+  crewList.forEach(p=>{
+    const amt=FEES[p.type]||0;
+    const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+    html+=`<button onclick="spPickCrew('${p.id}')"
+      style="width:100%;display:flex;align-items:center;gap:12px;padding:13px;
+      border-radius:12px;background:var(--card);border:1px solid var(--border);
+      cursor:pointer;margin-bottom:8px;text-align:left;color:var(--white)">
+      <div class="cc-avatar" style="width:38px;height:38px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:.95rem;color:var(--white)">${p.first} ${p.last}</div>
+        <div style="font-size:.78rem;color:var(--muted)">${typeLabel}</div>
+      </div>
+      ${amt>0
+        ?`<span style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;color:var(--teal)">€${amt}</span>`
+        :`<span style="font-size:.78rem;color:var(--success);font-weight:600">Free</span>`}
+    </button>`;
+  });
+  return html;
+}
+
+function spPickCrew(crewId){
+  const p=selfPayState.loadedCrew.find(x=>x.id===crewId);
+  if(!p) return;
+  selfPayState.crewId=crewId;
+  selfPayState.person=p;
+  selfPayState.step=2;
+  renderSelfPayPanel();
+}
+
+// ── Step 2: Choose payment method ────────────────────────────
+function spStep2(){
+  const p=selfPayState.person;
+  const b=selfPayState.boat;
+  const amt=FEES[p.type]||0;
+  const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+  const race=getNextRace();
+  const raceLabel=race?race.label:'next race';
+
+  // Summary card
+  const summary=`<div style="margin-bottom:20px;padding:16px;border-radius:14px;background:var(--card);border:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="cc-avatar" style="width:42px;height:42px;font-size:.9rem;flex-shrink:0">${ini(p)}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:1rem;color:var(--white)">${p.first} ${p.last}</div>
+        <div style="font-size:.78rem;color:var(--muted)">${typeLabel} · ${b.name} · ${raceLabel}</div>
+      </div>
+      ${amt>0
+        ?`<span style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;color:var(--danger)">€${amt}</span>`
+        :`<span style="font-size:.85rem;color:var(--success);font-weight:700">Free ✓</span>`}
+    </div>
+  </div>`;
+
+  if(amt===0){
+    return summary+`<div style="text-align:center;padding:10px 0">
+      <div style="font-size:2.5rem;margin-bottom:10px">🎉</div>
+      <div style="font-size:.85rem;color:var(--muted);margin-bottom:24px">${typeLabel}s sail for free — you're all set!</div>
+      <button onclick="spConfirm('Free')"
+        style="width:100%;padding:14px;border-radius:12px;background:var(--teal);border:none;
+        color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+        font-weight:800;letter-spacing:.04em;cursor:pointer">OK, got it ✓</button>
+    </div>`;
+  }
+
+  // Fetch the boat's Revolut config for payment options
+  const revUser=selfPayState.boatRevUser||'';
+  // Trigger async load if not already loaded
+  if(!selfPayState.boatRevLoaded){
+    selfPayState.boatRevLoaded=true;
+    sbLoadBoatConfig(selfPayState.boatId).then(cfg=>{
+      if(cfg) selfPayState.boatRevUser=cfg.revolut_user||'';
+      // Re-render if still on this step
+      if(selfPayState.step===2){
+        const body=document.getElementById('selfPayBody');
+        if(body) body.innerHTML=spStep2();
+      }
+    });
+  }
+
+  const stripeLink=getStripeLink(p.type);
+  const btnBase='width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;cursor:pointer;margin-bottom:10px;text-align:left';
+
+  const revBtn=revUser
+    ?`<button onclick="spDoRevolut()"
+        style="${btnBase};background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);color:#a78bfa">
+        <span style="font-size:1.6rem">💜</span>
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay by Revolut</div>
+          <div style="font-size:.78rem;opacity:.8">Send €${amt} to @${revUser}</div>
+        </div>
+      </button>`
+    :`<button disabled style="${btnBase};background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default">
+        <span style="font-size:1.6rem">💜</span>
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Revolut</div>
+          <div style="font-size:.78rem">Not configured — ask skipper</div>
+        </div>
+      </button>`;
+
+  const cardBtn=stripeLink
+    ?`<button onclick="spDoCard()"
+        style="${btnBase};background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);color:var(--teal)">
+        <span style="font-size:1.6rem">💳</span>
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay by Card</div>
+          <div style="font-size:.78rem;opacity:.8">Secure online payment · €${amt}</div>
+        </div>
+      </button>`
+    :`<button disabled style="${btnBase};background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default">
+        <span style="font-size:1.6rem">💳</span>
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Card</div>
+          <div style="font-size:.78rem">Not configured — ask skipper</div>
+        </div>
+      </button>`;
+
+  const cashBtn=`<button onclick="spConfirm('Cash')"
+      style="${btnBase};background:rgba(45,198,83,.12);border:1px solid rgba(45,198,83,.4);color:var(--success)">
+      <span style="font-size:1.6rem">💵</span>
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay Cash</div>
+        <div style="font-size:.78rem;opacity:.8">I'll hand €${amt} to the skipper</div>
+      </div>
+    </button>`;
+
+  return summary+
+    `<div style="font-size:.82rem;color:var(--muted);margin-bottom:14px;text-align:center">How would you like to pay?</div>`+
+    revBtn+cardBtn+cashBtn;
+}
+
+// ── Payment action helpers ────────────────────────────────────
+function spDoRevolut(){
+  const revUser=selfPayState.boatRevUser||'';
+  window.open('https://revolut.me/'+revUser,'_blank');
+  spShowAwaitConfirm('Revolut');
+}
+function spDoCard(){
+  const p=selfPayState.person;
+  window.open(getStripeLink(p.type),'_blank');
+  spShowAwaitConfirm('Card');
+}
+function spShowAwaitConfirm(method){
+  const p=selfPayState.person;
+  const amt=FEES[p.type]||0;
+  const icon=method==='Revolut'?'💜':'💳';
+  const body=document.getElementById('selfPayBody');
+  if(!body) return;
+  body.innerHTML=
+    `<div style="text-align:center;padding:30px 0">
+      <div style="font-size:2.5rem;margin-bottom:12px">${icon}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:8px">
+        ${method} payment opened
+      </div>
+      <div style="font-size:.85rem;color:var(--muted);margin-bottom:28px">
+        Complete your €${amt} payment, then tap below to record it
+      </div>
+      <button onclick="spConfirm('${method}')"
+        style="width:100%;padding:14px;border-radius:12px;background:var(--teal);border:none;
+        color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+        font-weight:800;letter-spacing:.04em;cursor:pointer;margin-bottom:10px">
+        ✅ I've paid — record it
+      </button>
+      <button onclick="renderSelfPayPanel()"
+        style="width:100%;padding:12px;border-radius:12px;background:transparent;
+        border:1px solid var(--border);color:var(--muted);cursor:pointer;
+        font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700">
+        ← Back to options
+      </button>
+    </div>`;
+}
+
+async function spConfirm(method){
+  const p=selfPayState.person;
+  const b=selfPayState.boat;
+  const race=getNextRace();
+  if(!race){toast('No upcoming race found');return;}
+  const record={
+    boat_id:b.id,
+    crew_id:p.id,
+    race_key:race.key,
+    race_name:race.label,
+    race_date:race.date.toISOString().split('T')[0],
+    method,
+    amount:FEES[p.type]||0
+  };
+  await sbSaveSelfPayment(record);   // duplicate = already recorded, that's fine
+  selfPayState.confirmedMethod=method;
+  selfPayState.step=3;
+  renderSelfPayPanel();
+}
+
+// ── Step 3: Success ───────────────────────────────────────────
+function spStep3(){
+  const p=selfPayState.person;
+  const b=selfPayState.boat;
+  const race=getNextRace();
+  const method=selfPayState.confirmedMethod||'';
+  const amt=FEES[p.type]||0;
+  const icon=method==='Revolut'?'💜':method==='Card'?'💳':method==='Cash'?'💵':'🎉';
+  return `<div style="text-align:center;padding:30px 0">
+    <div style="font-size:3.5rem;margin-bottom:12px">${icon}</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;margin-bottom:8px">
+      ${method==='Free'?'Enjoy the race!':'Payment recorded!'}
+    </div>
+    <div style="font-size:.85rem;color:var(--muted);margin-bottom:4px">${p.first} ${p.last} · ${b.name}</div>
+    ${amt>0?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:var(--success);margin-bottom:4px">€${amt} · ${method}</div>`:''}
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:24px">${race?race.label:''}</div>
+    <div style="padding:14px;border-radius:12px;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.25);
+      font-size:.82rem;color:var(--success);margin-bottom:24px;text-align:left">
+      ✓ Your payment has been recorded.<br>Your skipper will see it when they open Race Fees.
+    </div>
+    <button onclick="closePanel('selfPayPanel')"
+      style="width:100%;padding:14px;border-radius:12px;background:var(--card);border:1px solid var(--border);
+      color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+      font-weight:800;letter-spacing:.04em;cursor:pointer">Done ✓</button>
+  </div>`;
+}
+
+// ── Share payment link / QR (for whole crew) ─────────────────
+function openSharePayLink(){
+  const sel=roster.filter(p=>p.selected);
+  if(!sel.length){toast('No crew selected');return;}
+  const tot=sel.filter(p=>!p.paid).reduce((a,p)=>a+fee(p),0);
+  if(!tot){toast('All crew already paid ✓');return;}
+  const data={
+    boat:currentBoat.name,
+    race:selectedRace?selectedRace.label:'Race',
+    rev:getRevolutUser(),
+    crew:sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p)}))
+  };
+  // base64url: no +/= chars — iOS truncates URLs at '='
+  const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(data))))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  const link=window.location.href.split('#')[0]+'#pay/'+encoded;
+  document.getElementById('shareLinkBox').textContent=link;
+  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(link);
+  document.getElementById('shareQR').innerHTML=
+    '<img src="'+qrUrl+'" style="width:180px;height:180px;border-radius:8px;" alt="QR Code">'+
+    '<div style="margin-top:8px;font-size:.78rem;color:#333;font-family:Barlow Condensed,sans-serif;font-weight:700">'+
+    currentBoat.name+' · €'+tot+' outstanding</div>';
+  document.getElementById('shareSheet').classList.add('open');
+}
+function copyShareLink(){
+  const link=document.getElementById('shareLinkBox').textContent;
+  navigator.clipboard.writeText(link).then(()=>toast('Link copied ✓')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=link;document.body.appendChild(ta);
+    ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('Link copied ✓');
+  });
+}
+function shareToWhatsApp(){
+  const link=document.getElementById('shareLinkBox').textContent;
+  const race=selectedRace?selectedRace.label:'this race';
+  const boat=currentBoat?currentBoat.name:'our boat';
+  const msg=`Hi all — racing fees for ${race} on ${boat}. Tap the link, find your name and pay your share 👇\n\n${link}`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+
+// ── LEGACY stubs — kept so any old HTML refs don't break ──────
+function openCollectSheet(){ openRaceFeesPanel(); }
+function markAllCash(){ rfMarkAllCash(); }
+
 // ── Collect Payments sheet ────────────────────────────────────
-function openCollectSheet(){
+function openCollectSheet_REMOVED(){
   const sel=roster.filter(p=>p.selected);
   if(!sel.length){toast('No crew selected');return;}
   const list=document.getElementById('collectList');
