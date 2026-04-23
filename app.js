@@ -1827,20 +1827,13 @@ function spStep2(){
 
 // ── Payment action helpers ────────────────────────────────────
 function spDoRevolut(){
-  const p=selfPayState.person;
   const revUser=selfPayState.boatRevUser||'';
-  const amt=FEES[p.type]||0;
-  const revUrl='https://revolut.me/'+revUser;
-  if(isMobile()){ window.open(revUrl,'_blank'); }
-  else { showRevolutQR(p.first,revUrl,amt); }
+  window.open('https://revolut.me/'+revUser,'_blank');
   spShowAwaitConfirm('Revolut');
 }
 function spDoCard(){
   const p=selfPayState.person;
-  const stripeLink=getStripeLink(p.type);
-  const amt=FEES[p.type]||0;
-  if(isMobile()){ window.open(stripeLink,'_blank'); }
-  else { showStripeQR(p.first,stripeLink,amt); }
+  window.open(getStripeLink(p.type),'_blank');
   spShowAwaitConfirm('Card');
 }
 function spShowAwaitConfirm(method){
