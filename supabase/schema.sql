@@ -265,6 +265,35 @@ CREATE POLICY "push_sub_delete" ON push_subscriptions FOR DELETE USING (true);
 
 
 -- ============================================================
+-- TABLE: race_payments
+-- Skipper-marked payment records — one row per crew member per race.
+-- Upsertable (skipper can change/undo). Separate from self_payments
+-- (crew-initiated) and race_records (final submitted snapshot).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS race_payments (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  boat_id     text        NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  crew_id     text        NOT NULL,
+  race_key    text        NOT NULL,
+  race_name   text        NOT NULL,
+  race_date   date        NOT NULL,
+  method      text        NOT NULL,   -- 'Cash', 'Revolut', 'Card'
+  amount      int         NOT NULL DEFAULT 0,
+  paid_at     timestamptz DEFAULT now(),
+  UNIQUE (crew_id, race_key)
+);
+
+ALTER TABLE race_payments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "race_payments_select" ON race_payments FOR SELECT USING (true);
+CREATE POLICY "race_payments_insert" ON race_payments FOR INSERT WITH CHECK (
+  boat_id IS NOT NULL AND crew_id IS NOT NULL AND race_key IS NOT NULL
+);
+CREATE POLICY "race_payments_update" ON race_payments FOR UPDATE USING (true);
+CREATE POLICY "race_payments_delete" ON race_payments FOR DELETE USING (true);
+GRANT SELECT, INSERT, UPDATE, DELETE ON race_payments TO anon;
+
+
+-- ============================================================
 -- TABLE: self_payments
 -- Crew members independently recording their own race fee payment.
 -- INSERT-only — immutable. UNIQUE(crew_id, race_key) prevents duplicates.

@@ -58,6 +58,21 @@ async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id'
 async function sbSetCrewSelected(crewId,selected){return sbFetch('/rest/v1/crew?id=eq.'+crewId,{method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify({selected})});}
 async function sbDeleteCrew(id){return sbFetch('/rest/v1/crew?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});}
 async function sbSaveRaceRecord(rec){return sbFetch('/rest/v1/race_records',{method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(rec)});}
+async function sbUpsertRacePayment(data){
+  return sbFetch('/rest/v1/race_payments?on_conflict=crew_id,race_key',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify(data)
+  });
+}
+async function sbDeleteRacePayment(crewId,raceKey){
+  return sbFetch('/rest/v1/race_payments?crew_id=eq.'+encodeURIComponent(crewId)+'&race_key=eq.'+encodeURIComponent(raceKey),{
+    method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}
+  });
+}
+async function sbLoadRacePayments(boatId,raceKey){
+  return sbFetch('/rest/v1/race_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(raceKey));
+}
 async function sbLoadRaceRecords(raceName){
   const r=await sbFetch('/rest/v1/race_records?race_name=eq.'+encodeURIComponent(raceName)+'&order=submitted_at.asc');
   return r||[];
@@ -1383,14 +1398,27 @@ async function downloadDatabaseBackup(){
 async function openRaceFeesPanel(){
   const sel=roster.filter(p=>p.selected);
   if(!sel.length){toast('Select crew in the Crew Roster first');return;}
-  // Pre-mark any crew who have self-paid via the "Pay My Fee" flow
+  // Restore payment state from DB — self-payments (crew-initiated) + race_payments (skipper-marked)
   const race=selectedRace||nextRace;
   if(race&&currentBoat){
-    const selfPays=await sbLoadSelfPayments(currentBoat.id,race.key);
+    const [selfPays,racePayments]=await Promise.all([
+      sbLoadSelfPayments(currentBoat.id,race.key),
+      sbLoadRacePayments(currentBoat.id,race.key)
+    ]);
+    // Reset all paid state first so we don't carry stale in-memory marks
+    roster.forEach(p=>{p.paid=false;p.payMethod='';});
+    // Apply crew self-payments
     if(Array.isArray(selfPays)){
       selfPays.forEach(sp=>{
         const p=roster.find(r=>r.id===sp.crew_id);
-        if(p&&!p.paid){p.paid=true;p.payMethod=(sp.method||'Paid')+' ✦ self-paid';}
+        if(p){p.paid=true;p.payMethod=(sp.method||'Paid')+' ✦ self-paid';}
+      });
+    }
+    // Skipper-marked payments take precedence (can be undone)
+    if(Array.isArray(racePayments)){
+      racePayments.forEach(rp=>{
+        const p=roster.find(r=>r.id===rp.crew_id);
+        if(p){p.paid=true;p.payMethod=rp.method;}
       });
     }
   }
@@ -1513,12 +1541,25 @@ function rfMarkPaid(id,method){
   renderCrew();
   renderRaceFeesPanel();
   toast(p.first+' — '+method+' ✓');
+  // Persist to DB
+  const race=selectedRace||nextRace;
+  if(race&&currentBoat){
+    sbUpsertRacePayment({
+      boat_id:currentBoat.id, crew_id:id,
+      race_key:race.key, race_name:race.label,
+      race_date:race.date.toISOString().split('T')[0],
+      method, amount:fee(p)
+    });
+  }
 }
 function rfUnpay(id){
   const p=roster.find(r=>r.id===id); if(!p)return;
   p.paid=false; p.payMethod='';
   renderCrew();
   renderRaceFeesPanel();
+  // Remove from DB
+  const race=selectedRace||nextRace;
+  if(race) sbDeleteRacePayment(id,race.key);
 }
 function rfMarkAllCash(){
   const unpaid=roster.filter(p=>p.selected&&!p.paid);
@@ -1527,33 +1568,26 @@ function rfMarkAllCash(){
   renderCrew();
   renderRaceFeesPanel();
   toast('All '+unpaid.length+' marked Cash ✓');
+  // Persist all to DB
+  const race=selectedRace||nextRace;
+  if(race&&currentBoat){
+    unpaid.forEach(p=>{
+      sbUpsertRacePayment({
+        boat_id:currentBoat.id, crew_id:p.id,
+        race_key:race.key, race_name:race.label,
+        race_date:race.date.toISOString().split('T')[0],
+        method:'Cash', amount:fee(p)
+      });
+    });
+  }
 }
 function rfPayRevolut(id){
-  const p=roster.find(r=>r.id===id); if(!p)return;
-  const revUser=getRevolutUser();
-  const revUrl=`https://revolut.me/${revUser}`;
-  const amt=fee(p);
-  if(p.phone){
-    const msg=`Hi ${p.first} — your GBSC racing fee is €${amt}. Please send to @${revUser} on Revolut 💜`;
-    window.open('https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(msg),'_blank');
-    toast('WhatsApp sent — tap 💵 Cash once received');
-  } else {
-    // No phone — show QR for them to scan
-    showRevolutQR(p.first, revUrl, amt);
-  }
+  // Skipper confirms they received a Revolut payment — just mark paid
+  rfMarkPaid(id,'Revolut');
 }
 function rfPayCard(id){
-  const p=roster.find(r=>r.id===id); if(!p)return;
-  const stripeLink=getStripeLink(p.type);
-  const amt=fee(p);
-  if(p.phone){
-    const msg=`Hi ${p.first} — your GBSC racing fee is €${amt}. Pay by card here 💳 ${stripeLink}`;
-    window.open('https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(msg),'_blank');
-    toast('WhatsApp sent — tap 💵 Cash once paid');
-  } else {
-    // No phone — open Stripe link directly and show QR
-    showStripeQR(p.first, stripeLink, amt);
-  }
+  // Skipper confirms card payment received — just mark paid
+  rfMarkPaid(id,'Card');
 }
 
 // ── Phone number normaliser (wa.me format) ────────────────────
