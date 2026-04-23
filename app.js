@@ -1658,7 +1658,7 @@ function spStep0(){
       cursor:pointer">
       <span style="font-size:2.2rem">${b.icon||'⛵'}</span>
       <span style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;
-        color:var(--fg);letter-spacing:.03em;text-align:center">${b.name}</span>
+        color:var(--white);letter-spacing:.03em;text-align:center">${b.name}</span>
     </button>`;
   });
   return html+'</div>';
@@ -1694,7 +1694,7 @@ function spStep1(){
     </div>`;
   }
   let html=`<div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
-    Tap your name on the <strong style="color:var(--fg)">${b.name}</strong> crew list
+    Tap your name on the <strong style="color:var(--white)">${b.name}</strong> crew list
   </div>`;
   crewList.forEach(p=>{
     const amt=FEES[p.type]||0;
@@ -1915,7 +1915,7 @@ function spStep3(){
     </div>
     <button onclick="closePanel('selfPayPanel')"
       style="width:100%;padding:14px;border-radius:12px;background:var(--card);border:1px solid var(--border);
-      color:var(--fg);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+      color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
       font-weight:800;letter-spacing:.04em;cursor:pointer">Done ✓</button>
   </div>`;
 }
