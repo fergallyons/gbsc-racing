@@ -265,6 +265,34 @@ CREATE POLICY "push_sub_delete" ON push_subscriptions FOR DELETE USING (true);
 
 
 -- ============================================================
+-- TABLE: self_payments
+-- Crew members independently recording their own race fee payment.
+-- INSERT-only — immutable. UNIQUE(crew_id, race_key) prevents duplicates.
+-- Skipper's Race Fees panel reads this table to pre-mark paid crew.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS self_payments (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  boat_id     text        NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  crew_id     text        NOT NULL,   -- soft ref to crew.id (crew may be re-created)
+  race_key    text        NOT NULL,
+  race_name   text        NOT NULL,
+  race_date   date        NOT NULL,
+  method      text        NOT NULL,   -- 'Revolut', 'Cash', 'Card', 'Free'
+  amount      int         NOT NULL DEFAULT 0,
+  paid_at     timestamptz DEFAULT now(),
+  UNIQUE (crew_id, race_key)
+);
+
+ALTER TABLE self_payments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "self_payments_select" ON self_payments FOR SELECT USING (true);
+CREATE POLICY "self_payments_insert" ON self_payments FOR INSERT WITH CHECK (
+  boat_id IS NOT NULL AND crew_id IS NOT NULL AND race_key IS NOT NULL
+);
+-- No UPDATE or DELETE — self-payment records are an immutable audit trail
+GRANT SELECT, INSERT ON self_payments TO anon;
+
+
+-- ============================================================
 -- RECOVERY INSTRUCTIONS
 -- ============================================================
 -- 1. Create a new Supabase project at https://supabase.com

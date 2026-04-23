@@ -1361,9 +1361,20 @@ async function downloadDatabaseBackup(){
 // ═══════════════════════════════════════════════════════════════
 // RACE FEES PANEL — unified collect / send / submit flow
 // ═══════════════════════════════════════════════════════════════
-function openRaceFeesPanel(){
+async function openRaceFeesPanel(){
   const sel=roster.filter(p=>p.selected);
   if(!sel.length){toast('Select crew in the Crew Roster first');return;}
+  // Pre-mark any crew who have self-paid via the "Pay My Fee" flow
+  const race=selectedRace||nextRace;
+  if(race&&currentBoat){
+    const selfPays=await sbLoadSelfPayments(currentBoat.id,race.key);
+    if(Array.isArray(selfPays)){
+      selfPays.forEach(sp=>{
+        const p=roster.find(r=>r.id===sp.crew_id);
+        if(p&&!p.paid){p.paid=true;p.payMethod=(sp.method||'Paid')+' ✦ self-paid';}
+      });
+    }
+  }
   renderRaceFeesPanel();
   openPanel('raceFeesPanel');
 }
@@ -1584,6 +1595,329 @@ function showRevolutQR(firstName,revLink,amt){
     </div>`;
   el.addEventListener('click',e=>{if(e.target===el)el.remove();});
   document.body.appendChild(el);
+}
+
+// ════════════════════════════════════════════════════════════
+// SELF-PAY — crew member pays their own fee independently
+// Flow: Pick Boat → Pick Yourself → Pay → Done (no PIN required)
+// ════════════════════════════════════════════════════════════
+
+// ── DB helpers ────────────────────────────────────────────────
+async function sbSaveSelfPayment(data){
+  return sbFetch('/rest/v1/self_payments',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal,resolution=ignore-duplicates'},
+    body:JSON.stringify(data)
+  });
+}
+async function sbLoadSelfPayments(boatId,raceKey){
+  return sbFetch('/rest/v1/self_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(raceKey));
+}
+
+// ── State ─────────────────────────────────────────────────────
+let selfPayState={step:0,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
+
+function openSelfPayPanel(){
+  selfPayState={step:0,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
+  renderSelfPayPanel();
+  openPanel('selfPayPanel');
+}
+
+function selfPayBack(){
+  if(selfPayState.step===4){closePanel('selfPayPanel');return;}
+  if(selfPayState.step<=0){closePanel('selfPayPanel');return;}
+  selfPayState.step--;
+  if(selfPayState.step===0){selfPayState.boatId=null;selfPayState.boat=null;}
+  if(selfPayState.step===1){selfPayState.crewId=null;selfPayState.person=null;}
+  renderSelfPayPanel();
+}
+
+function renderSelfPayPanel(){
+  const body=document.getElementById('selfPayBody');
+  const titleEl=document.getElementById('selfPayTitle');
+  if(!body) return;
+  const titles=['💰 Pay My Fee','👤 Who Are You?','💳 Pay Your Fee','✅ Recorded!'];
+  if(titleEl) titleEl.textContent=titles[selfPayState.step]||'💰 Pay My Fee';
+  if(selfPayState.step===0) body.innerHTML=spStep0();
+  else if(selfPayState.step===1) body.innerHTML=spStep1();
+  else if(selfPayState.step===2) body.innerHTML=spStep2();
+  else if(selfPayState.step===3) body.innerHTML=spStep3();
+}
+
+// ── Step 0: Pick Boat ─────────────────────────────────────────
+function spStep0(){
+  const race=getNextRace();
+  const raceLabel=race?race.label:'the next race';
+  let html=`<div style="font-size:.85rem;color:var(--muted);margin-bottom:20px;text-align:center">
+    Select your boat to pay your fee for<br><strong style="color:var(--teal)">${raceLabel}</strong>
+  </div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">`;
+  boats.forEach(b=>{
+    html+=`<button onclick="spPickBoat('${b.id}')"
+      style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+      padding:18px 8px;border-radius:14px;background:var(--card);border:2px solid var(--border);
+      cursor:pointer">
+      <span style="font-size:2.2rem">${b.icon||'⛵'}</span>
+      <span style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;
+        color:var(--fg);letter-spacing:.03em;text-align:center">${b.name}</span>
+    </button>`;
+  });
+  return html+'</div>';
+}
+
+async function spPickBoat(boatId){
+  const b=boats.find(x=>x.id===boatId);
+  if(!b) return;
+  selfPayState.boatId=boatId;
+  selfPayState.boat=b;
+  selfPayState.step=1;
+  // Start fetching crew straight away — show loading state
+  const body=document.getElementById('selfPayBody');
+  const titleEl=document.getElementById('selfPayTitle');
+  if(titleEl) titleEl.textContent='👤 Who Are You?';
+  if(body) body.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem">Loading crew…</div>`;
+  const crewList=await sbLoadCrew(boatId);
+  selfPayState.loadedCrew=crewList||[];
+  // Guard: user may have navigated away
+  if(selfPayState.step===1&&document.getElementById('selfPayPanel')?.classList.contains('open')){
+    if(body) body.innerHTML=spStep1();
+  }
+}
+
+// ── Step 1: Pick yourself from roster ────────────────────────
+function spStep1(){
+  const b=selfPayState.boat;
+  const crewList=selfPayState.loadedCrew;
+  if(!crewList.length){
+    return `<div style="text-align:center;padding:40px 20px;color:var(--muted)">
+      No crew registered for <strong>${b.name}</strong> yet.<br><br>
+      Ask the skipper to add you to the crew roster first.
+    </div>`;
+  }
+  let html=`<div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
+    Tap your name on the <strong style="color:var(--fg)">${b.name}</strong> crew list
+  </div>`;
+  crewList.forEach(p=>{
+    const amt=FEES[p.type]||0;
+    const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+    html+=`<button onclick="spPickCrew('${p.id}')"
+      style="width:100%;display:flex;align-items:center;gap:12px;padding:13px;
+      border-radius:12px;background:var(--card);border:1px solid var(--border);
+      cursor:pointer;margin-bottom:8px;text-align:left">
+      <div class="cc-avatar" style="width:38px;height:38px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:.95rem">${p.first} ${p.last}</div>
+        <div style="font-size:.78rem;color:var(--muted)">${typeLabel}</div>
+      </div>
+      ${amt>0
+        ?`<span style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;color:var(--teal)">€${amt}</span>`
+        :`<span style="font-size:.78rem;color:var(--success);font-weight:600">Free</span>`}
+    </button>`;
+  });
+  return html;
+}
+
+function spPickCrew(crewId){
+  const p=selfPayState.loadedCrew.find(x=>x.id===crewId);
+  if(!p) return;
+  selfPayState.crewId=crewId;
+  selfPayState.person=p;
+  selfPayState.step=2;
+  renderSelfPayPanel();
+}
+
+// ── Step 2: Choose payment method ────────────────────────────
+function spStep2(){
+  const p=selfPayState.person;
+  const b=selfPayState.boat;
+  const amt=FEES[p.type]||0;
+  const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+  const race=getNextRace();
+  const raceLabel=race?race.label:'next race';
+
+  // Summary card
+  const summary=`<div style="margin-bottom:20px;padding:16px;border-radius:14px;background:var(--card);border:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="cc-avatar" style="width:42px;height:42px;font-size:.9rem;flex-shrink:0">${ini(p)}</div>
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:1rem">${p.first} ${p.last}</div>
+        <div style="font-size:.78rem;color:var(--muted)">${typeLabel} · ${b.name} · ${raceLabel}</div>
+      </div>
+      ${amt>0
+        ?`<span style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;color:var(--danger)">€${amt}</span>`
+        :`<span style="font-size:.85rem;color:var(--success);font-weight:700">Free ✓</span>`}
+    </div>
+  </div>`;
+
+  if(amt===0){
+    return summary+`<div style="text-align:center;padding:10px 0">
+      <div style="font-size:2.5rem;margin-bottom:10px">🎉</div>
+      <div style="font-size:.85rem;color:var(--muted);margin-bottom:24px">${typeLabel}s sail for free — you're all set!</div>
+      <button onclick="spConfirm('Free')"
+        style="width:100%;padding:14px;border-radius:12px;background:var(--teal);border:none;
+        color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+        font-weight:800;letter-spacing:.04em;cursor:pointer">OK, got it ✓</button>
+    </div>`;
+  }
+
+  // Fetch the boat's Revolut config for payment options
+  const revUser=selfPayState.boatRevUser||'';
+  // Trigger async load if not already loaded
+  if(!selfPayState.boatRevLoaded){
+    selfPayState.boatRevLoaded=true;
+    sbLoadBoatConfig(selfPayState.boatId).then(cfg=>{
+      if(cfg) selfPayState.boatRevUser=cfg.revolut_user||'';
+      // Re-render if still on this step
+      if(selfPayState.step===2){
+        const body=document.getElementById('selfPayBody');
+        if(body) body.innerHTML=spStep2();
+      }
+    });
+  }
+
+  const stripeLink=getStripeLink(p.type);
+  const btnBase='width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;cursor:pointer;margin-bottom:10px;text-align:left';
+
+  const revBtn=revUser
+    ?`<button onclick="spDoRevolut()"
+        style="${btnBase};background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);color:#a78bfa">
+        <span style="font-size:1.6rem">💜</span>
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay by Revolut</div>
+          <div style="font-size:.78rem;opacity:.8">Send €${amt} to @${revUser}</div>
+        </div>
+      </button>`
+    :`<button disabled style="${btnBase};background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default">
+        <span style="font-size:1.6rem">💜</span>
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Revolut</div>
+          <div style="font-size:.78rem">Not configured — ask skipper</div>
+        </div>
+      </button>`;
+
+  const cardBtn=stripeLink
+    ?`<button onclick="spDoCard()"
+        style="${btnBase};background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);color:var(--teal)">
+        <span style="font-size:1.6rem">💳</span>
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay by Card</div>
+          <div style="font-size:.78rem;opacity:.8">Secure online payment · €${amt}</div>
+        </div>
+      </button>`
+    :`<button disabled style="${btnBase};background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default">
+        <span style="font-size:1.6rem">💳</span>
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Card</div>
+          <div style="font-size:.78rem">Not configured — ask skipper</div>
+        </div>
+      </button>`;
+
+  const cashBtn=`<button onclick="spConfirm('Cash')"
+      style="${btnBase};background:rgba(45,198,83,.12);border:1px solid rgba(45,198,83,.4);color:var(--success)">
+      <span style="font-size:1.6rem">💵</span>
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay Cash</div>
+        <div style="font-size:.78rem;opacity:.8">I'll hand €${amt} to the skipper</div>
+      </div>
+    </button>`;
+
+  return summary+
+    `<div style="font-size:.82rem;color:var(--muted);margin-bottom:14px;text-align:center">How would you like to pay?</div>`+
+    revBtn+cardBtn+cashBtn;
+}
+
+// ── Payment action helpers ────────────────────────────────────
+function spDoRevolut(){
+  const p=selfPayState.person;
+  const revUser=selfPayState.boatRevUser||'';
+  const amt=FEES[p.type]||0;
+  const revUrl='https://revolut.me/'+revUser;
+  if(isMobile()){ window.open(revUrl,'_blank'); }
+  else { showRevolutQR(p.first,revUrl,amt); }
+  spShowAwaitConfirm('Revolut');
+}
+function spDoCard(){
+  const p=selfPayState.person;
+  const stripeLink=getStripeLink(p.type);
+  const amt=FEES[p.type]||0;
+  if(isMobile()){ window.open(stripeLink,'_blank'); }
+  else { showStripeQR(p.first,stripeLink,amt); }
+  spShowAwaitConfirm('Card');
+}
+function spShowAwaitConfirm(method){
+  const p=selfPayState.person;
+  const amt=FEES[p.type]||0;
+  const icon=method==='Revolut'?'💜':'💳';
+  const body=document.getElementById('selfPayBody');
+  if(!body) return;
+  body.innerHTML=
+    `<div style="text-align:center;padding:30px 0">
+      <div style="font-size:2.5rem;margin-bottom:12px">${icon}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:8px">
+        ${method} payment opened
+      </div>
+      <div style="font-size:.85rem;color:var(--muted);margin-bottom:28px">
+        Complete your €${amt} payment, then tap below to record it
+      </div>
+      <button onclick="spConfirm('${method}')"
+        style="width:100%;padding:14px;border-radius:12px;background:var(--teal);border:none;
+        color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+        font-weight:800;letter-spacing:.04em;cursor:pointer;margin-bottom:10px">
+        ✅ I've paid — record it
+      </button>
+      <button onclick="renderSelfPayPanel()"
+        style="width:100%;padding:12px;border-radius:12px;background:transparent;
+        border:1px solid var(--border);color:var(--muted);cursor:pointer;
+        font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700">
+        ← Back to options
+      </button>
+    </div>`;
+}
+
+async function spConfirm(method){
+  const p=selfPayState.person;
+  const b=selfPayState.boat;
+  const race=getNextRace();
+  if(!race){toast('No upcoming race found');return;}
+  const record={
+    boat_id:b.id,
+    crew_id:p.id,
+    race_key:race.key,
+    race_name:race.label,
+    race_date:race.date.toISOString().split('T')[0],
+    method,
+    amount:FEES[p.type]||0
+  };
+  await sbSaveSelfPayment(record);   // duplicate = already recorded, that's fine
+  selfPayState.confirmedMethod=method;
+  selfPayState.step=3;
+  renderSelfPayPanel();
+}
+
+// ── Step 3: Success ───────────────────────────────────────────
+function spStep3(){
+  const p=selfPayState.person;
+  const b=selfPayState.boat;
+  const race=getNextRace();
+  const method=selfPayState.confirmedMethod||'';
+  const amt=FEES[p.type]||0;
+  const icon=method==='Revolut'?'💜':method==='Card'?'💳':method==='Cash'?'💵':'🎉';
+  return `<div style="text-align:center;padding:30px 0">
+    <div style="font-size:3.5rem;margin-bottom:12px">${icon}</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;margin-bottom:8px">
+      ${method==='Free'?'Enjoy the race!':'Payment recorded!'}
+    </div>
+    <div style="font-size:.85rem;color:var(--muted);margin-bottom:4px">${p.first} ${p.last} · ${b.name}</div>
+    ${amt>0?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:var(--success);margin-bottom:4px">€${amt} · ${method}</div>`:''}
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:24px">${race?race.label:''}</div>
+    <div style="padding:14px;border-radius:12px;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.25);
+      font-size:.82rem;color:var(--success);margin-bottom:24px;text-align:left">
+      ✓ Your payment has been recorded.<br>Your skipper will see it when they open Race Fees.
+    </div>
+    <button onclick="closePanel('selfPayPanel')"
+      style="width:100%;padding:14px;border-radius:12px;background:var(--card);border:1px solid var(--border);
+      color:var(--fg);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+      font-weight:800;letter-spacing:.04em;cursor:pointer">Done ✓</button>
+  </div>`;
 }
 
 // ── Share payment link / QR (for whole crew) ─────────────────

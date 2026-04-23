@@ -329,6 +329,11 @@
       <div class="dash-card-label">Results</div>
       <div class="dash-card-sub">Series standings</div>
     </div>
+    <div class="dash-card" onclick="openSelfPayPanel()">
+      <div class="dash-card-icon">💰</div>
+      <div class="dash-card-label">Pay My Fee</div>
+      <div class="dash-card-sub">Pay independently</div>
+    </div>
     <div class="dash-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
       <div class="dash-card-icon">📅</div>
       <div class="dash-card-label">Calendar</div>
@@ -790,6 +795,17 @@
     <span class="panel-title">💳 Race Fees</span>
   </div>
   <div class="panel-body" id="raceFeesBody"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SELF-PAY PANEL — crew member pays their own fee independently
+════════════════════════════════════════════════════════════ -->
+<div class="panel-overlay" id="selfPayPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="selfPayBack()">‹</button>
+    <span class="panel-title" id="selfPayTitle">💰 Pay My Fee</span>
+  </div>
+  <div class="panel-body" id="selfPayBody"></div>
 </div>
 
 <div class="overlay" id="shareSheet">
