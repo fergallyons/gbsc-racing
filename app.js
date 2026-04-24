@@ -3684,10 +3684,10 @@ async function renderResultsForSeries(series){
     if(b&&!b._err) halBoatCache[id]={name:b.Name||'',sailText:b.SailText||'',helm:b.Helm||''};
   }));
 
-  buildResultsTable(data, series.label, fleetLabel, wrap);
+  buildResultsTable(data, series.label, fleetLabel, wrap, seriesId);
 }
 
-function buildResultsTable(data, seriesLabel, fleetLabel, wrap){
+function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId){
   const resultBoats=data.ResultsOverall||[];
   if(!resultBoats.length){ wrap.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No results yet</div></div>'; return; }
 
@@ -3717,8 +3717,12 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap){
     </div>`;
   }
 
-  // Race column headers
-  const raceHeaders=raceIds.map((_,i)=>`<th class="num" style="min-width:32px">R${i+1}</th>`).join('');
+  // Race column headers — tappable to open that race on Halsail
+  const raceHeaders=raceIds.map((rid,i)=>
+    `<th class="num" style="min-width:32px;cursor:pointer;color:var(--teal)"
+      onclick="window.open('https://halsail.com/Result/Race/${rid}','_blank')"
+      title="View Race ${i+1} on Halsail">R${i+1}</th>`
+  ).join('');
 
   function resolveBoatDisplay(halBoat){
     const boatData=halBoatCache[halBoat.BoatID];
@@ -3784,6 +3788,15 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap){
     </div>
     <div style="font-size:.8rem;color:var(--muted);margin-top:10px;text-align:center">
       Points in () are discards · Red = DNS/DNF/OCS
+    </div>
+    <div style="margin-top:14px;text-align:center">
+      <button onclick="window.open('https://halsail.com/Result/Series/${seriesId}','_blank')"
+        style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;
+        border-radius:10px;background:transparent;border:1px solid rgba(0,174,239,.3);
+        color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-size:.88rem;
+        font-weight:700;letter-spacing:.04em;cursor:pointer">
+        Full results on Halsail ↗
+      </button>
     </div>
   `;
 }
