@@ -3790,7 +3790,7 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId){
       Points in () are discards · Red = DNS/DNF/OCS
     </div>
     <div style="margin-top:14px;text-align:center">
-      <button onclick="window.open('https://halsail.com/Result/Series/${seriesId}','_blank')"
+      <button onclick="window.open('https://halsail.com/Result/Club/${HAL_CLUB}','_blank')"
         style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;
         border-radius:10px;background:transparent;border:1px solid rgba(0,174,239,.3);
         color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-size:.88rem;
