@@ -1737,7 +1737,7 @@ async function fetchTideData(){
     const ti=cols.indexOf('time'), ci=cols.indexOf('tide_time_category'), hi=cols.indexOf('Water_Level_ODMalin');
     const ODM_TO_CD=2.95; // OD Malin Head → Chart Datum offset for Galway
     const extremes=json.table.rows.map(row=>({
-      type: row[ci]==='HW'?'High':'Low',
+      type: row[ci]==='HIGH'?'High':'Low',
       date: row[ti],
       height: Math.round((row[hi]+ODM_TO_CD)*10)/10
     }));
