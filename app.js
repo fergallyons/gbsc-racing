@@ -1687,7 +1687,8 @@ async function fetchOpenMeteo(){
     const url='https://api.open-meteo.com/v1/forecast'
       +'?latitude='+GBSC_LAT+'&longitude='+GBSC_LNG
       +'&hourly=temperature_2m,apparent_temperature,wind_speed_10m,wind_gusts_10m'
-      +',wind_direction_10m,cloud_cover,surface_pressure,uv_index,weather_code'
+      +',wind_direction_10m,cloud_cover,surface_pressure,weather_code'
+      +'&daily=sunset'
       +'&wind_speed_unit=kn&forecast_days=3&timezone=Europe%2FDublin&timeformat=unixtime';
     const r=await fetch(url); if(!r.ok) return null;
     return await r.json();
@@ -1807,13 +1808,22 @@ function renderWeather(wx,tides){
   const feels=Math.round(wx.hourly.apparent_temperature[idx]);
   const cloud=Math.round(wx.hourly.cloud_cover[idx]);
   const pressure=Math.round(wx.hourly.surface_pressure[idx]);
-  const uv=Math.round(wx.hourly.uv_index[idx]||0);
   const code=wx.hourly.weather_code[idx];
   const bf=wxBeaufort(wind);
   const cond=wxCondition(code);
   const bfCol=wxBfColour(bf.f);
-  const uvLabel=uv<=2?'Low':uv<=5?'Moderate':uv<=7?'High':'Very high';
   const trendStr=wxPressureTrend(wx.hourly.surface_pressure,idx);
+  // Sunset: find daily entry matching race date
+  let sunsetStr='—';
+  if(wx.daily&&wx.daily.sunset){
+    const raceDayStr=raceDate.toISOString().split('T')[0];
+    const di=(wx.daily.time||[]).findIndex(t=>{
+      return new Date(t*1000).toISOString().split('T')[0]===raceDayStr;
+    });
+    if(di>=0&&wx.daily.sunset[di]){
+      sunsetStr=new Date(wx.daily.sunset[di]*1000).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    }
+  }
 
   // 4-hour window starting 1hr BEFORE race (idx-1 … idx+2)
   const stripIndices=[-1,0,1,2].map(n=>idx+n).filter(i=>i>=0&&i<times.length);
@@ -1894,10 +1904,10 @@ function renderWeather(wx,tides){
           <div style="font-size:.82rem;color:var(--white);margin-top:2px">${trendStr}</div>
         </div>
         <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
-          <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">UV Index</div>
+          <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Sunset</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;
-            color:var(--white);line-height:1.1">${uv}</div>
-          <div style="font-size:.82rem;color:var(--white);margin-top:2px">${uvLabel}</div>
+            color:var(--white);line-height:1.1">${sunsetStr}</div>
+          <div style="font-size:.82rem;color:var(--muted);margin-top:2px">local time</div>
         </div>
       </div>
     </div>`;
