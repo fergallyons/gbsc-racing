@@ -3689,6 +3689,8 @@ async function buildPinMgmtList(){
     row.style.cssText='display:flex;align-items:center;justify-content:space-between;background:var(--navy);border-radius:10px;padding:9px 12px;margin-bottom:5px;';
     row.innerHTML=
       '<div style="display:flex;align-items:center;gap:8px">'+
+        '<button onclick="openIconPicker(\''+b.id+'\')" title="Change icon" '+
+          'style="font-size:1.4rem;padding:0;border:none;background:none;cursor:pointer;line-height:1">'+b.icon+'</button>'+
         '<span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem">'+b.name+'</span>'+
       '</div>'+
       '<div style="display:flex;align-items:center;gap:6px">'+
@@ -3709,6 +3711,56 @@ async function buildPinMgmtList(){
       '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(254,224,30,.4);background:transparent;color:var(--ro);cursor:pointer">PIN</button>'+
     '</div>';
   list.appendChild(roRow);
+}
+
+function openIconPicker(boatId){
+  const b=boats.find(x=>x.id===boatId); if(!b) return;
+  const old=document.getElementById('iconPickerOverlay'); if(old) old.remove();
+  // Curated emoji palette — nautical, birds, animals, nature, bold
+  const emojis=[
+    '⛵','🚢','🛥️','⚓','🌊','🏄','🎣','🧭','💨','🌬️','🏖️','🪝',
+    '🦅','🦜','🐦','🦢','🦩','🦆','🦉','🦚','🦋','🐧',
+    '🦭','🐬','🐳','🦈','🐙','🦀','🦞','🐠','🐟',
+    '🌴','🌿','🍀','🌸','🌺','⭐','🌟','💫','☀️','🌙','🌈','⚡',
+    '🔥','💥','😈','🏴‍☠️','🎯','🏆','💎','🚀','🦊','🐺','🦁','🐯',
+    '🍺','🎪','🎭','🎸','🥊','🏋️','⚔️','🛡️','🔱','♟️'
+  ];
+  const overlay=document.createElement('div');
+  overlay.id='iconPickerOverlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  overlay.onclick=e=>{ if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML=`
+    <div style="background:var(--card);border-radius:18px 18px 0 0;padding:20px 16px 32px;width:100%;max-width:480px;max-height:55vh;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.05rem">
+          ${b.icon} Change icon · ${b.name}
+        </span>
+        <button onclick="document.getElementById('iconPickerOverlay').remove()"
+          style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;padding:0;line-height:1">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px">
+        ${emojis.map(e=>`<button onclick="setBoatIcon('${boatId}','${e}')"
+          style="font-size:1.5rem;padding:7px 4px;border-radius:8px;cursor:pointer;line-height:1;
+          border:2px solid ${e===b.icon?'var(--teal)':'transparent'};
+          background:${e===b.icon?'rgba(0,174,239,.1)':'var(--navy)'}">${e}</button>`).join('')}
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function setBoatIcon(boatId, emoji){
+  const b=boats.find(x=>x.id===boatId); if(!b) return;
+  b.icon=emoji;
+  saveCustom(boats); // update localStorage cache
+  await sbFetch('/rest/v1/boats?id=eq.'+encodeURIComponent(boatId),{
+    method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({icon:emoji})
+  });
+  const overlay=document.getElementById('iconPickerOverlay'); if(overlay) overlay.remove();
+  renderBoatGrid();
+  buildPinMgmtList();
+  toast(b.name+' icon updated');
 }
 
 async function deleteBoat(id){
