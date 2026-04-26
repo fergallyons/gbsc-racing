@@ -1671,6 +1671,8 @@ function openWeatherPanel(){
 async function loadRaceWeather(){
   const body=document.getElementById('weatherBody'); if(!body) return;
   body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ Loading conditions…</div>';
+  // Clear any stale Open-Meteo tide cache (replaced by IMI ERDDAP)
+  try{ const c=JSON.parse(localStorage.getItem('__race_tides__')||'null'); if(c&&c.src==='om') localStorage.removeItem('__race_tides__'); }catch(e){}
   try{
     const c=JSON.parse(localStorage.getItem('__race_weather__')||'null');
     if(c&&Date.now()-c.ts<3600000){ renderWeather(c.wx,c.tides); return; }
@@ -1709,38 +1711,38 @@ async function fetchTideData(){
       return data;
     }catch(e){ /* fall through to Open-Meteo */ }
   }
-  // Open-Meteo Marine (free, no key) — derive HW/LW from sea level heights
+  // Irish Marine Institute ERDDAP (free, no key, authoritative Irish state predictions)
+  // Dataset: IMI_TidePrediction_HighLow — Galway Harbour station, harmonic predictions
+  // Heights in metres above OD Malin Head; add 2.95m to get Chart Datum (LAT) heights
   try{
     const c=JSON.parse(localStorage.getItem('__race_tides__')||'null');
-    if(c&&c.src==='om'&&Date.now()-c.ts<43200000) return c.data;
+    if(c&&c.src==='imi'&&Date.now()-c.ts<43200000) return c.data;
   }catch(e){}
   try{
-    const url='https://marine-api.open-meteo.com/v1/marine'
-      +'?latitude='+GBSC_LAT+'&longitude='+GBSC_LNG
-      +'&hourly=sea_level_height_msl'
-      +'&forecast_days=4&timezone=Europe%2FDublin&timeformat=unixtime';
+    const raceDate=nextRace?nextRace.date:new Date();
+    const from=new Date(raceDate); from.setHours(0,0,0,0);
+    const to=new Date(from); to.setDate(to.getDate()+2);
+    const fromStr=from.toISOString().split('.')[0]+'Z';
+    const toStr=to.toISOString().split('.')[0]+'Z';
+    const url='https://erddap.marine.ie/erddap/tabledap/IMI_TidePrediction_HighLow.json'
+      +'?stationID,time,tide_time_category,Water_Level_ODMalin'
+      +'&stationID=%22Galway%22'
+      +'&time%3E='+fromStr
+      +'&time%3C'+toStr
+      +'&orderBy(%22time%22)';
     const r=await fetch(url); if(!r.ok) return null;
-    const marine=await r.json();
-    if(!marine.hourly||!marine.hourly.sea_level_height_msl) return null;
-    const heights=marine.hourly.sea_level_height_msl;
-    const times=marine.hourly.time;
-    // Find local extrema (simple neighbour comparison)
-    const extremes=[];
-    for(let i=2;i<heights.length-2;i++){
-      const h=heights[i];
-      if(h==null) continue;
-      const isHigh=h>heights[i-1]&&h>heights[i+1]&&h>heights[i-2]&&h>heights[i+2];
-      const isLow =h<heights[i-1]&&h<heights[i+1]&&h<heights[i-2]&&h<heights[i+2];
-      if(isHigh||isLow){
-        extremes.push({
-          type:isHigh?'High':'Low',
-          height:Math.round(h*10)/10,
-          date:new Date(times[i]*1000).toISOString()
-        });
-      }
-    }
-    const data={extremes,station:'Galway Bay',source:'open-meteo'};
-    try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),src:'om',data})); }catch(e){}
+    const json=await r.json();
+    if(!json.table||!json.table.rows) return null;
+    const cols=json.table.columnNames;
+    const ti=cols.indexOf('time'), ci=cols.indexOf('tide_time_category'), hi=cols.indexOf('Water_Level_ODMalin');
+    const ODM_TO_CD=2.95; // OD Malin Head → Chart Datum offset for Galway
+    const extremes=json.table.rows.map(row=>({
+      type: row[ci]==='HW'?'High':'Low',
+      date: row[ti],
+      height: Math.round((row[hi]+ODM_TO_CD)*10)/10
+    }));
+    const data={extremes,station:'Galway Harbour',source:'imi'};
+    try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),src:'imi',data})); }catch(e){}
     return data;
   }catch(e){ return null; }
 }
@@ -1857,15 +1859,8 @@ function renderWeather(wx,tides){
           </div>
         </div>
       </div>
-      <div style="font-size:.9rem;color:var(--white);margin-bottom:12px">
+      <div style="font-size:.9rem;color:var(--white);margin-bottom:16px">
         Gusting <strong style="font-size:1.05rem">${gust} kt</strong>
-      </div>
-      <div style="display:inline-flex;align-items:center;gap:10px;
-        background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.1);
-        border-radius:10px;padding:8px 14px;margin-bottom:16px">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;
-          font-weight:900;color:${bfCol}">F${bf.f}</span>
-        <span style="font-size:.9rem;color:var(--white)">${bf.desc}</span>
       </div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;
         letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
@@ -1909,7 +1904,7 @@ function renderWeather(wx,tides){
 
   // ── TIDES BLOCK ──────────────────────────────────────────────
   let tidesBlock='';
-  const tideSource=tides&&tides.source==='open-meteo'?'Open-Meteo (approx)':'WorldTides';
+  const tideSource=tides&&tides.source==='imi'?'IMI':tides&&tides.source==='wt'?'WorldTides':'IMI';
   if(tides&&Array.isArray(tides.extremes)&&tides.extremes.length){
     const dayStart=new Date(raceDate); dayStart.setHours(0,0,0,0);
     const dayEnd=new Date(dayStart); dayEnd.setDate(dayEnd.getDate()+1);
@@ -1938,7 +1933,7 @@ function renderWeather(wx,tides){
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
               letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Tides · ${tides.station||'Galway Bay'}</div>
-            ${tides.source==='open-meteo'?`<div style="font-size:.7rem;color:var(--muted)">approx ±30 min</div>`:''}
+            ${tides.source==='imi'?`<div style="font-size:.7rem;color:var(--muted)">Irish Marine Institute</div>`:''}
           </div>
           ${rows}
         </div>`;
