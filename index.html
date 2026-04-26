@@ -173,6 +173,11 @@
       <div class="dash-card-label">File Protest</div>
       <div class="dash-card-sub">Under RRS Rule 61</div>
     </div>
+    <div class="dash-card" onclick="openWeatherPanel()">
+      <div class="dash-card-icon">🌬️</div>
+      <div class="dash-card-label">Race Weather</div>
+      <div class="dash-card-sub">Wind, tide &amp; forecast</div>
+    </div>
     <div class="dash-card" onclick="openSettingsSheet()">
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Settings</div>
@@ -333,6 +338,11 @@
       <div class="dash-card-icon">💰</div>
       <div class="dash-card-label">Pay My Fee</div>
       <div class="dash-card-sub">Pay independently</div>
+    </div>
+    <div class="dash-card" onclick="openWeatherPanel()">
+      <div class="dash-card-icon">🌬️</div>
+      <div class="dash-card-label">Race Weather</div>
+      <div class="dash-card-sub" id="wx-tile-sub">Wind, tide &amp; forecast</div>
     </div>
     <div class="dash-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
       <div class="dash-card-icon">📅</div>
@@ -798,6 +808,17 @@
 </div>
 
 <!-- ════════════════════════════════════════════════════════════
+     WEATHER PANEL — race day conditions
+════════════════════════════════════════════════════════════ -->
+<div class="panel-overlay" id="weatherPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('weatherPanel')">‹</button>
+    <span class="panel-title">🌬️ Race Day Conditions</span>
+  </div>
+  <div class="panel-body" id="weatherBody"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
      SELF-PAY PANEL — crew member pays their own fee independently
 ════════════════════════════════════════════════════════════ -->
 <div class="panel-overlay" id="selfPayPanel" style="display:none">
@@ -916,6 +937,20 @@
         outline:none;width:100%;box-sizing:border-box;">
       <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
         Paste the eStela race URL, or use Find to pick from your recent races. Clear after the race.
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        🌊 WorldTides API Key
+      </label>
+      <input type="text" id="ro-worldtides-key" placeholder="Your WorldTides API key"
+        style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
+        Optional — enables tide times &amp; heights in Race Weather.
+        Free tier at <a href="https://www.worldtides.info" target="_blank" style="color:var(--teal)">worldtides.info</a> (10 req/day, cached 12hrs).
       </div>
     </div>
 

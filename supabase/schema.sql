@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS settings (
   stripe_link_student   text DEFAULT '',
   stripe_link_visitor   text DEFAULT '',
   pre_race_window_hours int  DEFAULT 12,    -- hours before race start to show "pending" state
+  worldtides_key        text DEFAULT '',   -- optional WorldTides API key for tide data in weather panel
   updated_at            timestamptz DEFAULT now()
 );
 

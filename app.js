@@ -37,7 +37,7 @@ async function sbSaveBoatConfig(id,fields){
   });
 }
 async function sbLoadClubSettings(){
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours,estella_url');
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours,estella_url,worldtides_key');
   if(!r||r._err){
     console.error('sbLoadClubSettings failed — columns may be missing from settings table. Run: ALTER TABLE settings ADD COLUMN IF NOT EXISTS stripe_link_member text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_student text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_visitor text DEFAULT \'\', ADD COLUMN IF NOT EXISTS pre_race_window_hours int DEFAULT 12;',r);
     return null;
@@ -1013,7 +1013,7 @@ function deleteCrew(){
 // In-memory cache loaded from DB on login, written back on change
 // localStorage used as fallback when offline
 let boatConfig={};    // {pin, revolut_user} for currentBoat
-let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:''};  // club-wide
+let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:'',worldtides_key:''};  // club-wide
 
 async function loadBoatConfig(boatId){
   // Try DB first
@@ -1260,6 +1260,7 @@ async function openROClubSettings(){
   document.getElementById('ro-stripe-visitor').value=clubSettings.stripe_link_visitor||'';
   document.getElementById('ro-pre-race-window').value=clubSettings.pre_race_window_hours||12;
   document.getElementById('ro-estella-url').value=clubSettings.estella_url||'';
+  document.getElementById('ro-worldtides-key').value=clubSettings.worldtides_key||'';
   document.getElementById('roClubSettingsSheet').classList.add('open');
 }
 function saveROClubSettings(){
@@ -1271,6 +1272,7 @@ function saveROClubSettings(){
   const studentVal=document.getElementById('ro-stripe-student').value.trim();
   const visitorVal=document.getElementById('ro-stripe-visitor').value.trim();
   const estellaVal=document.getElementById('ro-estella-url').value.trim();
+  const tidesKeyVal=document.getElementById('ro-worldtides-key').value.trim();
 
   saveClubStripeLinks({
     stripe_link_member:   memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'',
@@ -1278,9 +1280,11 @@ function saveROClubSettings(){
     stripe_link_visitor:  visitorVal !==''?visitorVal :clubSettings.stripe_link_visitor||'',
     pre_race_window_hours: windowHours,
     estella_url: estellaVal,
+    worldtides_key: tidesKeyVal,
   });
   clubSettings.pre_race_window_hours=windowHours;
   clubSettings.estella_url=estellaVal;
+  clubSettings.worldtides_key=tidesKeyVal;
   updateEstellaLink();
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
@@ -1650,6 +1654,281 @@ function showRevolutQR(firstName,revLink,amt){
     </div>`;
   el.addEventListener('click',e=>{if(e.target===el)el.remove();});
   document.body.appendChild(el);
+}
+
+// ════════════════════════════════════════════════════════════
+// RACE DAY WEATHER PANEL
+// Source: Open-Meteo (free, no key) + WorldTides (optional key)
+// ════════════════════════════════════════════════════════════
+
+const GBSC_LAT=53.262, GBSC_LNG=-8.942; // Rinville, Oranmore, Galway Bay
+
+function openWeatherPanel(){
+  openPanel('weatherPanel');
+  loadRaceWeather();
+}
+
+async function loadRaceWeather(){
+  const body=document.getElementById('weatherBody'); if(!body) return;
+  body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ Loading conditions…</div>';
+  // 1-hour cache for weather
+  try{
+    const c=JSON.parse(localStorage.getItem('__race_weather__')||'null');
+    if(c&&Date.now()-c.ts<3600000){ renderWeather(c.wx,c.tides); return; }
+  }catch(e){}
+  const [wx,tides]=await Promise.all([fetchOpenMeteo(),fetchTideData()]);
+  try{ localStorage.setItem('__race_weather__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
+  renderWeather(wx,tides);
+}
+
+async function fetchOpenMeteo(){
+  try{
+    const url='https://api.open-meteo.com/v1/forecast'
+      +'?latitude='+GBSC_LAT+'&longitude='+GBSC_LNG
+      +'&hourly=temperature_2m,apparent_temperature,wind_speed_10m,wind_gusts_10m'
+      +',wind_direction_10m,cloud_cover,surface_pressure,uv_index,weather_code'
+      +'&wind_speed_unit=kn&forecast_days=3&timezone=Europe%2FDublin&timeformat=unixtime';
+    const r=await fetch(url); if(!r.ok) return null;
+    return await r.json();
+  }catch(e){ return null; }
+}
+
+async function fetchTideData(){
+  const key=(clubSettings.worldtides_key||'').trim(); if(!key) return null;
+  // 12-hour cache for tides (they change slowly)
+  try{
+    const c=JSON.parse(localStorage.getItem('__race_tides__')||'null');
+    if(c&&Date.now()-c.ts<43200000) return c.data;
+  }catch(e){}
+  try{
+    const url='https://www.worldtides.info/api/v3?extremes&lat='+GBSC_LAT+'&lon='+GBSC_LNG
+      +'&key='+encodeURIComponent(key)+'&days=3&stationDistance=50';
+    const r=await fetch(url); if(!r.ok) return null;
+    const data=await r.json();
+    try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),data})); }catch(e){}
+    return data;
+  }catch(e){ return null; }
+}
+
+// ── Weather helpers ───────────────────────────────────────────
+function wxBeaufort(kts){
+  const S=[[0,'Calm'],[1,'Light air'],[4,'Light breeze'],[7,'Gentle breeze'],
+           [11,'Moderate breeze'],[17,'Fresh breeze'],[22,'Strong breeze'],
+           [28,'Near gale'],[34,'Gale'],[41,'Severe gale'],[48,'Storm'],[56,'Violent storm'],[64,'Hurricane']];
+  let f=0; for(let i=0;i<S.length-1;i++){ if(kts>=S[i][0]) f=i; else break; }
+  // re-do as threshold check
+  const thresholds=[1,4,7,11,17,22,28,34,41,48,56,64];
+  f=thresholds.filter(t=>kts>=t).length;
+  return {f, desc:S[f][1]};
+}
+function wxCardinal(deg){
+  return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(deg/22.5)%16];
+}
+function wxCondition(code){
+  if(code===0) return {icon:'☀️',label:'Clear'};
+  if(code<=2)  return {icon:'🌤️',label:'Partly cloudy'};
+  if(code===3) return {icon:'☁️',label:'Overcast'};
+  if(code<=49) return {icon:'🌫️',label:'Foggy'};
+  if(code<=57) return {icon:'🌦️',label:'Drizzle'};
+  if(code<=67) return {icon:'🌧️',label:'Rain'};
+  if(code<=77) return {icon:'❄️',label:'Snow'};
+  if(code<=82) return {icon:'🌦️',label:'Showers'};
+  return {icon:'⛈️',label:'Thunderstorm'};
+}
+function wxPressureTrend(arr,idx){
+  if(idx<3) return '→ Steady';
+  const d=arr[idx]-arr[idx-3];
+  if(d>2) return '↑ Rising'; if(d<-2) return '↓ Falling'; return '→ Steady';
+}
+function wxBfColour(f){ return f<=2?'var(--success)':f<=4?'var(--teal)':f<=6?'#f4a261':f<=8?'var(--warn)':'var(--danger)'; }
+
+// ── Main render ───────────────────────────────────────────────
+function renderWeather(wx,tides){
+  const body=document.getElementById('weatherBody'); if(!body) return;
+  if(!wx||!wx.hourly){
+    body.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)">
+      ⚠ Could not load weather data
+      <br><button onclick="localStorage.removeItem('__race_weather__');loadRaceWeather()"
+        style="margin-top:16px;padding:8px 20px;border-radius:8px;background:transparent;
+        border:1px solid var(--border);color:var(--teal);cursor:pointer;font-family:inherit">↺ Retry</button>
+    </div>`; return;
+  }
+
+  const race=nextRace||getNextRace();
+  const raceDate=race?race.date:new Date();
+  const now=new Date();
+  const isToday=raceDate.toDateString()===now.toDateString();
+  // Target time = actual race start, or now if race is underway
+  const target=isToday?Math.max(now,raceDate):raceDate;
+  const targetTs=Math.floor(target.getTime()/1000);
+
+  // Find hourly index closest to race time
+  const times=wx.hourly.time;
+  let idx=times.findIndex(t=>t>=targetTs);
+  if(idx<0) idx=times.length-4;
+  idx=Math.min(idx,times.length-4);
+
+  const wind=Math.round(wx.hourly.wind_speed_10m[idx]);
+  const gust=Math.round(wx.hourly.wind_gusts_10m[idx]);
+  const dir=Math.round(wx.hourly.wind_direction_10m[idx]);
+  const temp=Math.round(wx.hourly.temperature_2m[idx]);
+  const feels=Math.round(wx.hourly.apparent_temperature[idx]);
+  const cloud=Math.round(wx.hourly.cloud_cover[idx]);
+  const pressure=Math.round(wx.hourly.surface_pressure[idx]);
+  const uv=Math.round(wx.hourly.uv_index[idx]||0);
+  const code=wx.hourly.weather_code[idx];
+  const bf=wxBeaufort(wind);
+  const cond=wxCondition(code);
+  const bfCol=wxBfColour(bf.f);
+  const uvLabel=uv<=2?'Low':uv<=5?'Moderate':uv<=7?'High':'Very high';
+
+  // 3-hour race window strip
+  const strip=[0,1,2,3].map(n=>idx+n).filter(i=>i<times.length).map(i=>{
+    const t=new Date(times[i]*1000);
+    const hr=t.getHours().toString().padStart(2,'0')+':00';
+    const w=Math.round(wx.hourly.wind_speed_10m[i]);
+    const g=Math.round(wx.hourly.wind_gusts_10m[i]);
+    const d=Math.round(wx.hourly.wind_direction_10m[i]);
+    const b=wxBeaufort(w); const bc=wxBfColour(b.f);
+    const isNow=i===idx;
+    return `<div style="flex:1;text-align:center;background:var(--navy);border-radius:10px;
+      padding:8px 4px;border:1px solid ${isNow?'rgba(0,174,239,.5)':'var(--border)'}">
+      <div style="font-size:.68rem;color:${isNow?'var(--teal)':'var(--muted)'};
+        font-weight:${isNow?'700':'400'};margin-bottom:4px">${isNow&&isToday?'Now':hr}</div>
+      <div style="transform:rotate(${d}deg);font-size:.85rem;line-height:1;
+        color:${bc};margin-bottom:2px">▲</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;
+        font-weight:800;color:${bc}">${w}</div>
+      <div style="font-size:.65rem;color:var(--muted)">↑${g}kt</div>
+    </div>`;
+  }).join('');
+
+  // ── WIND BLOCK ───────────────────────────────────────────────
+  const windBlock=`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.68rem;font-weight:700;
+        letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Wind</div>
+      <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:6px">
+        <div style="transform:rotate(${dir}deg);font-size:2rem;line-height:1;color:${bfCol}">▲</div>
+        <div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:3rem;font-weight:800;
+            color:var(--white);line-height:1;letter-spacing:-.02em">${wind}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;color:var(--muted)"> kt</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:700;
+            color:var(--teal);margin-left:6px">${wxCardinal(dir)}</span>
+        </div>
+      </div>
+      <div style="font-size:.82rem;color:var(--muted);margin-bottom:10px">
+        Gusting <strong style="color:var(--white)">${gust} kt</strong>
+      </div>
+      <div style="display:inline-flex;align-items:center;gap:8px;
+        background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);
+        border-radius:8px;padding:6px 12px;margin-bottom:14px">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;
+          font-weight:900;color:${bfCol}">F${bf.f}</span>
+        <span style="font-size:.8rem;color:var(--muted)">${bf.desc}</span>
+      </div>
+      <div style="display:flex;gap:6px">${strip}</div>
+    </div>`;
+
+  // ── CONDITIONS BLOCK ─────────────────────────────────────────
+  const condBlock=`
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.68rem;font-weight:700;
+        letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Conditions</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:var(--navy);border-radius:10px;padding:10px 12px">
+          <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Temperature</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+            color:var(--white);line-height:1.1">${temp}°C</div>
+          <div style="font-size:.7rem;color:var(--muted)">feels ${feels}°C</div>
+        </div>
+        <div style="background:var(--navy);border-radius:10px;padding:10px 12px">
+          <div style="font-size:.68rem;color:var(--muted);margin-bottom:4px">Sky</div>
+          <div style="font-size:1.5rem;line-height:1;margin-bottom:2px">${cond.icon}</div>
+          <div style="font-size:.7rem;color:var(--muted)">${cond.label}</div>
+          <div style="font-size:.7rem;color:var(--muted)">${cloud}% cloud</div>
+        </div>
+        <div style="background:var(--navy);border-radius:10px;padding:10px 12px">
+          <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Pressure</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;
+            color:var(--white);line-height:1.1">${pressure}<span style="font-size:.72rem;
+            color:var(--muted);font-weight:400"> hPa</span></div>
+          <div style="font-size:.7rem;color:var(--muted)">${wxPressureTrend(wx.hourly.surface_pressure,idx)}</div>
+        </div>
+        <div style="background:var(--navy);border-radius:10px;padding:10px 12px">
+          <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">UV Index</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+            color:var(--white);line-height:1.1">${uv}</div>
+          <div style="font-size:.7rem;color:var(--muted)">${uvLabel}</div>
+        </div>
+      </div>
+    </div>`;
+
+  // ── TIDES BLOCK ──────────────────────────────────────────────
+  let tidesBlock='';
+  if(tides&&Array.isArray(tides.extremes)&&tides.extremes.length){
+    const dayStart=new Date(raceDate); dayStart.setHours(0,0,0,0);
+    const dayEnd=new Date(dayStart); dayEnd.setDate(dayEnd.getDate()+1);
+    const relevant=tides.extremes
+      .filter(e=>{ const t=new Date(e.date); return t>=dayStart&&t<dayEnd; })
+      .slice(0,4);
+    if(relevant.length){
+      const rows=relevant.map(e=>{
+        const t=new Date(e.date);
+        const timeStr=t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+        const isHigh=e.type==='High';
+        return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;
+          border-bottom:1px solid rgba(255,255,255,.05)">
+          <span style="font-size:1rem;color:${isHigh?'var(--teal)':'var(--muted)'}">${isHigh?'▲':'▼'}</span>
+          <div style="flex:1;font-size:.85rem;font-weight:600;
+            color:${isHigh?'var(--white)':'var(--muted)'}">${isHigh?'High Water':'Low Water'}</div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;
+            color:var(--white)">${timeStr}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;
+            font-weight:700;color:${isHigh?'var(--teal)':'var(--muted)'};
+            min-width:36px;text-align:right">${e.height.toFixed(1)}m</span>
+        </div>`;
+      }).join('');
+      const station=tides.station?`<span style="color:var(--muted);font-weight:400"> · ${tides.station}</span>`:'';
+      tidesBlock=`
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.68rem;font-weight:700;
+            letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">
+            Tides${station}</div>
+          ${rows}
+        </div>`;
+    }
+  } else if(!(clubSettings.worldtides_key||'').trim()){
+    tidesBlock=`
+      <div style="background:var(--card);border:1px solid rgba(255,255,255,.05);border-radius:14px;
+        padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.2rem">🌊</span>
+        <div style="font-size:.78rem;color:var(--muted)">
+          Add a <strong style="color:var(--white)">WorldTides API key</strong> in RO Settings to enable tide times &amp; heights
+        </div>
+      </div>`;
+  }
+
+  // ── HEADER + FOOTER ──────────────────────────────────────────
+  const raceDateStr=raceDate.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+  const raceLabel=race?race.label:'Next race';
+  const raceTimeStr=raceDate.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+
+  body.innerHTML=`
+    <div style="margin-bottom:14px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.05rem;font-weight:700;
+        color:var(--white)">${raceLabel}</div>
+      <div style="font-size:.78rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
+    </div>
+    ${windBlock}${condBlock}${tidesBlock}
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding:6px 0 2px;font-size:.7rem;color:var(--muted)">
+      <span>Weather: Open-Meteo${tides?' · Tides: WorldTides':''}</span>
+      <button onclick="localStorage.removeItem('__race_weather__');localStorage.removeItem('__race_tides__');loadRaceWeather()"
+        style="font-size:.72rem;color:var(--teal);background:transparent;border:none;
+        cursor:pointer;font-family:inherit;padding:0">↺ Refresh</button>
+    </div>`;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -3957,7 +4236,7 @@ document.addEventListener('click',function(e){
 // ═══════════════════════════════════════════════════════════════
 // WIND WIDGET — Open-Meteo (no API key required)
 // ═══════════════════════════════════════════════════════════════
-const GBSC_LAT=53.2744, GBSC_LNG=-9.0490; // Galway Bay
+// GBSC_LAT / GBSC_LNG defined in the weather section above
 
 async function loadWindWidget(){
   try{
