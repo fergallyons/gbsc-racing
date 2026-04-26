@@ -1671,7 +1671,6 @@ function openWeatherPanel(){
 async function loadRaceWeather(){
   const body=document.getElementById('weatherBody'); if(!body) return;
   body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ Loading conditions…</div>';
-  // 1-hour cache for weather
   try{
     const c=JSON.parse(localStorage.getItem('__race_weather__')||'null');
     if(c&&Date.now()-c.ts<3600000){ renderWeather(c.wx,c.tides); return; }
@@ -1694,32 +1693,65 @@ async function fetchOpenMeteo(){
 }
 
 async function fetchTideData(){
-  const key=(clubSettings.worldtides_key||'').trim(); if(!key) return null;
-  // 12-hour cache for tides (they change slowly)
+  // WorldTides (precise) — used if API key configured
+  const key=(clubSettings.worldtides_key||'').trim();
+  if(key){
+    try{
+      const c=JSON.parse(localStorage.getItem('__race_tides__')||'null');
+      if(c&&c.src==='wt'&&Date.now()-c.ts<43200000) return c.data;
+    }catch(e){}
+    try{
+      const url='https://www.worldtides.info/api/v3?extremes&lat='+GBSC_LAT+'&lon='+GBSC_LNG
+        +'&key='+encodeURIComponent(key)+'&days=3&stationDistance=50';
+      const r=await fetch(url); if(!r.ok) throw new Error(r.status);
+      const data=await r.json();
+      try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),src:'wt',data})); }catch(e){}
+      return data;
+    }catch(e){ /* fall through to Open-Meteo */ }
+  }
+  // Open-Meteo Marine (free, no key) — derive HW/LW from sea level heights
   try{
     const c=JSON.parse(localStorage.getItem('__race_tides__')||'null');
-    if(c&&Date.now()-c.ts<43200000) return c.data;
+    if(c&&c.src==='om'&&Date.now()-c.ts<43200000) return c.data;
   }catch(e){}
   try{
-    const url='https://www.worldtides.info/api/v3?extremes&lat='+GBSC_LAT+'&lon='+GBSC_LNG
-      +'&key='+encodeURIComponent(key)+'&days=3&stationDistance=50';
+    const url='https://marine-api.open-meteo.com/v1/marine'
+      +'?latitude='+GBSC_LAT+'&longitude='+GBSC_LNG
+      +'&hourly=sea_level_height_msl'
+      +'&forecast_days=4&timezone=Europe%2FDublin&timeformat=unixtime';
     const r=await fetch(url); if(!r.ok) return null;
-    const data=await r.json();
-    try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),data})); }catch(e){}
+    const marine=await r.json();
+    if(!marine.hourly||!marine.hourly.sea_level_height_msl) return null;
+    const heights=marine.hourly.sea_level_height_msl;
+    const times=marine.hourly.time;
+    // Find local extrema (simple neighbour comparison)
+    const extremes=[];
+    for(let i=2;i<heights.length-2;i++){
+      const h=heights[i];
+      if(h==null) continue;
+      const isHigh=h>heights[i-1]&&h>heights[i+1]&&h>heights[i-2]&&h>heights[i+2];
+      const isLow =h<heights[i-1]&&h<heights[i+1]&&h<heights[i-2]&&h<heights[i+2];
+      if(isHigh||isLow){
+        extremes.push({
+          type:isHigh?'High':'Low',
+          height:Math.round(h*10)/10,
+          date:new Date(times[i]*1000).toISOString()
+        });
+      }
+    }
+    const data={extremes,station:'Galway Bay',source:'open-meteo'};
+    try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),src:'om',data})); }catch(e){}
     return data;
   }catch(e){ return null; }
 }
 
 // ── Weather helpers ───────────────────────────────────────────
 function wxBeaufort(kts){
-  const S=[[0,'Calm'],[1,'Light air'],[4,'Light breeze'],[7,'Gentle breeze'],
-           [11,'Moderate breeze'],[17,'Fresh breeze'],[22,'Strong breeze'],
-           [28,'Near gale'],[34,'Gale'],[41,'Severe gale'],[48,'Storm'],[56,'Violent storm'],[64,'Hurricane']];
-  let f=0; for(let i=0;i<S.length-1;i++){ if(kts>=S[i][0]) f=i; else break; }
-  // re-do as threshold check
   const thresholds=[1,4,7,11,17,22,28,34,41,48,56,64];
-  f=thresholds.filter(t=>kts>=t).length;
-  return {f, desc:S[f][1]};
+  const names=['Calm','Light air','Light breeze','Gentle breeze','Moderate breeze',
+               'Fresh breeze','Strong breeze','Near gale','Gale','Severe gale','Storm','Violent storm','Hurricane'];
+  const f=thresholds.filter(t=>kts>=t).length;
+  return {f,desc:names[f]};
 }
 function wxCardinal(deg){
   return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(deg/22.5)%16];
@@ -1758,15 +1790,13 @@ function renderWeather(wx,tides){
   const raceDate=race?race.date:new Date();
   const now=new Date();
   const isToday=raceDate.toDateString()===now.toDateString();
-  // Target time = actual race start, or now if race is underway
   const target=isToday?Math.max(now,raceDate):raceDate;
   const targetTs=Math.floor(target.getTime()/1000);
 
-  // Find hourly index closest to race time
   const times=wx.hourly.time;
   let idx=times.findIndex(t=>t>=targetTs);
-  if(idx<0) idx=times.length-4;
-  idx=Math.min(idx,times.length-4);
+  if(idx<0) idx=times.length-5;
+  idx=Math.min(Math.max(idx,1),times.length-4);
 
   const wind=Math.round(wx.hourly.wind_speed_10m[idx]);
   const gust=Math.round(wx.hourly.wind_gusts_10m[idx]);
@@ -1781,92 +1811,105 @@ function renderWeather(wx,tides){
   const cond=wxCondition(code);
   const bfCol=wxBfColour(bf.f);
   const uvLabel=uv<=2?'Low':uv<=5?'Moderate':uv<=7?'High':'Very high';
+  const trendStr=wxPressureTrend(wx.hourly.surface_pressure,idx);
 
-  // 3-hour race window strip
-  const strip=[0,1,2,3].map(n=>idx+n).filter(i=>i<times.length).map(i=>{
+  // 4-hour window starting 1hr BEFORE race (idx-1 … idx+2)
+  const stripIndices=[-1,0,1,2].map(n=>idx+n).filter(i=>i>=0&&i<times.length);
+  const strip=stripIndices.map(i=>{
     const t=new Date(times[i]*1000);
     const hr=t.getHours().toString().padStart(2,'0')+':00';
     const w=Math.round(wx.hourly.wind_speed_10m[i]);
     const g=Math.round(wx.hourly.wind_gusts_10m[i]);
     const d=Math.round(wx.hourly.wind_direction_10m[i]);
     const b=wxBeaufort(w); const bc=wxBfColour(b.f);
-    const isNow=i===idx;
+    const isRace=i===idx;
     return `<div style="flex:1;text-align:center;background:var(--navy);border-radius:10px;
-      padding:8px 4px;border:1px solid ${isNow?'rgba(0,174,239,.5)':'var(--border)'}">
-      <div style="font-size:.68rem;color:${isNow?'var(--teal)':'var(--muted)'};
-        font-weight:${isNow?'700':'400'};margin-bottom:4px">${isNow&&isToday?'Now':hr}</div>
-      <div style="transform:rotate(${d}deg);font-size:.85rem;line-height:1;
-        color:${bc};margin-bottom:2px">▲</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;
-        font-weight:800;color:${bc}">${w}</div>
-      <div style="font-size:.65rem;color:var(--muted)">↑${g}kt</div>
+      padding:9px 4px;border:2px solid ${isRace?'rgba(0,174,239,.6)':'var(--border)'}">
+      <div style="font-size:.75rem;color:${isRace?'var(--teal)':'var(--muted)'};
+        font-weight:${isRace?'700':'400'};margin-bottom:5px">${isRace?'🏁 Race':hr}</div>
+      <div style="transform:rotate(${d}deg);font-size:1rem;line-height:1;
+        color:${bc};margin-bottom:3px">▲</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;
+        font-weight:800;color:${bc};line-height:1">${w}</div>
+      <div style="font-size:.75rem;color:var(--white);margin-top:1px">↑${g}</div>
     </div>`;
   }).join('');
 
   // ── WIND BLOCK ───────────────────────────────────────────────
   const windBlock=`
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.68rem;font-weight:700;
-        letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Wind</div>
-      <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:6px">
-        <div style="transform:rotate(${dir}deg);font-size:2rem;line-height:1;color:${bfCol}">▲</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:10px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
+        letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">Wind at Race Start</div>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+        <div style="transform:rotate(${dir}deg);font-size:2.5rem;line-height:1;color:${bfCol}">▲</div>
         <div>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:3rem;font-weight:800;
-            color:var(--white);line-height:1;letter-spacing:-.02em">${wind}</span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;color:var(--muted)"> kt</span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:700;
-            color:var(--teal);margin-left:6px">${wxCardinal(dir)}</span>
+          <div style="display:flex;align-items:baseline;gap:6px">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:3.5rem;font-weight:800;
+              color:var(--white);line-height:1;letter-spacing:-.02em">${wind}</span>
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;
+              font-weight:600;color:var(--muted)">kt</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;
+              font-weight:800;color:var(--teal)">${dir}°</span>
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+              color:var(--muted)">${wxCardinal(dir)}</span>
+          </div>
         </div>
       </div>
-      <div style="font-size:.82rem;color:var(--muted);margin-bottom:10px">
-        Gusting <strong style="color:var(--white)">${gust} kt</strong>
+      <div style="font-size:.9rem;color:var(--white);margin-bottom:12px">
+        Gusting <strong style="font-size:1.05rem">${gust} kt</strong>
       </div>
-      <div style="display:inline-flex;align-items:center;gap:8px;
-        background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.08);
-        border-radius:8px;padding:6px 12px;margin-bottom:14px">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;
+      <div style="display:inline-flex;align-items:center;gap:10px;
+        background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.1);
+        border-radius:10px;padding:8px 14px;margin-bottom:16px">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;
           font-weight:900;color:${bfCol}">F${bf.f}</span>
-        <span style="font-size:.8rem;color:var(--muted)">${bf.desc}</span>
+        <span style="font-size:.9rem;color:var(--white)">${bf.desc}</span>
       </div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;
+        letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
+        Race Window · kt</div>
       <div style="display:flex;gap:6px">${strip}</div>
     </div>`;
 
   // ── CONDITIONS BLOCK ─────────────────────────────────────────
   const condBlock=`
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.68rem;font-weight:700;
-        letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px">Conditions</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="background:var(--navy);border-radius:10px;padding:10px 12px">
-          <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Temperature</div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:10px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
+        letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">Conditions</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+          <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Temperature</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;
             color:var(--white);line-height:1.1">${temp}°C</div>
-          <div style="font-size:.7rem;color:var(--muted)">feels ${feels}°C</div>
+          <div style="font-size:.82rem;color:var(--white);margin-top:2px">feels ${feels}°C</div>
         </div>
-        <div style="background:var(--navy);border-radius:10px;padding:10px 12px">
-          <div style="font-size:.68rem;color:var(--muted);margin-bottom:4px">Sky</div>
-          <div style="font-size:1.5rem;line-height:1;margin-bottom:2px">${cond.icon}</div>
-          <div style="font-size:.7rem;color:var(--muted)">${cond.label}</div>
-          <div style="font-size:.7rem;color:var(--muted)">${cloud}% cloud</div>
+        <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+          <div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">Sky</div>
+          <div style="font-size:1.8rem;line-height:1;margin-bottom:4px">${cond.icon}</div>
+          <div style="font-size:.82rem;color:var(--white)">${cond.label}</div>
+          <div style="font-size:.8rem;color:var(--muted)">${cloud}% cloud</div>
         </div>
-        <div style="background:var(--navy);border-radius:10px;padding:10px 12px">
-          <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">Pressure</div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;
-            color:var(--white);line-height:1.1">${pressure}<span style="font-size:.72rem;
-            color:var(--muted);font-weight:400"> hPa</span></div>
-          <div style="font-size:.7rem;color:var(--muted)">${wxPressureTrend(wx.hourly.surface_pressure,idx)}</div>
-        </div>
-        <div style="background:var(--navy);border-radius:10px;padding:10px 12px">
-          <div style="font-size:.68rem;color:var(--muted);margin-bottom:3px">UV Index</div>
+        <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+          <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Pressure</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+            color:var(--white);line-height:1.1">${pressure}
+            <span style="font-size:.8rem;color:var(--muted);font-weight:400">hPa</span></div>
+          <div style="font-size:.82rem;color:var(--white);margin-top:2px">${trendStr}</div>
+        </div>
+        <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+          <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">UV Index</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;
             color:var(--white);line-height:1.1">${uv}</div>
-          <div style="font-size:.7rem;color:var(--muted)">${uvLabel}</div>
+          <div style="font-size:.82rem;color:var(--white);margin-top:2px">${uvLabel}</div>
         </div>
       </div>
     </div>`;
 
   // ── TIDES BLOCK ──────────────────────────────────────────────
   let tidesBlock='';
+  const tideSource=tides&&tides.source==='open-meteo'?'Open-Meteo (approx)':'WorldTides';
   if(tides&&Array.isArray(tides.extremes)&&tides.extremes.length){
     const dayStart=new Date(raceDate); dayStart.setHours(0,0,0,0);
     const dayEnd=new Date(dayStart); dayEnd.setDate(dayEnd.getDate()+1);
@@ -1878,36 +1921,28 @@ function renderWeather(wx,tides){
         const t=new Date(e.date);
         const timeStr=t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
         const isHigh=e.type==='High';
-        return `<div style="display:flex;align-items:center;gap:12px;padding:9px 0;
-          border-bottom:1px solid rgba(255,255,255,.05)">
-          <span style="font-size:1rem;color:${isHigh?'var(--teal)':'var(--muted)'}">${isHigh?'▲':'▼'}</span>
-          <div style="flex:1;font-size:.85rem;font-weight:600;
+        return `<div style="display:flex;align-items:center;gap:14px;padding:11px 0;
+          border-bottom:1px solid rgba(255,255,255,.06)">
+          <span style="font-size:1.2rem">${isHigh?'▲':'▼'}</span>
+          <div style="flex:1;font-size:.95rem;font-weight:600;
             color:${isHigh?'var(--white)':'var(--muted)'}">${isHigh?'High Water':'Low Water'}</div>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:600;
             color:var(--white)">${timeStr}</span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;
-            font-weight:700;color:${isHigh?'var(--teal)':'var(--muted)'};
-            min-width:36px;text-align:right">${e.height.toFixed(1)}m</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;
+            color:${isHigh?'var(--teal)':'var(--muted)'};min-width:42px;text-align:right">
+            ${e.height.toFixed(1)}m</span>
         </div>`;
       }).join('');
-      const station=tides.station?`<span style="color:var(--muted);font-weight:400"> · ${tides.station}</span>`:'';
       tidesBlock=`
-        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.68rem;font-weight:700;
-            letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px">
-            Tides${station}</div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:10px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
+              letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Tides · ${tides.station||'Galway Bay'}</div>
+            ${tides.source==='open-meteo'?`<div style="font-size:.7rem;color:var(--muted)">approx ±30 min</div>`:''}
+          </div>
           ${rows}
         </div>`;
     }
-  } else if(!(clubSettings.worldtides_key||'').trim()){
-    tidesBlock=`
-      <div style="background:var(--card);border:1px solid rgba(255,255,255,.05);border-radius:14px;
-        padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
-        <span style="font-size:1.2rem">🌊</span>
-        <div style="font-size:.78rem;color:var(--muted)">
-          Add a <strong style="color:var(--white)">WorldTides API key</strong> in RO Settings to enable tide times &amp; heights
-        </div>
-      </div>`;
   }
 
   // ── HEADER + FOOTER ──────────────────────────────────────────
@@ -1916,17 +1951,17 @@ function renderWeather(wx,tides){
   const raceTimeStr=raceDate.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
 
   body.innerHTML=`
-    <div style="margin-bottom:14px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.05rem;font-weight:700;
+    <div style="margin-bottom:16px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:700;
         color:var(--white)">${raceLabel}</div>
-      <div style="font-size:.78rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
+      <div style="font-size:.85rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
     </div>
     ${windBlock}${condBlock}${tidesBlock}
     <div style="display:flex;align-items:center;justify-content:space-between;
-      padding:6px 0 2px;font-size:.7rem;color:var(--muted)">
-      <span>Weather: Open-Meteo${tides?' · Tides: WorldTides':''}</span>
+      padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
+      <span>Open-Meteo${tides?' · '+tideSource:''}</span>
       <button onclick="localStorage.removeItem('__race_weather__');localStorage.removeItem('__race_tides__');loadRaceWeather()"
-        style="font-size:.72rem;color:var(--teal);background:transparent;border:none;
+        style="font-size:.8rem;color:var(--teal);background:transparent;border:none;
         cursor:pointer;font-family:inherit;padding:0">↺ Refresh</button>
     </div>`;
 }
