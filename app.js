@@ -57,7 +57,7 @@ async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+
 async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:p.id,boat_id:bid,first:p.first,last:p.last,type:p.type,join_year:p.joinYear||null,outings:p.outings||0,phone:p.phone||null,selected:p.selected||false})});}
 async function sbSetCrewSelected(crewId,selected){return sbFetch('/rest/v1/crew?id=eq.'+crewId,{method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify({selected})});}
 async function sbDeleteCrew(id){return sbFetch('/rest/v1/crew?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});}
-async function sbSaveRaceRecord(rec){return sbFetch('/rest/v1/race_records',{method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(rec)});}
+async function sbSaveRaceRecord(rec){return sbFetch('/rest/v1/race_records?on_conflict=boat_id,race_key',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rec)});}
 async function sbUpsertRacePayment(data){
   return sbFetch('/rest/v1/race_payments?on_conflict=crew_id,race_key',{
     method:'POST',
@@ -77,6 +77,44 @@ async function sbLoadRaceRecords(raceName){
   const r=await sbFetch('/rest/v1/race_records?race_name=eq.'+encodeURIComponent(raceName)+'&order=submitted_at.asc');
   return r||[];
 }
+// Auto-save race record on every payment change — replaces manual Submit
+function autoSaveRaceRecord(){
+  const race=selectedRace||nextRace;
+  if(!race||!currentBoat) return;
+  const s=roster.filter(p=>p.selected);
+  if(!s.length) return;
+  const tot=s.reduce((a,p)=>a+fee(p),0);
+  const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
+  const byMethod={};
+  s.filter(p=>p.paid).forEach(p=>{ const m=p.payMethod||'Unknown'; byMethod[m]=(byMethod[m]||0)+fee(p); });
+  const settlement=[...new Set(s.filter(p=>p.paid).map(p=>p.payMethod).filter(Boolean))];
+  sbSaveRaceRecord({
+    boat_id:currentBoat.id,
+    race_name:race.label,
+    race_date:race.date.toISOString().split('T')[0],
+    race_key:raceKey(race),
+    crew_snapshot:s,
+    total_due:tot,
+    total_paid:paid,
+    payment_methods:byMethod,
+    settlement_methods:settlement
+  });
+}
+
+// Increment visitor outings — called once when all crew transition to paid
+function incrementVisitorOutings(){
+  const s=roster.filter(p=>p.selected);
+  const visitors=s.filter(p=>p.type==='visitor'&&!p._outingsIncremented);
+  visitors.forEach(p=>{
+    p._outingsIncremented=true;
+    p.outings=(p.outings||0)+1;
+    sbFetch('/rest/v1/crew?id=eq.'+p.id,{method:'PATCH',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({outings:p.outings})});
+  });
+  if(visitors.length) renderCrew();
+}
+
 async function sbRegisterBoat(boatId,race){
   const key=raceKey(race);
   try{
@@ -1524,24 +1562,18 @@ function renderRaceFeesPanel(){
 
   // ── Footer ───────────────────────────────────────────────────
   const allPaid=unpaid.length===0;
-  const allCashBtn=unpaid.length>1
-    ?`<button onclick="rfMarkAllCash()"
-        style="flex:1;padding:12px;font-family:'Barlow Condensed',sans-serif;font-size:.92rem;
-        font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:pointer;
-        background:rgba(45,198,83,.12);border:1px solid rgba(45,198,83,.4);color:var(--success)">
-        ✓ All Cash</button>`:'';
-  const submitStyle=allPaid
-    ?'background:var(--teal);color:var(--navy-dark);border:none'
-    :'background:rgba(0,174,239,.1);color:var(--teal);border:1px solid rgba(0,174,239,.3)';
-  const submitLabel=allPaid?'✅ Submit to Race Officer':`✅ Submit${unpaid.length?' ('+unpaid.length+' unpaid)':''}`;
-  const footer=`<div style="display:flex;gap:8px;padding:16px 0 4px;border-top:1px solid var(--border);
-      margin-top:4px;position:sticky;bottom:0;background:var(--navy)">
-      ${allCashBtn}
-      <button onclick="sendReport()"
-        style="flex:2;padding:12px;font-family:'Barlow Condensed',sans-serif;font-size:.92rem;
-        font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:pointer;${submitStyle}">
-        ${submitLabel}</button>
-    </div>`;
+  const footer=allPaid
+    ?`<div style="padding:14px 0 4px;border-top:1px solid var(--border);margin-top:4px;
+        text-align:center;color:var(--success);font-family:'Barlow Condensed',sans-serif;
+        font-size:1rem;font-weight:700;letter-spacing:.04em">✅ All paid — record auto-saved</div>`
+    :`<div style="display:flex;gap:8px;padding:16px 0 4px;border-top:1px solid var(--border);
+        margin-top:4px;position:sticky;bottom:0;background:var(--navy)">
+        ${unpaid.length>1?`<button onclick="rfMarkAllCash()"
+          style="flex:1;padding:12px;font-family:'Barlow Condensed',sans-serif;font-size:.92rem;
+          font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:pointer;
+          background:rgba(45,198,83,.12);border:1px solid rgba(45,198,83,.4);color:var(--success)">
+          ✓ All Cash</button>`:''}
+      </div>`;
 
   body.innerHTML=
     `<div style="padding:4px 0 16px;border-bottom:1px solid var(--border);margin-bottom:16px">${summary}</div>`+
@@ -1553,11 +1585,11 @@ function renderRaceFeesPanel(){
 // ── Race Fees panel actions ───────────────────────────────────
 function rfMarkPaid(id,method){
   const p=roster.find(r=>r.id===id); if(!p)return;
+  const sel=roster.filter(q=>q.selected);
+  const wasAllPaid=sel.every(q=>q.paid);
   p.paid=true; p.payMethod=method;
-  renderCrew();
-  renderRaceFeesPanel();
+  renderCrew(); renderRaceFeesPanel();
   toast(p.first+' — '+method+' ✓');
-  // Persist to DB
   const race=selectedRace||nextRace;
   if(race&&currentBoat){
     sbUpsertRacePayment({
@@ -1566,25 +1598,24 @@ function rfMarkPaid(id,method){
       race_date:race.date.toISOString().split('T')[0],
       method, amount:fee(p)
     });
+    autoSaveRaceRecord();
+    if(!wasAllPaid&&sel.every(q=>q.paid)) incrementVisitorOutings();
   }
 }
 function rfUnpay(id){
   const p=roster.find(r=>r.id===id); if(!p)return;
   p.paid=false; p.payMethod='';
-  renderCrew();
-  renderRaceFeesPanel();
-  // Remove from DB
+  renderCrew(); renderRaceFeesPanel();
   const race=selectedRace||nextRace;
-  if(race) sbDeleteRacePayment(id,raceKey(race));
+  if(race){ sbDeleteRacePayment(id,raceKey(race)); autoSaveRaceRecord(); }
 }
 function rfMarkAllCash(){
   const unpaid=roster.filter(p=>p.selected&&!p.paid);
   if(!unpaid.length){toast('All already paid ✓');return;}
+  const wasAllPaid=false; // there are unpaid crew, so definitely not all paid
   unpaid.forEach(p=>{p.paid=true;p.payMethod='Cash';});
-  renderCrew();
-  renderRaceFeesPanel();
+  renderCrew(); renderRaceFeesPanel();
   toast('All '+unpaid.length+' marked Cash ✓');
-  // Persist all to DB
   const race=selectedRace||nextRace;
   if(race&&currentBoat){
     const key=raceKey(race);
@@ -1596,6 +1627,8 @@ function rfMarkAllCash(){
         method:'Cash', amount:fee(p)
       });
     });
+    autoSaveRaceRecord();
+    if(roster.filter(q=>q.selected).every(q=>q.paid)) incrementVisitorOutings();
   }
 }
 function rfPayRevolut(id){
@@ -2218,8 +2251,19 @@ function spDoRevolut(){
 }
 function spDoCard(){
   const p=selfPayState.person;
-  window.open(getStripeLink(p.type),'_blank');
-  spShowAwaitConfirm('Card');
+  const b=selfPayState.boat;
+  const race=getNextRace();
+  // Save context so Stripe success redirect can auto-confirm without user tap
+  if(race&&b&&p){
+    try{ sessionStorage.setItem('sp_pending',JSON.stringify({
+      boatId:b.id, crewId:p.id, personType:p.type,
+      raceKey:raceKey(race), raceName:race.label,
+      raceDate:race.date.toISOString().split('T')[0],
+      amount:FEES[p.type]||0
+    })); }catch(e){}
+  }
+  // Navigate in same tab so Stripe success_url redirect returns to this app
+  window.location.href=getStripeLink(p.type);
 }
 function spShowAwaitConfirm(method){
   const p=selfPayState.person;
@@ -4990,6 +5034,22 @@ function startCountdown(){
 // INIT — open directly to public view, no login gate
 // ═══════════════════════════════════════════════════════════════
 loadWindWidget();
+// Handle Stripe success redirect — auto-confirm Card self-payment without extra tap
+(function handleStripeReturn(){
+  const params=new URLSearchParams(window.location.search);
+  if(params.get('stripe_success')!=='1') return;
+  history.replaceState({},'',window.location.pathname); // clean URL
+  try{
+    const ctx=JSON.parse(sessionStorage.getItem('sp_pending')||'null');
+    if(!ctx) return;
+    sessionStorage.removeItem('sp_pending');
+    sbSaveSelfPayment({
+      boat_id:ctx.boatId, crew_id:ctx.crewId,
+      race_key:ctx.raceKey, race_name:ctx.raceName,
+      race_date:ctx.raceDate, method:'Card', amount:ctx.amount
+    }).then(()=>toast('✅ Card payment recorded'));
+  }catch(e){}
+})();
 // Load club settings first so the pay page has stripe links available, then check hash
 loadClubSettings().then(()=>{updateEstellaLink();checkPayHash();});
 // Build race schedule synchronously so public race cards populate immediately
