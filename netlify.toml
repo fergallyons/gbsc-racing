@@ -1,6 +1,18 @@
 [build]
   functions = "netlify/functions"
 
+# Stripe Payment Link success redirect — Stripe sends crew back here after card payment
+[[redirects]]
+  from = "/stripe-success"
+  to = "/?stripe_success=1"
+  status = 302
+
+# Catch-all for any unknown path — serves the app so JS handles routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
 # HTML and JS/CSS — never cache at CDN; always serve fresh
 # (no content-hash in filenames, so CDN must revalidate on every deploy)
 [[headers]]
