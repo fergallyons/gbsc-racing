@@ -96,4 +96,6 @@ END $$;
 
 
 -- ── All done ─────────────────────────────────────────────────
-RAISE NOTICE '✅ Migration 006 complete — race_records is now upsertable on (boat_id, race_key)';
+DO $$ BEGIN
+  RAISE NOTICE '✅ Migration 006 complete — race_records is now upsertable on (boat_id, race_key)';
+END $$;
