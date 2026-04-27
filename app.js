@@ -1400,6 +1400,17 @@ async function downloadDatabaseBackup(){
 // RACE FEES PANEL — unified collect / send / submit flow
 // ═══════════════════════════════════════════════════════════════
 async function openRaceFeesPanel(){
+  // Always re-fetch crew from DB to catch additions from other devices / sessions
+  if(currentBoat){
+    const fresh=await sbLoadCrew(currentBoat.id);
+    if(fresh!==null){
+      // Preserve in-memory selected state where possible, then update roster
+      const selSet=new Set(roster.filter(p=>p.selected).map(p=>p.id));
+      roster=fresh.map(p=>({...p,selected:selSet.has(p.id)||p.selected}));
+      cacheRosterLocally(currentBoat.id,roster);
+      renderCrew(); // keep crew tab in sync
+    }
+  }
   const sel=roster.filter(p=>p.selected);
   if(!sel.length){toast('Select crew in the Crew Roster first');return;}
   // Restore payment state from DB — self-payments (crew-initiated) + race_payments (skipper-marked)
