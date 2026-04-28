@@ -1143,19 +1143,28 @@
         <span class="help-chevron" id="hs-fees-chev">›</span>
       </div>
       <div class="help-body" id="hs-fees">
-        <p>There are two ways to collect fees depending on the situation:</p>
-        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Collect Fees — you're with your crew</div>
-        <p>Use this at the marina or on the water. Each crew member gets three buttons: <strong>Revolut</strong>, <strong>Cash</strong> and <strong>Card</strong>.</p>
-        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Revolut</strong> — if the crew member has a phone number on file, opens a pre-written WhatsApp message with your Revolut link. If no number, shows a QR code they can scan.</div></div>
+        <p>Fees can be collected by the skipper directly, or crew can pay independently. Everything saves to the database in real time — no submit step required.</p>
+
+        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;margin-top:4px">Skipper — Race Fees panel</div>
+        <p>Select your crew in the Crew Roster, then tap <strong>Race Fees</strong>. Each crew member has three buttons:</p>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Revolut</strong> — opens your Revolut.me link. Once you see the payment arrive, tap the button to record it.</div></div>
         <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Cash</strong> — immediately marks as paid. Use when you physically receive the money.</div></div>
-        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Card</strong> — sends a card payment link via WhatsApp, or shows a QR code. Requires the RO to have configured card payment links in Club Settings.</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Card</strong> — opens the Stripe card payment link. Record it once you confirm the payment came through.</div></div>
         <div class="help-tip" style="margin-bottom:12px">
-          <p>💡 Revolut and Card payments do <strong>not</strong> auto-confirm. Once you see the money arrive, tap <strong>"Mark as Paid"</strong> on the crew member's row.</p>
+          <p>💡 Every payment tap saves instantly. You can close the panel and come back later — all payments are remembered. When all crew are paid the record is finalised automatically.</p>
         </div>
-        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Request Payment — crew pay in their own time</div>
-        <p>Generates a link and QR code. Share it to your boat WhatsApp group — each person taps their name and is taken directly to pay. Use the <strong>💬 WhatsApp</strong> button to drop it straight into a group chat.</p>
+
+        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Crew — Pay Race Fees (self-pay)</div>
+        <p>Crew members can pay independently using the <strong>Pay Race Fees</strong> tile on the home screen — no skipper login needed.</p>
+        <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Select your boat and your name</div></div>
+        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Choose <strong>Revolut</strong>, <strong>Card</strong> or <strong>Cash</strong></div></div>
+        <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">Card payments redirect to Stripe and confirm automatically on return. Revolut opens the payment link — tap <strong>I've paid</strong> once done.</div></div>
+
+        <div style="font-size:.78rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;margin-top:12px">Send payment link to crew</div>
+        <p>In the Race Fees panel, tap <strong>📲 Send payment link to crew</strong> to share a link your crew can use to self-pay at their convenience — useful before race night.</p>
+
         <div class="help-tip">
-          <p>⚙ <strong>Setup:</strong> Add your Revolut <strong>@username</strong> in Skipper Settings before using Revolut. Card links are set by the RO in Club Settings.</p>
+          <p>⚙ <strong>Setup:</strong> Add your Revolut <strong>@username</strong> in Skipper Settings. Card payment links are configured by the RO in Club Settings.</p>
         </div>
       </div>
     </div>
@@ -1170,7 +1179,7 @@
         <p>Crew records are saved and reused each race — you only need to add people once.</p>
         <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Member</strong> — full club member rate</div></div>
         <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Student</strong> — reduced rate for students</div></div>
-        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Visitor</strong> — visitor day rate; the app automatically tracks and increments their number of outings each time you submit race fees</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Visitor</strong> — visitor day rate; the app automatically increments their outing count when all crew are marked paid for the race</div></div>
         <div class="help-tip">
           <p>📱 Adding a <strong>phone number</strong> for each crew member unlocks WhatsApp payment requests — the most convenient way to collect fees remotely.</p>
         </div>
