@@ -165,7 +165,9 @@ async function sbSaveCourse(course){
     wind_dir: course.windDir,
     race_name: course.race_name||'',
     notes: course.notes||'',
-    published_at: course.published_at
+    published_at: course.published_at,
+    start_line_id: course.startLineId||'club',
+    finish_line_id: course.finishLineId||'club'
   };
   try{
     const r=await fetch(SB_URL+'/rest/v1/published_courses',{
@@ -201,7 +203,9 @@ async function sbLoadCourse(){
     windDir: row.wind_dir,
     race_name: row.race_name,
     notes: row.notes||'',
-    published_at: row.published_at
+    published_at: row.published_at,
+    startLineId: row.start_line_id||'club',
+    finishLineId: row.finish_line_id||'club'
   };
 }
 function setSyncStatus(s){const el=document.getElementById('syncStatus');if(!el)return;if(s==='syncing'){el.textContent='⏳';el.style.color='var(--gold)';}else if(s==='ok'){el.textContent='☁';el.style.color='var(--success)';setTimeout(()=>{el.textContent='';},3000);}else{el.textContent='⚠';el.style.color='var(--warn)';}}
@@ -223,8 +227,34 @@ let MARKS = [
   {id:'TR', name:'Trout',              lat:53+(15.026/60), lng:-(9+(1.109/60)),  colour:'#f4a261', desc:'Club Orange'},
   {id:'WM', name:'W. Margaretta',      lat:53+(13.673/60), lng:-(9+(5.978/60)),  colour:'#2dc653', desc:'Channel Green'},
 ];
-// Club start line — 53°14.5687'N, 008°58.6148'W
-const START_POS = {lat:53+(14.5687/60), lng:-(8+(58.6148/60))};
+// ── Named start / finish lines ────────────────────────────────────────────
+// Each line is defined by two endpoints: lat1/lng1 = pin end,
+// lat2/lng2 = committee boat / outer mark end.
+// TODO: Replace placeholder coords for Ballyvaughan and Galway Docks
+//       with the real transits / GPS fixes once confirmed on the water.
+let LINES=[
+  { id:'club',
+    name:'Club Start/Finish',
+    lat1:53+(14.5687/60), lng1:-(8+(58.6148/60)),  // pin end  53°14.5687'N 008°58.6148'W
+    lat2:53+(14.7106/60), lng2:-(8+(58.6084/60)),  // committee boat end  53°14.7106'N 008°58.6084'W
+    isDefault:true, isActive:true },
+  { id:'ballyvaughan',
+    name:'Ballyvaughan Finish',
+    // TODO: replace with real finish-line coords once confirmed
+    lat1:53.1165, lng1:-9.1490,
+    lat2:53.1155, lng2:-9.1495,
+    isActive:true },
+  { id:'galway_docks',
+    name:'Galway Docks Start',
+    lat1:53+(16.0355/60), lng1:-(9+(2.6577/60)),  // 53°16.0355'N 009°02.6577'W
+    lat2:53+(16.0090/60), lng2:-(9+(2.8005/60)),  // 53°16.0090'N 009°02.8005'W
+    isActive:true },
+];
+function getLineById(id){ return LINES.find(l=>l.id===id)||LINES[0]; }
+function lineMidpoint(l){ return {lat:(l.lat1+l.lat2)/2, lng:(l.lng1+l.lng2)/2}; }
+
+// Legacy single-point reference — kept so any code not yet migrated still works
+const START_POS = lineMidpoint(LINES[0]);
 
 // ═══════════════════════════════════════════════════════════════
 // MAP TILE BACKGROUND
@@ -277,6 +307,8 @@ let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225;
 let courseMarks=[];
 let publishedCourse=null;
+let selectedStartLineId='club';   // id from LINES[]
+let selectedFinishLineId='club';  // can differ for destination-finish races
 let registeredBoatIds=new Set(); // boat IDs registered for the next race
 let roDashRegsCount=0, roDashProtestsCount=0, roDashCoursePublished=false;
 
@@ -483,6 +515,7 @@ async function enterApp(b,ro){
     updateRODash();
     buildMarksGrid();
     loadMarks();
+    loadLines();
     loadAndDrawCourse();
     loadRegistrations();
     buildPinMgmtList();
@@ -749,7 +782,11 @@ function showTab(id,btn){
 function openPanel(id){
   const p=document.getElementById(id);if(!p)return;
   p.style.display='flex';
-  requestAnimationFrame(()=>requestAnimationFrame(()=>p.classList.add('open')));
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    p.classList.add('open');
+    if(id==='roCoursePanel') populateLineSelects();
+    if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
+  }));
 }
 function closePanel(id){
   const p=document.getElementById(id);if(!p)return;
@@ -3288,6 +3325,17 @@ function downloadCourseGpx(source){
     return m?{...m,rounding:me.rounding||'port'}:null;
   }).filter(Boolean);
 
+  // Determine which lines to use
+  const gpxStartLine=source==='builder'
+    ?getLineById(selectedStartLineId)
+    :getLineById((publishedCourse&&publishedCourse.startLineId)||'club');
+  const gpxFinishLine=source==='builder'
+    ?getLineById(selectedFinishLineId)
+    :getLineById((publishedCourse&&publishedCourse.finishLineId)||'club');
+  const gpxStartPos=lineMidpoint(gpxStartLine);
+  const gpxFinishPos=lineMidpoint(gpxFinishLine);
+  const gpxSameLine=gpxStartLine.id===gpxFinishLine.id;
+
   // Use window.CLUB if available (multi-club branch), fall back to hardcoded GBSC
   const clubShort=(window.CLUB&&window.CLUB.short)||'GBSC';
   const clubName=clubShort+' Racing';
@@ -3300,12 +3348,28 @@ function downloadCourseGpx(source){
     :new Date().toISOString();
   const dateStr=raceDate.split('T')[0];
 
-  // ── Waypoints ─────────────────────────────────────────────────
+  // ── Waypoints — include both endpoints so chart plotters can show the physical line ──
   const wptLines=[];
+  // Start line endpoints
   wptLines.push(
-    `  <wpt lat="${START_POS.lat.toFixed(6)}" lon="${START_POS.lng.toFixed(6)}">\n`+
-    `    <name>Start/Finish</name>\n    <desc>Club Start Line</desc>\n    <sym>Flag, Blue</sym>\n  </wpt>`
+    `  <wpt lat="${gpxStartLine.lat1.toFixed(6)}" lon="${gpxStartLine.lng1.toFixed(6)}">\n`+
+    `    <name>${gpxStartLine.name} — Pin End</name>\n    <sym>Flag, Green</sym>\n  </wpt>`
   );
+  wptLines.push(
+    `  <wpt lat="${gpxStartLine.lat2.toFixed(6)}" lon="${gpxStartLine.lng2.toFixed(6)}">\n`+
+    `    <name>${gpxStartLine.name} — Boat End</name>\n    <sym>Flag, Blue</sym>\n  </wpt>`
+  );
+  // Finish line endpoints (skip if same as start)
+  if(!gpxSameLine){
+    wptLines.push(
+      `  <wpt lat="${gpxFinishLine.lat1.toFixed(6)}" lon="${gpxFinishLine.lng1.toFixed(6)}">\n`+
+      `    <name>${gpxFinishLine.name} — Pin End</name>\n    <sym>Flag, Green</sym>\n  </wpt>`
+    );
+    wptLines.push(
+      `  <wpt lat="${gpxFinishLine.lat2.toFixed(6)}" lon="${gpxFinishLine.lng2.toFixed(6)}">\n`+
+      `    <name>${gpxFinishLine.name} — Boat End</name>\n    <sym>Flag, Red</sym>\n  </wpt>`
+    );
+  }
   resolvedMarks.forEach((m,i)=>{
     wptLines.push(
       `  <wpt lat="${m.lat.toFixed(6)}" lon="${m.lng.toFixed(6)}">\n`+
@@ -3315,10 +3379,10 @@ function downloadCourseGpx(source){
     );
   });
 
-  // ── Route ─────────────────────────────────────────────────────
+  // ── Route — midpoints used for the route line ──────────────────
   const rteptLines=[];
   rteptLines.push(
-    `    <rtept lat="${START_POS.lat.toFixed(6)}" lon="${START_POS.lng.toFixed(6)}">\n      <name>Start</name>\n    </rtept>`
+    `    <rtept lat="${gpxStartPos.lat.toFixed(6)}" lon="${gpxStartPos.lng.toFixed(6)}">\n      <name>Start — ${gpxStartLine.name}</name>\n    </rtept>`
   );
   resolvedMarks.forEach(m=>{
     rteptLines.push(
@@ -3328,7 +3392,7 @@ function downloadCourseGpx(source){
     );
   });
   rteptLines.push(
-    `    <rtept lat="${START_POS.lat.toFixed(6)}" lon="${START_POS.lng.toFixed(6)}">\n      <name>Finish</name>\n    </rtept>`
+    `    <rtept lat="${gpxFinishPos.lat.toFixed(6)}" lon="${gpxFinishPos.lng.toFixed(6)}">\n      <name>Finish — ${gpxFinishLine.name}</name>\n    </rtept>`
   );
 
   const gpx=
@@ -3377,17 +3441,29 @@ function _gpxAnchorDownload(blob,filename){
 }
 
 // ── Shared SVG builder — used by both the published diagram and the RO live preview ──
-function buildCourseSvg(markEntries, wDeg){
+// startLine / finishLine: objects from LINES[]. When omitted, falls back to LINES[0] (club).
+function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
+  const _sl=startLine||getLineById('club');
+  const _fl=finishLine||getLineById('club');
+  const sameLine=_sl.id===_fl.id;
+
   const resolvedMarks=markEntries.map(me=>{
     const m=MARKS.find(x=>x.id===me.id);
     return m?{...m,rounding:me.rounding||'port'}:null;
   }).filter(Boolean);
 
-  const geoPts=[{lat:START_POS.lat,lng:START_POS.lng},...resolvedMarks.map(m=>({lat:m.lat,lng:m.lng}))];
-  const refLat=geoPts.reduce((s,p)=>s+p.lat,0)/geoPts.length;
-  const refLng=geoPts.reduce((s,p)=>s+p.lng,0)/geoPts.length;
+  // Build geo list: start endpoints first, then finish endpoints (if different), then marks.
+  // Index map:  0=sl.p1  1=sl.p2  [2=fl.p1  3=fl.p2 if different]  then marks
+  const geoList=[
+    {lat:_sl.lat1,lng:_sl.lng1},
+    {lat:_sl.lat2,lng:_sl.lng2},
+    ...(!sameLine?[{lat:_fl.lat1,lng:_fl.lng1},{lat:_fl.lat2,lng:_fl.lng2}]:[]),
+    ...resolvedMarks.map(m=>({lat:m.lat,lng:m.lng}))
+  ];
+  const refLat=geoList.reduce((s,p)=>s+p.lat,0)/geoList.length;
+  const refLng=geoList.reduce((s,p)=>s+p.lng,0)/geoList.length;
   const cosLat=Math.cos(refLat*Math.PI/180);
-  const raw=geoPts.map(p=>({x:(p.lng-refLng)*cosLat,y:-(p.lat-refLat)}));
+  const raw=geoList.map(p=>({x:(p.lng-refLng)*cosLat,y:-(p.lat-refLat)}));
 
   const SVG_W=320,SVG_H=300,PAD=44;
   const rawXs=raw.map(p=>p.x),rawYs=raw.map(p=>p.y);
@@ -3401,9 +3477,14 @@ function buildCourseSvg(markEntries, wDeg){
   const oy=PAD+(usableH-scaledH)/2-minY*scale;
   const toSvg=p=>({x:p.x*scale+ox,y:p.y*scale+oy});
   const svgPts=raw.map(toSvg);
-  const sfPt=svgPts[0];
-  const markPts=svgPts.slice(1);
-  const route=[sfPt,...markPts,sfPt];
+
+  const slP1=svgPts[0], slP2=svgPts[1];
+  const slMid={x:(slP1.x+slP2.x)/2, y:(slP1.y+slP2.y)/2};
+  const flP1=sameLine?slP1:svgPts[2], flP2=sameLine?slP2:svgPts[3];
+  const flMid=sameLine?slMid:{x:(flP1.x+flP2.x)/2, y:(flP1.y+flP2.y)/2};
+  const markOffset=sameLine?2:4;
+  const markPts=svgPts.slice(markOffset);
+  const route=[slMid,...markPts,flMid];
 
   let svgParts=[];
   const satFilter=mapTileMode!=='off'?`<filter id="ts" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="0" stdDeviation="1.8" flood-color="rgba(0,0,0,0.95)"/></filter>`:'';
@@ -3466,11 +3547,30 @@ function buildCourseSvg(markEntries, wDeg){
     svgParts.push(`<text x="${lx}" y="${(p.y+7).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="7.5" font-weight="700"${tf}>${rnd==='port'?'PORT':'STBD'}</text>`);
   });
 
-  {
-    const p=sfPt,R=NR+1;
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${R+4}" fill="none" stroke="#00b4d8" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.55"/>`);
-    svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${R}" fill="rgba(0,180,216,0.15)" stroke="#00b4d8" stroke-width="2"/>`);
-    svgParts.push(`<text x="${p.x.toFixed(1)}" y="${(p.y+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="#00b4d8" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="800">S/F</text>`);
+  // ── Start / finish line rendering ────────────────────────────────────────
+  // drawRaceLine(p1, p2, label, col) — draws the physical line + endpoint dots + label
+  const drawRaceLine=(p1,p2,label,col)=>{
+    const isPoint=Math.abs(p1.x-p2.x)<0.5&&Math.abs(p1.y-p2.y)<0.5; // same coords = placeholder
+    if(isPoint){
+      // Fallback: single decorated circle (same as old S/F rendering)
+      const R=NR+1,px=p1.x.toFixed(1),py=p1.y.toFixed(1);
+      svgParts.push(`<circle cx="${px}" cy="${py}" r="${R+4}" fill="none" stroke="${col}" stroke-width="1.2" stroke-dasharray="4 3" opacity="0.55"/>`);
+      svgParts.push(`<circle cx="${px}" cy="${py}" r="${R}" fill="${col}26" stroke="${col}" stroke-width="2"/>`);
+      svgParts.push(`<text x="${px}" y="${(p1.y+0.5).toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="${col}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="800"${tf}>${label}</text>`);
+    } else {
+      // Real two-point line
+      svgParts.push(`<line x1="${p1.x.toFixed(1)}" y1="${p1.y.toFixed(1)}" x2="${p2.x.toFixed(1)}" y2="${p2.y.toFixed(1)}" stroke="${col}" stroke-width="3.5" stroke-linecap="round" opacity="0.85"/>`);
+      svgParts.push(`<circle cx="${p1.x.toFixed(1)}" cy="${p1.y.toFixed(1)}" r="3" fill="${col}" opacity="0.9"/>`);
+      svgParts.push(`<circle cx="${p2.x.toFixed(1)}" cy="${p2.y.toFixed(1)}" r="3" fill="${col}" opacity="0.9"/>`);
+      const mx=((p1.x+p2.x)/2).toFixed(1), my=((p1.y+p2.y)/2-6).toFixed(1);
+      svgParts.push(`<text x="${mx}" y="${my}" text-anchor="middle" fill="${col}" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="800"${tf}>${label}</text>`);
+    }
+  };
+  if(sameLine){
+    drawRaceLine(slP1,slP2,'S/F','#00b4d8');
+  } else {
+    drawRaceLine(slP1,slP2,'START','#00b4d8');
+    drawRaceLine(flP1,flP2,'FINISH','#2dc653');
   }
 
   {
@@ -3499,7 +3599,8 @@ function renderRoCoursePreview(){
     wrap.innerHTML='<div class="ro-preview-empty">Tap marks above to preview the course</div>';
     return;
   }
-  wrap.innerHTML=buildCourseSvg(courseMarks, windDeg);
+  wrap.innerHTML=buildCourseSvg(courseMarks, windDeg,
+    getLineById(selectedStartLineId), getLineById(selectedFinishLineId));
 }
 
 function renderCourseDiagram(){
@@ -3532,16 +3633,20 @@ function renderCourseDiagram(){
   const windDir=c.windDeg!=null?dirs[Math.round(c.windDeg/22.5)%16]:'—';
   const windDegDisp=c.windDeg!=null?c.windDeg+'° '+windDir:'—';
 
-  const svgEl=buildCourseSvg(markEntries, c.windDeg);
+  const pubStartLine=getLineById(c.startLineId||'club');
+  const pubFinishLine=getLineById(c.finishLineId||'club');
+  const pubStartPos=lineMidpoint(pubStartLine);
+  const pubFinishPos=lineMidpoint(pubFinishLine);
+  const svgEl=buildCourseSvg(markEntries, c.windDeg, pubStartLine, pubFinishLine);
 
-  // ── Leg table (preserved) ──────────────────────────────────────
+  // ── Leg table ──────────────────────────────────────────────────
   let legRows='';
-  let prevLat=START_POS.lat,prevLng=START_POS.lng;
+  let prevLat=pubStartPos.lat,prevLng=pubStartPos.lng;
   legRows+=`<div class="leg-row">
     <span class="leg-num" style="color:var(--teal)">S</span>
     <span class="mark-colour" style="background:#00b4d8"></span>
-    <span class="leg-mark">Start / Finish Line</span>
-    <span class="leg-rounding" style="background:rgba(0,180,216,.1);color:var(--teal);border:1px solid rgba(0,180,216,.3)">S / F</span>
+    <span class="leg-mark">${pubStartLine.name}</span>
+    <span class="leg-rounding" style="background:rgba(0,180,216,.1);color:var(--teal);border:1px solid rgba(0,180,216,.3)">START</span>
     <span class="leg-detail" style="color:var(--muted)">—</span>
   </div>`;
   markEntries.forEach((me,i)=>{
@@ -3560,22 +3665,22 @@ function renderCourseDiagram(){
     </div>`;
     prevLat=m.lat; prevLng=m.lng;
   });
-  const retBrg=Math.round(bearing(prevLat,prevLng,START_POS.lat,START_POS.lng));
-  const retD=Math.round(dist(prevLat,prevLng,START_POS.lat,START_POS.lng)/1852*10)/10;
+  const retBrg=Math.round(bearing(prevLat,prevLng,pubFinishPos.lat,pubFinishPos.lng));
+  const retD=Math.round(dist(prevLat,prevLng,pubFinishPos.lat,pubFinishPos.lng)/1852*10)/10;
   legRows+=`<div class="leg-row">
     <span class="leg-num">${markEntries.length+1}</span>
-    <span class="mark-colour" style="background:#00b4d8"></span>
-    <span class="leg-mark">Finish — Club Start Line</span>
-    <span class="leg-rounding" style="background:rgba(0,180,216,.1);color:var(--teal);border:1px solid rgba(0,180,216,.3)">S / F</span>
+    <span class="mark-colour" style="background:#2dc653"></span>
+    <span class="leg-mark">${pubFinishLine.name}</span>
+    <span class="leg-rounding" style="background:rgba(45,198,83,.1);color:#2dc653;border:1px solid rgba(45,198,83,.3)">FINISH</span>
     <span class="leg-detail">${retBrg}° · ${retD}nm</span>
   </div>`;
 
-  let totalDist=0,tLat=START_POS.lat,tLng=START_POS.lng;
+  let totalDist=0,tLat=pubStartPos.lat,tLng=pubStartPos.lng;
   markEntries.forEach(me=>{
     const m=MARKS.find(x=>x.id===me.id); if(!m)return;
     totalDist+=dist(tLat,tLng,m.lat,m.lng); tLat=m.lat; tLng=m.lng;
   });
-  totalDist+=dist(tLat,tLng,START_POS.lat,START_POS.lng);
+  totalDist+=dist(tLat,tLng,pubFinishPos.lat,pubFinishPos.lng);
   const totalNm=Math.round(totalDist/1852*10)/10;
 
   wrap.innerHTML=`
@@ -3721,6 +3826,26 @@ function updateWind(v){
   document.getElementById('windDegLabel').textContent=windDeg+'° '+dir;
   renderRoCoursePreview();
 }
+// ── Line selector helpers ─────────────────────────────────────────────────
+function populateLineSelects(){
+  const startSel=document.getElementById('startLineSelect');
+  const finishSel=document.getElementById('finishLineSelect');
+  if(!startSel||!finishSel) return;
+  const makeOpts=(selectedId)=>LINES.filter(l=>l.isActive!==false||l.isDefault).map(l=>
+    `<option value="${l.id}"${l.id===selectedId?' selected':''}>${l.isDefault?'★ ':''}${l.name}</option>`
+  ).join('');
+  startSel.innerHTML=makeOpts(selectedStartLineId);
+  finishSel.innerHTML=makeOpts(selectedFinishLineId);
+}
+function updateStartLine(id){
+  selectedStartLineId=id;
+  renderRoCoursePreview();
+}
+function updateFinishLine(id){
+  selectedFinishLineId=id;
+  renderRoCoursePreview();
+}
+
 async function publishCourse(){
   if(!courseMarks.length){toast('Select at least one mark');return;}
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
@@ -3735,7 +3860,9 @@ async function publishCourse(){
     windDir:dir,
     race_name:selectedRace?selectedRace.label:'',
     notes,
-    published_at:new Date().toISOString()
+    published_at:new Date().toISOString(),
+    startLineId:selectedStartLineId,
+    finishLineId:selectedFinishLineId
   };
   setSyncStatus('syncing');
   const ok=await sbSaveCourse(course);
@@ -3866,6 +3993,9 @@ async function deleteBoat(id){
 }
 function clearCourse(){
   courseMarks=[];
+  selectedStartLineId='club';
+  selectedFinishLineId='club';
+  populateLineSelects();
   document.querySelectorAll('.mark-toggle').forEach(el=>el.classList.remove('selected'));
   document.getElementById('courseNotes').value='';
   renderSelectedOrder();
@@ -4462,6 +4592,19 @@ async function loadMarks(){
     buildMarksMgrList();
   }
 }
+async function loadLines(){
+  const rows=await sbFetch('/rest/v1/start_finish_lines?order=sort_order.asc,name.asc');
+  if(rows&&rows.length){
+    LINES=rows.map(r=>({
+      id:r.id, name:r.name,
+      lat1:r.lat1, lng1:r.lng1,
+      lat2:r.lat2, lng2:r.lng2,
+      isDefault:r.is_default||false,
+      isActive:r.is_active!==false
+    }));
+  }
+  if(isRO) buildLinesMgrList();
+}
 
 function buildMarksMgrList(){
   const list=document.getElementById('marksMgrList');
@@ -4591,6 +4734,152 @@ async function submitAddMark(){
     // Reload marks from DB to confirm save and pick up server-generated fields
     await loadMarks();
     hideMarkAddForm();
+    toast('✅ '+name+' added');
+  }
+}
+
+// ── Lines Manager ──────────────────────────────────────────────────────────
+function fmtDM(dec,isLat){
+  const h=dec>=0?(isLat?'N':'E'):(isLat?'S':'W');
+  const abs=Math.abs(dec);
+  const d=Math.floor(abs);
+  const m=((abs-d)*60).toFixed(3);
+  return d+'°'+m+"'"+h;
+}
+function buildLinesMgrList(){
+  const list=document.getElementById('linesMgrList');
+  if(!list)return;
+  list.innerHTML='';
+  LINES.forEach(l=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;background:var(--navy);border-radius:10px;padding:9px 12px;';
+    const inactive=l.isActive===false;
+    row.innerHTML=
+      `<div style="flex:1;min-width:0;">`+
+        `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${inactive?'opacity:.45':''}">${l.name}${l.isDefault?' ★':''}</div>`+
+        `<div style="font-size:.65rem;color:var(--muted)">Pin: ${fmtDM(l.lat1,true)} ${fmtDM(l.lng1,false)}</div>`+
+      `</div>`+
+      `<div style="display:flex;align-items:center;gap:5px">`+
+        `<button onclick="toggleLineActive('${l.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        (!inactive?'border:1px solid var(--border);background:transparent;color:var(--muted)':'border:1px solid var(--teal);background:transparent;color:var(--teal)')+`">`+
+        (!inactive?'Off':'On')+`</button>`+
+        `<button onclick="openEditLine('${l.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteLine('${l.id}')" ${l.isDefault?'disabled':''} style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer;${l.isDefault?'opacity:.35;cursor:not-allowed':''}">🗑</button>`+
+      `</div>`;
+    list.appendChild(row);
+  });
+}
+async function toggleLineActive(id){
+  const l=LINES.find(x=>x.id===id); if(!l)return;
+  const newActive=!l.isActive;
+  const r=await sbFetch('/rest/v1/start_finish_lines?id=eq.'+id,{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({is_active:newActive})});
+  if(!r||r._err){toast('⚠ Could not update line');return;}
+  l.isActive=newActive;
+  buildLinesMgrList();
+  populateLineSelects();
+  toast((newActive?'✅ '+l.name+' active':'⛔ '+l.name+' disabled'));
+}
+function showLineAddForm(){
+  document.getElementById('lineAddForm').style.display='block';
+  document.getElementById('lineAddBtn').style.display='none';
+}
+let editingLineId=null;
+function hideLineAddForm(){
+  document.getElementById('lineAddForm').style.display='none';
+  document.getElementById('lineAddBtn').style.display='block';
+  ['ln-name','ln-lat1-d','ln-lat1-m','ln-lng1-d','ln-lng1-m','ln-lat2-d','ln-lat2-m','ln-lng2-d','ln-lng2-m'].forEach(fid=>document.getElementById(fid).value='');
+  document.getElementById('ln-lat1-h').value='N';
+  document.getElementById('ln-lng1-h').value='W';
+  document.getElementById('ln-lat2-h').value='N';
+  document.getElementById('ln-lng2-h').value='W';
+  document.getElementById('lineFormTitle').textContent='New Line';
+  document.getElementById('lineFormSubmitBtn').textContent='Add Line';
+  editingLineId=null;
+}
+function openEditLine(id){
+  const l=LINES.find(x=>x.id===id); if(!l)return;
+  editingLineId=id;
+  function toDF(dec){return{d:Math.floor(Math.abs(dec)),m:((Math.abs(dec)-Math.floor(Math.abs(dec)))*60).toFixed(4)};}
+  document.getElementById('ln-name').value=l.name;
+  const lat1DM=toDF(l.lat1), lng1DM=toDF(l.lng1);
+  document.getElementById('ln-lat1-d').value=lat1DM.d;
+  document.getElementById('ln-lat1-m').value=lat1DM.m;
+  document.getElementById('ln-lat1-h').value=l.lat1>=0?'N':'S';
+  document.getElementById('ln-lng1-d').value=lng1DM.d;
+  document.getElementById('ln-lng1-m').value=lng1DM.m;
+  document.getElementById('ln-lng1-h').value=l.lng1>=0?'E':'W';
+  const lat2DM=toDF(l.lat2), lng2DM=toDF(l.lng2);
+  document.getElementById('ln-lat2-d').value=lat2DM.d;
+  document.getElementById('ln-lat2-m').value=lat2DM.m;
+  document.getElementById('ln-lat2-h').value=l.lat2>=0?'N':'S';
+  document.getElementById('ln-lng2-d').value=lng2DM.d;
+  document.getElementById('ln-lng2-m').value=lng2DM.m;
+  document.getElementById('ln-lng2-h').value=l.lng2>=0?'E':'W';
+  document.getElementById('lineFormTitle').textContent='Edit Line';
+  document.getElementById('lineFormSubmitBtn').textContent='Save Changes';
+  document.getElementById('lineAddForm').style.display='block';
+  document.getElementById('lineAddBtn').style.display='none';
+  document.getElementById('ln-name').focus();
+}
+async function deleteLine(id){
+  const l=LINES.find(x=>x.id===id); if(!l)return;
+  if(l.isDefault){toast('Cannot delete the default club line');return;}
+  if(!confirm('Delete "'+l.name+'"?\n\nThis cannot be undone.'))return;
+  const r=await sbFetch('/rest/v1/start_finish_lines?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
+  if(!r||r._err){toast('⚠ Could not delete: '+(r&&r._err||'network error'));return;}
+  LINES.splice(LINES.indexOf(l),1);
+  buildLinesMgrList();
+  populateLineSelects();
+  toast('🗑 '+l.name+' deleted');
+}
+async function submitAddLine(){
+  const name=document.getElementById('ln-name').value.trim();
+  const lat1D=parseFloat(document.getElementById('ln-lat1-d').value);
+  const lat1M=parseFloat(document.getElementById('ln-lat1-m').value);
+  const lat1H=document.getElementById('ln-lat1-h').value;
+  const lng1D=parseFloat(document.getElementById('ln-lng1-d').value);
+  const lng1M=parseFloat(document.getElementById('ln-lng1-m').value);
+  const lng1H=document.getElementById('ln-lng1-h').value;
+  const lat2D=parseFloat(document.getElementById('ln-lat2-d').value);
+  const lat2M=parseFloat(document.getElementById('ln-lat2-m').value);
+  const lat2H=document.getElementById('ln-lat2-h').value;
+  const lng2D=parseFloat(document.getElementById('ln-lng2-d').value);
+  const lng2M=parseFloat(document.getElementById('ln-lng2-m').value);
+  const lng2H=document.getElementById('ln-lng2-h').value;
+
+  if(!name){toast('Enter a line name');return;}
+  if(isNaN(lat1D)||isNaN(lat1M)||isNaN(lng1D)||isNaN(lng1M)||
+     isNaN(lat2D)||isNaN(lat2M)||isNaN(lng2D)||isNaN(lng2M)){
+    toast('Enter valid coordinates for both endpoints');return;
+  }
+  const lat1=(lat1D+lat1M/60)*(lat1H==='S'?-1:1);
+  const lng1=(lng1D+lng1M/60)*(lng1H==='W'?-1:1);
+  const lat2=(lat2D+lat2M/60)*(lat2H==='S'?-1:1);
+  const lng2=(lng2D+lng2M/60)*(lng2H==='W'?-1:1);
+
+  if(editingLineId){
+    const r=await sbFetch('/rest/v1/start_finish_lines?id=eq.'+editingLineId,{method:'PATCH',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({name,lat1,lng1,lat2,lng2})});
+    if(!r||r._err){toast('⚠ Could not save changes: '+(r&&r._err||'network error'));return;}
+    const l=LINES.find(x=>x.id===editingLineId);
+    if(l){Object.assign(l,{name,lat1,lng1,lat2,lng2});}
+    hideLineAddForm();
+    buildLinesMgrList();
+    populateLineSelects();
+    toast('✅ '+name+' updated');
+  } else {
+    const newId=name.toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,'').substring(0,40);
+    const r=await sbFetch('/rest/v1/start_finish_lines',{method:'POST',
+      headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},
+      body:JSON.stringify({id:newId,name,lat1,lng1,lat2,lng2,is_default:false,is_active:true,sort_order:99})});
+    if(!r||r._err){toast('⚠ Could not save line: '+(r&&r._err||'network error'));return;}
+    LINES.push({id:newId,name,lat1,lng1,lat2,lng2,isDefault:false,isActive:true});
+    hideLineAddForm();
+    buildLinesMgrList();
+    populateLineSelects();
     toast('✅ '+name+' added');
   }
 }

@@ -550,8 +550,16 @@
         </div>
       </div>
       <div class="ro-row">
-        <label>Start/Finish</label>
-        <span style="font-size:.82rem;color:var(--white)">Club Start Line (outer)</span>
+        <label>Start Line</label>
+        <select id="startLineSelect" onchange="updateStartLine(this.value)"
+          style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+        </select>
+      </div>
+      <div class="ro-row">
+        <label>Finish Line</label>
+        <select id="finishLineSelect" onchange="updateFinishLine(this.value)"
+          style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+        </select>
       </div>
     </div>
     <div class="ro-row" style="margin-top:10px">
@@ -671,6 +679,93 @@
       border-radius:10px;color:var(--teal);font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:500;cursor:pointer;">
       + Add a mark
     </button>
+
+    <!-- ── Start / Finish Lines section ── -->
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Start / Finish Lines</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px">Define and enable lines for races with non-standard start or finish positions.</div>
+      <div id="linesMgrList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+
+      <!-- Line add/edit form (hidden by default) -->
+      <div id="lineAddForm" style="display:none;background:var(--navy);border-radius:10px;padding:12px;margin-bottom:8px;">
+        <div id="lineFormTitle" style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">New Line</div>
+        <div style="margin-bottom:8px">
+          <label style="font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Name</label>
+          <input id="ln-name" type="text" placeholder="e.g. Ballyvaughan Finish"
+            style="margin-top:4px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:8px 10px;outline:none;box-sizing:border-box;">
+        </div>
+        <!-- Pin End (Point 1) -->
+        <div style="font-size:.68rem;color:var(--teal);font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px;margin-top:4px">📍 Pin End</div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:.65rem;color:var(--muted)">Latitude</label>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:3px">
+            <input id="ln-lat1-d" type="number" min="0" max="90" placeholder="53"
+              style="width:54px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:7px 8px;outline:none;box-sizing:border-box;">
+            <span style="color:var(--muted)">°</span>
+            <input id="ln-lat1-m" type="number" min="0" max="60" step="0.0001" placeholder="14.5687"
+              style="flex:1;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:7px 8px;outline:none;box-sizing:border-box;">
+            <span style="color:var(--muted)">'</span>
+            <select id="ln-lat1-h" style="width:48px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;padding:7px 4px;outline:none;cursor:pointer;">
+              <option value="N">N</option><option value="S">S</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:.65rem;color:var(--muted)">Longitude</label>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:3px">
+            <input id="ln-lng1-d" type="number" min="0" max="180" placeholder="8"
+              style="width:54px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:7px 8px;outline:none;box-sizing:border-box;">
+            <span style="color:var(--muted)">°</span>
+            <input id="ln-lng1-m" type="number" min="0" max="60" step="0.0001" placeholder="58.6148"
+              style="flex:1;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:7px 8px;outline:none;box-sizing:border-box;">
+            <span style="color:var(--muted)">'</span>
+            <select id="ln-lng1-h" style="width:48px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;padding:7px 4px;outline:none;cursor:pointer;">
+              <option value="E">E</option><option value="W" selected>W</option>
+            </select>
+          </div>
+        </div>
+        <!-- Boat End (Point 2) -->
+        <div style="font-size:.68rem;color:var(--teal);font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">🚤 Boat End</div>
+        <div style="margin-bottom:6px">
+          <label style="font-size:.65rem;color:var(--muted)">Latitude</label>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:3px">
+            <input id="ln-lat2-d" type="number" min="0" max="90" placeholder="53"
+              style="width:54px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:7px 8px;outline:none;box-sizing:border-box;">
+            <span style="color:var(--muted)">°</span>
+            <input id="ln-lat2-m" type="number" min="0" max="60" step="0.0001" placeholder="14.7106"
+              style="flex:1;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:7px 8px;outline:none;box-sizing:border-box;">
+            <span style="color:var(--muted)">'</span>
+            <select id="ln-lat2-h" style="width:48px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;padding:7px 4px;outline:none;cursor:pointer;">
+              <option value="N">N</option><option value="S">S</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <label style="font-size:.65rem;color:var(--muted)">Longitude</label>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:3px">
+            <input id="ln-lng2-d" type="number" min="0" max="180" placeholder="8"
+              style="width:54px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:7px 8px;outline:none;box-sizing:border-box;">
+            <span style="color:var(--muted)">°</span>
+            <input id="ln-lng2-m" type="number" min="0" max="60" step="0.0001" placeholder="58.6084"
+              style="flex:1;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:7px 8px;outline:none;box-sizing:border-box;">
+            <span style="color:var(--muted)">'</span>
+            <select id="ln-lng2-h" style="width:48px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;padding:7px 4px;outline:none;cursor:pointer;">
+              <option value="E">E</option><option value="W" selected>W</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button id="lineFormSubmitBtn" class="btn btn-primary" style="flex:1;padding:9px" onclick="submitAddLine()">Add Line</button>
+          <button class="btn btn-ghost" style="padding:9px 14px" onclick="hideLineAddForm()">Cancel</button>
+        </div>
+      </div>
+
+      <button id="lineAddBtn" onclick="showLineAddForm()"
+        style="width:100%;padding:9px;background:transparent;border:1px dashed rgba(0,174,239,.4);
+        border-radius:10px;color:var(--teal);font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:500;cursor:pointer;">
+        + Add a line
+      </button>
+    </div>
   </div>
 </div>
 
