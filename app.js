@@ -486,6 +486,7 @@ async function enterApp(b,ro){
     loadAndDrawCourse();
     loadRegistrations();
     buildPinMgmtList();
+    buildRoReportDropdown();
     loadProtests();
     return;
   }
@@ -826,6 +827,28 @@ function guestNav(tabId){
 // ═══════════════════════════════════════════════════════════════
 // RACE SCHEDULE FUNCTIONS
 // ═══════════════════════════════════════════════════════════════
+let roReportRace=null;
+function buildRoReportDropdown(){
+  const sel=document.getElementById('roReportRaceSelect'); if(!sel) return;
+  const nr=nextRace||getNextRace();
+  sel.innerHTML='';
+  // Show all races, most recent first — past races are the main use case here
+  const sorted=[...allRaces].sort((a,b)=>b.date-a.date);
+  sorted.forEach(r=>{
+    const o=document.createElement('option');
+    o.value=r.label;
+    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' · '+r.label;
+    sel.appendChild(o);
+  });
+  // Default to nextRace
+  roReportRace=nr||allRaces[0];
+  if(roReportRace) sel.value=roReportRace.label;
+}
+function roReportRaceChanged(){
+  const sel=document.getElementById('roReportRaceSelect'); if(!sel) return;
+  roReportRace=allRaces.find(r=>r.label===sel.value)||nextRace;
+}
+
 function buildRaceDropdown(){
   // allRaces already built by buildAllRaces() in buildBoatGrid
   // Default to nextRace
@@ -2800,16 +2823,16 @@ async function confirmSubmit(){
 // ═══════════════════════════════════════════════════════════════
 async function generatePaymentReport(){
   const statusEl=document.getElementById('reportStatus');
-  if(!nextRace){statusEl.textContent='No upcoming race found';return;}
-  const raceName=nextRace.label;
-  const raceDate=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const race=roReportRace||nextRace;
+  if(!race){statusEl.textContent='No race selected';return;}
+  const raceName=race.label;
+  const raceDate=race.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
   statusEl.textContent='⏳ Loading report…';
 
-  // Fetch both registrations and payment submissions in parallel
   const [records, regs]=await Promise.all([
     sbLoadRaceRecords(raceName),
-    sbLoadRegistrations(nextRace)
+    sbLoadRegistrations(race)
   ]);
 
   statusEl.textContent='';

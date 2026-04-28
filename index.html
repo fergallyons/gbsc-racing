@@ -173,11 +173,6 @@
       <div class="dash-card-label">File Protest</div>
       <div class="dash-card-sub">Under RRS Rule 61</div>
     </div>
-    <div class="dash-card" onclick="openWeatherPanel()">
-      <div class="dash-card-icon">🌬️</div>
-      <div class="dash-card-label">Race Weather</div>
-      <div class="dash-card-sub">Wind, tide &amp; forecast</div>
-    </div>
     <div class="dash-card" onclick="openSettingsSheet()">
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Settings</div>
@@ -358,6 +353,9 @@
   <!-- Starting line -->
   <div class="dash-section-label" style="margin-top:20px">⛵ Starting Line</div>
   <div id="registeredList" style="margin-bottom:16px"></div>
+  <div style="text-align:center;padding:12px 0 4px">
+    <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px;opacity:0.55" onclick="openHelpSheet()">❓ Help &amp; Setup</button>
+  </div>
 </div><!-- /registeredTab -->
 
 <!-- PDF Viewer Overlay -->
@@ -435,6 +433,14 @@
       <div class="dash-card-label">Halsail</div>
       <div class="dash-card-sub">Record finishers</div>
     </div>
+  </div>
+  <div style="margin-top:12px">
+    <label style="font-size:.75rem;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:4px">Payment Report Race</label>
+    <select id="roReportRaceSelect" onchange="roReportRaceChanged()"
+      style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);
+      background:var(--navy);color:var(--white);font-family:'Barlow Condensed',sans-serif;
+      font-size:.95rem;font-weight:600;cursor:pointer">
+    </select>
   </div>
   <div id="reportStatus" style="font-size:.75rem;color:var(--muted);margin-top:4px;text-align:center"></div>
 </div><!-- /roTab -->
