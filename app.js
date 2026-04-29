@@ -1900,6 +1900,14 @@ function openWeatherPanel(){
   loadRaceWeather();
 }
 
+// Fetch with a hard timeout using AbortController so the weather panel can't
+// hang indefinitely when a server is slow or unreachable.
+function fetchWithTimeout(url, ms=10000, opts={}){
+  const ctrl=new AbortController();
+  const id=setTimeout(()=>ctrl.abort(),ms);
+  return fetch(url,{...opts,signal:ctrl.signal}).finally(()=>clearTimeout(id));
+}
+
 async function loadRaceWeather(){
   const body=document.getElementById('weatherBody'); if(!body) return;
   body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ Loading conditions…</div>';
@@ -1907,11 +1915,11 @@ async function loadRaceWeather(){
   try{ const c=JSON.parse(localStorage.getItem('__race_tides__')||'null'); if(c&&c.src==='om') localStorage.removeItem('__race_tides__'); }catch(e){}
   try{
     const c=JSON.parse(localStorage.getItem('__race_weather__')||'null');
-    if(c&&Date.now()-c.ts<3600000){ renderWeather(c.wx,c.tides); return; }
+    if(c&&Date.now()-c.ts<3600000){ try{ renderWeather(c.wx,c.tides); }catch(e){ console.warn('renderWeather (cache):', e); renderWeather(null,null); } return; }
   }catch(e){}
   const [wx,tides]=await Promise.all([fetchOpenMeteo(),fetchTideData()]);
   try{ localStorage.setItem('__race_weather__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
-  renderWeather(wx,tides);
+  try{ renderWeather(wx,tides); }catch(e){ console.warn('renderWeather:', e); renderWeather(null,null); }
 }
 
 async function fetchOpenMeteo(){
@@ -1922,9 +1930,9 @@ async function fetchOpenMeteo(){
       +',wind_direction_10m,cloud_cover,surface_pressure,weather_code'
       +'&daily=sunset'
       +'&wind_speed_unit=kn&forecast_days=3&timezone=Europe%2FDublin&timeformat=unixtime';
-    const r=await fetch(url); if(!r.ok) return null;
+    const r=await fetchWithTimeout(url,10000); if(!r.ok) return null;
     return await r.json();
-  }catch(e){ return null; }
+  }catch(e){ console.warn('fetchOpenMeteo:',e); return null; }
 }
 
 async function fetchTideData(){
@@ -1938,11 +1946,11 @@ async function fetchTideData(){
     try{
       const url='https://www.worldtides.info/api/v3?extremes&lat='+GBSC_LAT+'&lon='+GBSC_LNG
         +'&key='+encodeURIComponent(key)+'&days=3&stationDistance=50';
-      const r=await fetch(url); if(!r.ok) throw new Error(r.status);
+      const r=await fetchWithTimeout(url,10000); if(!r.ok) throw new Error(r.status);
       const data=await r.json();
       try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),src:'wt',data})); }catch(e){}
       return data;
-    }catch(e){ /* fall through to Open-Meteo */ }
+    }catch(e){ /* fall through to IMI ERDDAP */ }
   }
   // Irish Marine Institute ERDDAP (free, no key, authoritative Irish state predictions)
   // Dataset: IMI_TidePrediction_HighLow — Galway Harbour station, harmonic predictions
@@ -1959,7 +1967,7 @@ async function fetchTideData(){
     const fromStr=from.toISOString().split('.')[0]+'Z';
     const toStr=to.toISOString().split('.')[0]+'Z';
     const proxyUrl='/.netlify/functions/tides?from='+encodeURIComponent(fromStr)+'&to='+encodeURIComponent(toStr);
-    const r=await fetch(proxyUrl); if(!r.ok) return null;
+    const r=await fetchWithTimeout(proxyUrl,12000); if(!r.ok) return null;
     const json=await r.json();
     if(!json.table||!json.table.rows||!json.table.rows.length) return null;
     const cols=json.table.columnNames;
