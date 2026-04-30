@@ -941,9 +941,15 @@ async function onRaceSelect(el,silent){
 async function applyRaceAttendance(race){
   if(!currentBoat||!race)return;
   const attendees=await sbLoadRaceAttendees(currentBoat.id,raceKey(race));
-  // Always derive selection exclusively from race_attendees — never fall back to the
-  // global crew.selected flag, which reflects the last race touched and causes leakage.
-  const ids=Array.isArray(attendees)?new Set(attendees.map(a=>a.crew_id)):new Set();
+  if(attendees===null||attendees?._err){
+    // DB/network error — leave selection unchanged rather than wiping it
+    console.error('race_attendees load failed for',raceKey(race),attendees);
+    toast('⚠ Could not load attendance — check connection');
+    renderCrew();
+    return;
+  }
+  // Empty array = no records for this race (correct empty state)
+  const ids=new Set(attendees.map(a=>a.crew_id));
   roster.forEach(p=>{p.selected=ids.has(p.id);if(!p.selected)p.paid=false;});
   renderCrew();
 }
@@ -1038,8 +1044,13 @@ function toggleSel(id){
   const race=selectedRace||nextRace;
   if(race&&currentBoat){
     const key=raceKey(race);
-    if(p.selected) sbUpsertRaceAttendee(currentBoat.id,key,race.label,race.date.toISOString().split('T')[0],p.id);
-    else sbDeleteRaceAttendee(currentBoat.id,key,p.id);
+    if(p.selected){
+      sbUpsertRaceAttendee(currentBoat.id,key,race.label,race.date.toISOString().split('T')[0],p.id)
+        .then(r=>{if(r?._err) console.error('race_attendees upsert failed',r._err);});
+    } else {
+      sbDeleteRaceAttendee(currentBoat.id,key,p.id)
+        .then(r=>{if(r?._err) console.error('race_attendees delete failed',r._err);});
+    }
   }
 }
 function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid){p.paid=false;p.payMethod='';p.payNote='';renderCrew();toast(p.first+' marked unpaid');}else openPNSheet(id);}
