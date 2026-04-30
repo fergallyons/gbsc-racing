@@ -1603,11 +1603,30 @@ function renderRaceFeesPanel(){
   const revUser=getRevolutUser();
 
   // ── Summary ─────────────────────────────────────────────────
-  const summary=outstanding>0
-    ?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${outstanding} outstanding</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${unpaid.length} of ${sel.length} unpaid · ${race}</div>`
-    :`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">All paid ✓</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${sel.length} crew · ${race}</div>`;
+  let summary;
+  if(outstanding>0){
+    summary=`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${outstanding} outstanding</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${unpaid.length} of ${sel.length} unpaid · ${race}</div>`;
+  } else {
+    const paid=sel.filter(p=>p.paid);
+    const cashAmt=paid.filter(p=>p.payMethod==='Cash').reduce((a,p)=>a+fee(p),0);
+    const revAmt=paid.filter(p=>p.payMethod&&p.payMethod.startsWith('Revolut')).reduce((a,p)=>a+fee(p),0);
+    const toSubmit=cashAmt+revAmt;
+    let submitLines='';
+    if(cashAmt) submitLines+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+      <span>💵 Cash — hand envelope to RO</span><span style="font-weight:800">€${cashAmt}</span></div>`;
+    if(revAmt) submitLines+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
+      <span>💜 Revolut — send to RO via Revolut</span><span style="font-weight:800">€${revAmt}</span></div>`;
+    const submitCard=toSubmit>0
+      ?`<div style="margin-top:12px;padding:12px 14px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.3);border-radius:10px;font-size:.82rem;color:var(--white)">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:800;color:var(--ro);letter-spacing:.04em;margin-bottom:6px">SUBMIT TO RACE OFFICER · €${toSubmit}</div>
+          ${submitLines}
+        </div>`
+      :`<div style="margin-top:10px;font-size:.78rem;color:var(--muted)">Card payments went directly to the club — nothing to submit.</div>`;
+    summary=`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">All fees collected ✓</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${sel.length} crew · ${race}</div>
+      ${submitCard}`;
+  }
 
   // ── Send link button ─────────────────────────────────────────
   const sendBtn=unpaid.length
