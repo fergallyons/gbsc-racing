@@ -57,7 +57,8 @@ CREATE TABLE IF NOT EXISTS settings (
   stripe_link_visitor   text DEFAULT '',
   pre_race_window_hours int  DEFAULT 12,    -- hours before race start to show "pending" state
   worldtides_key        text DEFAULT '',   -- optional WorldTides API key for tide data in weather panel
-  ro_revolut_user       text DEFAULT '',   -- RO's Revolut @username — shown to skippers when submitting fees
+  ro_revolut_user            text DEFAULT '',   -- RO's Revolut @username — shown to skippers when submitting fees
+  results_published_race_key text DEFAULT '',   -- raceKey of the last race whose results were published; gates the results tab
   updated_at            timestamptz DEFAULT now()
 );
 

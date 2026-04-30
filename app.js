@@ -836,6 +836,37 @@ function updateSkipperDash(){
     :'<span class="dash-reg-pill unregistered">Not registered</span>';
 }
 
+// ── Results embargo ───────────────────────────────────────────
+// Returns true when the RO has used the publish feature for at least one race
+// AND has not yet published results for the current race.
+// Only active within 48 hours of the race (same window as nextRace resolution).
+function isResultsBlocked(){
+  const published=clubSettings.results_published_race_key||'';
+  if(!published) return false;   // feature never used — show results by default
+  if(!nextRace) return false;
+  const hoursSince=(Date.now()-nextRace.date.getTime())/3600000;
+  if(hoursSince<0||hoursSince>48) return false;  // outside post-race window
+  return published!==raceKey(nextRace);
+}
+async function publishResults(){
+  if(!nextRace){toast('No recent race found');return;}
+  const key=raceKey(nextRace);
+  const r=await sbSaveClubSettings({results_published_race_key:key});
+  if(r&&r._err){toast('⚠ Could not publish — '+r._err.slice(0,60));return;}
+  clubSettings.results_published_race_key=key;
+  try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
+  toast('Results published ✓');
+  updateROResultsStatus();
+}
+function updateROResultsStatus(){
+  const el=document.getElementById('roResultsStatus');
+  if(!el)return;
+  if(!nextRace){el.textContent='No upcoming race';el.style.color='';return;}
+  const blocked=isResultsBlocked();
+  el.textContent=blocked?'Embargoed':'Published ✓';
+  el.style.color=blocked?'var(--warn)':'var(--success)';
+}
+
 // ── RO dashboard update ──────────────────────────────────────
 function updateRODash(){
   const r=nextRace;
@@ -843,6 +874,7 @@ function updateRODash(){
   const metaEl=document.getElementById('roDashMeta');
   if(nameEl&&r){ nameEl.textContent=r.label; }
   if(metaEl&&r){ metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'}); }
+  updateROResultsStatus();
 }
 function updateROChips(regsCount,protestsCount,coursePublished){
   const chips=document.getElementById('roDashChips');
@@ -1169,7 +1201,7 @@ function deleteCrew(){
 // In-memory cache loaded from DB on login, written back on change
 // localStorage used as fallback when offline
 let boatConfig={};    // {pin, revolut_user} for currentBoat
-let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:'',worldtides_key:'',ro_revolut_user:''};  // club-wide
+let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:'',worldtides_key:'',ro_revolut_user:'',results_published_race_key:''};  // club-wide
 
 async function loadBoatConfig(boatId){
   // Try DB first
@@ -4234,6 +4266,16 @@ async function refreshResults(){
   await loadResultsIfNeeded();
 }
 async function loadResultsIfNeeded(){
+  if(isResultsBlocked()){
+    document.getElementById('resultSeriesSelect').innerHTML='<option value="">—</option>';
+    document.getElementById('resultsContent').innerHTML=
+      `<div class="empty-state" style="padding:40px 20px">
+        <div class="icon" style="font-size:2rem">🏆</div>
+        <div style="font-weight:700;font-size:1.05rem;margin-bottom:8px">Results not yet announced</div>
+        <div style="font-size:.85rem;color:var(--muted);line-height:1.5">Tonight's results will be announced at the bar.<br>Check back shortly.</div>
+      </div>`;
+    return;
+  }
   // Always fetch live from Halsail — no session cache so results are never stale.
   // Clear result/boat caches but preserve the user's current series selection.
   const prevSeriesLabel=halCurrentSeries?halCurrentSeries.label:null;
