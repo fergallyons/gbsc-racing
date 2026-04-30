@@ -1162,7 +1162,7 @@ function deleteCrew(){
 // In-memory cache loaded from DB on login, written back on change
 // localStorage used as fallback when offline
 let boatConfig={};    // {pin, revolut_user} for currentBoat
-let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:'',worldtides_key:''};  // club-wide
+let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:'',worldtides_key:'',ro_revolut_user:''};  // club-wide
 
 async function loadBoatConfig(boatId){
   // Try DB first
@@ -1223,6 +1223,7 @@ function getStripeLink(type){
 function hasAnyStripeLink(){
   return !!(clubSettings.stripe_link_member||clubSettings.stripe_link_student||clubSettings.stripe_link_visitor);
 }
+function getRORevolutUser(){ return clubSettings.ro_revolut_user||''; }
 async function saveBoatSettings(revolut_user){
   boatConfig.revolut_user=revolut_user;
   try{
@@ -1410,6 +1411,7 @@ async function openROClubSettings(){
   document.getElementById('ro-pre-race-window').value=clubSettings.pre_race_window_hours||12;
   document.getElementById('ro-estella-url').value=clubSettings.estella_url||'';
   document.getElementById('ro-worldtides-key').value=clubSettings.worldtides_key||'';
+  document.getElementById('ro-revolut-user').value=clubSettings.ro_revolut_user||'';
   document.getElementById('roClubSettingsSheet').classList.add('open');
 }
 function saveROClubSettings(){
@@ -1422,6 +1424,7 @@ function saveROClubSettings(){
   const visitorVal=document.getElementById('ro-stripe-visitor').value.trim();
   const estellaVal=document.getElementById('ro-estella-url').value.trim();
   const tidesKeyVal=document.getElementById('ro-worldtides-key').value.trim();
+  const roRevolutVal=document.getElementById('ro-revolut-user').value.trim().replace(/^@/,'');
 
   saveClubStripeLinks({
     stripe_link_member:   memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'',
@@ -1430,10 +1433,12 @@ function saveROClubSettings(){
     pre_race_window_hours: windowHours,
     estella_url: estellaVal,
     worldtides_key: tidesKeyVal,
+    ro_revolut_user: roRevolutVal,
   });
   clubSettings.pre_race_window_hours=windowHours;
   clubSettings.estella_url=estellaVal;
   clubSettings.worldtides_key=tidesKeyVal;
+  clubSettings.ro_revolut_user=roRevolutVal;
   updateEstellaLink();
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
@@ -1612,11 +1617,22 @@ function renderRaceFeesPanel(){
     const cashAmt=paid.filter(p=>p.payMethod==='Cash').reduce((a,p)=>a+fee(p),0);
     const revAmt=paid.filter(p=>p.payMethod&&p.payMethod.startsWith('Revolut')).reduce((a,p)=>a+fee(p),0);
     const toSubmit=cashAmt+revAmt;
+    const roRev=getRORevolutUser();
+    const roRevLink=roRev?`https://revolut.me/${roRev}`:'';
     let submitLines='';
     if(cashAmt) submitLines+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
       <span>💵 Cash — hand envelope to RO</span><span style="font-weight:800">€${cashAmt}</span></div>`;
-    if(revAmt) submitLines+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
-      <span>💜 Revolut — send to RO via Revolut</span><span style="font-weight:800">€${revAmt}</span></div>`;
+    if(revAmt){
+      const revAction=roRevLink
+        ?`<a href="${roRevLink}" target="_blank" rel="noopener"
+            style="font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:800;
+            padding:4px 10px;border-radius:6px;border:1px solid rgba(110,64,216,.5);
+            background:rgba(110,64,216,.18);color:#a78bfa;text-decoration:none;white-space:nowrap">
+            💜 Open Revolut</a>`
+        :'<span style="font-size:.78rem;color:var(--muted)">Send via Revolut</span>';
+      submitLines+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0">
+        <span>💜 Revolut — send €${revAmt} to RO</span>${revAction}</div>`;
+    }
     const submitCard=toSubmit>0
       ?`<div style="margin-top:12px;padding:12px 14px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.3);border-radius:10px;font-size:.82rem;color:var(--white)">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:800;color:var(--ro);letter-spacing:.04em;margin-bottom:6px">SUBMIT TO RACE OFFICER · €${toSubmit}</div>
