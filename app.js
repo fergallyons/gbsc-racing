@@ -599,11 +599,11 @@ async function renderRegisteredTab(){
     return b?b:null;
   }).filter(Boolean);
   list.innerHTML=regBoats.map(b=>
-    '<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.04);'+
-    'border:1px solid var(--border);border-radius:10px;margin-bottom:8px;">'+
+    '<div onclick="loginAs(\''+b.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.04);'+
+    'border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;">'+
     '<span style="font-size:1.4rem">'+b.icon+'</span>'+
     '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">'+b.name+'</span>'+
-    '<span style="margin-left:auto;font-size:.8rem;color:var(--success);font-weight:600">✓ Registered</span>'+
+    '<span style="margin-left:auto;font-size:.8rem;color:var(--muted)">Tap to log in →</span>'+
     '</div>'
   ).join('');
 }
