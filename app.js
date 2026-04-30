@@ -565,6 +565,8 @@ async function enterApp(b,ro){
   updateSkipperDash();
   // Apply per-race attendance snapshot — overrides global crew.selected if records exist
   if(nextRace) await applyRaceAttendance(nextRace);
+  // Load payment state so dashboard summary is correct from first render
+  await loadAndApplyPayments(nextRace);
 }
 function switchBoat(){
   sbEndSession(currentSessionId).catch(()=>{});
@@ -1540,6 +1542,32 @@ async function downloadDatabaseBackup(){
   }
 }
 
+// Loads self-payments + skipper-marked payments from DB for a race and
+// applies them to roster.paid. Calls renderCrew() so all summary elements
+// (dashboard strip, crew panel totals, fees badge) reflect the fresh state.
+async function loadAndApplyPayments(race){
+  if(!race||!currentBoat)return;
+  const key=raceKey(race);
+  const [selfPays,racePayments]=await Promise.all([
+    sbLoadSelfPayments(currentBoat.id,key),
+    sbLoadRacePayments(currentBoat.id,key)
+  ]);
+  roster.forEach(p=>{p.paid=false;p.payMethod='';});
+  if(Array.isArray(selfPays)){
+    selfPays.forEach(sp=>{
+      const p=roster.find(r=>r.id===sp.crew_id);
+      if(p){p.paid=true;p.payMethod=(sp.method||'Paid')+' ✦ self-paid';}
+    });
+  }
+  if(Array.isArray(racePayments)){
+    racePayments.forEach(rp=>{
+      const p=roster.find(r=>r.id===rp.crew_id);
+      if(p){p.paid=true;p.payMethod=rp.method;}
+    });
+  }
+  renderCrew();
+}
+
 // ═══════════════════════════════════════════════════════════════
 // RACE FEES PANEL — unified collect / send / submit flow
 // ═══════════════════════════════════════════════════════════════
@@ -1558,31 +1586,7 @@ async function openRaceFeesPanel(){
   const sel=roster.filter(p=>p.selected);
   if(!sel.length){toast('Select crew in the Crew Roster first');return;}
   // Restore payment state from DB — self-payments (crew-initiated) + race_payments (skipper-marked)
-  const race=selectedRace||nextRace;
-  if(race&&currentBoat){
-    const key=raceKey(race);
-    const [selfPays,racePayments]=await Promise.all([
-      sbLoadSelfPayments(currentBoat.id,key),
-      sbLoadRacePayments(currentBoat.id,key)
-    ]);
-    // Reset all paid state first so we don't carry stale in-memory marks
-    roster.forEach(p=>{p.paid=false;p.payMethod='';});
-    // Apply crew self-payments
-    if(Array.isArray(selfPays)){
-      selfPays.forEach(sp=>{
-        const p=roster.find(r=>r.id===sp.crew_id);
-        if(p){p.paid=true;p.payMethod=(sp.method||'Paid')+' ✦ self-paid';}
-      });
-    }
-    // Skipper-marked payments take precedence (can be undone)
-    if(Array.isArray(racePayments)){
-      racePayments.forEach(rp=>{
-        const p=roster.find(r=>r.id===rp.crew_id);
-        if(p){p.paid=true;p.payMethod=rp.method;}
-      });
-    }
-  }
-  renderCrew();
+  await loadAndApplyPayments(selectedRace||nextRace);
   renderRaceFeesPanel();
   openPanel('raceFeesPanel');
 }
