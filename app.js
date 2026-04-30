@@ -925,7 +925,10 @@ async function onRaceSelect(el,silent){
   if(!isRO&&!isGuest) updateSkipperDash();
   if(!silent){
     toast('Race set ✓');
-    if(!isRO&&!isGuest) await applyRaceAttendance(selectedRace);
+    if(!isRO&&!isGuest){
+      await applyRaceAttendance(selectedRace);
+      await loadAndApplyPayments(selectedRace);
+    }
   }
 }
 
