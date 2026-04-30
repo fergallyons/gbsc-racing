@@ -295,6 +295,33 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON race_payments TO anon;
 
 
 -- ============================================================
+-- TABLE: race_attendees
+-- Per-race, per-boat attendance roster.
+-- Written every time a skipper selects/deselects a crew member for a race.
+-- Replaces the global crew.selected flag as the source of truth for
+-- historical attendance — enabling correct past-race views.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS race_attendees (
+  boat_id     text        NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  race_key    text        NOT NULL,
+  crew_id     text        NOT NULL,
+  race_name   text        NOT NULL,
+  race_date   date        NOT NULL,
+  PRIMARY KEY (boat_id, race_key, crew_id)
+);
+
+CREATE INDEX IF NOT EXISTS race_attendees_boat_race_idx ON race_attendees(boat_id, race_key);
+
+ALTER TABLE race_attendees ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "race_attendees_select" ON race_attendees FOR SELECT USING (true);
+CREATE POLICY "race_attendees_insert" ON race_attendees FOR INSERT WITH CHECK (
+  boat_id IS NOT NULL AND race_key IS NOT NULL AND crew_id IS NOT NULL
+);
+CREATE POLICY "race_attendees_delete" ON race_attendees FOR DELETE USING (true);
+GRANT SELECT, INSERT, DELETE ON race_attendees TO anon;
+
+
+-- ============================================================
 -- TABLE: self_payments
 -- Crew members independently recording their own race fee payment.
 -- INSERT-only — immutable. UNIQUE(crew_id, race_key) prevents duplicates.

@@ -73,6 +73,21 @@ async function sbDeleteRacePayment(crewId,raceKey){
 async function sbLoadRacePayments(boatId,raceKey){
   return sbFetch('/rest/v1/race_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(raceKey));
 }
+async function sbLoadRaceAttendees(boatId,key){
+  return sbFetch('/rest/v1/race_attendees?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(key));
+}
+async function sbUpsertRaceAttendee(boatId,key,raceName,raceDate,crewId){
+  return sbFetch('/rest/v1/race_attendees?on_conflict=boat_id,race_key,crew_id',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify({boat_id:boatId,race_key:key,race_name:raceName,race_date:raceDate,crew_id:crewId})
+  });
+}
+async function sbDeleteRaceAttendee(boatId,key,crewId){
+  return sbFetch('/rest/v1/race_attendees?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(key)+'&crew_id=eq.'+encodeURIComponent(crewId),{
+    method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}
+  });
+}
 async function sbLoadRaceRecords(raceName){
   const r=await sbFetch('/rest/v1/race_records?race_name=eq.'+encodeURIComponent(raceName)+'&order=submitted_at.asc');
   return r||[];
@@ -548,6 +563,8 @@ async function enterApp(b,ro){
   loadAndDrawCourse();
   renderCrew();
   updateSkipperDash();
+  // Apply per-race attendance snapshot — overrides global crew.selected if records exist
+  if(nextRace) await applyRaceAttendance(nextRace);
 }
 function switchBoat(){
   sbEndSession(currentSessionId).catch(()=>{});
@@ -899,12 +916,35 @@ function buildRaceDropdown(){
   Object.values(og).forEach(g=>sel.appendChild(g));
   sel.value=ci; onRaceSelect(sel,true);
 }
-function onRaceSelect(el,silent){
+async function onRaceSelect(el,silent){
   const i=parseInt(el.value);if(isNaN(i))return;
   selectedRace=allRaces[i];
   document.getElementById('raceBadge').textContent=selectedRace.date.toLocaleDateString('en-IE',{day:'numeric',month:'short'});
-  if(!silent)toast('Race set ✓');
   if(!isRO&&!isGuest) updateSkipperDash();
+  if(!silent){
+    toast('Race set ✓');
+    if(!isRO&&!isGuest) await applyRaceAttendance(selectedRace);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RACE ATTENDANCE
+// ═══════════════════════════════════════════════════════════════
+// Loads the per-race attendance snapshot from DB and applies it to
+// roster.selected. Falls back to the global crew.selected flag only
+// for nextRace (backward compatibility before records exist).
+async function applyRaceAttendance(race){
+  if(!currentBoat||!race)return;
+  const attendees=await sbLoadRaceAttendees(currentBoat.id,raceKey(race));
+  if(!Array.isArray(attendees)||!attendees.length){
+    // No attendance records yet — keep crew.selected for nextRace, clear for past races
+    if(race!==nextRace) roster.forEach(p=>{p.selected=false;p.paid=false;});
+    renderCrew();
+    return;
+  }
+  const ids=new Set(attendees.map(a=>a.crew_id));
+  roster.forEach(p=>{p.selected=ids.has(p.id);if(!p.selected)p.paid=false;});
+  renderCrew();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -993,7 +1033,13 @@ function toggleSel(id){
   if(!p.selected)p.paid=false;
   renderCrew();
   saveCrewSelection(currentBoat?.id);       // localStorage (offline fallback)
-  sbSetCrewSelected(p.id,p.selected);       // DB (cross-device persistence)
+  sbSetCrewSelected(p.id,p.selected);       // global flag kept in sync (offline fallback)
+  const race=selectedRace||nextRace;
+  if(race&&currentBoat){
+    const key=raceKey(race);
+    if(p.selected) sbUpsertRaceAttendee(currentBoat.id,key,race.label,race.date.toISOString().split('T')[0],p.id);
+    else sbDeleteRaceAttendee(currentBoat.id,key,p.id);
+  }
 }
 function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid){p.paid=false;p.payMethod='';p.payNote='';renderCrew();toast(p.first+' marked unpaid');}else openPNSheet(id);}
 
@@ -1536,6 +1582,7 @@ async function openRaceFeesPanel(){
       });
     }
   }
+  renderCrew();
   renderRaceFeesPanel();
   openPanel('raceFeesPanel');
 }
