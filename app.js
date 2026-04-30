@@ -941,13 +941,9 @@ async function onRaceSelect(el,silent){
 async function applyRaceAttendance(race){
   if(!currentBoat||!race)return;
   const attendees=await sbLoadRaceAttendees(currentBoat.id,raceKey(race));
-  if(!Array.isArray(attendees)||!attendees.length){
-    // No attendance records yet — keep crew.selected for nextRace, clear for past races
-    if(race!==nextRace) roster.forEach(p=>{p.selected=false;p.paid=false;});
-    renderCrew();
-    return;
-  }
-  const ids=new Set(attendees.map(a=>a.crew_id));
+  // Always derive selection exclusively from race_attendees — never fall back to the
+  // global crew.selected flag, which reflects the last race touched and causes leakage.
+  const ids=Array.isArray(attendees)?new Set(attendees.map(a=>a.crew_id)):new Set();
   roster.forEach(p=>{p.selected=ids.has(p.id);if(!p.selected)p.paid=false;});
   renderCrew();
 }
@@ -1586,7 +1582,7 @@ async function openRaceFeesPanel(){
     if(fresh!==null){
       // Preserve in-memory selected state where possible, then update roster
       const selSet=new Set(roster.filter(p=>p.selected).map(p=>p.id));
-      roster=fresh.map(p=>({...p,selected:selSet.has(p.id)||p.selected}));
+      roster=fresh.map(p=>({...p,selected:selSet.has(p.id),paid:false}));
       cacheRosterLocally(currentBoat.id,roster);
       renderCrew(); // keep crew tab in sync
     }
