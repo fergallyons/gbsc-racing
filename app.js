@@ -79,7 +79,7 @@ async function sbLoadRaceAttendees(boatId,key){
 async function sbUpsertRaceAttendee(boatId,key,raceName,raceDate,crewId){
   return sbFetch('/rest/v1/race_attendees?on_conflict=boat_id,race_key,crew_id',{
     method:'POST',
-    headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},
     body:JSON.stringify({boat_id:boatId,race_key:key,race_name:raceName,race_date:raceDate,crew_id:crewId})
   });
 }
