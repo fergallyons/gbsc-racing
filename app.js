@@ -361,7 +361,7 @@ function getNextRace(){
   // Falls back to the last race of the season if nothing is within the window.
   if(!allRaces.length) return null;
   const now=new Date();
-  const LINGER_MS=48*3600*1000; // 48 hours
+  const LINGER_MS=24*3600*1000; // 24 hours
   const windowStart=new Date(now-LINGER_MS);
   const current=allRaces.filter(r=>r.date>=windowStart);
   if(!current.length) return allRaces[allRaces.length-1];
