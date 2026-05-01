@@ -1559,9 +1559,10 @@ async function browseEstelaRaces(){
     return;
   }
 
-  content.innerHTML=data.races.map(race=>{
+  window._estelaRaces=data.races;
+  content.innerHTML=data.races.map((race,i)=>{
     const d=race.start_at?new Date(race.start_at).toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'}):'';
-    return `<div onclick="pickEstelaRace(${JSON.stringify(race.link)},${JSON.stringify(race.name)})"
+    return `<div onclick="pickEstelaRace(${i})"
       style="display:flex;align-items:center;gap:12px;padding:12px 14px;
         background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;
         margin-bottom:8px;cursor:pointer;">
@@ -1576,10 +1577,12 @@ async function browseEstelaRaces(){
   }).join('');
 }
 
-function pickEstelaRace(url, name){
-  document.getElementById('ro-estella-url').value=url;
+function pickEstelaRace(idx){
+  const race=(window._estelaRaces||[])[idx];
+  if(!race) return;
+  document.getElementById('ro-estella-url').value=race.link;
   closeSheet('estelaPickerSheet');
-  toast('Selected: '+name);
+  toast('Selected: '+race.name);
 }
 
 async function downloadDatabaseBackup(){
