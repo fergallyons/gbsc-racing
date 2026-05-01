@@ -355,13 +355,13 @@ function buildAllRaces(){
 }
 function getNextRace(){
   // Returns the "current" race — either the next upcoming race, or the most
-  // recently past race if it started within the last 48 hours. This keeps
+  // recently past race if it started within the last 24 hours. This keeps
   // registrations and payments pointing at the right race until the following
   // day, even after the scheduled start time has passed.
   // Falls back to the last race of the season if nothing is within the window.
   if(!allRaces.length) return null;
   const now=new Date();
-  const LINGER_MS=48*3600*1000; // 48 hours
+  const LINGER_MS=24*3600*1000; // 24 hours
   const windowStart=new Date(now-LINGER_MS);
   const current=allRaces.filter(r=>r.date>=windowStart);
   if(!current.length) return allRaces[allRaces.length-1];
