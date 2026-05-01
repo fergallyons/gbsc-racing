@@ -338,7 +338,7 @@ const WED=[
   {name:"GM Series",d:["Aug 5","Aug 12","Aug 19","Aug 26"]},
   {name:"O'Tuairisg Series",d:["Sep 2","Sep 9","Sep 16","Sep 23","Sep 30"]},
 ];
-const KOTB=["King of the Bay: Spring Cup|May 2, 2026","King of the Bay: Barna|May 16, 2026","King of the Bay: Ballyvaughan|May 30, 2026","King of the Bay: Aran Cup|Jun 19, 2026","King of the Bay: Kinvara|Aug 15, 2026","King of the Bay: Clarinbridge Cup|Aug 29, 2026","King of the Bay: Morans|Sep 12, 2026","King of the Bay: Oyster Festival|Sep 26, 2026"];
+const KOTB=["King of the Bay: Spring Cup|May 2, 2026|14,0","King of the Bay: Barna|May 16, 2026","King of the Bay: Ballyvaughan|May 30, 2026","King of the Bay: Aran Cup|Jun 19, 2026","King of the Bay: Kinvara|Aug 15, 2026","King of the Bay: Clarinbridge Cup|Aug 29, 2026","King of the Bay: Morans|Sep 12, 2026","King of the Bay: Oyster Festival|Sep 26, 2026"];
 
 function raceDate(dateStr,hour=19,min=0){
   // Parse a date string and set local time explicitly, avoiding UTC midnight issues
@@ -349,9 +349,55 @@ function raceDate(dateStr,hour=19,min=0){
 function buildAllRaces(){
   allRaces=[];
   WED.forEach(s=>s.d.forEach(d=>allRaces.push({label:s.name+' — Wed '+d,date:raceDate(d+' 2026',19,0),g:'w'})));
-  KOTB.forEach(r=>{const[n,d]=r.split('|');allRaces.push({label:n,date:raceDate(d,11,0),g:'k'});});
+  KOTB.forEach(r=>{
+    const[n,d,t]=r.split('|');
+    const[h,m]=t?t.split(',').map(Number):[11,0];
+    allRaces.push({label:n,date:raceDate(d,h,m),g:'k'});
+  });
   allRaces.push({label:'Expert Forklifts October Series',date:raceDate('Oct 7, 2026',19,0),g:'o'});
   allRaces.sort((a,b)=>a.date-b.date);
+}
+
+// Patch allRaces start times from Halsail — called once on startup.
+// Matches by calendar date (one race per day), so times set in Halsail
+// (e.g. adjusted for tide/weather) override the hardcoded defaults.
+async function patchRaceTimesFromHalsail(){
+  const raw=await halFetch('/GetSchedule/'+HAL_CLUB);
+  if(!raw||raw._err||!Array.isArray(raw)) return;
+  if(!halSchedule) halSchedule=raw;
+
+  // Build a map of dateString → earliest Start from Halsail (dedup IRC/ECHO pairs)
+  const timeByDate={};
+  raw.forEach(r=>{
+    if(!isCruiserClass(r.Class)) return;
+    const d=new Date(r.Start);
+    const key=d.toDateString();
+    if(!timeByDate[key]||d<timeByDate[key]) timeByDate[key]=d;
+  });
+
+  // Patch allRaces dates where Halsail has a matching day
+  let patched=false;
+  allRaces.forEach(r=>{
+    const hal=timeByDate[r.date.toDateString()];
+    if(!hal) return;
+    if(hal.getHours()!==r.date.getHours()||hal.getMinutes()!==r.date.getMinutes()){
+      r.date=hal;
+      patched=true;
+    }
+  });
+
+  if(!patched) return;
+
+  // Rebuild nextRace and refresh public view
+  nextRace=getNextRace();
+  const el=document.getElementById('guestDashRaceName');
+  const mel=document.getElementById('guestDashMeta');
+  const tel=document.getElementById('guestDashTime');
+  if(el&&nextRace) el.textContent=nextRace.label;
+  if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+  if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  const raceEl=document.getElementById('loginRaceLabel');
+  if(raceEl&&nextRace) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
 }
 function getNextRace(){
   // Returns the "current" race — either the next upcoming race, or the most
@@ -5517,3 +5563,4 @@ nextRace=getNextRace();
   loadAndDrawCourse().then(()=>updateHomeChips());
 })();
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
+patchRaceTimesFromHalsail(); // patch start times from Halsail in background
