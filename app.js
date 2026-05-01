@@ -3455,7 +3455,7 @@ function dist(lat1,lng1,lat2,lng2){
 // COURSE DIAGRAM (SVG)
 // ═══════════════════════════════════════════════════════════════
 async function loadAndDrawCourse(){
-  const c=await sbLoadCourse();
+  const [c]=await Promise.all([sbLoadCourse(), loadMarks()]);
   if(c){
     publishedCourse=c;
     if(isRO){
