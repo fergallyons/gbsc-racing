@@ -361,7 +361,7 @@ function getNextRace(){
   // Falls back to the last race of the season if nothing is within the window.
   if(!allRaces.length) return null;
   const now=new Date();
-  const LINGER_MS=48*3600*1000; // 48 hours
+  const LINGER_MS=24*3600*1000; // 24 hours
   const windowStart=new Date(now-LINGER_MS);
   const current=allRaces.filter(r=>r.date>=windowStart);
   if(!current.length) return allRaces[allRaces.length-1];
@@ -1900,6 +1900,14 @@ function openWeatherPanel(){
   loadRaceWeather();
 }
 
+// Fetch with a hard timeout using AbortController so the weather panel can't
+// hang indefinitely when a server is slow or unreachable.
+function fetchWithTimeout(url, ms=10000, opts={}){
+  const ctrl=new AbortController();
+  const id=setTimeout(()=>ctrl.abort(),ms);
+  return fetch(url,{...opts,signal:ctrl.signal}).finally(()=>clearTimeout(id));
+}
+
 async function loadRaceWeather(){
   const body=document.getElementById('weatherBody'); if(!body) return;
   body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ Loading conditions…</div>';
@@ -1907,11 +1915,11 @@ async function loadRaceWeather(){
   try{ const c=JSON.parse(localStorage.getItem('__race_tides__')||'null'); if(c&&c.src==='om') localStorage.removeItem('__race_tides__'); }catch(e){}
   try{
     const c=JSON.parse(localStorage.getItem('__race_weather__')||'null');
-    if(c&&Date.now()-c.ts<3600000){ renderWeather(c.wx,c.tides); return; }
+    if(c&&Date.now()-c.ts<3600000){ try{ renderWeather(c.wx,c.tides); }catch(e){ console.warn('renderWeather (cache):', e); renderWeather(null,null); } return; }
   }catch(e){}
   const [wx,tides]=await Promise.all([fetchOpenMeteo(),fetchTideData()]);
   try{ localStorage.setItem('__race_weather__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
-  renderWeather(wx,tides);
+  try{ renderWeather(wx,tides); }catch(e){ console.warn('renderWeather:', e); renderWeather(null,null); }
 }
 
 async function fetchOpenMeteo(){
@@ -1922,9 +1930,9 @@ async function fetchOpenMeteo(){
       +',wind_direction_10m,cloud_cover,surface_pressure,weather_code'
       +'&daily=sunset'
       +'&wind_speed_unit=kn&forecast_days=3&timezone=Europe%2FDublin&timeformat=unixtime';
-    const r=await fetch(url); if(!r.ok) return null;
+    const r=await fetchWithTimeout(url,10000); if(!r.ok) return null;
     return await r.json();
-  }catch(e){ return null; }
+  }catch(e){ console.warn('fetchOpenMeteo:',e); return null; }
 }
 
 async function fetchTideData(){
@@ -1938,15 +1946,16 @@ async function fetchTideData(){
     try{
       const url='https://www.worldtides.info/api/v3?extremes&lat='+GBSC_LAT+'&lon='+GBSC_LNG
         +'&key='+encodeURIComponent(key)+'&days=3&stationDistance=50';
-      const r=await fetch(url); if(!r.ok) throw new Error(r.status);
+      const r=await fetchWithTimeout(url,10000); if(!r.ok) throw new Error(r.status);
       const data=await r.json();
       try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),src:'wt',data})); }catch(e){}
       return data;
-    }catch(e){ /* fall through to Open-Meteo */ }
+    }catch(e){ /* fall through to IMI ERDDAP */ }
   }
   // Irish Marine Institute ERDDAP (free, no key, authoritative Irish state predictions)
   // Dataset: IMI_TidePrediction_HighLow — Galway Harbour station, harmonic predictions
   // Heights in metres above OD Malin Head; add 2.95m to get Chart Datum (LAT) heights
+  // Routed through Netlify proxy to bypass CORS restrictions on erddap.marine.ie
   try{
     const c=JSON.parse(localStorage.getItem('__race_tides__')||'null');
     if(c&&c.src==='imi'&&Date.now()-c.ts<43200000) return c.data;
@@ -1957,15 +1966,10 @@ async function fetchTideData(){
     const to=new Date(from); to.setDate(to.getDate()+2);
     const fromStr=from.toISOString().split('.')[0]+'Z';
     const toStr=to.toISOString().split('.')[0]+'Z';
-    const url='https://erddap.marine.ie/erddap/tabledap/IMI_TidePrediction_HighLow.json'
-      +'?stationID,time,tide_time_category,Water_Level_ODMalin'
-      +'&stationID=%22Galway%22'
-      +'&time%3E='+fromStr
-      +'&time%3C'+toStr
-      +'&orderBy(%22time%22)';
-    const r=await fetch(url); if(!r.ok) return null;
+    const proxyUrl='/.netlify/functions/tides?from='+encodeURIComponent(fromStr)+'&to='+encodeURIComponent(toStr);
+    const r=await fetchWithTimeout(proxyUrl,12000); if(!r.ok) return null;
     const json=await r.json();
-    if(!json.table||!json.table.rows) return null;
+    if(!json.table||!json.table.rows||!json.table.rows.length) return null;
     const cols=json.table.columnNames;
     const ti=cols.indexOf('time'), ci=cols.indexOf('tide_time_category'), hi=cols.indexOf('Water_Level_ODMalin');
     const ODM_TO_CD=2.95; // OD Malin Head → Chart Datum offset for Galway
@@ -1977,7 +1981,7 @@ async function fetchTideData(){
     const data={extremes,station:'Galway Harbour',source:'imi'};
     try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),src:'imi',data})); }catch(e){}
     return data;
-  }catch(e){ return null; }
+  }catch(e){ console.warn('IMI tides fetch failed:',e); return null; }
 }
 
 // ── Weather helpers ───────────────────────────────────────────
@@ -2045,13 +2049,15 @@ function renderWeather(wx,tides){
   const cond=wxCondition(code);
   const bfCol=wxBfColour(bf.f);
   const trendStr=wxPressureTrend(wx.hourly.surface_pressure,idx);
-  // Sunset: find daily entry matching race date
+  // Sunset: find daily entry matching race date.
+  // Open-Meteo daily.time timestamps represent midnight in the requested timezone
+  // (Europe/Dublin). When compared as UTC via toISOString() the date is off by one
+  // during BST (UTC+1). Use local getDate/getMonth/getFullYear instead.
   let sunsetStr='—';
   if(wx.daily&&wx.daily.sunset){
-    const raceDayStr=raceDate.toISOString().split('T')[0];
-    const di=(wx.daily.time||[]).findIndex(t=>{
-      return new Date(t*1000).toISOString().split('T')[0]===raceDayStr;
-    });
+    const localDateStr=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const raceDayStr=localDateStr(raceDate);
+    const di=(wx.daily.time||[]).findIndex(t=>localDateStr(new Date(t*1000))===raceDayStr);
     if(di>=0&&wx.daily.sunset[di]){
       sunsetStr=new Date(wx.daily.sunset[di]*1000).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
     }
