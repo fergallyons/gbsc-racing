@@ -5139,7 +5139,7 @@ const RRS_RULES={
   'Rule 18':  'Mark-Room — when boats are required to leave a mark on the same side and the first of them reaches the zone, room shall be given to a boat on the inside.',
   'Rule 19':  'Room to Pass an Obstruction — a right-of-way boat may choose the side on which to pass an obstruction; the give-way boat shall keep clear.',
   'Rule 20':  'Room to Tack at an Obstruction — a boat may hail for room to tack when approaching an obstruction.',
-  'Rule 21':  'Exoneration — a boat is exonerated for breaking a rule if she was compelled to do so by another boat’s breach.',
+  ‘Rule 21’:  ‘Exoneration — a boat is exonerated for breaking a rule if she was compelled to do so by another boat\’s breach.’,
   'Rule 31':  'Touching a Mark — while racing, a boat shall not touch a starting mark before starting, a mark that begins, bounds or ends the leg of the course, or a finishing mark after finishing.',
   'Rule 42':  'Propulsion — a boat shall compete using only the wind and water to increase, maintain or decrease her speed.',
   'Rule 44':  'Penalties at the Time of an Incident — a boat that may have broken a rule shall take a penalty.',
