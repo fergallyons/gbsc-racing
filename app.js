@@ -5148,7 +5148,7 @@ const RRS_RULES={
 let _loadedProtests=[];
 
 async function printProtest(protestId){
-  let p=_loadedProtests.find(x=>x.id===protestId);
+  let p=_loadedProtests.find(x=>String(x.id)===String(protestId));
   if(!p){
     const rows=await sbFetch('/rest/v1/protests?id=eq.'+encodeURIComponent(protestId));
     p=rows&&rows[0];
@@ -5292,7 +5292,7 @@ async function printProtest(protestId){
   </div>
 
   <div class="footer">
-    <span>GBSC Racing App · Protest #${p.id.slice(0,8).toUpperCase()}</span>
+    <span>GBSC Racing App · Protest #${p.id}</span>
     <span>Racing Rules of Sailing 2025–2028 · World Sailing</span>
   </div>
 </body></html>`;
