@@ -5080,7 +5080,8 @@ async function sbSaveProtest(p){
     body:JSON.stringify(p)});
 }
 async function sbLoadProtests(raceName){
-  const r=await sbFetch('/rest/v1/protests?race_name=eq.'+encodeURIComponent(raceName)+'&order=filed_at.asc');
+  const filter=raceName?'race_name=eq.'+encodeURIComponent(raceName)+'&':'';
+  const r=await sbFetch('/rest/v1/protests?'+filter+'order=filed_at.desc');
   return r||[];
 }
 async function sbDeleteProtest(id){
@@ -5200,12 +5201,12 @@ async function submitProtest(){
 async function loadProtests(){
   const list=document.getElementById('protestList');
   if(!list)return;
-  if(!nextRace){list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div>No upcoming race</div>';return;}
   list.innerHTML='<div style="color:var(--muted);font-size:.82rem;padding:8px">Loading…</div>';
 
-  const protests=await sbLoadProtests(nextRace.label);
+  // RO sees all protests across all races; skipper sees only their current race
+  const protests=await sbLoadProtests(isRO?null:nextRace?.label);
   if(!protests.length){
-    list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>';
+    list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>'+(isRO?'No protests filed yet':'No protests filed for this race')+'</div></div>';
     roDashProtestsCount=0;
     updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
     return;
@@ -5217,6 +5218,7 @@ async function loadProtests(){
     const protestor=boats.find(b=>b.id===p.protestor_id);
     const protestee=boats.find(b=>b.id===p.protestee_id);
     const filedAt=new Date(p.filed_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const filedDate=new Date(p.filed_at).toLocaleDateString('en-IE',{day:'numeric',month:'short'});
     const rules=(p.rules_broken||[]).join(', ');
     const statusOpts=PROTEST_STATUSES.map(s=>
       `<option value="${s}"${p.status===s?' selected':''}>${s}</option>`).join('');
@@ -5234,6 +5236,7 @@ async function loadProtests(){
             font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1" title="Delete">🗑</button>
         </div>
       </div>
+      ${isRO?`<div style="font-size:.75rem;color:var(--teal);font-weight:700;margin-bottom:6px">${p.race_name} · ${filedDate}</div>`:''}
       <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">📍 ${p.incident_where} · ⏱ ${p.incident_time} · Filed ${filedAt}</div>
       <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${p.flag_displayed?'🚩 Flag displayed':'⚠ No flag'} · ${p.protest_hailed?'📣 Hailed':'⚠ Not hailed'}</div>
       <div style="font-size:.78rem;color:var(--teal);margin-bottom:8px">${rules}</div>
