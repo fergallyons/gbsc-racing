@@ -5194,7 +5194,7 @@ function printProtest(protestId){
     <div>
       <h1>Protest Form</h1>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;color:#555;margin-top:2px">
-        Racing Rules of Sailing 2021–2024 · World Sailing
+        Racing Rules of Sailing 2025–2028 · World Sailing
       </div>
     </div>
     <div style="text-align:right">
@@ -5258,7 +5258,7 @@ function printProtest(protestId){
     <div class="section-head">Rules Alleged to Have Been Broken</div>
     <div class="section-body">
       ${rules.length?`<table style="width:100%;border-collapse:collapse">${ruleRows}</table>`:'<div style="color:#888;font-style:italic">No rules specified</div>'}
-      <div class="rrs-ref">Racing Rules of Sailing 2021–2024, World Sailing. The hearing committee will determine which rules, if any, were broken (RRS Rule 64).</div>
+      <div class="rrs-ref">Racing Rules of Sailing 2025–2028, World Sailing. The hearing committee will determine which rules, if any, were broken (RRS Rule 64).</div>
     </div>
   </div>
 
@@ -5289,7 +5289,7 @@ function printProtest(protestId){
 
   <div class="footer">
     <span>GBSC Racing App · Protest #${p.id.slice(0,8).toUpperCase()}</span>
-    <span>Racing Rules of Sailing 2021–2024 · World Sailing</span>
+    <span>Racing Rules of Sailing 2025–2028 · World Sailing</span>
   </div>
 </body></html>`;
 
