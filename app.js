@@ -400,18 +400,20 @@ async function patchRaceTimesFromHalsail(){
   if(raceEl&&nextRace) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
 }
 function getNextRace(){
-  // Returns the "current" race — either the next upcoming race, or the most
-  // recently past race if it started within the last 24 hours. This keeps
-  // registrations and payments pointing at the right race until the following
-  // day, even after the scheduled start time has passed.
-  // Falls back to the last race of the season if nothing is within the window.
+  // Priority 1: upcoming race within 48h → registration/pre-race mode (takes over from linger)
+  // Priority 2: past race within 48h → post-race mode (protests, payments, results)
+  // Priority 3: next future race (idle state)
+  // Priority 4: last race of season (off-season fallback)
   if(!allRaces.length) return null;
   const now=new Date();
-  const LINGER_MS=24*3600*1000; // 24 hours
-  const windowStart=new Date(now-LINGER_MS);
-  const current=allRaces.filter(r=>r.date>=windowStart);
-  if(!current.length) return allRaces[allRaces.length-1];
-  return current[0];
+  const WINDOW_MS=48*3600*1000;
+  const upcoming=allRaces.find(r=>r.date>now&&r.date-now<=WINDOW_MS);
+  if(upcoming) return upcoming;
+  const recent=[...allRaces].reverse().find(r=>r.date<=now&&now-r.date<=WINDOW_MS);
+  if(recent) return recent;
+  const next=allRaces.find(r=>r.date>now);
+  if(next) return next;
+  return allRaces[allRaces.length-1];
 }
 function raceKey(r){
   // Stable string key for a race — used as registration identifier
