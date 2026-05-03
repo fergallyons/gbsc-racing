@@ -1955,23 +1955,32 @@ async function loadRaceWeather(){
   // Clear any stale Open-Meteo tide cache (replaced by IMI ERDDAP)
   try{ const c=JSON.parse(localStorage.getItem('__race_tides__')||'null'); if(c&&c.src==='om') localStorage.removeItem('__race_tides__'); }catch(e){}
   try{
-    const c=JSON.parse(localStorage.getItem('__race_weather__')||'null');
+    const c=JSON.parse(localStorage.getItem('__race_weather_v2__')||'null');
     if(c&&Date.now()-c.ts<3600000){ renderWeather(c.wx,c.tides); return; }
   }catch(e){}
   const [wx,tides]=await Promise.all([fetchOpenMeteo(),fetchTideData()]);
-  try{ localStorage.setItem('__race_weather__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
+  try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
   renderWeather(wx,tides);
 }
 
 async function fetchOpenMeteo(){
+  const base='https://api.open-meteo.com/v1/forecast'
+    +'?latitude='+GBSC_LAT+'&longitude='+GBSC_LNG
+    +'&hourly=temperature_2m,apparent_temperature,wind_speed_10m,wind_gusts_10m'
+    +',wind_direction_10m,cloud_cover,surface_pressure,weather_code'
+    +'&daily=sunset'
+    +'&wind_speed_unit=kn&timezone=Europe%2FDublin&timeformat=unixtime';
+  // Try AROME (Météo-France, 1.3km) first — most accurate for Galway Bay; 2-day horizon
   try{
-    const url='https://api.open-meteo.com/v1/forecast'
-      +'?latitude='+GBSC_LAT+'&longitude='+GBSC_LNG
-      +'&hourly=temperature_2m,apparent_temperature,wind_speed_10m,wind_gusts_10m'
-      +',wind_direction_10m,cloud_cover,surface_pressure,weather_code'
-      +'&daily=sunset'
-      +'&wind_speed_unit=kn&forecast_days=3&timezone=Europe%2FDublin&timeformat=unixtime';
-    const r=await fetch(url); if(!r.ok) return null;
+    const r=await fetch(base+'&models=meteofrance_arome_france&forecast_days=2');
+    if(r.ok){
+      const data=await r.json();
+      if(data.hourly&&data.hourly.time&&data.hourly.time.length) return data;
+    }
+  }catch(e){}
+  // Fallback to Open-Meteo default best-match model (3-day)
+  try{
+    const r=await fetch(base+'&forecast_days=3'); if(!r.ok) return null;
     return await r.json();
   }catch(e){ return null; }
 }
