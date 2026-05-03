@@ -5147,8 +5147,12 @@ const RRS_RULES={
 
 let _loadedProtests=[];
 
-function printProtest(protestId){
-  const p=_loadedProtests.find(x=>x.id===protestId);
+async function printProtest(protestId){
+  let p=_loadedProtests.find(x=>x.id===protestId);
+  if(!p){
+    const rows=await sbFetch('/rest/v1/protests?id=eq.'+encodeURIComponent(protestId));
+    p=rows&&rows[0];
+  }
   if(!p){toast('Protest not found');return;}
   const protestor=boats.find(b=>b.id===p.protestor_id);
   const protestee=boats.find(b=>b.id===p.protestee_id);
