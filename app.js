@@ -5127,6 +5127,182 @@ async function sbLoadSessionStats(){
 
 const PROTEST_STATUSES=['Pending','Hearing Scheduled','Upheld','Dismissed','Withdrawn'];
 
+const RRS_RULES={
+  'Rule 10':  'On Opposite Tacks — a port-tack boat shall keep clear of a starboard-tack boat.',
+  'Rule 11':  'On the Same Tack, Overlapping — when boats are on the same tack and overlapping, a windward boat shall keep clear of a leeward boat.',
+  'Rule 12':  'On the Same Tack, Not Overlapping — when boats are on the same tack and not overlapping, a boat clear astern shall keep clear of a boat clear ahead.',
+  'Rule 13':  'While Tacking — after a boat passes head to wind, she shall keep clear of other boats until she is on a close-hauled course.',
+  'Rule 14':  'Avoiding Contact — a boat shall avoid contact with another boat if reasonably possible.',
+  'Rule 15':  'Acquiring Right of Way — when a boat acquires right of way, she shall initially give the other boat room to keep clear.',
+  'Rule 16':  'Changing Course — when a right-of-way boat changes course, she shall give the other boat room to keep clear.',
+  'Rule 17':  'On the Same Tack; Proper Course — if a boat clear astern becomes overlapped within two of her hull lengths to leeward, she shall not sail above her proper course.',
+  'Rule 18':  'Mark-Room — when boats are required to leave a mark on the same side and the first of them reaches the zone, room shall be given to a boat on the inside.',
+  'Rule 19':  'Room to Pass an Obstruction — a right-of-way boat may choose the side on which to pass an obstruction; the give-way boat shall keep clear.',
+  'Rule 20':  'Room to Tack at an Obstruction — a boat may hail for room to tack when approaching an obstruction.',
+  'Rule 21':  'Exoneration — a boat is exonerated for breaking a rule if she was compelled to do so by another boat's breach.',
+  'Rule 31':  'Touching a Mark — while racing, a boat shall not touch a starting mark before starting, a mark that begins, bounds or ends the leg of the course, or a finishing mark after finishing.',
+  'Rule 42':  'Propulsion — a boat shall compete using only the wind and water to increase, maintain or decrease her speed.',
+  'Rule 44':  'Penalties at the Time of an Incident — a boat that may have broken a rule shall take a penalty.',
+};
+
+let _loadedProtests=[];
+
+function printProtest(protestId){
+  const p=_loadedProtests.find(x=>x.id===protestId);
+  if(!p){toast('Protest not found');return;}
+  const protestor=boats.find(b=>b.id===p.protestor_id);
+  const protestee=boats.find(b=>b.id===p.protestee_id);
+  const filedAt=new Date(p.filed_at).toLocaleString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const rules=(p.rules_broken||[]);
+  const ruleRows=rules.map(r=>{
+    const desc=RRS_RULES[r]||'';
+    return `<tr><td style="font-weight:700;white-space:nowrap;padding:5px 10px 5px 0;vertical-align:top;color:#1B3E93">${r}</td><td style="padding:5px 0 5px 10px;color:#333;line-height:1.5">${desc}</td></tr>`;
+  }).join('');
+
+  const statusColour={
+    'Pending':'#c0392b','Hearing Scheduled':'#e67e22',
+    'Upheld':'#1B3E93','Dismissed':'#27ae60','Withdrawn':'#888'
+  }[p.status]||'#333';
+
+  const html=`<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Protest — ${p.race_name}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Barlow',sans-serif;color:#1a1a2e;padding:32px;max-width:780px;margin:0 auto;font-size:13px;line-height:1.5;}
+  h1{font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;color:#1B3E93;letter-spacing:.04em;text-transform:uppercase;}
+  .section{margin-bottom:20px;border:1px solid #dde4f0;border-radius:6px;overflow:hidden;}
+  .section-head{background:#1B3E93;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;}
+  .section-body{padding:12px;}
+  .field{margin-bottom:10px;}
+  .field-label{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#666;margin-bottom:2px;}
+  .field-value{font-size:.95rem;color:#1a1a2e;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+  .status-badge{display:inline-block;padding:3px 12px;border-radius:20px;font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:.9rem;color:${statusColour};border:2px solid ${statusColour};letter-spacing:.04em;}
+  .rrs-ref{font-size:.78rem;color:#555;font-style:italic;margin-top:12px;padding-top:10px;border-top:1px solid #e0e8f5;}
+  .check{color:#1B3E93;font-weight:700;}
+  .cross{color:#c0392b;font-weight:700;}
+  .footer{margin-top:28px;padding-top:14px;border-top:2px solid #1B3E93;display:flex;justify-content:space-between;font-size:.75rem;color:#888;}
+  .sig-block{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:32px;}
+  .sig-line{border-top:1px solid #333;margin-top:36px;padding-top:4px;font-size:.75rem;color:#666;}
+  @media print{body{padding:16px;}@page{margin:15mm;size:A4;}button{display:none;}}
+</style>
+</head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+    <div>
+      <h1>Protest Form</h1>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;color:#555;margin-top:2px">
+        Racing Rules of Sailing 2021–2024 · World Sailing
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:#1B3E93">GBSC Racing</div>
+      <div style="font-size:.8rem;color:#888;margin-top:2px">Generated ${new Date().toLocaleString('en-IE')}</div>
+      <button onclick="window.print()" style="margin-top:8px;padding:6px 16px;background:#1B3E93;color:#fff;border:none;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;cursor:pointer;letter-spacing:.04em">🖨 Print / Save PDF</button>
+    </div>
+  </div>
+
+  <!-- Race & Filing Info -->
+  <div class="section">
+    <div class="section-head">Race &amp; Filing Details</div>
+    <div class="section-body three-col">
+      <div class="field"><div class="field-label">Race</div><div class="field-value">${p.race_name}</div></div>
+      <div class="field"><div class="field-label">Date / Time Filed</div><div class="field-value">${filedAt}</div></div>
+      <div class="field"><div class="field-label">Status</div><div class="field-value"><span class="status-badge">${p.status}</span></div></div>
+    </div>
+  </div>
+
+  <!-- Parties -->
+  <div class="section">
+    <div class="section-head">Parties to the Protest</div>
+    <div class="section-body two-col">
+      <div class="field"><div class="field-label">Protestor (Boat Filing Protest)</div><div class="field-value" style="font-size:1.1rem;font-weight:700">${protestor?protestor.name:'Unknown'}</div></div>
+      <div class="field"><div class="field-label">Protestee (Boat Protested Against)</div><div class="field-value" style="font-size:1.1rem;font-weight:700;color:#c0392b">${protestee?protestee.name:'Unknown'}</div></div>
+    </div>
+  </div>
+
+  <!-- Incident -->
+  <div class="section">
+    <div class="section-head">Incident Details (RRS Rule 61.2)</div>
+    <div class="section-body">
+      <div class="two-col" style="margin-bottom:12px">
+        <div class="field"><div class="field-label">Where did the incident occur?</div><div class="field-value">${p.incident_where}</div></div>
+        <div class="field"><div class="field-label">Approximate time</div><div class="field-value">${p.incident_time}</div></div>
+      </div>
+      <div class="field"><div class="field-label">Description of incident</div>
+        <div class="field-value" style="background:#f5f8ff;border:1px solid #dde4f0;border-radius:4px;padding:10px;white-space:pre-wrap;line-height:1.6">${p.description}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Protest requirements -->
+  <div class="section">
+    <div class="section-head">Protest Requirements (RRS Rule 61.1)</div>
+    <div class="section-body two-col">
+      <div class="field">
+        <div class="field-label">Red Flag Displayed</div>
+        <div class="field-value">${p.flag_displayed?'<span class="check">✔ Yes — flag displayed at first reasonable opportunity</span>':'<span class="cross">✘ No flag displayed</span>'}</div>
+      </div>
+      <div class="field">
+        <div class="field-label">Protest Hailed</div>
+        <div class="field-value">${p.protest_hailed?'<span class="check">✔ Yes — "Protest" hailed at first reasonable opportunity</span>':'<span class="cross">✘ Not hailed</span>'}</div>
+      </div>
+    </div>
+    <div class="rrs-ref">RRS Rule 61.1(a): A boat intending to protest shall hail "Protest" at the first reasonable opportunity and display a red flag at the first reasonable opportunity.</div>
+  </div>
+
+  <!-- Rules alleged broken -->
+  <div class="section">
+    <div class="section-head">Rules Alleged to Have Been Broken</div>
+    <div class="section-body">
+      ${rules.length?`<table style="width:100%;border-collapse:collapse">${ruleRows}</table>`:'<div style="color:#888;font-style:italic">No rules specified</div>'}
+      <div class="rrs-ref">Racing Rules of Sailing 2021–2024, World Sailing. The hearing committee will determine which rules, if any, were broken (RRS Rule 64).</div>
+    </div>
+  </div>
+
+  ${p.ro_notes?`
+  <!-- RO Decision -->
+  <div class="section">
+    <div class="section-head">Race Committee Decision (RRS Rules 63–65)</div>
+    <div class="section-body">
+      <div class="field"><div class="field-label">Decision</div><div class="field-value"><span class="status-badge">${p.status}</span></div></div>
+      <div class="field" style="margin-top:10px"><div class="field-label">Race Officer Notes</div>
+        <div class="field-value" style="background:#f5f8ff;border:1px solid #dde4f0;border-radius:4px;padding:10px;white-space:pre-wrap;line-height:1.6">${p.ro_notes}</div>
+      </div>
+      <div class="rrs-ref">RRS Rule 64: The protest committee shall decide whether a boat that is party to a protest hearing has broken a rule. RRS Rule 65: After a hearing the protest committee shall inform all parties of the decision.</div>
+    </div>
+  </div>`:''}
+
+  <!-- Signature blocks -->
+  <div class="sig-block">
+    <div>
+      <div style="font-size:.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em">Protestor Signature</div>
+      <div class="sig-line">${protestor?protestor.name:''}</div>
+    </div>
+    <div>
+      <div style="font-size:.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em">Race Officer Signature</div>
+      <div class="sig-line">Race Officer</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>GBSC Racing App · Protest #${p.id.slice(0,8).toUpperCase()}</span>
+    <span>Racing Rules of Sailing 2021–2024 · World Sailing</span>
+  </div>
+</body></html>`;
+
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.target='_blank'; a.rel='noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+}
+
 function openProtestSheet(){
   if(!selectedRace){toast('Select a race first');return;}
   const sel=document.getElementById('pr-protestee');
@@ -5226,6 +5402,7 @@ async function loadProtests(){
 
   roDashProtestsCount=protests.length;
   updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+  _loadedProtests=protests;
   list.innerHTML=protests.map(p=>{
     const protestor=boats.find(b=>b.id===p.protestor_id);
     const protestee=boats.find(b=>b.id===p.protestee_id);
@@ -5243,9 +5420,12 @@ async function loadProtests(){
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span class="protest-status ${p.status}">${p.status}</span>
+          <button onclick="printProtest('${p.id}')" title="Print / PDF"
+            style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);
+            font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">🖨</button>
           <button onclick="deleteProtest('${p.id}')" title="Delete protest"
             style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);
-            font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1" title="Delete">🗑</button>
+            font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">🗑</button>
         </div>
       </div>
       ${isRO?`<div style="font-size:.75rem;color:var(--teal);font-weight:700;margin-bottom:6px">${p.race_name} · ${filedDate}</div>`:''}
