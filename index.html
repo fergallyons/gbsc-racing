@@ -386,6 +386,11 @@
       <div class="dash-card-label">Course Builder</div>
       <div class="dash-card-sub" id="roCourseStatus">Not published</div>
     </div>
+    <div class="dash-card ro-card" onclick="openPanel('roCourseViewPanel')">
+      <div class="dash-card-icon">📐</div>
+      <div class="dash-card-label">View Course</div>
+      <div class="dash-card-sub">Published diagram</div>
+    </div>
     <div class="dash-card ro-card" onclick="openPanel('roRegsPanel')">
       <div class="dash-card-icon">⛵</div>
       <div class="dash-card-label">Registrations</div>
@@ -608,6 +613,17 @@
     <div id="protestList">
       <div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>
     </div>
+  </div>
+</div>
+
+<!-- roCourseViewPanel — Published course diagram for RO -->
+<div class="panel-overlay" id="roCourseViewPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roCourseViewPanel')">‹</button>
+    <span class="panel-title">📐 Published Course</span>
+  </div>
+  <div class="panel-body">
+    <div id="roCourseDisplay"></div>
   </div>
 </div>
 

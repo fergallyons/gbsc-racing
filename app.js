@@ -853,6 +853,7 @@ function openPanel(id){
     p.classList.add('open');
     if(id==='roCoursePanel') populateLineSelects();
     if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
+    if(id==='roCourseViewPanel') renderCourseDiagram('roCourseDisplay');
   }));
 }
 function closePanel(id){
@@ -3791,8 +3792,8 @@ function renderRoCoursePreview(){
     getLineById(selectedStartLineId), getLineById(selectedFinishLineId));
 }
 
-function renderCourseDiagram(){
-  const wrap=document.getElementById('courseDisplay');
+function renderCourseDiagram(targetId){
+  const wrap=document.getElementById(targetId||'courseDisplay');
   const state=getCourseState();
 
   if(state==='none'){
