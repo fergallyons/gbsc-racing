@@ -24,7 +24,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  // Always network-first for API calls
+  // Always network-first for API calls — never serve stale API data from cache
   if (
     url.includes('supabase.co') ||
     url.includes('halsail.com') ||
@@ -33,7 +33,9 @@ self.addEventListener('fetch', e => {
     url.includes('/api/')
   ) {
     e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
+      fetch(e.request).catch(() =>
+        caches.match(e.request).then(r => r || new Response('', {status: 503, statusText: 'Network unavailable'}))
+      )
     );
     return;
   }
