@@ -4771,7 +4771,7 @@ async function loadWindWidget(){
     const dir=dirs[Math.round(deg/22.5)%16];
 
     const startTime=new Date(times[idx]*1000).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-    const label=isToday&&raceDate>now?`At start · ${startTime}`:`Forecast · ${startTime}`;
+    const tag=isToday&&raceDate>now?'START':'FCST';
 
     document.getElementById('windArrow').innerHTML=
       `<svg width="32" height="32" viewBox="0 0 32 32" style="transform:rotate(${deg}deg);transition:transform .6s ease">
@@ -4782,7 +4782,8 @@ async function loadWindWidget(){
 
     document.getElementById('windSpeed').textContent=spd+' kn'+(gust>spd+5?' (gusts '+gust+')':'');
     document.getElementById('windDir').textContent=`From ${dir} · ${deg}°`;
-    const tl=document.getElementById('windTimeLabel'); if(tl) tl.textContent=label;
+    const tl=document.getElementById('windTimeLabel'); if(tl) tl.textContent=tag;
+    const tv=document.getElementById('windTimeVal'); if(tv) tv.textContent=startTime;
 
   }catch(e){
     document.getElementById('windDir').textContent='Wind data unavailable';
