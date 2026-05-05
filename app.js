@@ -546,6 +546,8 @@ function updateRegisterButton(){
   btn.textContent=isReg?'✓ Registered — Withdraw':'⛵ Register for This Race';
   if(isReg){btn.style.color='var(--success)';btn.style.borderColor='rgba(45,198,83,.4)';}
   else{btn.style.color='';btn.style.borderColor='';}
+  renderBoatGrid();
+  updateHomeChips();
   if(!isRO&&!isGuest) updateSkipperDash();
 }
 function loginAs(id){
@@ -4739,25 +4741,38 @@ document.addEventListener('click',function(e){
 
 async function loadWindWidget(){
   try{
-    const url='/.netlify/functions/wind';
-    const r=await fetch(url);
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const d=await r.json();
-    const c=d.current;
-    const spd=Math.round(c.wind_speed_10m);
-    const gust=Math.round(c.wind_gusts_10m);
-    const deg=Math.round(c.wind_direction_10m);
+    // Use cached Open-Meteo data if fresh, otherwise fetch
+    let wx=null;
+    try{
+      const c=JSON.parse(localStorage.getItem('__race_weather_v2__')||'null');
+      if(c&&Date.now()-c.ts<3600000) wx=c.wx;
+    }catch(e){}
+    if(!wx) wx=await fetchOpenMeteo();
 
-    // Cardinal direction
+    if(!wx||!wx.hourly) throw new Error('No forecast data');
+
+    const race=nextRace||getNextRace();
+    const raceDate=race?race.date:new Date();
+    const now=new Date();
+    const isToday=raceDate.toDateString()===now.toDateString();
+    const target=isToday?Math.max(now.getTime(),raceDate.getTime()):raceDate.getTime();
+    const targetTs=Math.floor(target/1000);
+
+    const times=wx.hourly.time;
+    let idx=times.findIndex(t=>t>=targetTs);
+    if(idx<0) idx=times.length-1;
+    idx=Math.min(Math.max(idx,0),times.length-1);
+
+    const spd=Math.round(wx.hourly.wind_speed_10m[idx]);
+    const gust=Math.round(wx.hourly.wind_gusts_10m[idx]);
+    const deg=Math.round(wx.hourly.wind_direction_10m[idx]);
+
     const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
     const dir=dirs[Math.round(deg/22.5)%16];
 
-    // Beaufort scale
-    const beaufort=spd<1?0:spd<4?1:spd<7?2:spd<11?3:spd<17?4:spd<22?5:spd<28?6:spd<34?7:spd<41?8:spd<48?9:spd<56?10:spd<64?11:12;
-    const bNames=['Calm','Light air','Light breeze','Gentle breeze','Moderate breeze','Fresh breeze',
-      'Strong breeze','Near gale','Gale','Strong gale','Storm','Violent storm','Hurricane'];
+    const startTime=new Date(times[idx]*1000).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const label=isToday&&raceDate>now?`At start · ${startTime}`:`Forecast · ${startTime}`;
 
-    // Rotate arrow emoji using a CSS transform on a Unicode arrow instead
     document.getElementById('windArrow').innerHTML=
       `<svg width="32" height="32" viewBox="0 0 32 32" style="transform:rotate(${deg}deg);transition:transform .6s ease">
         <circle cx="16" cy="16" r="14" fill="rgba(0,174,239,.15)" stroke="rgba(0,174,239,.3)" stroke-width="1.5"/>
@@ -4766,7 +4781,7 @@ async function loadWindWidget(){
       </svg>`;
 
     document.getElementById('windSpeed').textContent=spd+' kn'+(gust>spd+5?' (gusts '+gust+')':'');
-    document.getElementById('windDir').textContent=`From ${dir} · ${deg}°`;
+    document.getElementById('windDir').textContent=`From ${dir} · ${deg}° · ${label}`;
 
   }catch(e){
     document.getElementById('windDir').textContent='Wind data unavailable';
