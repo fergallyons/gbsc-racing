@@ -4780,7 +4780,9 @@ async function loadWindWidget(){
         <circle cx="16" cy="16" r="3" fill="#00aeef"/>
       </svg>`;
 
-    document.getElementById('windSpeed').textContent=spd+' kn'+(gust>spd+5?' (gusts '+gust+')':'');
+    document.getElementById('windSpeed').textContent=spd+' kn';
+    const gustEl=document.getElementById('windGust');
+    if(gustEl) gustEl.textContent=gust>spd+5?`(gusts ${gust} kn)`:'';
     document.getElementById('windDir').textContent=`From ${dir} · ${deg}°`;
     const tl=document.getElementById('windTimeLabel'); if(tl) tl.textContent=tag;
     const tv=document.getElementById('windTimeVal'); if(tv) tv.textContent=startTime;
