@@ -4781,7 +4781,8 @@ async function loadWindWidget(){
       </svg>`;
 
     document.getElementById('windSpeed').textContent=spd+' kn'+(gust>spd+5?' (gusts '+gust+')':'');
-    document.getElementById('windDir').textContent=`From ${dir} · ${deg}° · ${label}`;
+    document.getElementById('windDir').textContent=`From ${dir} · ${deg}°`;
+    const tl=document.getElementById('windTimeLabel'); if(tl) tl.textContent=label;
 
   }catch(e){
     document.getElementById('windDir').textContent='Wind data unavailable';
