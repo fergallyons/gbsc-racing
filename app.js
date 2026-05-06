@@ -403,10 +403,20 @@ const WED=[
 const KOTB=["King of the Bay: Spring Cup|May 2, 2026|14,0","King of the Bay: Barna|May 16, 2026","King of the Bay: Ballyvaughan|May 30, 2026","King of the Bay: Aran Cup|Jun 19, 2026","King of the Bay: Kinvara|Aug 15, 2026","King of the Bay: Clarinbridge Cup|Aug 29, 2026","King of the Bay: Morans|Sep 12, 2026","King of the Bay: Oyster Festival|Sep 26, 2026"];
 
 function raceDate(dateStr,hour=19,min=0){
-  // Parse a date string and set local time explicitly, avoiding UTC midnight issues
-  const d=new Date(dateStr);
-  d.setHours(hour,min,0,0);
-  return d;
+  // Build the date in Europe/Dublin time regardless of where the user's device is.
+  // Strategy: find Dublin's UTC offset at noon on the race date via Intl, then
+  // subtract that offset from the "naive UTC" timestamp to get the correct UTC instant.
+  const tmp=new Date(dateStr);
+  const y=tmp.getFullYear();
+  const mo=String(tmp.getMonth()+1).padStart(2,'0');
+  const day=String(tmp.getDate()).padStart(2,'0');
+  const h=String(hour).padStart(2,'0');
+  const m=String(min).padStart(2,'0');
+  // Ask Intl what hour Dublin shows when it's 12:00 UTC on this date — gives the offset
+  const noonUtc=new Date(`${y}-${mo}-${day}T12:00:00Z`);
+  const dublinHour=parseInt(new Intl.DateTimeFormat('en',{timeZone:'Europe/Dublin',hour:'numeric',hour12:false}).format(noonUtc));
+  const offsetMs=(dublinHour-12)*3600000; // e.g. BST=+1h → 3600000
+  return new Date(new Date(`${y}-${mo}-${day}T${h}:${m}:00Z`).getTime()-offsetMs);
 }
 function buildAllRaces(){
   allRaces=[];
