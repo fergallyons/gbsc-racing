@@ -1,5 +1,10 @@
 [build]
   functions = "netlify/functions"
+  edge_functions = "netlify/edge-functions"
+
+[[edge_functions]]
+  path = "/club-config.js"
+  function = "club-config"
 
 # Stripe Payment Link success redirect — Stripe sends crew back here after card payment
 [[redirects]]

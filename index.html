@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>GBSC Racing — Galway Bay Sailing Club</title>
+<title>GBSC Racing — Galway Bay Sailing Club</title><!-- updated by applyClubBranding() -->
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.svg">
@@ -100,13 +100,14 @@
 <header>
   <div class="hdr">
     <div class="app-logo">
-      <img src="https://static.wixstatic.com/media/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg/v1/fill/w_300,h_175,al_c,q_80/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg"
+      <img id="clubLogoImg"
+        src="https://static.wixstatic.com/media/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg/v1/fill/w_300,h_175,al_c,q_80/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg"
         alt="GBSC" onerror="this.style.display='none';document.getElementById('hlf').style.display='block'">
       <div class="app-logo-fb2" id="hlf">GBSC</div>
       <div class="logo-div"></div>
       <div class="logo-text-stack">
-        <div class="logo-sub">GBSC Racing</div>
-        <div class="logo-sub-full">Galway Bay Sailing Club</div>
+        <div class="logo-sub" id="clubShortLabel">GBSC Racing</div>
+        <div class="logo-sub-full" id="clubFullName">Galway Bay Sailing Club</div>
       </div>
     </div>
     <div class="hdr-right">
@@ -424,6 +425,11 @@
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Club Settings</div>
       <div class="dash-card-sub">Payment links</div>
+    </div>
+    <div class="dash-card ro-card" onclick="openRaceSchedulePanel()">
+      <div class="dash-card-icon">📅</div>
+      <div class="dash-card-label">Race Schedule</div>
+      <div class="dash-card-sub" id="roRaceScheduleSub">Manage races</div>
     </div>
     <div class="dash-card ro-card" onclick="loadUsageStats()">
       <div class="dash-card-icon">📊</div>
@@ -789,6 +795,64 @@
         + Add a line
       </button>
     </div>
+  </div>
+</div>
+
+<!-- roRacePanel — Race Schedule Management -->
+<div class="panel-overlay" id="roRacePanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roRacePanel')">‹</button>
+    <span class="panel-title">📅 Race Schedule</span>
+  </div>
+  <div class="panel-body">
+    <!-- Add / Edit form (hidden by default) -->
+    <div id="roRaceForm" style="display:none;background:var(--navy);border-radius:12px;padding:14px;margin-bottom:16px;border:1px solid var(--border)">
+      <div id="roRaceFormTitle" style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">Add Race</div>
+      <input type="hidden" id="rf-id">
+      <div style="margin-bottom:10px">
+        <label class="field-label">Race Name</label>
+        <input id="rf-label" type="text" placeholder="e.g. McSwiggans Series — Wed Apr 8"
+          class="race-form-input">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+        <div>
+          <label class="field-label">Date</label>
+          <input id="rf-date" type="date" class="race-form-input" style="color-scheme:dark">
+        </div>
+        <div>
+          <label class="field-label">Start Time</label>
+          <input id="rf-time" type="time" class="race-form-input" style="color-scheme:dark" value="19:00">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:14px">
+        <div>
+          <label class="field-label">Series</label>
+          <input id="rf-series" type="text" list="rf-series-list" placeholder="e.g. Wednesday Night Racing"
+            class="race-form-input">
+          <datalist id="rf-series-list"></datalist>
+        </div>
+        <div>
+          <label class="field-label">Order</label>
+          <input id="rf-sort" type="number" min="0" max="999" class="race-form-input">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveRace()">Save</button>
+        <button class="btn btn-ghost" style="flex:1;padding:12px" onclick="hideRaceForm()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Race list grouped by series -->
+    <div id="roRaceList">
+      <div style="text-align:center;color:var(--muted);padding:20px">Loading…</div>
+    </div>
+
+    <!-- Add Race button -->
+    <button onclick="openAddRaceForm()"
+      style="width:100%;margin-top:16px;padding:13px;background:transparent;border:1px dashed rgba(0,174,239,.4);
+      border-radius:10px;color:var(--teal);font-family:'Barlow',sans-serif;font-size:.9rem;font-weight:500;cursor:pointer">
+      + Add Race
+    </button>
   </div>
 </div>
 
@@ -1403,7 +1467,24 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js"></script>
+<!-- Club config loader — sets window.CLUB before app.js runs.
+     ?club=<slug> on the page URL overrides hostname lookup (persists for the session). -->
+<script>
+  (function(){
+    var slug = new URLSearchParams(location.search).get('club');
+    if(slug) sessionStorage.setItem('_clubOverride', slug);
+    else slug = sessionStorage.getItem('_clubOverride') || '';
+    var cfgSrc = '/club-config.js' + (slug ? '?club=' + encodeURIComponent(slug) : '');
+    var cfg = document.createElement('script');
+    cfg.src = cfgSrc;
+    cfg.onload = function(){
+      var app = document.createElement('script');
+      app.src = 'app.js';
+      document.body.appendChild(app);
+    };
+    document.body.appendChild(cfg);
+  })();
+</script>
 <script>
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('SW registration failed:',e));

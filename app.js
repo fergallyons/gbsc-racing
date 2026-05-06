@@ -1,8 +1,50 @@
 ﻿// ═══════════════════════════════════════════════════════════════
-// SUPABASE
+// CLUB CONFIG  (populated by /club-config.js edge function)
 // ═══════════════════════════════════════════════════════════════
-const SB_URL='https://esqjcmwfnzkolwxfbcro.supabase.co';
-const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzcWpjbXdmbnprb2x3eGZiY3JvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5MjE4MDgsImV4cCI6MjA4OTQ5NzgwOH0.FCNEwXrayFMuzwMlHBX6iWESoVFi63-1IKhzgoQTx2U';
+const _C = window.CLUB || {};
+if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have failed to load');
+
+// Apply club branding immediately — before any async work
+(function applyClubBranding(){
+  const short  = _C.short || 'GBSC';
+  const name   = _C.name  || 'Galway Bay Sailing Club';
+  const logoUrl= _C.logoUrl|| _C.logourl|| _C.logo_url|| _C.logo|| '';
+  // Page title
+  document.title = short + ' Racing \u2014 ' + name;
+  // Header: logo image
+  const img = document.getElementById('clubLogoImg');
+  if(img && logoUrl){
+    img.src = logoUrl;
+    img.alt = short;
+    img.style.display = '';
+    const fb = document.getElementById('hlf');
+    if(fb) fb.style.display = 'none';
+  } else if(img && !logoUrl){
+    // No logo URL — show text fallback immediately
+    img.style.display = 'none';
+    const fb = document.getElementById('hlf');
+    if(fb){ fb.textContent = short; fb.style.display = 'block'; }
+  }
+  // Header: text labels
+  const sl = document.getElementById('clubShortLabel');
+  if(sl) sl.textContent = short + ' Racing';
+  const fn = document.getElementById('clubFullName');
+  if(fn) fn.textContent = name;
+  // Optional club colour theme — overrides --teal CSS variable
+  if(_C.primaryColor){
+    document.documentElement.style.setProperty('--teal', _C.primaryColor);
+    document.documentElement.style.setProperty('--border', _C.primaryColor.replace(/^#/, '') ? 'rgba('+hexToRgb(_C.primaryColor)+',0.18)' : '');
+  }
+  if(_C.roColor) document.documentElement.style.setProperty('--ro', _C.roColor);
+})();
+function hexToRgb(hex){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return r+','+g+','+b;
+}
+
+// ── Supabase ──────────────────────────────────────────────────
+const SB_URL = _C.sbUrl || '';
+const SB_KEY = _C.sbKey || '';
 const SBH={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
 async function sbFetch(path,opts={}){
   try{
@@ -250,7 +292,8 @@ let MARKS = [
 let LINES=[
   { id:'club',
     name:'Club Start/Finish',
-    lat1:53+(14.5687/60), lng1:-(8+(58.6148/60)),  // pin end  53°14.5687'N 008°58.6148'W
+    lat1:_C.startLat != null ? _C.startLat : 53+(14.5687/60),
+    lng1:_C.startLng != null ? _C.startLng : -(8+(58.6148/60)),
     lat2:53+(14.7106/60), lng2:-(8+(58.6084/60)),  // committee boat end  53°14.7106'N 008°58.6084'W
     isDefault:true, isActive:true },
   { id:'ballyvaughan',
@@ -312,9 +355,11 @@ function buildSatTiles(refLat,refLng,cosLat,scale,ox,oy,W,H){
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS & STATE
 // ═══════════════════════════════════════════════════════════════
-const FEES={full:4,crew:4,visitor:10,student:5,kid:0};
-const VISITOR_MAX=6; const CREW_MAX_YRS=2; const CY=new Date().getFullYear();
-const RO_PIN='2026';
+const FEES=Object.assign({full:4,crew:4,visitor:10,student:5,kid:0}, _C.fees||{});
+const VISITOR_MAX=_C.visitorMax||6;
+const CREW_MAX_YRS=_C.crewMaxYrs||2;
+const CY=new Date().getFullYear();
+const RO_PIN=_C.roPin||'0000';
 
 let boats=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
 let roster=[], allRaces=[], selectedRace=null, nextRace=null;
@@ -328,8 +373,25 @@ let registeredBoatIds=new Set(); // boat IDs registered for the next race
 let roDashRegsCount=0, roDashProtestsCount=0, roDashCoursePublished=false;
 
 // ═══════════════════════════════════════════════════════════════
-// RACE SCHEDULE DATA  (must be before buildAllRaces)
+// RACE SCHEDULE — loaded from DB (races table)
 // ═══════════════════════════════════════════════════════════════
+// allRaces and nextRace are populated by loadRaceSchedule() (DB) or buildAllRaces() (GBSC fallback).
+
+async function loadRaceSchedule(){
+  const rows=await sbFetch('/rest/v1/races?active=eq.true&order=race_date.asc,sort_order.asc');
+  if(!rows||rows._err||!rows.length){
+    console.warn('Could not load race schedule from DB');
+    return;
+  }
+  allRaces=rows.map(r=>{
+    const d=new Date(r.race_date+'T00:00:00'); // local midnight, no UTC shift
+    d.setHours(r.start_hour||19, r.start_min||0, 0, 0);
+    return {id:r.id, label:r.label, date:d, series:r.series||''};
+  });
+  nextRace=getNextRace();
+}
+
+// GBSC hardcoded schedule — used as fallback if races table is empty / DB unavailable
 const WED=[
   {name:"McSwiggans Series",d:["Apr 8","Apr 15","Apr 22","Apr 29"]},
   {name:"Grealy Stores Series",d:["May 6","May 13","May 20","May 27"]},
@@ -440,8 +502,9 @@ function restoreCrewSelection(boatId){
     roster.forEach(p=>{p.selected=ids.has(p.id);});
   }catch(e){}
 }
-function loadCustom(){try{return JSON.parse(localStorage.getItem('gr_custom')||'[]');}catch(e){return[];}}
-function saveCustom(a){try{localStorage.setItem('gr_custom',JSON.stringify(a));}catch(e){}}
+const _cacheKey='gr_custom_'+(_C.slug||'gbsc');
+function loadCustom(){try{return JSON.parse(localStorage.getItem(_cacheKey)||'[]');}catch(e){return[];}}
+function saveCustom(a){try{localStorage.setItem(_cacheKey,JSON.stringify(a));}catch(e){}}
 // Global ID high-water mark — ensures nextId never reuses an ID across boats or sessions
 function newCrewId(){
   // Generate a UUID v4 — works in all modern browsers
@@ -456,13 +519,12 @@ function newCrewId(){
 // LOGIN
 // ═══════════════════════════════════════════════════════════════
 async function buildBoatGrid(){
-  buildAllRaces();
-  nextRace=getNextRace();
+  await loadRaceSchedule(); // load from DB — populates allRaces + nextRace
 
   // Show next race label
   const raceEl=document.getElementById('loginRaceLabel');
-  if(raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
-  showSponsor(nextRace.label);
+  if(nextRace&&raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  if(nextRace) showSponsor(nextRace.label);
   renderDocs();
 
   // Show loading state
@@ -999,15 +1061,18 @@ function roReportRaceChanged(){
 }
 
 function buildRaceDropdown(){
-  // allRaces already built by buildAllRaces() in buildBoatGrid
-  // Default to nextRace
+  // allRaces populated from DB by loadRaceSchedule()
   const nr=nextRace||getNextRace();
   const ci=allRaces.indexOf(nr)>=0?allRaces.indexOf(nr):0;
   const sel=document.getElementById('raceDropdown'); sel.innerHTML='';
-  const gmap={w:'Wednesday Night Racing',k:'King of the Bay',o:'Other'};
+  // Group by series name dynamically — no hardcoded group keys
   const og={};
-  Object.entries(gmap).forEach(([k,l])=>{og[k]=document.createElement('optgroup');og[k].label=l;});
-  allRaces.forEach((r,i)=>{const o=document.createElement('option');o.value=i;o.textContent=r.label;og[r.g].appendChild(o);});
+  allRaces.forEach((r,i)=>{
+    const grp=r.series||'Other';
+    if(!og[grp]){og[grp]=document.createElement('optgroup');og[grp].label=grp;}
+    const o=document.createElement('option');o.value=i;o.textContent=r.label;
+    og[grp].appendChild(o);
+  });
   Object.values(og).forEach(g=>sel.appendChild(g));
   sel.value=ci; onRaceSelect(sel,true);
 }
@@ -1345,7 +1410,7 @@ async function saveClubStripeLinks(links){
 }
 
 // ── Push notifications ────────────────────────────────────────
-const VAPID_PUBLIC_KEY='BAkBjGrQFkuo_6Rev9aZfzz0sSfAQZyO1NLdd-1Vbxa74brAp12wpHKEh6toUkoMjrmv-vaV1wMwrJpb4d8YL_Q';
+const VAPID_PUBLIC_KEY=_C.vapidPublicKey||'';
 
 function urlBase64ToUint8Array(b64){
   const pad='='.repeat((4-b64.length%4)%4);
@@ -1543,6 +1608,135 @@ function saveROClubSettings(){
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
   renderCourseDiagram();
+}
+
+// ── Race Schedule Management (RO) ────────────────────────────────────────
+async function openRaceSchedulePanel(){
+  openPanel('roRacePanel');
+  hideRaceForm();
+  await renderRaceScheduleList();
+  // Update subtile count
+  const sub=document.getElementById('roRaceScheduleSub');
+  if(sub) sub.textContent=allRaces.length+' races loaded';
+}
+
+async function renderRaceScheduleList(){
+  const list=document.getElementById('roRaceList');
+  list.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px">Loading…</div>';
+  // Fetch ALL races (including cancelled) for management view
+  const rows=await sbFetch('/rest/v1/races?order=race_date.asc,sort_order.asc&select=*');
+  if(!rows||rows._err){
+    list.innerHTML='<div class="empty-state"><div class="icon">⚠️</div><div>Could not load races</div></div>';
+    return;
+  }
+  if(!rows.length){
+    list.innerHTML='<div class="empty-state"><div class="icon">📅</div><div>No races scheduled yet</div></div>';
+    return;
+  }
+  // Populate series datalist for the form
+  const seriesSet=new Set(rows.map(r=>r.series).filter(Boolean));
+  const dl=document.getElementById('rf-series-list');
+  if(dl) dl.innerHTML=[...seriesSet].map(s=>`<option value="${s}">`).join('');
+  // Group by series
+  const groups={};
+  rows.forEach(r=>{
+    const s=r.series||'Other';
+    if(!groups[s]) groups[s]=[];
+    groups[s].push(r);
+  });
+  let html='';
+  Object.entries(groups).forEach(([series,races])=>{
+    html+=`<div class="race-mgmt-series">${series}</div>`;
+    races.forEach(r=>{
+      const d=new Date(r.race_date+'T00:00:00');
+      const dateStr=d.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+      const hh=String(r.start_hour||19).padStart(2,'0');
+      const mm=String(r.start_min||0).padStart(2,'0');
+      const cancelled=!r.active;
+      html+=`<div class="race-mgmt-row${cancelled?' cancelled':''}" data-id="${r.id}">
+        <div class="race-mgmt-info">
+          <div class="race-mgmt-label">${r.label}</div>
+          <div class="race-mgmt-date">${dateStr} · ${hh}:${mm}</div>
+        </div>
+        <div class="race-mgmt-actions">
+          <button class="race-mgmt-btn edit" onclick="openEditRaceForm(${r.id})" title="Edit">✏️</button>
+          <button class="race-mgmt-btn ${cancelled?'uncancel':'cancel'}"
+            onclick="toggleRaceCancelled(${r.id},${r.active})"
+            title="${cancelled?'Restore':'Cancel'}">${cancelled?'↩':'✕'}</button>
+        </div>
+      </div>`;
+    });
+  });
+  list.innerHTML=html;
+}
+
+async function toggleRaceCancelled(id,currentlyActive){
+  await sbFetch('/rest/v1/races?id=eq.'+id,{
+    method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({active:!currentlyActive})
+  });
+  await renderRaceScheduleList();
+  await loadRaceSchedule(); // keep in-memory schedule in sync
+}
+
+function openAddRaceForm(){
+  const form=document.getElementById('roRaceForm');
+  document.getElementById('roRaceFormTitle').textContent='Add Race';
+  document.getElementById('rf-id').value='';
+  document.getElementById('rf-label').value='';
+  document.getElementById('rf-date').value='';
+  document.getElementById('rf-time').value='19:00';
+  document.getElementById('rf-series').value='';
+  document.getElementById('rf-sort').value='99';
+  form.style.display='block';
+  form.scrollIntoView({behavior:'smooth'});
+}
+
+async function openEditRaceForm(id){
+  const rows=await sbFetch('/rest/v1/races?id=eq.'+id+'&select=*');
+  if(!rows||!rows.length) return;
+  const r=rows[0];
+  const form=document.getElementById('roRaceForm');
+  document.getElementById('roRaceFormTitle').textContent='Edit Race';
+  document.getElementById('rf-id').value=r.id;
+  document.getElementById('rf-label').value=r.label;
+  document.getElementById('rf-date').value=r.race_date;
+  const hh=String(r.start_hour||19).padStart(2,'0');
+  const mm=String(r.start_min||0).padStart(2,'0');
+  document.getElementById('rf-time').value=hh+':'+mm;
+  document.getElementById('rf-series').value=r.series||'';
+  document.getElementById('rf-sort').value=r.sort_order||0;
+  form.style.display='block';
+  form.scrollIntoView({behavior:'smooth'});
+}
+
+function hideRaceForm(){
+  const f=document.getElementById('roRaceForm');
+  if(f) f.style.display='none';
+}
+
+async function saveRace(){
+  const id=document.getElementById('rf-id').value;
+  const label=document.getElementById('rf-label').value.trim();
+  const date=document.getElementById('rf-date').value;
+  const time=document.getElementById('rf-time').value||'19:00';
+  const [hourStr,minStr]=time.split(':');
+  const series=document.getElementById('rf-series').value.trim();
+  const sort=parseInt(document.getElementById('rf-sort').value,10)||0;
+  if(!label||!date){alert('Race name and date are required');return;}
+  const payload={label,race_date:date,start_hour:parseInt(hourStr,10),
+    start_min:parseInt(minStr,10),series,sort_order:sort};
+  if(id){
+    await sbFetch('/rest/v1/races?id=eq.'+id,{
+      method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(payload)});
+  } else {
+    await sbFetch('/rest/v1/races',{
+      method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(payload)});
+  }
+  hideRaceForm();
+  await renderRaceScheduleList();
+  await loadRaceSchedule();
 }
 
 async function browseEstelaRaces(){
@@ -1979,8 +2173,10 @@ async function loadRaceWeather(){
 }
 
 async function fetchOpenMeteo(){
+  const wxLat=_C.windLat||_C.startLat||GBSC_LAT;
+  const wxLng=_C.windLng||_C.startLng||GBSC_LNG;
   const base='https://api.open-meteo.com/v1/forecast'
-    +'?latitude='+GBSC_LAT+'&longitude='+GBSC_LNG
+    +'?latitude='+wxLat+'&longitude='+wxLng
     +'&hourly=temperature_2m,apparent_temperature,wind_speed_10m,wind_gusts_10m'
     +',wind_direction_10m,cloud_cover,surface_pressure,weather_code'
     +'&daily=sunset'
@@ -3294,23 +3490,9 @@ function closeDoc(){
 // ═══════════════════════════════════════════════════════════════
 // SPONSORS
 // ═══════════════════════════════════════════════════════════════
-const SPONSORS=[
-  {
-    match:/galway.?maritime/i,
-    name:'Galway Maritime',
-    tagline:'Marine Chandlery',
-    logo:'https://i0.wp.com/galwaymaritime.com/wp-content/uploads/2025/07/cropped-Web-Logo-scaled-1.webp',
-    url:'https://galwaymaritime.com'
-  },
-  {
-    match:/mcswiggans/i,
-    name:'McSwiggans',
-    tagline:'Steak & Seafood Restaurant',
-    logo:'https://www.google.com/s2/favicons?domain=mcswiggans.ie&sz=64',
-    url:'https://mcswiggans.ie'
-  },
-  // Add more sponsors here as series are added:
-];
+// Sponsors come from window.CLUB.sponsors — match strings are compiled to RegExp here.
+// Each entry: {match:"regex-string", name, tagline, logo, url}
+const SPONSORS=(_C.sponsors||[]).map(s=>({...s, match:new RegExp(s.match,'i')}));
 
 function showSponsor(raceName){
   const widget=document.getElementById('sponsorWidget');
@@ -4297,7 +4479,7 @@ async function roUnregisterBoat(boatId,boatName){
 // HALSAIL RESULTS
 // ═══════════════════════════════════════════════════════════════
 const HAL_URL='https://halsail.com/HalApi';
-const HAL_CLUB=3725;
+const HAL_CLUB=_C.halClub||0;
 // GBSC Halsail convention:
 //   GetSchedule only ever returns ECHO entries (Class "Cru - E")
 //   IRC is a tandem series — its SeryID is always echoId + 1
@@ -4748,7 +4930,7 @@ document.addEventListener('click',function(e){
 // ═══════════════════════════════════════════════════════════════
 // WIND WIDGET — Open-Meteo (no API key required)
 // ═══════════════════════════════════════════════════════════════
-// GBSC_LAT / GBSC_LNG defined in the weather section above
+// fetchOpenMeteo uses _C.windLat/_C.windLng (or GBSC_LAT/GBSC_LNG fallback) — see above
 
 async function loadWindWidget(){
   try{
@@ -5781,19 +5963,19 @@ loadWindWidget();
 })();
 // Load club settings first so the pay page has stripe links available, then check hash
 loadClubSettings().then(()=>{updateEstellaLink();checkPayHash();});
-// Build race schedule synchronously so public race cards populate immediately
-buildAllRaces();
-nextRace=getNextRace();
-(function initPublicView(){
+showTab('registeredTab', null);
+// Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
+loadRaceSchedule().then(()=>{
+  if(!allRaces.length){ buildAllRaces(); nextRace=getNextRace(); }
   const el=document.getElementById('guestDashRaceName');
   const mel=document.getElementById('guestDashMeta');
   const tel=document.getElementById('guestDashTime');
   if(el&&nextRace) el.textContent=nextRace.label;
+  else if(el) el.textContent='No races scheduled';
   if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   startCountdown();
-  showTab('registeredTab', null);
   loadAndDrawCourse().then(()=>updateHomeChips());
-})();
+  patchRaceTimesFromHalsail(); // patch start times from Halsail in background
+});
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
-patchRaceTimesFromHalsail(); // patch start times from Halsail in background
