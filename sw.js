@@ -24,10 +24,14 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
+  // Halsail has its own proxy fallback in halFetch() that triggers on TypeError (CORS failure).
+  // If the SW catches the network error and returns a 503 Response instead, halFetch() sees
+  // a non-ok response rather than a TypeError and never retries via the proxy. Pass through.
+  if (url.includes('halsail.com')) return;
+
   // Always network-first for API calls — never serve stale API data from cache
   if (
     url.includes('supabase.co') ||
-    url.includes('halsail.com') ||
     url.includes('open-meteo.com') ||
     url.includes('/.netlify/functions/') ||
     url.includes('/api/')
