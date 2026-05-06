@@ -2088,8 +2088,7 @@ function renderWeather(wx,tides){
   const raceDate=race?race.date:new Date();
   const now=new Date();
   const isToday=raceDate.toDateString()===now.toDateString();
-  const target=isToday?Math.max(now,raceDate):raceDate;
-  const targetTs=Math.floor(target.getTime()/1000);
+  const targetTs=Math.floor((isToday?Math.max(now.getTime(),raceDate.getTime()):raceDate.getTime())/1000);
 
   const times=wx.hourly.time;
   let idx=times.findIndex(t=>t>=targetTs);
