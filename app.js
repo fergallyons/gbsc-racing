@@ -3313,7 +3313,7 @@ function showSponsor(raceName){
   widget.href=sponsor.url;
   widget.style.display='flex';
 }
-let calLoaded=false, calView='series', calSchedule=[];
+let calLoaded=false, calView='date', calSchedule=[];
 
 async function loadCalendarIfNeeded(){
   if(calLoaded) return;
@@ -3342,7 +3342,7 @@ async function loadCalendarIfNeeded(){
   // Share schedule data with Results tab if it hasn't loaded yet
   if(!halSchedule) halSchedule=raw;
 
-  renderCalendar();
+  setCalView(calView);
 }
 
 function setCalView(v){
@@ -3448,6 +3448,8 @@ function renderCalByDate(){
     html+='</div>';
   });
   wrap.innerHTML=html;
+  const nextEl=wrap.querySelector('.next-race');
+  if(nextEl) nextEl.scrollIntoView({block:'center',behavior:'smooth'});
 }
 
 function bearing(lat1,lng1,lat2,lng2){
