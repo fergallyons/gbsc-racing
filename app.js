@@ -561,6 +561,8 @@ function openLoginSheet(){
 }
 async function enterApp(b,ro){
   currentBoat=b; isRO=ro;
+  document.body.classList.remove('role-skipper','role-ro');
+  document.body.classList.add(ro?'role-ro':'role-skipper');
   try{localStorage.setItem('gr_last',b.id);}catch(e){}
   sbStartSession(ro?'ro':'skipper', ro?null:b.id, b.name).then(id=>{currentSessionId=id;}).catch(()=>{});
   closeSheet('loginSheet');
@@ -622,6 +624,7 @@ function switchBoat(){
   sbEndSession(currentSessionId).catch(()=>{});
   currentSessionId=null;
   currentBoat=null;roster=[];isRO=false;isGuest=false;boatConfig={};
+  document.body.classList.remove('role-skipper','role-ro');
   // Stop countdown timer so it doesn't keep firing after logout
   if(_countdownInterval){clearInterval(_countdownInterval);_countdownInterval=null;}
   halResultsCache={};halBoatCache={};
