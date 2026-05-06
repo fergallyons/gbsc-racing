@@ -319,7 +319,7 @@ const RO_PIN='2026';
 let boats=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
 let roster=[], allRaces=[], selectedRace=null, nextRace=null;
 let editingId=null, pnId=null, pnMethod=null;
-let windDeg=225;
+let windDeg=225, forecastWindDeg=null;
 let courseMarks=[];
 let publishedCourse=null;
 let selectedStartLineId='club';   // id from LINES[]
@@ -853,7 +853,14 @@ function openPanel(id){
   p.style.display='flex';
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     p.classList.add('open');
-    if(id==='roCoursePanel') populateLineSelects();
+    if(id==='roCoursePanel'){
+      populateLineSelects();
+      if(forecastWindDeg!=null){
+        const sl=document.getElementById('windSlider');
+        if(sl) sl.value=forecastWindDeg;
+        updateWind(forecastWindDeg);
+      }
+    }
     if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
     if(id==='roCourseViewPanel') renderCourseDiagram('roCourseDisplay');
   }));
@@ -4767,6 +4774,7 @@ async function loadWindWidget(){
     const spd=Math.round(wx.hourly.wind_speed_10m[idx]);
     const gust=Math.round(wx.hourly.wind_gusts_10m[idx]);
     const deg=Math.round(wx.hourly.wind_direction_10m[idx]);
+    forecastWindDeg=deg;
 
     const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
     const dir=dirs[Math.round(deg/22.5)%16];
@@ -5712,7 +5720,7 @@ function updateHomeChips(){
     ?`<span class="dash-chip regs">⛵ ${count} boat${count===1?'':'s'} registered</span>`
     :'<span class="dash-chip course-no">No registrations yet</span>';
   let courseChip='';
-  if(state==='live')  courseChip='<span class="dash-chip course-ok">🟢 Course live</span>';
+  if(state==='live')  courseChip='<span class="dash-chip course-ok" style="cursor:pointer" onclick="openPanel(\'coursePanel\')">🟢 Course live</span>';
   else if(state==='pending') courseChip='<span class="dash-chip course-no">🕐 Course pending</span>';
   chips.innerHTML=regChip+courseChip;
 }
