@@ -2512,12 +2512,25 @@ async function sbLoadSelfPayments(boatId,raceKey){
 }
 
 // ── State ─────────────────────────────────────────────────────
-let selfPayState={step:0,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
+let selfPayState={step:0,race:null,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
 
 function openSelfPayPanel(){
-  selfPayState={step:0,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
+  selfPayState={step:0,race:getNextRace(),boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
   renderSelfPayPanel();
   openPanel('selfPayPanel');
+}
+
+function spSelectRace(idx){
+  const race=spRecentRaces()[parseInt(idx)];
+  if(race) selfPayState.race=race;
+  const body=document.getElementById('selfPayBody');
+  if(body) body.innerHTML=spStep0();
+}
+
+function spRecentRaces(){
+  const now=new Date();
+  const fourWeeksAgo=new Date(now.getTime()-28*24*3600*1000);
+  return allRaces.filter(r=>r.date>=fourWeeksAgo).slice(0,12);
 }
 
 function selfPayBack(){
@@ -2543,9 +2556,21 @@ function renderSelfPayPanel(){
 
 // ── Step 0: Pick Boat ─────────────────────────────────────────
 function spStep0(){
-  const race=getNextRace();
+  const race=selfPayState.race;
   const raceLabel=race?race.label:'the next race';
-  let html=`<div style="font-size:.85rem;color:var(--muted);margin-bottom:20px;text-align:center">
+  const recent=spRecentRaces();
+  const selIdx=race?recent.findIndex(r=>r.label===race.label):0;
+  const raceSelector=recent.length>1?`
+    <div style="margin-bottom:16px">
+      <div style="font-size:.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:4px">Race</div>
+      <select onchange="spSelectRace(this.value)"
+        style="width:100%;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.45);border-radius:10px;
+        color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;
+        padding:9px 12px;cursor:pointer;outline:none">
+        ${recent.map((r,i)=>`<option value="${i}"${i===selIdx?' selected':''}>${r.label}</option>`).join('')}
+      </select>
+    </div>`:'';
+  let html=raceSelector+`<div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
     Select your boat to pay your fee for<br><strong style="color:var(--teal)">${raceLabel}</strong>
   </div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">`;
   boats.forEach(b=>{
@@ -2628,7 +2653,7 @@ function spStep2(){
   const b=selfPayState.boat;
   const amt=FEES[p.type]||0;
   const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
-  const race=getNextRace();
+  const race=selfPayState.race||getNextRace();
   const raceLabel=race?race.label:'next race';
 
   // Summary card
@@ -2731,7 +2756,7 @@ function spDoRevolut(){
 function spDoCard(){
   const p=selfPayState.person;
   const b=selfPayState.boat;
-  const race=getNextRace();
+  const race=selfPayState.race||getNextRace();
   // Save context so Stripe success redirect can auto-confirm without user tap
   if(race&&b&&p){
     try{ sessionStorage.setItem('sp_pending',JSON.stringify({
@@ -2777,7 +2802,7 @@ function spShowAwaitConfirm(method){
 async function spConfirm(method){
   const p=selfPayState.person;
   const b=selfPayState.boat;
-  const race=getNextRace();
+  const race=selfPayState.race||getNextRace();
   if(!race){toast('No upcoming race found');return;}
   const record={
     boat_id:b.id,
@@ -2798,7 +2823,7 @@ async function spConfirm(method){
 function spStep3(){
   const p=selfPayState.person;
   const b=selfPayState.boat;
-  const race=getNextRace();
+  const race=selfPayState.race||getNextRace();
   const method=selfPayState.confirmedMethod||'';
   const amt=FEES[p.type]||0;
   const icon=method==='Revolut'?'💜':method==='Card'?'💳':method==='Cash'?'💵':'🎉';
