@@ -191,10 +191,6 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .race-bar-icon{font-size:1.4rem;flex-shrink:0;}
 .race-bar-text{flex:1;min-width:0;}
 .race-bar-label{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:600;}
-#raceDropdown{background:transparent;border:none;color:var(--white);
-  font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;
-  width:100%;outline:none;cursor:pointer;padding:0;margin-top:2px;
-  -webkit-appearance:none;appearance:none;}
 #raceDropdown option{background:var(--navy-mid);}
 
 /* crew cards */
@@ -559,9 +555,16 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.04em;}
 .dash-reg-pill.registered{background:rgba(45,198,83,.15);border:1px solid rgba(45,198,83,.4);color:var(--success);}
 .dash-reg-pill.unregistered{background:transparent;border:1px solid rgba(0,174,239,.5);color:var(--teal);}
-.dash-race-select{border-top:1px solid var(--border);margin-top:10px;padding-top:10px;}
-.dash-race-select .race-bar-label{font-size:.75rem;color:var(--muted);text-transform:uppercase;
-  letter-spacing:.08em;font-weight:600;margin-bottom:2px;}
+.dash-race-select{margin-top:12px;position:relative;}
+.dash-race-select .race-bar-label{font-size:.72rem;color:var(--teal);text-transform:uppercase;
+  letter-spacing:.1em;font-weight:700;margin-bottom:4px;}
+.dash-race-select select{
+  width:100%;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.45);
+  border-radius:10px;color:var(--white);font-family:'Barlow Condensed',sans-serif;
+  font-size:.95rem;font-weight:700;padding:9px 36px 9px 12px;cursor:pointer;
+  -webkit-appearance:none;appearance:none;outline:none;}
+.dash-race-select::after{content:'▾';position:absolute;right:12px;bottom:10px;
+  color:var(--teal);font-size:.9rem;pointer-events:none;}
 
 .dash-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
 .dash-chip{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;
