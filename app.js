@@ -4586,7 +4586,7 @@ function openFeeStatement(boatId){
       sel.style.display='none';
     }
   }
-  panel.style.display='flex';
+  openPanel('feeStatementPanel');
   renderFeeStatement();
 }
 
