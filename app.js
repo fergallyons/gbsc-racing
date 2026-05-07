@@ -2513,6 +2513,9 @@ async function sbLoadSelfPayments(boatId,raceKey){
 async function sbLoadAllBoatPayments(boatId){
   return sbFetch('/rest/v1/self_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&order=race_date.desc');
 }
+async function sbLoadAllBoatRacePayments(boatId){
+  return sbFetch('/rest/v1/race_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&order=race_date.desc');
+}
 async function sbLoadBoatRegistrations(boatId){
   const today=new Date().toISOString().split('T')[0];
   return sbFetch('/rest/v1/registrations?boat_id=eq.'+encodeURIComponent(boatId)+'&race_date=lt.'+today+'&order=race_date.desc&limit=52');
@@ -4597,24 +4600,27 @@ async function renderFeeStatement(){
   document.getElementById('feeStmtTitle').textContent=`${boat.icon} ${boat.name}`;
   body.innerHTML='<div style="color:var(--muted);font-size:.85rem;padding:12px 0;text-align:center">Loading…</div>';
 
-  const [regs,payments]=await Promise.all([
+  const [regs,selfPays,racePays]=await Promise.all([
     sbLoadBoatRegistrations(feeStmtBoatId),
-    sbLoadAllBoatPayments(feeStmtBoatId)
+    sbLoadAllBoatPayments(feeStmtBoatId),
+    sbLoadAllBoatRacePayments(feeStmtBoatId)
   ]);
 
-  if(!regs||!payments){
+  if(!regs||!selfPays||!racePays){
     body.innerHTML='<div style="color:var(--muted);padding:16px;text-align:center">Could not load data — check connection</div>';
     return;
   }
 
-  // Group payments by race_key: sum amount, collect methods + crew count
+  // Merge both payment sources into a single map keyed by race_key
   const payMap={};
-  for(const p of payments){
+  const addToMap=p=>{
     if(!payMap[p.race_key]) payMap[p.race_key]={total:0,methods:new Set(),count:0};
     payMap[p.race_key].total+=(p.amount||0);
     if(p.method) payMap[p.race_key].methods.add(p.method);
     payMap[p.race_key].count++;
-  }
+  };
+  selfPays.forEach(addToMap);
+  racePays.forEach(addToMap);
 
   if(!regs.length){
     body.innerHTML='<div style="color:var(--muted);padding:20px;text-align:center;font-size:.9rem">No past races found for this boat.</div>';
@@ -4626,39 +4632,48 @@ async function renderFeeStatement(){
   const club=window.CLUB?.name||'Sailing Club';
   const today=new Date().toLocaleDateString('en-IE',{day:'numeric',month:'long',year:'numeric'});
   const shareLines=[];
+  // Skipper view: rows are clickable and drill into race fees for that race
+  const clickable=!isRO&&feeStmtBoatId===currentBoat?.id;
 
   let html='';
   for(const r of regs){
     const pay=payMap[r.race_key];
     const dateStr=fmtDate(r.race_date);
+    const clickAttr=clickable?`onclick="feeStmtOpenRace('${r.race_key}')" style="cursor:pointer"`:'';
     if(pay){
       totalPaid+=pay.total;
       const methods=[...pay.methods].join(' / ')||'—';
-      const crewNote=pay.count>1?` · ${pay.count} crew`:'';
+      const crewNote=pay.count>1?` · ${pay.count} paid`:'';
       shareLines.push(`✓ ${r.race_name} (${dateStr}) — €${pay.total} ${methods}`);
       html+=`
-        <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)">
+        <div ${clickAttr} style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)${clickable?';active:opacity:.7':''}">
           <div style="color:#4caf50;font-size:1.1rem;margin-top:1px;flex-shrink:0">✓</div>
           <div style="flex:1;min-width:0">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.race_name}</div>
             <div style="font-size:.78rem;color:var(--muted);margin-top:1px">${dateStr}${crewNote}</div>
           </div>
-          <div style="text-align:right;flex-shrink:0">
-            <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;color:#4caf50">€${pay.total}</div>
-            <div style="font-size:.73rem;color:var(--muted)">${methods}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <div style="text-align:right">
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;color:#4caf50">€${pay.total}</div>
+              <div style="font-size:.73rem;color:var(--muted)">${methods}</div>
+            </div>
+            ${clickable?'<div style="color:var(--muted);font-size:.8rem">›</div>':''}
           </div>
         </div>`;
     } else {
       outstandingCount++;
       shareLines.push(`⚠ ${r.race_name} (${dateStr}) — no payment recorded`);
       html+=`
-        <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)">
+        <div ${clickAttr} style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)">
           <div style="color:#f59e0b;font-size:1.1rem;margin-top:1px;flex-shrink:0">⚠</div>
           <div style="flex:1;min-width:0">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.race_name}</div>
             <div style="font-size:.78rem;color:var(--muted);margin-top:1px">${dateStr}</div>
           </div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;color:#f59e0b;flex-shrink:0">Outstanding</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;color:#f59e0b">Outstanding</div>
+            ${clickable?'<div style="color:var(--muted);font-size:.8rem">›</div>':''}
+          </div>
         </div>`;
     }
   }
@@ -4676,10 +4691,27 @@ async function renderFeeStatement(){
       </div>
     </div>`;
 
-  body.innerHTML=html;
+  if(clickable){
+    html+='<div style="font-size:.75rem;color:var(--muted);text-align:center;padding:10px 0 2px">Tap a race to open Race Fees</div>';
+  }
 
-  // Pre-build share text so shareFeeStatement() doesn't need to scrape the DOM
+  body.innerHTML=html;
   feeStmtShareText=`${club} — Race Fee Statement\nBoat: ${boat.name}\nGenerated: ${today}\n\n${shareLines.join('\n')}\n\nTotal paid: €${totalPaid} | Outstanding races: ${outstandingCount}`;
+}
+
+async function feeStmtOpenRace(key){
+  // Find the race in allRaces by race_key
+  const race=allRaces.find(r=>raceKey(r)===key);
+  if(!race){toast('Race not found');return;}
+  // Switch to that race
+  selectedRace=race;
+  const idx=allRaces.indexOf(race);
+  const dd=document.getElementById('raceDropdown');
+  if(dd) dd.value=idx;
+  updateSkipperDash();
+  // Close fee statement and open race fees
+  closePanel('feeStatementPanel');
+  await openRaceFeesPanel();
 }
 
 function shareFeeStatement(){
