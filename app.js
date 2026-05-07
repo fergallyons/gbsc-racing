@@ -468,8 +468,19 @@ async function patchRaceTimesFromHalsail(){
   if(el&&nextRace) el.textContent=nextRace.label;
   if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  const guestEyebrow=document.getElementById('guestRaceEyebrow');
+  if(guestEyebrow&&nextRace) guestEyebrow.textContent=getRaceEyebrow(nextRace);
   const raceEl=document.getElementById('loginRaceLabel');
-  if(raceEl&&nextRace) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  if(raceEl&&nextRace) raceEl.textContent=getRaceEyebrow(nextRace)+': '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+}
+function getRaceEyebrow(race){
+  if(!race) return 'Next Race';
+  const diff=race.date-new Date();
+  if(diff > 3600000)  return 'Next Race';
+  if(diff > 0)        return 'Starting Soon';
+  if(diff > -3600000) return 'Race In Progress';
+  if(race.date.toDateString()===new Date().toDateString()) return "Tonight's Race";
+  return 'Last Race';
 }
 function getNextRace(){
   // Priority 1: upcoming race within 48h → registration/pre-race mode (takes over from linger)
@@ -953,7 +964,9 @@ function updateSkipperDash(){
   const metaEl=document.getElementById('dashRaceMeta');
   const regEl=document.getElementById('dashRegStatus');
   const crewRaceName=document.getElementById('crewPanelRaceName');
+  const eyebrow=document.getElementById('skipperRaceEyebrow');
   if(!nameEl)return;
+  if(eyebrow) eyebrow.textContent=getRaceEyebrow(r);
   if(r){
     nameEl.textContent=r.label;
     if(metaEl) metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
@@ -5984,6 +5997,8 @@ loadRaceSchedule().then(()=>{
   else if(el) el.textContent='No races scheduled';
   if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  const ge=document.getElementById('guestRaceEyebrow');
+  if(ge) ge.textContent=getRaceEyebrow(nextRace);
   startCountdown();
   loadAndDrawCourse().then(()=>updateHomeChips());
   patchRaceTimesFromHalsail(); // patch start times from Halsail in background
