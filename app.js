@@ -4611,16 +4611,23 @@ async function renderFeeStatement(){
     return;
   }
 
-  // Merge both payment sources into a single map keyed by race_key
+  // Merge both payment sources — deduplicate by crew_id+race_key so a crew
+  // member recorded in both tables (self-pay + skipper-marked) counts only once.
+  // race_payments (skipper-confirmed) takes priority over self_payments.
   const payMap={};
+  const seenCrewRace=new Set();
   const addToMap=p=>{
+    const dedupKey=`${p.crew_id}|${p.race_key}`;
+    if(seenCrewRace.has(dedupKey)) return;
+    seenCrewRace.add(dedupKey);
     if(!payMap[p.race_key]) payMap[p.race_key]={total:0,methods:new Set(),count:0};
     payMap[p.race_key].total+=(p.amount||0);
     if(p.method) payMap[p.race_key].methods.add(p.method);
     payMap[p.race_key].count++;
   };
-  selfPays.forEach(addToMap);
+  // Process race_payments first so they take priority in dedup
   racePays.forEach(addToMap);
+  selfPays.forEach(addToMap);
 
   if(!regs.length){
     body.innerHTML='<div style="color:var(--muted);padding:20px;text-align:center;font-size:.9rem">No past races found for this boat.</div>';
