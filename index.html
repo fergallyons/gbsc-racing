@@ -608,6 +608,35 @@
     <div class="reg-list" id="regList">
       <div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div>No registrations yet</div>
     </div>
+    <div id="roForceRegDiv" style="padding:12px 0 4px">
+      <button onclick="roShowForceRegForm()" id="roForceRegBtn"
+        style="width:100%;padding:10px;border-radius:10px;border:1px dashed var(--border);
+        background:transparent;color:var(--muted);font-family:'Barlow Condensed',sans-serif;
+        font-size:.95rem;font-weight:600;cursor:pointer;letter-spacing:.04em">
+        + Add missing boat
+      </button>
+      <div id="roForceRegForm" style="display:none;margin-top:10px;display:none">
+        <select id="roForceRegSelect"
+          style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--teal);
+          background:rgba(0,188,212,.06);color:var(--fg);font-size:.95rem;font-family:inherit;
+          margin-bottom:8px">
+        </select>
+        <div style="display:flex;gap:8px">
+          <button onclick="roForceRegister()"
+            style="flex:1;padding:10px;border-radius:10px;background:var(--teal);color:#fff;
+            border:none;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;
+            cursor:pointer;letter-spacing:.05em">
+            Register
+          </button>
+          <button onclick="roHideForceRegForm()"
+            style="padding:10px 16px;border-radius:10px;background:transparent;color:var(--muted);
+            border:1px solid var(--border);font-family:'Barlow Condensed',sans-serif;
+            font-size:.95rem;cursor:pointer">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 

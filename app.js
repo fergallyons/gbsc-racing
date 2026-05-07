@@ -4523,6 +4523,43 @@ async function roUnregisterBoat(boatId,boatName){
   toast(boatName+' unregistered');
 }
 
+function roShowForceRegForm(){
+  const btn=document.getElementById('roForceRegBtn');
+  const form=document.getElementById('roForceRegForm');
+  const sel=document.getElementById('roForceRegSelect');
+  if(!btn||!form||!sel) return;
+  // Populate with boats not yet registered
+  const unregistered=boats.filter(b=>!registeredBoatIds.has(b.id));
+  if(!unregistered.length){toast('All boats are already registered');return;}
+  sel.innerHTML=unregistered.map(b=>`<option value="${b.id}">${b.icon} ${b.name}</option>`).join('');
+  btn.style.display='none';
+  form.style.display='block';
+}
+
+function roHideForceRegForm(){
+  const btn=document.getElementById('roForceRegBtn');
+  const form=document.getElementById('roForceRegForm');
+  if(btn) btn.style.display='';
+  if(form) form.style.display='none';
+}
+
+async function roForceRegister(){
+  const sel=document.getElementById('roForceRegSelect');
+  if(!sel||!sel.value) return;
+  const boatId=sel.value;
+  const boat=boats.find(b=>b.id===boatId);
+  const name=boat?boat.name:boatId;
+  const race=nextRace;
+  if(!race){toast('No current race found');return;}
+  const ok=await sbRegisterBoat(boatId,race);
+  if(ok){
+    registeredBoatIds.add(boatId);
+    roHideForceRegForm();
+    await loadRegistrations();
+    toast(name+' registered by RO');
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // HALSAIL RESULTS
 // ═══════════════════════════════════════════════════════════════
