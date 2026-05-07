@@ -2510,6 +2510,13 @@ async function sbSaveSelfPayment(data){
 async function sbLoadSelfPayments(boatId,raceKey){
   return sbFetch('/rest/v1/self_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(raceKey));
 }
+async function sbLoadAllBoatPayments(boatId){
+  return sbFetch('/rest/v1/self_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&order=race_date.desc');
+}
+async function sbLoadBoatRegistrations(boatId){
+  const today=new Date().toISOString().split('T')[0];
+  return sbFetch('/rest/v1/registrations?boat_id=eq.'+encodeURIComponent(boatId)+'&race_date=lt.'+today+'&order=race_date.desc&limit=52');
+}
 
 // ── State ─────────────────────────────────────────────────────
 let selfPayState={step:0,race:null,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
@@ -4557,6 +4564,133 @@ async function roForceRegister(){
     roHideForceRegForm();
     await loadRegistrations();
     toast(name+' registered by RO');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FEE STATEMENTS
+// ═══════════════════════════════════════════════════════════════
+
+let feeStmtBoatId=null, feeStmtShareText='';
+
+function openFeeStatement(boatId){
+  feeStmtBoatId=boatId||currentBoat?.id||(isRO&&boats[0]?.id)||null;
+  const panel=document.getElementById('feeStatementPanel');
+  if(!panel) return;
+  const sel=document.getElementById('feeStmtBoatSel');
+  if(sel){
+    if(isRO){
+      sel.style.display='';
+      sel.innerHTML=boats.map(b=>`<option value="${b.id}"${b.id===feeStmtBoatId?' selected':''}>${b.icon} ${b.name}</option>`).join('');
+    } else {
+      sel.style.display='none';
+    }
+  }
+  panel.style.display='flex';
+  renderFeeStatement();
+}
+
+async function renderFeeStatement(){
+  const body=document.getElementById('feeStmtBody');
+  if(!body||!feeStmtBoatId) return;
+  const boat=boats.find(b=>b.id===feeStmtBoatId)||{name:feeStmtBoatId,icon:'⛵'};
+  document.getElementById('feeStmtTitle').textContent=`${boat.icon} ${boat.name}`;
+  body.innerHTML='<div style="color:var(--muted);font-size:.85rem;padding:12px 0;text-align:center">Loading…</div>';
+
+  const [regs,payments]=await Promise.all([
+    sbLoadBoatRegistrations(feeStmtBoatId),
+    sbLoadAllBoatPayments(feeStmtBoatId)
+  ]);
+
+  if(!regs||!payments){
+    body.innerHTML='<div style="color:var(--muted);padding:16px;text-align:center">Could not load data — check connection</div>';
+    return;
+  }
+
+  // Group payments by race_key: sum amount, collect methods + crew count
+  const payMap={};
+  for(const p of payments){
+    if(!payMap[p.race_key]) payMap[p.race_key]={total:0,methods:new Set(),count:0};
+    payMap[p.race_key].total+=(p.amount||0);
+    if(p.method) payMap[p.race_key].methods.add(p.method);
+    payMap[p.race_key].count++;
+  }
+
+  if(!regs.length){
+    body.innerHTML='<div style="color:var(--muted);padding:20px;text-align:center;font-size:.9rem">No past races found for this boat.</div>';
+    return;
+  }
+
+  let totalPaid=0, outstandingCount=0;
+  const fmtDate=d=>new Date(d+'T12:00:00Z').toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'});
+  const club=window.CLUB?.name||'Sailing Club';
+  const today=new Date().toLocaleDateString('en-IE',{day:'numeric',month:'long',year:'numeric'});
+  const shareLines=[];
+
+  let html='';
+  for(const r of regs){
+    const pay=payMap[r.race_key];
+    const dateStr=fmtDate(r.race_date);
+    if(pay){
+      totalPaid+=pay.total;
+      const methods=[...pay.methods].join(' / ')||'—';
+      const crewNote=pay.count>1?` · ${pay.count} crew`:'';
+      shareLines.push(`✓ ${r.race_name} (${dateStr}) — €${pay.total} ${methods}`);
+      html+=`
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)">
+          <div style="color:#4caf50;font-size:1.1rem;margin-top:1px;flex-shrink:0">✓</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.race_name}</div>
+            <div style="font-size:.78rem;color:var(--muted);margin-top:1px">${dateStr}${crewNote}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;color:#4caf50">€${pay.total}</div>
+            <div style="font-size:.73rem;color:var(--muted)">${methods}</div>
+          </div>
+        </div>`;
+    } else {
+      outstandingCount++;
+      shareLines.push(`⚠ ${r.race_name} (${dateStr}) — no payment recorded`);
+      html+=`
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)">
+          <div style="color:#f59e0b;font-size:1.1rem;margin-top:1px;flex-shrink:0">⚠</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.race_name}</div>
+            <div style="font-size:.78rem;color:var(--muted);margin-top:1px">${dateStr}</div>
+          </div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;color:#f59e0b;flex-shrink:0">Outstanding</div>
+        </div>`;
+    }
+  }
+
+  // Summary footer
+  html+=`
+    <div style="margin-top:14px;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,.04);border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:.85rem;color:var(--muted)">Total paid</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;color:#4caf50">€${totalPaid}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between">
+        <span style="font-size:.85rem;color:var(--muted)">Races outstanding</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;color:${outstandingCount?'#f59e0b':'#4caf50'}">${outstandingCount}</span>
+      </div>
+    </div>`;
+
+  body.innerHTML=html;
+
+  // Pre-build share text so shareFeeStatement() doesn't need to scrape the DOM
+  feeStmtShareText=`${club} — Race Fee Statement\nBoat: ${boat.name}\nGenerated: ${today}\n\n${shareLines.join('\n')}\n\nTotal paid: €${totalPaid} | Outstanding races: ${outstandingCount}`;
+}
+
+function shareFeeStatement(){
+  if(!feeStmtShareText){toast('Nothing to share yet');return;}
+  const boat=boats.find(b=>b.id===feeStmtBoatId)||{name:'Boat'};
+  if(navigator.share){
+    navigator.share({title:`${boat.name} Fee Statement`,text:feeStmtShareText}).catch(()=>{});
+  } else {
+    navigator.clipboard?.writeText(feeStmtShareText)
+      .then(()=>toast('Statement copied to clipboard'))
+      .catch(()=>toast('Copy not supported — try long-pressing the text'));
   }
 }
 

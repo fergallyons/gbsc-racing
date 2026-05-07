@@ -337,6 +337,11 @@
       <div class="dash-card-label">Pay Race Fees</div>
       <div class="dash-card-sub">Crew Fees</div>
     </div>
+    <div class="dash-card" onclick="openFeeStatement()">
+      <div class="dash-card-icon">📋</div>
+      <div class="dash-card-label">Fee History</div>
+      <div class="dash-card-sub">My payment record</div>
+    </div>
     <div class="dash-card" onclick="openWeatherPanel()">
       <div class="dash-card-icon">🌬️</div>
       <div class="dash-card-label">Race Weather</div>
@@ -450,6 +455,11 @@
       <div class="dash-card-icon">🏆</div>
       <div class="dash-card-label">Publish Results</div>
       <div class="dash-card-sub" id="roResultsStatus">—</div>
+    </div>
+    <div class="dash-card ro-card" onclick="openFeeStatement()">
+      <div class="dash-card-icon">📋</div>
+      <div class="dash-card-label">Fee Statements</div>
+      <div class="dash-card-sub">Per-boat payment history</div>
     </div>
   </div>
   <div style="margin-top:12px">
@@ -1044,6 +1054,28 @@
     <span class="panel-title" id="selfPayTitle">💰 Pay My Fee</span>
   </div>
   <div class="panel-body" id="selfPayBody"></div>
+</div>
+
+<!-- feeStatementPanel — Per-boat payment history -->
+<div class="panel-overlay" id="feeStatementPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="document.getElementById('feeStatementPanel').style.display='none'">‹</button>
+    <span class="panel-title" id="feeStmtTitle">📋 Fee Statement</span>
+    <button onclick="shareFeeStatement()" style="display:flex;align-items:center;gap:5px;
+      font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;
+      padding:5px 10px;border-radius:8px;border:1px solid rgba(0,188,212,.4);
+      background:rgba(0,188,212,.1);color:var(--teal);cursor:pointer;letter-spacing:.04em;">
+      <span style="font-size:.95rem">↑</span> Share
+    </button>
+  </div>
+  <div class="panel-body">
+    <select id="feeStmtBoatSel" style="display:none;width:100%;padding:10px 12px;border-radius:10px;
+      border:1px solid var(--teal);background:rgba(0,188,212,.06);color:var(--fg);
+      font-size:.95rem;font-family:inherit;margin-bottom:14px"
+      onchange="feeStmtBoatId=this.value;renderFeeStatement()">
+    </select>
+    <div id="feeStmtBody"></div>
+  </div>
 </div>
 
 <div class="overlay" id="shareSheet">
