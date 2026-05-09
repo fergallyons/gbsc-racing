@@ -1905,7 +1905,11 @@ async function loadClubSettings(){
   applyAllFeatureVisibility();
 }
 function applyAllFeatureVisibility(){
-  const f=(clubSettings&&clubSettings.features)||{};
+  // Use DB-loaded features if available; fall back to the fast-apply localStorage cache.
+  let f=(clubSettings&&clubSettings.features);
+  if(!f||typeof f!=='object'){
+    try{ f=JSON.parse(localStorage.getItem('__features__')||'{}'); }catch(e){ f={}; }
+  }
   Object.keys(FEAT_TILE_MAP).forEach(key=>{
     const def=FEAT_DEFAULTS[key]!==undefined?FEAT_DEFAULTS[key]:true;
     const on=f[key]!==undefined?!!f[key]:def;
