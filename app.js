@@ -877,8 +877,10 @@ function initRoFeatures(){
 }
 
 // ── RO Features Admin Panel ───────────────────────────────────────────────────
-function openRoFeaturesPanel(){
+async function openRoFeaturesPanel(){
   openPanel('roFeaturesPanel');
+  const fresh=await sbLoadClubSettings();
+  if(fresh){ clubSettings=fresh; try{localStorage.setItem('__club_settings__',JSON.stringify(fresh));}catch(e){} }
   renderFeaturesPanel();
 }
 function renderFeaturesPanel(){
