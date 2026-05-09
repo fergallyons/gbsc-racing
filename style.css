@@ -137,11 +137,11 @@ header{background:rgba(36,61,115,.97);border-bottom:1px solid var(--border);
 .app-logo-fb2{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;
   letter-spacing:.05em;display:none;}
 .logo-div{width:1px;height:26px;background:var(--border);}
-.logo-text-stack{display:flex;flex-direction:column;gap:0px;}
-.logo-sub{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.95rem;
-  letter-spacing:.1em;text-transform:uppercase;color:var(--teal);line-height:1.2;}
-.logo-sub-full{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.78rem;
-  letter-spacing:.06em;color:var(--muted);text-transform:uppercase;line-height:1.2;}
+.logo-text-stack{display:flex;flex-direction:column;gap:1px;}
+.logo-sub{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.25rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--white);line-height:1.1;}
+.logo-sub-full{font-family:'Barlow Condensed',sans-serif;font-weight:500;font-size:.82rem;
+  letter-spacing:.1em;color:rgba(255,255,255,.55);text-transform:uppercase;line-height:1.2;}
 .hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .badge{background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;
   font-weight:700;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;
