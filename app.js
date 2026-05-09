@@ -4337,7 +4337,10 @@ function getCourseState(){
   // pending — within pre-race window but course not yet published today
   // stale   — outside pre-race window, showing a previous course for reference
   // live    — course published within the pre-race window; treat as today's course
-  if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length) return 'none';
+  if(!publishedCourse) return 'none';
+  const hasMarks=publishedCourse.marks&&publishedCourse.marks.length;
+  const hasCourseCard=publishedCourse.courseNumber&&Array.isArray(publishedCourse.rounds)&&publishedCourse.rounds.length;
+  if(!hasMarks&&!hasCourseCard) return 'none';
   const now=new Date();
   const windowMs=(clubSettings.pre_race_window_hours||12)*3600000;
   const hoursToRace=nextRace?(nextRace.date-now):Infinity;
@@ -4358,7 +4361,10 @@ function downloadCourseGpx(source){
     if(!courseMarks.length){toast('Add at least one mark first');return;}
     markEntries=courseMarks;
   } else {
-    if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){toast('No course published yet');return;}
+    if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){
+      toast(publishedCourse&&publishedCourse.courseNumber?'Course card courses have no GPX — marks not plotted':'No course published yet');
+      return;
+    }
     markEntries=(publishedCourse.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
   }
 
@@ -4672,8 +4678,8 @@ function renderCourseDiagram(targetId){
   const c=publishedCourse;
 
   // ── Course card (RCYC) rendering path — round-by-round text display ──────────
-  const rounds=c.rounds||(Array.isArray(c.rounds)?c.rounds:null);
-  if(rounds&&rounds.length&&c.courseNumber){
+  const rounds=Array.isArray(c.rounds)&&c.rounds.length?c.rounds:null;
+  if(rounds&&c.courseNumber){
     const windDegDisp2=c.windDeg!=null?c.windDeg+'° '+c.windDir:'—';
     const lastDist=rounds[rounds.length-1].distance_nm;
     const gwNote=rounds.some(r=>r.note)
