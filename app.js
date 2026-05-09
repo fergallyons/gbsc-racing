@@ -1359,6 +1359,7 @@ async function checkPin(){
     const correct=getRoPin();
     if(pinEntry===correct){
       closePinOverlay();
+      await _settingsReady;
       enterApp({id:'ro',name:'Race Officer',icon:'🎌'},true);
     } else {
       errEl.textContent='Incorrect PIN';
@@ -1378,6 +1379,7 @@ async function checkPin(){
   if(pinEntry===correct){
     errEl.textContent='';
     closePinOverlay();
+    await _settingsReady;
     const b=boats.find(x=>x.id===ctx);
     if(b) enterApp(b,false).then(()=>{
       if(correct==='0000') showDefaultPinModal();
@@ -6820,7 +6822,7 @@ loadWindWidget();
   }catch(e){}
 })();
 // Load club settings first so the pay page has stripe links available, then check hash
-loadClubSettings().then(()=>{updateEstellaLink();checkPayHash();});
+const _settingsReady=loadClubSettings().then(()=>{updateEstellaLink();checkPayHash();});
 showTab('registeredTab', null);
 // Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
 loadRaceSchedule().then(()=>{
