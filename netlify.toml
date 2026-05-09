@@ -6,6 +6,10 @@
   path = "/club-config.js"
   function = "club-config"
 
+[[edge_functions]]
+  path = "/manifest.json"
+  function = "manifest"
+
 # Stripe Payment Link success redirect — Stripe sends crew back here after card payment
 [[redirects]]
   from = "/stripe-success"

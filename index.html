@@ -159,27 +159,27 @@
   <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:14px" onclick="registerForRace()">⛵ Register for This Race</button>
   <!-- 2-column tile grid — crew & fees only (course/results/calendar/docs are on the public home) -->
   <div class="dash-grid">
-    <div class="dash-card" onclick="openPanel('crewPanel')">
+    <div id="tile-sk-crew" class="dash-card" onclick="openPanel('crewPanel')">
       <div class="dash-card-icon">👥</div>
       <div class="dash-card-label">Crew Roster</div>
       <div class="dash-card-sub" id="dc-crew-badge">0 selected</div>
     </div>
-    <div class="dash-card" onclick="openRaceFeesPanel()">
+    <div id="tile-sk-fees" class="dash-card" onclick="openFeePanel()">
       <div class="dash-card-icon">💳</div>
-      <div class="dash-card-label">Race Fees</div>
+      <div class="dash-card-label" id="dc-fees-label">Race Fees</div>
       <div class="dash-card-sub" id="dc-fees-badge">Collect &amp; submit</div>
     </div>
-    <div class="dash-card" onclick="openProtestSheet()">
+    <div id="tile-sk-protest" class="dash-card" onclick="openProtestSheet()">
       <div class="dash-card-icon">🚩</div>
       <div class="dash-card-label">File Protest</div>
       <div class="dash-card-sub">Under RRS Rule 61</div>
     </div>
-    <div class="dash-card" onclick="openSettingsSheet()">
+    <div id="tile-sk-settings" class="dash-card" onclick="openSettingsSheet()">
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Settings</div>
       <div class="dash-card-sub">Revolut username</div>
     </div>
-    <div class="dash-card" onclick="openFeeStatement()">
+    <div id="tile-sk-feeHistory" class="dash-card" onclick="openFeeStatement()">
       <div class="dash-card-icon">📋</div>
       <div class="dash-card-label">Fee History</div>
       <div class="dash-card-sub">My payment record</div>
@@ -189,6 +189,59 @@
     <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px;opacity:0.55" onclick="openHelpSheet()">❓ Help &amp; Setup</button>
   </div>
 </div><!-- /feesTab -->
+
+<!-- ═══ DECLARATION GATE — skipper safety declaration (RCYC) ═══ -->
+<!-- This panel has no back button — it must be completed before the app is usable -->
+<div class="panel-overlay" id="declarationPanel" style="display:none">
+  <div class="panel-header">
+    <span class="panel-title" style="margin:0 auto">📋 Skipper Declaration</span>
+  </div>
+  <div class="panel-body">
+    <div style="background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.3);border-radius:10px;padding:12px 14px;margin-bottom:18px;font-size:.82rem;color:var(--gold);line-height:1.5">
+      Before racing each season, every skipper must confirm they have read the current Sailing Instructions, Racing Rules of Sailing, and Club Safety Documents, and accept responsibility for their vessel and crew.
+    </div>
+
+    <div style="margin-bottom:14px">
+      <label style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:4px">Boat</label>
+      <div id="declBoatName" style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--white)">—</div>
+    </div>
+
+    <div style="margin-bottom:14px">
+      <label style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:4px">Skipper Name</label>
+      <input id="declSkipperName" type="text" placeholder="First and last name"
+        style="width:100%;padding:10px 12px;border-radius:9px;border:1px solid var(--border);background:var(--navy);color:var(--white);font-size:.95rem;box-sizing:border-box">
+    </div>
+
+    <div id="declDocLinks" style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:6px"></div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px">
+      <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer">
+        <input type="checkbox" id="declReadSIs" style="margin-top:3px;accent-color:var(--teal);width:18px;height:18px;flex-shrink:0">
+        <span style="font-size:.88rem;color:var(--fg);line-height:1.5">I confirm I have read and understood the current <strong>Sailing Instructions</strong></span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer">
+        <input type="checkbox" id="declReadRRS" style="margin-top:3px;accent-color:var(--teal);width:18px;height:18px;flex-shrink:0">
+        <span style="font-size:.88rem;color:var(--fg);line-height:1.5">I confirm I have read and understood the <strong>Racing Rules of Sailing (RRS)</strong></span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer">
+        <input type="checkbox" id="declReadSafety" style="margin-top:3px;accent-color:var(--teal);width:18px;height:18px;flex-shrink:0">
+        <span style="font-size:.88rem;color:var(--fg);line-height:1.5">I confirm I have read and understood the Club <strong>Safety Policy and Standing Instructions</strong></span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer">
+        <input type="checkbox" id="declAccept" style="margin-top:3px;accent-color:var(--teal);width:18px;height:18px;flex-shrink:0">
+        <span style="font-size:.88rem;color:var(--fg);line-height:1.5">I <strong>accept full responsibility</strong> for the safety and seaworthiness of my vessel and crew, and that all crew hold qualifications required by the Sailing Instructions</span>
+      </label>
+    </div>
+
+    <button id="declSubmitBtn" onclick="submitDeclaration()"
+      class="btn btn-primary" style="width:100%;padding:13px;font-size:1rem">
+      Sign &amp; Continue
+    </button>
+    <div style="text-align:center;margin-top:10px;font-size:.75rem;color:var(--muted)">
+      This declaration is recorded against your boat for the <span id="declYear"></span> season.
+    </div>
+  </div>
+</div>
 
 <!-- ═══ PANEL: COURSE ═══ -->
 <div class="panel-overlay" id="coursePanel" style="display:none">
@@ -332,27 +385,27 @@
       <div class="dash-card-label">Course</div>
       <div class="dash-card-sub">Today's course</div>
     </div>
-    <div class="dash-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
+    <div id="tile-pub-results" class="dash-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
       <div class="dash-card-icon">🏆</div>
       <div class="dash-card-label">Results</div>
       <div class="dash-card-sub">Series standings</div>
     </div>
-    <div class="dash-card" onclick="openSelfPayPanel()">
+    <div id="tile-pub-selfPay" class="dash-card" onclick="openSelfPayPanel()">
       <div class="dash-card-icon">💰</div>
       <div class="dash-card-label">Pay Race Fees</div>
       <div class="dash-card-sub">Crew Fees</div>
     </div>
-    <div class="dash-card" onclick="openWeatherPanel()">
+    <div id="tile-pub-weather" class="dash-card" onclick="openWeatherPanel()">
       <div class="dash-card-icon">🌬️</div>
       <div class="dash-card-label">Race Weather</div>
       <div class="dash-card-sub" id="wx-tile-sub">Wind, tide &amp; forecast</div>
     </div>
-    <div class="dash-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
+    <div id="tile-pub-calendar" class="dash-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
       <div class="dash-card-icon">📅</div>
       <div class="dash-card-label">Calendar</div>
       <div class="dash-card-sub">Race schedule</div>
     </div>
-    <div class="dash-card" onclick="openPanel('docsPanel');loadAndRenderDocs()">
+    <div id="tile-pub-documents" class="dash-card" onclick="openPanel('docsPanel');loadAndRenderDocs()">
       <div class="dash-card-icon">📄</div>
       <div class="dash-card-label">Documents</div>
       <div class="dash-card-sub">Sailing instructions</div>
@@ -394,72 +447,83 @@
       <div class="dash-card-label">Course Builder</div>
       <div class="dash-card-sub" id="roCourseStatus">Not published</div>
     </div>
-    <div class="dash-card ro-card" onclick="openPanel('roCourseViewPanel')">
+    <!-- Course Card tile — shown only when FEAT.courseCard is true (RCYC) -->
+    <div id="roCourseCardTile" class="dash-card ro-card" style="display:none" onclick="openCourseCardPanel()">
+      <div class="dash-card-icon">📋</div>
+      <div class="dash-card-label">Course Card</div>
+      <div class="dash-card-sub">Pick a numbered course</div>
+    </div>
+    <div id="tile-ro-viewCourse" class="dash-card ro-card" onclick="openPanel('roCourseViewPanel')">
       <div class="dash-card-icon">📐</div>
       <div class="dash-card-label">View Course</div>
       <div class="dash-card-sub">Published diagram</div>
     </div>
-    <div class="dash-card ro-card" onclick="openPanel('roRegsPanel')">
+    <div id="tile-ro-registrations" class="dash-card ro-card" onclick="openPanel('roRegsPanel')">
       <div class="dash-card-icon">⛵</div>
       <div class="dash-card-label">Registrations</div>
       <div class="dash-card-sub" id="roRegsStatus">No registrations yet</div>
     </div>
-    <div class="dash-card ro-card" onclick="openPanel('roMarksPanel')">
+    <div id="tile-ro-marksManager" class="dash-card ro-card" onclick="openPanel('roMarksPanel')">
       <div class="dash-card-icon">📍</div>
       <div class="dash-card-label">Marks Manager</div>
       <div class="dash-card-sub">Toggle &amp; add marks</div>
     </div>
-    <div class="dash-card ro-card" onclick="openPanel('roProtestsPanel')">
+    <div id="tile-ro-protests" class="dash-card ro-card" onclick="openPanel('roProtestsPanel')">
       <div class="dash-card-icon">🚩</div>
       <div class="dash-card-label">Protests</div>
       <div class="dash-card-sub" id="roProtestsStatus">None filed</div>
     </div>
     <!-- Fees & admin -->
-    <div class="dash-card ro-card" onclick="generatePaymentReport()">
+    <div id="tile-ro-paymentReport" class="dash-card ro-card" onclick="generatePaymentReport()">
       <div class="dash-card-icon">💰</div>
       <div class="dash-card-label">Payment Report</div>
       <div class="dash-card-sub">Generate PDF</div>
     </div>
-    <div class="dash-card ro-card" onclick="openPanel('roBoatsPanel')">
+    <div id="tile-ro-boatMgmt" class="dash-card ro-card" onclick="openPanel('roBoatsPanel')">
       <div class="dash-card-icon">🔑</div>
       <div class="dash-card-label">Boat Management</div>
       <div class="dash-card-sub">Manage boats &amp; PINs</div>
     </div>
     <!-- Settings -->
-    <div class="dash-card ro-card" onclick="openROClubSettings()">
+    <div id="tile-ro-clubSettings" class="dash-card ro-card" onclick="openROClubSettings()">
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Club Settings</div>
       <div class="dash-card-sub">Payment links</div>
     </div>
-    <div class="dash-card ro-card" onclick="openRaceSchedulePanel()">
+    <div id="tile-ro-raceSchedule" class="dash-card ro-card" onclick="openRaceSchedulePanel()">
       <div class="dash-card-icon">📅</div>
       <div class="dash-card-label">Race Schedule</div>
       <div class="dash-card-sub" id="roRaceScheduleSub">Manage races</div>
     </div>
-    <div class="dash-card ro-card" onclick="loadUsageStats()">
+    <div id="tile-ro-usageStats" class="dash-card ro-card" onclick="loadUsageStats()">
       <div class="dash-card-icon">📊</div>
       <div class="dash-card-label">Usage Stats</div>
       <div class="dash-card-sub">Sessions &amp; logins</div>
     </div>
-    <div class="dash-card ro-card" onclick="openStartTimer()">
+    <div id="tile-ro-startTimer" class="dash-card ro-card" onclick="openStartTimer()">
       <div class="dash-card-icon">🔔</div>
       <div class="dash-card-label">Start Timer</div>
       <div class="dash-card-sub" id="startTimerSub">Voice Sail Start Timer</div>
     </div>
-    <div class="dash-card ro-card" onclick="openHalsail()">
+    <div id="tile-ro-halsail" class="dash-card ro-card" onclick="openHalsail()">
       <div class="dash-card-icon">🏁</div>
       <div class="dash-card-label">Halsail</div>
       <div class="dash-card-sub">Record finishers</div>
     </div>
-    <div class="dash-card ro-card" onclick="publishResults()">
+    <div id="tile-ro-publishResults" class="dash-card ro-card" onclick="publishResults()">
       <div class="dash-card-icon">🏆</div>
       <div class="dash-card-label">Publish Results</div>
       <div class="dash-card-sub" id="roResultsStatus">—</div>
     </div>
-    <div class="dash-card ro-card" onclick="openFeeStatement()">
+    <div id="tile-ro-feeStatements" class="dash-card ro-card" onclick="openFeeStatement()">
       <div class="dash-card-icon">📋</div>
       <div class="dash-card-label">Fee Statements</div>
       <div class="dash-card-sub">Per-boat payment history</div>
+    </div>
+    <div id="tile-ro-features" class="dash-card ro-card" onclick="openRoFeaturesPanel()">
+      <div class="dash-card-icon">🧩</div>
+      <div class="dash-card-label">Features</div>
+      <div class="dash-card-sub">Club feature toggles</div>
     </div>
   </div>
   <div style="margin-top:12px">
@@ -599,6 +663,43 @@
       <button class="btn btn-ghost" style="padding:12px 14px" title="Download GPX" onclick="downloadCourseGpx('builder')">⬇ GPX</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="clearCourse()">Clear</button>
     </div>
+  </div>
+</div>
+
+<!-- roFeaturesPanel — Club Feature Admin -->
+<div class="panel-overlay" id="roFeaturesPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roFeaturesPanel')">‹</button>
+    <span class="panel-title">🧩 Features</span>
+  </div>
+  <div class="panel-body">
+    <p style="color:var(--muted);font-size:.82rem;margin-bottom:8px">
+      Configure which features and tiles are active for this club.
+      Changes are saved to the database and take effect immediately for all users.
+    </p>
+    <div id="roFeaturesPanelBody"></div>
+  </div>
+</div>
+
+<!-- roCourseCardPanel — Course Card picker (RCYC) -->
+<div class="panel-overlay" id="roCourseCardPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roCourseCardPanel')">‹</button>
+    <span class="panel-title">📋 Course Card</span>
+  </div>
+  <div class="panel-body">
+    <div style="margin-bottom:10px">
+      <input type="search" placeholder="Filter by number or wind direction…"
+        oninput="renderCourseCardList(this.value)"
+        style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--navy);color:var(--white);font-size:.9rem;box-sizing:border-box">
+    </div>
+    <div class="ro-row" style="margin-bottom:14px">
+      <label style="font-size:.85rem">Notes</label>
+      <textarea id="courseCardNotes" rows="2" placeholder="e.g. Start 18:30 · Time limit 2.5 hrs"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px;resize:vertical;min-height:44px"></textarea>
+    </div>
+    <div id="courseCardPreview" style="margin-bottom:14px"></div>
+    <div id="courseCardList"></div>
   </div>
 </div>
 
@@ -1032,6 +1133,17 @@
     <span class="panel-title">💳 Race Fees</span>
   </div>
   <div class="panel-body" id="raceFeesBody"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SERIES FEES PANEL — per-series payment tracking (RCYC)
+════════════════════════════════════════════════════════════ -->
+<div class="panel-overlay" id="seriesFeesPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('seriesFeesPanel')">‹</button>
+    <span class="panel-title">💳 Series Fees</span>
+  </div>
+  <div class="panel-body" id="seriesFeesBody"></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════

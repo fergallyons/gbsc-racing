@@ -39,9 +39,35 @@
  *         "logo":"https://...","url":"https://galwaymaritime.com"},
  *        {"match":"mcswiggans","name":"McSwiggans","tagline":"Steak & Seafood Restaurant",
  *         "logo":"https://...","url":"https://mcswiggans.ie"}
- *      ]
+ *      ],
+ *      "features": {
+ *        "feeModel":    "per-race",   // "per-race" (default/GBSC) | "per-series" (RCYC)
+ *        "declaration": false,        // true = skipper must sign safety declaration each season
+ *        "courseCard":  false,        // true = RO picks from predefined course card (RCYC)
+ *        "hide": [                    // tiles/features to suppress from the UI (omit = show all)
+ *          "startTimer",             //   RO: voice sail start timer (GBSC-specific)
+ *          "halsail",                //   RO: Halsail finisher recording (GBSC-specific)
+ *          "paymentReport",          //   RO: per-race PDF payment report
+ *          "marksManager",           //   RO: marks toggle & add panel
+ *          "publishResults",         //   RO: results embargo / publish toggle
+ *          "usageStats",             //   RO: session & login stats
+ *          "feeStatements",          //   RO + Skipper: per-boat fee history
+ *          "feeHistory",             //   Skipper only: fee history tile
+ *          "selfPay",                //   Public: crew self-pay tile
+ *          "weather",                //   Public: race weather tile
+ *          "calendar",               //   Public: race calendar tile
+ *          "documents",              //   Public: sailing instructions tile
+ *          "results"                 //   Public: results / standings tile
+ *        ]
+ *      },
+ *      "declarationDocs": {           // only used when features.declaration = true
+ *        "sis":    "https://www.royalcork.com/notice-board/",
+ *        "rrs":    "https://www.racingrulesofsailing.org/",
+ *        "safety": "https://www.royalcork.com/notice-board/"
+ *      }
  *    }
  *    Note: "match" strings are compiled to RegExp(/match/i) in app.js.
+ *    Note: "features" is optional — omit for default GBSC behaviour.
  *
  * ── Adding a new club ────────────────────────────────────────────────────
  *  1. Add entries to HOSTNAME_MAP for the new club's domain(s).

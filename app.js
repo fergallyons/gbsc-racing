@@ -79,7 +79,7 @@ async function sbSaveBoatConfig(id,fields){
   });
 }
 async function sbLoadClubSettings(){
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours,estella_url,worldtides_key');
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours,estella_url,worldtides_key,features');
   if(!r||r._err){
     console.error('sbLoadClubSettings failed — columns may be missing from settings table. Run: ALTER TABLE settings ADD COLUMN IF NOT EXISTS stripe_link_member text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_student text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_visitor text DEFAULT \'\', ADD COLUMN IF NOT EXISTS pre_race_window_hours int DEFAULT 12;',r);
     return null;
@@ -224,7 +224,10 @@ async function sbSaveCourse(course){
     notes: course.notes||'',
     published_at: course.published_at,
     start_line_id: course.startLineId||'club',
-    finish_line_id: course.finishLineId||'club'
+    finish_line_id: course.finishLineId||'club',
+    // Course card fields (RCYC) — null for traditional mark-builder courses
+    course_number: course.courseNumber||null,
+    rounds: course.rounds||null
   };
   try{
     const r=await fetch(SB_URL+'/rest/v1/published_courses',{
@@ -252,6 +255,8 @@ async function sbLoadCourse(){
   // Normalise: marks may come back as a jsonb array or a JSON string
   let marks=row.marks||[];
   if(typeof marks==='string'){try{marks=JSON.parse(marks);}catch(e){marks=[];}}
+  let rounds=row.rounds||null;
+  if(typeof rounds==='string'){try{rounds=JSON.parse(rounds);}catch(e){rounds=null;}}
   return{
     id: row.id,
     name: row.name,
@@ -262,8 +267,52 @@ async function sbLoadCourse(){
     notes: row.notes||'',
     published_at: row.published_at,
     startLineId: row.start_line_id||'club',
-    finishLineId: row.finish_line_id||'club'
+    finishLineId: row.finish_line_id||'club',
+    courseNumber: row.course_number||null,
+    rounds
   };
+}
+
+// ── Skipper declarations (RCYC feature) ──────────────────────────────────────
+async function sbLoadDeclaration(boatId, season){
+  const r=await sbFetch('/rest/v1/skipper_declarations?boat_id=eq.'+boatId+'&season=eq.'+season+'&limit=1');
+  if(!r||!r.length) return null;
+  return r[0];
+}
+async function sbSaveDeclaration(boatId, skipperName, season){
+  return sbFetch('/rest/v1/skipper_declarations?on_conflict=boat_id,season',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify({
+      boat_id:boatId, skipper_name:skipperName, season,
+      read_sis:true, read_rrs:true, read_safety:true, accept_responsibility:true,
+      declared_at:new Date().toISOString()
+    })
+  });
+}
+
+// ── Course card (RCYC feature) ────────────────────────────────────────────────
+async function sbLoadCourseCard(){
+  const r=await sbFetch('/rest/v1/course_card_courses?order=number.asc');
+  if(!r||r._err) return [];
+  return r;
+}
+
+// ── Series fees (RCYC feature) ────────────────────────────────────────────────
+async function sbLoadSeriesFees(boatId, season){
+  const r=await sbFetch('/rest/v1/series_fees?boat_id=eq.'+boatId+'&season=eq.'+season+'&order=paid_at.asc');
+  if(!r||r._err) return [];
+  return r;
+}
+async function sbSaveSeriesFee(boatId, seriesName, season, amount, method, notes){
+  return sbFetch('/rest/v1/series_fees',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({boat_id:boatId,series_name:seriesName,season,amount,method,notes:notes||null,paid_at:new Date().toISOString()})
+  });
+}
+async function sbDeleteSeriesFee(id){
+  return sbFetch('/rest/v1/series_fees?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
 }
 function setSyncStatus(s){const el=document.getElementById('syncStatus');if(!el)return;if(s==='syncing'){el.textContent='⏳';el.style.color='var(--gold)';}else if(s==='ok'){el.textContent='☁';el.style.color='var(--success)';setTimeout(()=>{el.textContent='';},3000);}else{el.textContent='⚠';el.style.color='var(--warn)';}}
 
@@ -360,6 +409,96 @@ const VISITOR_MAX=_C.visitorMax||6;
 const CREW_MAX_YRS=_C.crewMaxYrs||2;
 const CY=new Date().getFullYear();
 const RO_PIN=_C.roPin||'0000';
+
+// ── Per-club feature flags ────────────────────────────────────────────────────
+// Sourced from window.CLUB.features; safe defaults preserve existing GBSC behaviour.
+// Behaviour flags — env var sets the initial value; DB overrides via applyAllFeatureVisibility().
+const FEAT={
+  feeModel:    (_C.features&&_C.features.feeModel)||'per-race',  // 'per-race' | 'per-series'
+  declaration: !!(_C.features&&_C.features.declaration),         // true = skipper declaration gate
+  courseCard:  !!(_C.features&&_C.features.courseCard),          // true = RO course card picker
+};
+
+// Map from feature key → tile element IDs that applyAllFeatureVisibility() shows/hides.
+// A key can map to multiple tiles (e.g. 'feeStatements' controls both the RO and skipper tiles).
+const FEAT_TILE_MAP={
+  // RO tiles
+  startTimer:     ['tile-ro-startTimer'],
+  halsail:        ['tile-ro-halsail'],
+  paymentReport:  ['tile-ro-paymentReport'],
+  marksManager:   ['tile-ro-marksManager'],
+  publishResults: ['tile-ro-publishResults'],
+  usageStats:     ['tile-ro-usageStats'],
+  feeStatements:  ['tile-ro-feeStatements','tile-sk-feeHistory'],
+  viewCourse:     ['tile-ro-viewCourse'],
+  registrations:  ['tile-ro-registrations'],
+  protests:       ['tile-ro-protests'],
+  boatMgmt:       ['tile-ro-boatMgmt'],
+  clubSettings:   ['tile-ro-clubSettings'],
+  raceSchedule:   ['tile-ro-raceSchedule'],
+  // Skipper tiles
+  crew:           ['tile-sk-crew'],
+  fees:           ['tile-sk-fees'],
+  protest:        ['tile-sk-protest'],
+  boatSettings:   ['tile-sk-settings'],
+  feeHistory:     ['tile-sk-feeHistory'],
+  // Public tiles
+  selfPay:        ['tile-pub-selfPay'],
+  weather:        ['tile-pub-weather'],
+  calendar:       ['tile-pub-calendar'],
+  documents:      ['tile-pub-documents'],
+  results:        ['tile-pub-results'],
+  // Additive-only tiles (hidden by default, DB turns them on)
+  courseCard:     ['roCourseCardTile'],
+};
+
+// Default visibility for each tile-mapped feature (true=shown, false=hidden by default).
+// DB features column overrides these at startup via applyAllFeatureVisibility().
+const FEAT_DEFAULTS={
+  startTimer:true, halsail:true, paymentReport:true, marksManager:true,
+  publishResults:true, usageStats:true, feeStatements:true, viewCourse:true,
+  registrations:true, protests:true, boatMgmt:true, clubSettings:true,
+  raceSchedule:true,
+  courseCard:false,
+  crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
+  selfPay:true, weather:true, calendar:true, documents:true, results:true,
+};
+// Feature catalog for the admin panel UI (rendered by renderFeaturesPanel).
+const FEAT_CATALOG=[
+  {key:'feeModel',    label:'Fee Model',               type:'select', options:['per-race','per-series'], group:'Behaviour'},
+  {key:'declaration', label:'Skipper Declaration Gate', type:'bool',                                     group:'Behaviour'},
+  {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
+  {key:'courseCard',     label:'Course Card Picker',    type:'bool', group:'RO Tiles'},
+  {key:'registrations',  label:'Registrations',         type:'bool', group:'RO Tiles'},
+  {key:'protests',       label:'Protests',              type:'bool', group:'RO Tiles'},
+  {key:'boatMgmt',       label:'Boat Management',       type:'bool', group:'RO Tiles'},
+  {key:'clubSettings',   label:'Club Settings',         type:'bool', group:'RO Tiles'},
+  {key:'raceSchedule',   label:'Race Schedule',         type:'bool', group:'RO Tiles'},
+  {key:'usageStats',     label:'Usage Stats',           type:'bool', group:'RO Tiles'},
+  {key:'startTimer',     label:'Start Timer',           type:'bool', group:'RO Tiles'},
+  {key:'halsail',        label:'Halsail',               type:'bool', group:'RO Tiles'},
+  {key:'publishResults', label:'Publish Results',       type:'bool', group:'RO Tiles'},
+  {key:'feeStatements',  label:'Fee Statements',        type:'bool', group:'RO Tiles'},
+  {key:'paymentReport',  label:'Payment Report',        type:'bool', group:'RO Tiles'},
+  {key:'marksManager',   label:'Marks Manager',         type:'bool', group:'RO Tiles'},
+  {key:'crew',         label:'Crew Roster',   type:'bool', group:'Skipper Tiles'},
+  {key:'fees',         label:'Fees',          type:'bool', group:'Skipper Tiles'},
+  {key:'protest',      label:'Protest',       type:'bool', group:'Skipper Tiles'},
+  {key:'boatSettings', label:'Boat Settings', type:'bool', group:'Skipper Tiles'},
+  {key:'feeHistory',   label:'Fee History',   type:'bool', group:'Skipper Tiles'},
+  {key:'selfPay',   label:'Self Pay',  type:'bool', group:'Public Tiles'},
+  {key:'weather',   label:'Weather',   type:'bool', group:'Public Tiles'},
+  {key:'calendar',  label:'Calendar',  type:'bool', group:'Public Tiles'},
+  {key:'documents', label:'Documents', type:'bool', group:'Public Tiles'},
+  {key:'results',   label:'Results',   type:'bool', group:'Public Tiles'},
+];
+// Tile visibility is applied after loadClubSettings() resolves — see applyAllFeatureVisibility().
+
+// Convenience: document links for the declaration form (RCYC-specific)
+const DECL_DOCS=Object.assign(
+  {sis:'',rrs:'https://www.racingrulesofsailing.org/',safety:''},
+  _C.declarationDocs||{}
+);
 
 let boats=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
 let roster=[], allRaces=[], selectedRace=null, nextRace=null;
@@ -671,6 +810,7 @@ async function enterApp(b,ro){
     buildPinMgmtList();
     buildRoReportDropdown();
     loadProtests();
+    initRoFeatures();
     return;
   }
   document.getElementById('crewList').innerHTML='<div class="empty-state"><div class="icon">⏳</div>Loading…</div>';
@@ -692,6 +832,9 @@ async function enterApp(b,ro){
   }
 
   showTab('feesTab', null);
+  // Update fee tile label to match the active fee model
+  const feesLbl=document.getElementById('dc-fees-label');
+  if(feesLbl) feesLbl.textContent=FEAT.feeModel==='per-series'?'Series Fees':'Race Fees';
   buildRaceDropdown();
   // Refresh registration state for this boat
   updateRegisterButton();
@@ -702,6 +845,8 @@ async function enterApp(b,ro){
   if(nextRace) await applyRaceAttendance(nextRace);
   // Load payment state so dashboard summary is correct from first render
   await loadAndApplyPayments(nextRace);
+  // Feature: declaration gate (RCYC) — must come last so UI is ready
+  if(FEAT.declaration) checkAndShowDeclaration();
 }
 function switchBoat(){
   sbEndSession(currentSessionId).catch(()=>{});
@@ -721,6 +866,362 @@ function switchBoat(){
   showTab('registeredTab', null);
   renderRegisteredTab();  // refresh starting line on return to home
 }
+
+// ═══════════════════════════════════════════════════════════════
+// PER-CLUB FEATURE MODULES
+// ═══════════════════════════════════════════════════════════════
+
+// ── RO feature initialisation ─────────────────────────────────────────────────
+function initRoFeatures(){
+  applyAllFeatureVisibility();
+}
+
+// ── RO Features Admin Panel ───────────────────────────────────────────────────
+function openRoFeaturesPanel(){
+  openPanel('roFeaturesPanel');
+  renderFeaturesPanel();
+}
+function renderFeaturesPanel(){
+  const f=(clubSettings&&clubSettings.features)||{};
+  const groups={};
+  FEAT_CATALOG.forEach(item=>{
+    if(!groups[item.group]) groups[item.group]=[];
+    groups[item.group].push(item);
+  });
+  let html='';
+  Object.keys(groups).forEach(group=>{
+    html+=`<div class="sec-head" style="margin-top:16px;margin-bottom:4px"><div class="sec-title">${group}</div></div>`;
+    groups[group].forEach(item=>{
+      if(item.type==='select'){
+        const val=f[item.key]!==undefined?f[item.key]:(FEAT_DEFAULTS[item.key]||item.options[0]);
+        const opts=item.options.map(o=>`<option value="${o}"${val===o?' selected':''}>${o}</option>`).join('');
+        html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.9rem;color:var(--white)">${item.label}</span>
+          <select onchange="saveFeatureSetting('${item.key}',this.value)"
+            style="background:var(--navy);color:var(--white);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:.85rem;cursor:pointer">
+            ${opts}
+          </select>
+        </div>`;
+      } else {
+        const def=FEAT_DEFAULTS[item.key]!==undefined?FEAT_DEFAULTS[item.key]:true;
+        const on=f[item.key]!==undefined?!!f[item.key]:def;
+        html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+          <span style="font-size:.9rem;color:var(--white)">${item.label}${!def?' <span style="font-size:.7rem;color:var(--muted)">(off by default)</span>':''}</span>
+          <input type="checkbox" ${on?'checked':''} onchange="saveFeatureSetting('${item.key}',this.checked)"
+            style="width:20px;height:20px;accent-color:#00aeef;cursor:pointer;flex-shrink:0">
+        </div>`;
+      }
+    });
+  });
+  document.getElementById('roFeaturesPanelBody').innerHTML=html;
+}
+async function saveFeatureSetting(key, value){
+  const f=Object.assign({}, (clubSettings&&clubSettings.features)||{}, {[key]:value});
+  clubSettings=Object.assign({}, clubSettings, {features:f});
+  const r=await sbSaveClubSettings({features:f});
+  if(r&&r._err){ toast('❌ Save failed'); return; }
+  applyAllFeatureVisibility();
+  toast('✅ Saved');
+}
+
+// ── Skipper Declaration (RCYC) ────────────────────────────────────────────────
+// Checks whether the current boat's skipper has signed the season declaration.
+// Uses localStorage as a fast cache; always verifies against Supabase on first check.
+async function checkAndShowDeclaration(){
+  if(!currentBoat||!FEAT.declaration) return;
+  const key='decl_'+(_C.slug||'club')+'_'+currentBoat.id+'_'+CY;
+  const cached=localStorage.getItem(key);
+  if(cached==='1') return; // already declared this season — skip DB check
+  // Try DB
+  const decl=await sbLoadDeclaration(currentBoat.id, CY);
+  if(decl){
+    try{localStorage.setItem(key,'1');}catch(e){}
+    return; // already on record
+  }
+  // Not declared — show the gate
+  openDeclarationPanel();
+}
+
+function openDeclarationPanel(){
+  const p=document.getElementById('declarationPanel');
+  if(!p) return;
+  // Render
+  const docsHtml=(sis,rrs,safety)=>`
+    <a href="${sis||'#'}" target="_blank" rel="noopener" style="color:var(--teal);font-size:.8rem">View Sailing Instructions ↗</a>
+    <a href="${rrs||'#'}" target="_blank" rel="noopener" style="color:var(--teal);font-size:.8rem;margin-left:12px">View RRS ↗</a>
+    <a href="${safety||'#'}" target="_blank" rel="noopener" style="color:var(--teal);font-size:.8rem;margin-left:12px">View Safety Documents ↗</a>
+  `;
+  document.getElementById('declBoatName').textContent=currentBoat.name;
+  const yrEl=document.getElementById('declYear'); if(yrEl) yrEl.textContent=CY;
+  document.getElementById('declDocLinks').innerHTML=docsHtml(DECL_DOCS.sis,DECL_DOCS.rrs,DECL_DOCS.safety);
+  // Reset form
+  ['declReadSIs','declReadRRS','declReadSafety','declAccept'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.checked=false;
+  });
+  const nameEl=document.getElementById('declSkipperName'); if(nameEl) nameEl.value='';
+  p.style.display='flex';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>p.classList.add('open')));
+}
+
+async function submitDeclaration(){
+  const nameEl=document.getElementById('declSkipperName');
+  const name=(nameEl&&nameEl.value.trim())||'';
+  if(!name){toast('Please enter the skipper name');return;}
+  const checks=['declReadSIs','declReadRRS','declReadSafety','declAccept'];
+  for(const id of checks){
+    const el=document.getElementById(id);
+    if(!el||!el.checked){toast('Please confirm all boxes');return;}
+  }
+  const btn=document.getElementById('declSubmitBtn');
+  if(btn){btn.disabled=true;btn.textContent='Submitting…';}
+  const ok=await sbSaveDeclaration(currentBoat.id,name,CY);
+  if(btn){btn.disabled=false;btn.textContent='Sign & Continue';}
+  if(ok&&!ok._err){
+    const key='decl_'+(_C.slug||'club')+'_'+currentBoat.id+'_'+CY;
+    try{localStorage.setItem(key,'1');}catch(e){}
+    const p=document.getElementById('declarationPanel');
+    if(p){p.classList.remove('open');setTimeout(()=>{p.style.display='none';},300);}
+    toast('✅ Declaration submitted — thank you');
+  } else {
+    toast('⚠ Could not save declaration — please try again');
+  }
+}
+
+// ── Course Card (RCYC) ────────────────────────────────────────────────────────
+let courseCardData=[]; // cached course card entries
+
+async function openCourseCardPanel(){
+  const p=document.getElementById('roCourseCardPanel');
+  if(!p) return;
+  p.style.display='flex';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>p.classList.add('open')));
+  if(!courseCardData.length) courseCardData=await sbLoadCourseCard();
+  renderCourseCardList();
+}
+
+function renderCourseCardList(filter){
+  const list=document.getElementById('courseCardList');
+  if(!list) return;
+  if(!courseCardData.length){
+    list.innerHTML='<div class="empty-state"><div class="icon">📋</div><div>No courses loaded</div></div>';
+    return;
+  }
+  const q=(filter||'').toLowerCase();
+  const visible=q?courseCardData.filter(c=>String(c.number).includes(q)||c.wind_direction.toLowerCase().includes(q)||(c.name||'').toLowerCase().includes(q)):courseCardData;
+  if(!visible.length){list.innerHTML='<div class="empty-state" style="padding:16px;color:var(--muted)">No matching courses</div>';return;}
+  // Group by wind direction
+  const groups={};
+  visible.forEach(c=>{
+    if(!groups[c.wind_direction]) groups[c.wind_direction]=[];
+    groups[c.wind_direction].push(c);
+  });
+  list.innerHTML=Object.entries(groups).map(([dir,courses])=>`
+    <div style="margin-bottom:14px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">
+        ${dir} Wind
+      </div>
+      ${courses.map(c=>{
+        const rounds=Array.isArray(c.rounds)?c.rounds:(typeof c.rounds==='string'?JSON.parse(c.rounds):[]);
+        const lastDist=rounds.length?rounds[rounds.length-1].distance_nm:'—';
+        return `<div onclick="selectCourseCardCourse(${c.number})"
+          style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;
+          padding:12px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .15s"
+          onmouseover="this.style.borderColor='var(--teal)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.05rem;font-weight:800;color:var(--white)">
+              Course ${c.number}${c.name?' — '+c.name:''}${c.grassy_walk_note?'<span style="font-size:.7rem;color:var(--gold);margin-left:6px">**GW</span>':''}
+            </span>
+            <span style="font-size:.8rem;color:var(--muted)">${lastDist} nm</span>
+          </div>
+          ${rounds.map(r=>`<div style="font-size:.8rem;color:var(--muted);margin-bottom:2px">
+            <span style="color:var(--teal);font-weight:700">${r.label}:</span> ${r.marks} <em style="color:rgba(255,255,255,.35)">(${r.distance_nm} nm)</em>
+          </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>
+  `).join('');
+}
+
+let selectedCourseCardEntry=null;
+
+function selectCourseCardCourse(number){
+  selectedCourseCardEntry=courseCardData.find(c=>c.number===number)||null;
+  if(!selectedCourseCardEntry) return;
+  const preview=document.getElementById('courseCardPreview');
+  if(!preview) return;
+  const rounds=Array.isArray(selectedCourseCardEntry.rounds)
+    ?selectedCourseCardEntry.rounds
+    :(typeof selectedCourseCardEntry.rounds==='string'?JSON.parse(selectedCourseCardEntry.rounds):[]);
+  const lastDist=rounds.length?rounds[rounds.length-1].distance_nm:'—';
+  const gwNote=selectedCourseCardEntry.grassy_walk_note
+    ?'<div style="font-size:.75rem;color:var(--gold);margin-top:6px">** When Grassy Walk line in use: insert Dosco (P) as Mark 1</div>':''
+  ;
+  preview.innerHTML=`
+    <div style="background:rgba(0,188,212,.08);border:1px solid rgba(0,188,212,.3);border-radius:10px;padding:14px;margin-bottom:12px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--white);margin-bottom:8px">
+        Course ${selectedCourseCardEntry.number}${selectedCourseCardEntry.name?' — '+selectedCourseCardEntry.name:''}
+        <span style="font-size:.8rem;font-weight:400;color:var(--muted);margin-left:8px">${selectedCourseCardEntry.wind_direction} Wind · ${lastDist} nm</span>
+      </div>
+      ${rounds.map(r=>`<div style="margin-bottom:5px">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--teal)">${r.label}:</span>
+        <span style="font-size:.88rem;color:var(--fg)"> ${r.marks}</span>
+        <span style="font-size:.78rem;color:var(--muted)"> (${r.distance_nm} nm)</span>
+      </div>`).join('')}
+      ${gwNote}
+    </div>
+    <button onclick="publishFromCourseCard()" class="btn btn-ro" style="width:100%;padding:12px">
+      🚀 Publish Course ${selectedCourseCardEntry.number} to Skippers
+    </button>
+  `;
+  preview.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+async function publishFromCourseCard(){
+  if(!selectedCourseCardEntry){toast('Select a course first');return;}
+  const rounds=Array.isArray(selectedCourseCardEntry.rounds)
+    ?selectedCourseCardEntry.rounds
+    :(typeof selectedCourseCardEntry.rounds==='string'?JSON.parse(selectedCourseCardEntry.rounds):[]);
+  const course={
+    id:'current',
+    name:'Course '+selectedCourseCardEntry.number+(selectedCourseCardEntry.name?' — '+selectedCourseCardEntry.name:''),
+    marks:[],  // course card courses use text descriptions, not individual lat/lng marks
+    windDeg,
+    windDir:selectedCourseCardEntry.wind_direction,
+    race_name:selectedRace?selectedRace.label:'',
+    notes:(document.getElementById('courseCardNotes')&&document.getElementById('courseCardNotes').value.trim())||'',
+    published_at:new Date().toISOString(),
+    startLineId:selectedStartLineId,
+    finishLineId:selectedFinishLineId,
+    courseNumber:selectedCourseCardEntry.number,
+    rounds
+  };
+  setSyncStatus('syncing');
+  const ok=await sbSaveCourse(course);
+  if(ok){
+    publishedCourse=course;
+    setSyncStatus('ok');
+    roDashCoursePublished=true;
+    updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+    updateHomeChips();
+    closePanel('roCourseCardPanel');
+    toast('✅ Course '+selectedCourseCardEntry.number+' published to all skippers!');
+  } else {
+    setSyncStatus('offline');
+    toast('⚠ Could not save course — check connection');
+  }
+}
+
+// ── Series Fees (RCYC) ────────────────────────────────────────────────────────
+// Routes the fee tile to the correct panel depending on feeModel.
+function openFeePanel(){
+  if(FEAT.feeModel==='per-series') openSeriesFeesPanel();
+  else openRaceFeesPanel();
+}
+
+async function openSeriesFeesPanel(){
+  const p=document.getElementById('seriesFeesPanel');
+  if(!p) return;
+  p.style.display='flex';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    p.classList.add('open');
+    renderSeriesFeesPanel();
+  }));
+}
+
+async function renderSeriesFeesPanel(){
+  const body=document.getElementById('seriesFeesBody');
+  if(!body) return;
+  body.innerHTML='<div style="text-align:center;padding:24px;color:var(--muted)">Loading…</div>';
+  if(!currentBoat){body.innerHTML='<div style="padding:16px;color:var(--warn)">No boat selected</div>';return;}
+  const fees=await sbLoadSeriesFees(currentBoat.id, CY);
+  // Get distinct series names from allRaces
+  const seriesNames=[...new Set(allRaces.map(r=>r.series).filter(Boolean))];
+
+  const paidSeriesNames=new Set(fees.map(f=>f.series_name));
+  body.innerHTML=`
+    <div style="margin-bottom:18px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">${CY} Series — Payment Status</div>
+      ${seriesNames.length?seriesNames.map(s=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.04);border:1px solid ${paidSeriesNames.has(s)?'rgba(45,198,83,.35)':'var(--border)'};border-radius:10px;padding:11px 14px;margin-bottom:6px">
+          <div>
+            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.95rem;color:var(--white)">${s}</div>
+            ${paidSeriesNames.has(s)?'<div style="font-size:.75rem;color:var(--success)">✓ Paid</div>':'<div style="font-size:.75rem;color:var(--muted)">Not yet recorded</div>'}
+          </div>
+          ${paidSeriesNames.has(s)
+            ?''
+            :`<button onclick="showSeriesPaymentForm('${s.replace(/'/g,"\\\'")}')"
+              style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;padding:6px 12px;border-radius:8px;background:var(--teal);color:#fff;border:none;cursor:pointer">
+              Record
+            </button>`
+          }
+        </div>
+      `).join('')
+      :'<div style="padding:16px;text-align:center;color:var(--muted);font-size:.85rem">No series found in schedule</div>'}
+    </div>
+    <div id="seriesPaymentFormDiv" style="display:none"></div>
+    ${fees.length?`
+      <div style="margin-top:10px">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Payment History</div>
+        ${fees.map(f=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <div>
+              <div style="font-size:.88rem;color:var(--fg)">${f.series_name}</div>
+              <div style="font-size:.75rem;color:var(--muted)">${f.method} · ${new Date(f.paid_at).toLocaleDateString('en-IE')}</div>
+            </div>
+            <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--success)">€${Number(f.amount).toFixed(2)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `:''}
+  `;
+}
+
+function showSeriesPaymentForm(seriesName){
+  const div=document.getElementById('seriesPaymentFormDiv');
+  if(!div) return;
+  div.style.display='block';
+  div.innerHTML=`
+    <div style="background:rgba(0,188,212,.07);border:1px solid rgba(0,188,212,.3);border-radius:10px;padding:14px;margin-bottom:12px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;margin-bottom:10px;color:var(--white)">Record payment for <em>${seriesName}</em></div>
+      <div class="ro-row" style="margin-bottom:8px">
+        <label style="min-width:70px;font-size:.85rem">Amount (€)</label>
+        <input id="sfAmount" type="number" step="0.01" min="0" placeholder="0.00"
+          style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--navy);color:var(--white);font-size:.9rem">
+      </div>
+      <div class="ro-row" style="margin-bottom:10px">
+        <label style="min-width:70px;font-size:.85rem">Method</label>
+        <select id="sfMethod" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--navy);color:var(--white);font-size:.9rem">
+          <option>Cash</option><option>Revolut</option><option>Card</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="confirmSeriesPayment('${seriesName.replace(/'/g,"\\\'")}')"
+          style="flex:1;padding:9px;border-radius:9px;background:var(--teal);color:#fff;border:none;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;cursor:pointer">
+          Save Payment
+        </button>
+        <button onclick="document.getElementById('seriesPaymentFormDiv').style.display='none'"
+          style="padding:9px 14px;border-radius:9px;background:transparent;color:var(--muted);border:1px solid var(--border);cursor:pointer">
+          Cancel
+        </button>
+      </div>
+    </div>
+  `;
+  div.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+async function confirmSeriesPayment(seriesName){
+  const amount=parseFloat(document.getElementById('sfAmount')?.value)||0;
+  const method=document.getElementById('sfMethod')?.value||'Cash';
+  if(amount<=0){toast('Enter a valid amount');return;}
+  const ok=await sbSaveSeriesFee(currentBoat.id,seriesName,CY,amount,method,'');
+  if(ok&&!ok._err){
+    toast('✅ Payment recorded');
+    renderSeriesFeesPanel();
+  } else {
+    toast('⚠ Could not save — try again');
+  }
+}
+
 async function renderRegisteredTab(){
   const label=document.getElementById('regRaceLabel'); // legacy — may be null in new dashboard
   const list=document.getElementById('registeredList');
@@ -1376,6 +1877,24 @@ async function loadClubSettings(){
       clubSettings=cached?JSON.parse(cached):{stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:''};
     }catch(e){ clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',estella_url:''}; }
   }
+  applyAllFeatureVisibility();
+}
+function applyAllFeatureVisibility(){
+  const f=(clubSettings&&clubSettings.features)||{};
+  Object.keys(FEAT_TILE_MAP).forEach(key=>{
+    const def=FEAT_DEFAULTS[key]!==undefined?FEAT_DEFAULTS[key]:true;
+    const on=f[key]!==undefined?!!f[key]:def;
+    FEAT_TILE_MAP[key].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.style.display=on?'':'none';
+    });
+  });
+  if(f.feeModel!==undefined) FEAT.feeModel=f.feeModel;
+  if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
+  if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
+  else FEAT.courseCard=(FEAT_DEFAULTS.courseCard===true);
+  const feeLabel=document.getElementById('dc-fees-label');
+  if(feeLabel) feeLabel.textContent=FEAT.feeModel==='per-series'?'Series Fees':'Fees';
 }
 
 function getBoatPin(id){
@@ -4070,6 +4589,57 @@ function renderCourseDiagram(targetId){
   // stale or live — render the full diagram with a banner if stale
   const isStale=state==='stale';
   const c=publishedCourse;
+
+  // ── Course card (RCYC) rendering path — round-by-round text display ──────────
+  const rounds=c.rounds||(Array.isArray(c.rounds)?c.rounds:null);
+  if(rounds&&rounds.length&&c.courseNumber){
+    const windDegDisp2=c.windDeg!=null?c.windDeg+'° '+c.windDir:'—';
+    const lastDist=rounds[rounds.length-1].distance_nm;
+    const gwNote=rounds.some(r=>r.note)
+      ?'<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.8rem;color:var(--gold)">'+
+        rounds.filter(r=>r.note).map(r=>'ℹ '+r.note).join('<br>')+
+        '</div>':''
+    ;
+    wrap.innerHTML=`
+      <div class="course-diagram-wrap">
+        ${isStale?`
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.35);border-radius:10px;margin-bottom:12px">
+          <span>⚠️</span><div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--gold);text-transform:uppercase">Previous Course — For Reference Only</div>
+            <div style="font-size:.78rem;color:var(--muted)">Today's course has not been published yet.</div>
+          </div>
+        </div>`:''}
+        <div class="course-header">
+          <div>
+            <div class="course-title-label">${isStale?'Last Published Course':'Course'}</div>
+            <div class="course-name-text">${c.name||'Course '+c.courseNumber}</div>
+            <div style="font-size:.78rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
+              ${c.published_at?'Set '+new Date(c.published_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+            <div class="wind-badge"><span class="wind-badge-arrow">💨</span><span class="wind-badge-label">${windDegDisp2}</span></div>
+            <div style="background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);border-radius:20px;padding:3px 10px;font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--teal)">📏 ${lastDist} nm</div>
+          </div>
+        </div>
+        ${c.notes?`<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.82rem;color:var(--gold)">📋 ${c.notes}</div>`:''}
+        <div style="margin-top:14px;${isStale?'opacity:0.6':''}">
+          ${rounds.map((r,i)=>`
+            <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--teal);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">
+                ${r.label} · ${r.distance_nm} nm
+              </div>
+              <div style="font-size:.95rem;color:var(--white);line-height:1.5">${r.marks}</div>
+              ${r.note?`<div style="font-size:.75rem;color:var(--gold);margin-top:5px">ℹ ${r.note}</div>`:''}
+            </div>
+          `).join('')}
+        </div>
+        ${gwNote}
+      </div>
+    `;
+    return;
+  }
+
   const markEntries=(c.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   const windDir=c.windDeg!=null?dirs[Math.round(c.windDeg/22.5)%16]:'—';
