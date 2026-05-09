@@ -5428,12 +5428,14 @@ async function refreshResults(){
 async function loadResultsIfNeeded(){
   if(!HAL_CLUB){
     document.getElementById('resultSeriesSelect').innerHTML='<option value="">—</option>';
-    document.getElementById('resultsContent').innerHTML=
-      `<div class="empty-state" style="padding:40px 20px">
-        <div class="icon" style="font-size:2rem">🏆</div>
-        <div style="font-weight:700;font-size:1.05rem;margin-bottom:8px">Results</div>
-        <div style="font-size:.85rem;color:var(--muted);line-height:1.5">Results are published on the club website.</div>
-      </div>`;
+    const resultsUrl=(_C.resultsUrl||'').trim();
+    document.getElementById('resultsContent').innerHTML= resultsUrl
+      ? `<iframe src="${resultsUrl}" style="width:100%;height:calc(100vh - 200px);border:none;border-radius:10px;background:#fff"></iframe>`
+      : `<div class="empty-state" style="padding:40px 20px">
+          <div class="icon" style="font-size:2rem">🏆</div>
+          <div style="font-weight:700;font-size:1.05rem;margin-bottom:8px">Results</div>
+          <div style="font-size:.85rem;color:var(--muted);line-height:1.5">Results are published on the club website.</div>
+        </div>`;
     return;
   }
   if(isResultsBlocked()){
