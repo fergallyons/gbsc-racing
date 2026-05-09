@@ -360,7 +360,7 @@
       <div style="font-size:.75rem;color:var(--muted);flex-shrink:0;text-align:right;line-height:1.4">
         <div id="windTimeLabel" style="color:var(--teal);font-weight:700;letter-spacing:.06em;font-family:'Barlow Condensed',sans-serif;font-size:.8rem">—</div>
         <div id="windTimeVal"></div>
-        <div>Galway Bay</div>
+        <div id="windLocationLabel"></div>
       </div>
     </div>
   </div>
@@ -1674,6 +1674,8 @@
         if(sl) sl.textContent = short + ' Racing';
         var fn = document.getElementById('clubFullName');
         if(fn) fn.textContent = name;
+        var wll = document.getElementById('windLocationLabel');
+        if(wll) wll.textContent = short || name || '';
         var hlf = document.getElementById('hlf');
         var img = document.getElementById('clubLogoImg');
         var logoUrl = C.logoUrl || C.logourl || C.logo_url || C.logo || '';

@@ -2943,7 +2943,7 @@ function renderWeather(wx,tides){
   const windBlock=`
     <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:10px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
-        letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">Wind at Race Start</div>
+        letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">Wind at Race Start · ${_C.short||''}</div>
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
         <div style="transform:rotate(${dir}deg);font-size:2.5rem;line-height:1;color:${bfCol}">▲</div>
         <div>
@@ -3034,7 +3034,7 @@ function renderWeather(wx,tides){
         <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:10px">
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
-              letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Tides · ${tides.station||'Galway Bay'}</div>
+              letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Tides · ${tides.station||_C.short||'Local'}</div>
             ${tides.source==='imi'?`<div style="font-size:.7rem;color:var(--muted)">Irish Marine Institute</div>`:''}
           </div>
           ${rows}
