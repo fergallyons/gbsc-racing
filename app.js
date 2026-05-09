@@ -4147,6 +4147,22 @@ let calLoaded=false, calView='date', calSchedule=[];
 async function loadCalendarIfNeeded(){
   if(calLoaded) return;
   calLoaded=true;
+
+  // No Halsail configured — build calendar from DB races (allRaces)
+  if(!HAL_CLUB){
+    calSchedule=allRaces.map(r=>({
+      RaceID: r.id,
+      Race:   r.label,
+      Series: r.series||'Racing',
+      Notes:  '',
+      Start:  r.date.toISOString(),
+      dateObj:r.date,
+      Class:  'IRC',
+    })).sort((a,b)=>a.dateObj-b.dateObj);
+    setCalView(calView);
+    return;
+  }
+
   document.getElementById('calendarContent').innerHTML=
     '<div class="empty-state"><div class="icon">⏳</div><div>Loading schedule from Halsail…</div></div>';
 
@@ -5410,6 +5426,16 @@ async function refreshResults(){
   await loadResultsIfNeeded();
 }
 async function loadResultsIfNeeded(){
+  if(!HAL_CLUB){
+    document.getElementById('resultSeriesSelect').innerHTML='<option value="">—</option>';
+    document.getElementById('resultsContent').innerHTML=
+      `<div class="empty-state" style="padding:40px 20px">
+        <div class="icon" style="font-size:2rem">🏆</div>
+        <div style="font-weight:700;font-size:1.05rem;margin-bottom:8px">Results</div>
+        <div style="font-size:.85rem;color:var(--muted);line-height:1.5">Results are published on the club website.</div>
+      </div>`;
+    return;
+  }
   if(isResultsBlocked()){
     document.getElementById('resultSeriesSelect').innerHTML='<option value="">—</option>';
     document.getElementById('resultsContent').innerHTML=
@@ -6866,7 +6892,7 @@ loadRaceSchedule().then(()=>{
   if(ge) ge.textContent=getRaceEyebrow(nextRace);
   startCountdown();
   loadAndDrawCourse().then(()=>updateHomeChips());
-  patchRaceTimesFromHalsail(); // patch start times from Halsail in background
+  if(HAL_CLUB) patchRaceTimesFromHalsail(); // patch start times from Halsail in background
 });
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
 fetch('/version.json').then(r=>r.ok?r.json():null).then(v=>{
