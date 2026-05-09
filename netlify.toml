@@ -1,6 +1,7 @@
 [build]
   functions = "netlify/functions"
   edge_functions = "netlify/edge-functions"
+  command = "printf '{\"commit\":\"%s\",\"built\":\"%s\"}' \"$(echo $COMMIT_REF | cut -c1-7)\" \"$(date -u '+%d %b %H:%M UTC')\" > version.json"
 
 [[edge_functions]]
   path = "/club-config.js"

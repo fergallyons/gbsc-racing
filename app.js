@@ -6838,6 +6838,11 @@ loadRaceSchedule().then(()=>{
   patchRaceTimesFromHalsail(); // patch start times from Halsail in background
 });
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
+fetch('/version.json').then(r=>r.ok?r.json():null).then(v=>{
+  if(!v) return;
+  const el=document.getElementById('buildBadge');
+  if(el) el.textContent=v.commit+' · '+v.built;
+}).catch(()=>{});
 
 // Keyboard support for PIN overlays (digits, Backspace, Escape)
 document.addEventListener('keydown', function(e){
