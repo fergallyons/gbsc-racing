@@ -492,7 +492,25 @@ const FEAT_CATALOG=[
   {key:'documents', label:'Documents', type:'bool', group:'Public Tiles'},
   {key:'results',   label:'Results',   type:'bool', group:'Public Tiles'},
 ];
-// Tile visibility is applied after loadClubSettings() resolves — see applyAllFeatureVisibility().
+// Apply any locally-cached features RIGHT NOW (synchronous — no DB wait, no race condition).
+// This ensures tiles are hidden/shown correctly even before loadClubSettings() resolves.
+(function applyLocalFeatures(){
+  try{
+    const f=JSON.parse(localStorage.getItem('__features__')||'null');
+    if(!f||typeof f!=='object') return;
+    Object.keys(FEAT_TILE_MAP).forEach(key=>{
+      if(f[key]===undefined) return;
+      const on=!!f[key];
+      FEAT_TILE_MAP[key].forEach(id=>{
+        const el=document.getElementById(id);
+        if(el) el.style.display=on?'':'none';
+      });
+    });
+    if(f.feeModel!==undefined) FEAT.feeModel=f.feeModel;
+    if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
+    if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
+  }catch(e){}
+})();
 
 // Convenience: document links for the declaration form (RCYC-specific)
 const DECL_DOCS=Object.assign(
@@ -920,11 +938,12 @@ function renderFeaturesPanel(){
 async function saveFeatureSetting(key, value){
   const f=Object.assign({}, (clubSettings&&clubSettings.features)||{}, {[key]:value});
   clubSettings=Object.assign({}, clubSettings, {features:f});
-  // Persist to localStorage immediately so changes survive even if DB save fails
+  // Write to both caches immediately — DB save can fail without losing the setting
+  try{localStorage.setItem('__features__',JSON.stringify(f));}catch(e){}
   try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
   applyAllFeatureVisibility();
   const r=await sbSaveClubSettings({features:f});
-  if(!r||r._err){ toast('❌ Save failed — check migration 012 is applied'); return; }
+  if(!r||r._err){ toast('⚠ Saved locally — run migration 012 to persist to DB'); return; }
   toast('✅ Saved');
 }
 
@@ -1875,6 +1894,8 @@ async function loadClubSettings(){
   if(cfg){
     clubSettings=cfg;
     try{localStorage.setItem('__club_settings__',JSON.stringify(cfg));}catch(e){}
+    // Keep the fast-apply cache in sync with authoritative DB data
+    if(cfg.features) try{localStorage.setItem('__features__',JSON.stringify(cfg.features));}catch(e){}
   } else {
     try{
       const cached=localStorage.getItem('__club_settings__');
