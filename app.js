@@ -2752,7 +2752,7 @@ async function fetchOpenMeteo(){
     +',wind_direction_10m,cloud_cover,surface_pressure,weather_code'
     +'&daily=sunset'
     +'&wind_speed_unit=kn&timezone=Europe%2FDublin&timeformat=unixtime';
-  // Try AROME (Météo-France, 1.3km) first — most accurate for Galway Bay; 2-day horizon
+  // Try AROME (Météo-France, 1.3km) first — best resolution for Irish coastal areas; 2-day horizon
   try{
     const r=await fetch(base+'&models=meteofrance_arome_france&forecast_days=2');
     if(r.ok){
@@ -2776,7 +2776,7 @@ async function fetchTideData(){
       if(c&&c.src==='wt'&&Date.now()-c.ts<43200000) return c.data;
     }catch(e){}
     try{
-      const url='https://www.worldtides.info/api/v3?extremes&lat='+GBSC_LAT+'&lon='+GBSC_LNG
+      const url='https://www.worldtides.info/api/v3?extremes&lat='+(_C.startLat||GBSC_LAT)+'&lon='+(_C.startLng||GBSC_LNG)
         +'&key='+encodeURIComponent(key)+'&days=3&stationDistance=50';
       const r=await fetch(url); if(!r.ok) throw new Error(r.status);
       const data=await r.json();
@@ -2785,8 +2785,8 @@ async function fetchTideData(){
     }catch(e){ /* fall through to Open-Meteo */ }
   }
   // Irish Marine Institute ERDDAP (free, no key, authoritative Irish state predictions)
-  // Dataset: IMI_TidePrediction_HighLow — Galway Harbour station, harmonic predictions
-  // Heights in metres above OD Malin Head; add 2.95m to get Chart Datum (LAT) heights
+  // Dataset: IMI_TidePrediction_HighLow — station and datum offset are club-configurable
+  // Heights in metres above OD Malin Head; add tideOdmOffset to get Chart Datum (LAT) heights
   try{
     const c=JSON.parse(localStorage.getItem('__race_tides__')||'null');
     if(c&&c.src==='imi'&&Date.now()-c.ts<43200000) return c.data;
@@ -2797,9 +2797,11 @@ async function fetchTideData(){
     const to=new Date(from); to.setDate(to.getDate()+2);
     const fromStr=from.toISOString().split('.')[0]+'Z';
     const toStr=to.toISOString().split('.')[0]+'Z';
+    const tideStation=_C.tideStation||'Galway';
+    const odmOffset=_C.tideOdmOffset!==undefined?_C.tideOdmOffset:2.95;
     const url='https://erddap.marine.ie/erddap/tabledap/IMI_TidePrediction_HighLow.json'
       +'?stationID,time,tide_time_category,Water_Level_ODMalin'
-      +'&stationID=%22Galway%22'
+      +'&stationID=%22'+encodeURIComponent(tideStation)+'%22'
       +'&time%3E='+fromStr
       +'&time%3C'+toStr
       +'&orderBy(%22time%22)';
@@ -2808,13 +2810,12 @@ async function fetchTideData(){
     if(!json.table||!json.table.rows) return null;
     const cols=json.table.columnNames;
     const ti=cols.indexOf('time'), ci=cols.indexOf('tide_time_category'), hi=cols.indexOf('Water_Level_ODMalin');
-    const ODM_TO_CD=2.95; // OD Malin Head → Chart Datum offset for Galway
     const extremes=json.table.rows.map(row=>({
       type: row[ci]==='HIGH'?'High':'Low',
       date: row[ti],
-      height: Math.round((row[hi]+ODM_TO_CD)*10)/10
+      height: Math.round((row[hi]+odmOffset)*10)/10
     }));
-    const data={extremes,station:'Galway Harbour',source:'imi'};
+    const data={extremes,station:tideStation,source:'imi'};
     try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),src:'imi',data})); }catch(e){}
     return data;
   }catch(e){ return null; }
