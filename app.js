@@ -918,9 +918,11 @@ function renderFeaturesPanel(){
 async function saveFeatureSetting(key, value){
   const f=Object.assign({}, (clubSettings&&clubSettings.features)||{}, {[key]:value});
   clubSettings=Object.assign({}, clubSettings, {features:f});
-  const r=await sbSaveClubSettings({features:f});
-  if(r&&r._err){ toast('❌ Save failed'); return; }
+  // Persist to localStorage immediately so changes survive even if DB save fails
+  try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
   applyAllFeatureVisibility();
+  const r=await sbSaveClubSettings({features:f});
+  if(!r||r._err){ toast('❌ Save failed — check migration 012 is applied'); return; }
   toast('✅ Saved');
 }
 
