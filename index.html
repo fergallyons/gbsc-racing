@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>GBSC Racing — Galway Bay Sailing Club</title><!-- updated by applyClubBranding() -->
+<title>Racing App</title><!-- updated by applyClubBranding() -->
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="apple-touch-icon" href="favicon.svg">
 <meta name="theme-color" content="#0f1f3d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="GBSC Racing">
+<meta name="apple-mobile-web-app-title" content="Racing App">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -100,14 +100,13 @@
 <header>
   <div class="hdr">
     <div class="app-logo">
-      <img id="clubLogoImg"
-        src="https://static.wixstatic.com/media/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg/v1/fill/w_300,h_175,al_c,q_80/524230_ecaf19ca45d14dc9a19dcf4af21e0275~mv2.jpg"
-        alt="GBSC" onerror="this.style.display='none';document.getElementById('hlf').style.display='block'">
-      <div class="app-logo-fb2" id="hlf">GBSC</div>
+      <img id="clubLogoImg" src="" alt="" style="display:none"
+        onerror="this.style.display='none';document.getElementById('hlf').style.display='block'">
+      <div class="app-logo-fb2" id="hlf" style="display:none"></div>
       <div class="logo-div"></div>
       <div class="logo-text-stack">
-        <div class="logo-sub" id="clubShortLabel">GBSC Racing</div>
-        <div class="logo-sub-full" id="clubFullName">Galway Bay Sailing Club</div>
+        <div class="logo-sub" id="clubShortLabel"></div>
+        <div class="logo-sub-full" id="clubFullName"></div>
       </div>
     </div>
     <div class="hdr-right">
@@ -1651,6 +1650,30 @@
     var cfg = document.createElement('script');
     cfg.src = cfgSrc;
     cfg.onload = function(){
+      // Apply club branding immediately — window.CLUB is set, app.js not yet loaded.
+      // This eliminates the flash of GBSC content on non-GBSC deployments.
+      var C = window.CLUB || {};
+      var short = C.short || '';
+      var name  = C.name  || '';
+      if(short || name){
+        document.title = (short ? short + ' Racing' : 'Racing App') + (name ? ' — ' + name : '');
+        var am = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+        if(am) am.content = short ? short + ' Racing' : 'Racing App';
+        var sl = document.getElementById('clubShortLabel');
+        if(sl) sl.textContent = short + ' Racing';
+        var fn = document.getElementById('clubFullName');
+        if(fn) fn.textContent = name;
+        var hlf = document.getElementById('hlf');
+        var img = document.getElementById('clubLogoImg');
+        var logoUrl = C.logoUrl || C.logourl || C.logo_url || C.logo || '';
+        if(img && logoUrl){
+          img.src = logoUrl; img.alt = short; img.style.display = '';
+          if(hlf) hlf.style.display = 'none';
+        } else {
+          if(img) img.style.display = 'none';
+          if(hlf){ hlf.textContent = short; hlf.style.display = ''; }
+        }
+      }
       var app = document.createElement('script');
       app.src = 'app.js';
       document.body.appendChild(app);
