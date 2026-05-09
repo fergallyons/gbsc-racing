@@ -6838,3 +6838,20 @@ loadRaceSchedule().then(()=>{
   patchRaceTimesFromHalsail(); // patch start times from Halsail in background
 });
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
+
+// Keyboard support for PIN overlays (digits, Backspace, Escape)
+document.addEventListener('keydown', function(e){
+  const pinOpen = document.getElementById('pinOverlay')?.classList.contains('open');
+  const cpOpen  = document.getElementById('changePinOverlay')?.classList.contains('open');
+  if(!pinOpen && !cpOpen) return;
+  if(e.key>='0'&&e.key<='9'){
+    e.preventDefault();
+    if(pinOpen) pinKey(e.key); else cpKey(e.key);
+  } else if(e.key==='Backspace'){
+    e.preventDefault();
+    if(pinOpen) pinBack(); else cpBack();
+  } else if(e.key==='Escape'){
+    e.preventDefault();
+    if(pinOpen) closePinOverlay(); else closeChangePinOverlay();
+  }
+});
