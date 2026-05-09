@@ -16,6 +16,13 @@
 </head>
 <body>
 
+<!-- Startup veil — covers the app until club branding + feature flags are applied.
+     Lifted by liftVeil() in applyLocalFeatures() at the top of app.js.
+     Safety timeout removes it after 3 s in case of any load failure. -->
+<div id="appVeil" style="position:fixed;inset:0;background:#081529;z-index:99999;
+  transition:opacity .25s ease;pointer-events:none"></div>
+<script>setTimeout(function(){liftVeil&&liftVeil();},3000);</script>
+
 <!-- ═══════════════════════════════════════════════════════════
      LOGIN SHEET (slides up from bottom on Login tap)
 ════════════════════════════════════════════════════════════ -->

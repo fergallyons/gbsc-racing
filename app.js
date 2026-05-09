@@ -492,12 +492,21 @@ const FEAT_CATALOG=[
   {key:'documents', label:'Documents', type:'bool', group:'Public Tiles'},
   {key:'results',   label:'Results',   type:'bool', group:'Public Tiles'},
 ];
+function liftVeil(){
+  const v=document.getElementById('appVeil');
+  if(!v||v.dataset.lifted) return;
+  v.dataset.lifted='1';
+  v.style.opacity='0';
+  setTimeout(()=>v.remove(),300);
+}
+
 // Apply any locally-cached features RIGHT NOW (synchronous — no DB wait, no race condition).
 // This ensures tiles are hidden/shown correctly even before loadClubSettings() resolves.
+// Lifts the startup veil once branding + feature flags are in place.
 (function applyLocalFeatures(){
   try{
     const f=JSON.parse(localStorage.getItem('__features__')||'null');
-    if(!f||typeof f!=='object') return;
+    if(!f||typeof f!=='object'){ liftVeil(); return; }
     Object.keys(FEAT_TILE_MAP).forEach(key=>{
       if(f[key]===undefined) return;
       const on=!!f[key];
@@ -510,6 +519,7 @@ const FEAT_CATALOG=[
     if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
     if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
   }catch(e){}
+  liftVeil();
 })();
 
 // Convenience: document links for the declaration form (RCYC-specific)
