@@ -4067,6 +4067,11 @@ async function generatePaymentReport(){
 
 async function loadAndRenderDocs(){
   const el=document.getElementById('docsList'); if(!el) return;
+  const noticeboardUrl=(_C.noticeboardUrl||'').trim();
+  if(noticeboardUrl){
+    el.innerHTML=`<iframe src="${noticeboardUrl}" style="width:100%;height:calc(100vh - 200px);border:none;border-radius:10px;background:#fff"></iframe>`;
+    return;
+  }
   el.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading documents…</div></div>';
   try{
     const res=await fetch('/.netlify/functions/drive-docs');
