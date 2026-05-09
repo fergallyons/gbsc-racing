@@ -19,9 +19,34 @@
 <!-- Startup veil — covers the app until club branding + feature flags are applied.
      Lifted by liftVeil() in applyLocalFeatures() at the top of app.js.
      Safety timeout removes it after 3 s in case of any load failure. -->
-<div id="appVeil" style="position:fixed;inset:0;background:#081529;z-index:99999;
-  transition:opacity .25s ease;pointer-events:none"></div>
-<script>setTimeout(function(){liftVeil&&liftVeil();},3000);</script>
+<style>
+  @keyframes veilPulse{0%,100%{opacity:.35}50%{opacity:.7}}
+  @keyframes veilSpin{to{transform:rotate(360deg)}}
+  #appVeil{position:fixed;inset:0;background:#081529;z-index:99999;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:0;transition:opacity .3s ease;pointer-events:none}
+  #veilLogo{height:96px;width:auto;max-width:220px;object-fit:contain;
+    margin-bottom:20px;display:none}
+  #veilShort{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;
+    color:#fff;letter-spacing:.1em;text-transform:uppercase;line-height:1}
+  #veilFull{font-family:'Barlow',sans-serif;font-size:.8rem;font-weight:400;
+    color:rgba(255,255,255,.45);letter-spacing:.14em;text-transform:uppercase;
+    margin-top:6px;margin-bottom:32px}
+  #veilSpinner{width:28px;height:28px;border:2px solid rgba(0,174,239,.15);
+    border-top-color:rgba(0,174,239,.75);border-radius:50%;
+    animation:veilSpin .75s linear infinite}
+  #veilTagline{font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:600;
+    color:rgba(255,255,255,.18);letter-spacing:.18em;text-transform:uppercase;
+    position:absolute;bottom:32px}
+</style>
+<div id="appVeil">
+  <img id="veilLogo" src="" alt="">
+  <div id="veilShort">Racing</div>
+  <div id="veilFull">Race Management</div>
+  <div id="veilSpinner"></div>
+  <div id="veilTagline">Loading…</div>
+</div>
+<script>setTimeout(function(){typeof liftVeil==='function'&&liftVeil();},3000);</script>
 
 <!-- ═══════════════════════════════════════════════════════════
      LOGIN SHEET (slides up from bottom on Login tap)
@@ -1673,6 +1698,20 @@
       var C = window.CLUB || {};
       var short = C.short || '';
       var name  = C.name  || '';
+      // Update splash veil with club branding
+      var logoUrl = C.logoUrl || C.logourl || C.logo_url || C.logo || '';
+      var veilLogo = document.getElementById('veilLogo');
+      var veilShort = document.getElementById('veilShort');
+      var veilFull = document.getElementById('veilFull');
+      var veilTagline = document.getElementById('veilTagline');
+      if(veilShort) veilShort.textContent = (short||'Racing') + ' Racing';
+      if(veilFull)  veilFull.textContent  = name || 'Race Management';
+      if(veilTagline) veilTagline.textContent = short ? short + ' · Race Management' : 'Race Management';
+      if(veilLogo && logoUrl){
+        veilLogo.src = logoUrl; veilLogo.alt = short;
+        veilLogo.style.display = '';
+        if(veilShort) veilShort.style.display = 'none';
+      }
       if(short || name){
         document.title = (short ? short + ' Racing' : 'Racing App') + (name ? ' — ' + name : '');
         var am = document.querySelector('meta[name="apple-mobile-web-app-title"]');
