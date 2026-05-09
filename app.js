@@ -2817,7 +2817,7 @@ async function fetchTideData(){
     const to=new Date(from); to.setDate(to.getDate()+2);
     const fromStr=from.toISOString().split('.')[0]+'Z';
     const toStr=to.toISOString().split('.')[0]+'Z';
-    const tideStation=_C.tideStation||'Galway';
+    const tideStation=_C.tideStation||_C.short||'Local';
     const odmOffset=_C.tideOdmOffset!==undefined?_C.tideOdmOffset:2.95;
     const url='https://erddap.marine.ie/erddap/tabledap/IMI_TidePrediction_HighLow.json'
       +'?stationID,time,tide_time_category,Water_Level_ODMalin'
@@ -3034,7 +3034,7 @@ function renderWeather(wx,tides){
         <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:10px">
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
-              letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Tides · ${tides.station||_C.short||'Local'}</div>
+              letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Tides · ${_C.tideStation||_C.short||'Local'}</div>
             ${tides.source==='imi'?`<div style="font-size:.7rem;color:var(--muted)">Irish Marine Institute</div>`:''}
           </div>
           ${rows}
