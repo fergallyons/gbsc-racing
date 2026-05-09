@@ -692,6 +692,16 @@
         oninput="renderCourseCardList(this.value)"
         style="width:100%;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--navy);color:var(--white);font-size:.9rem;box-sizing:border-box">
     </div>
+    <div class="ro-row" style="margin-bottom:10px">
+      <label style="font-size:.85rem">Start</label>
+      <select id="ccStartLineSel" onchange="ccLineChange('start',this.value)"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:.85rem;padding:8px 10px"></select>
+    </div>
+    <div class="ro-row" style="margin-bottom:14px">
+      <label style="font-size:.85rem">Finish</label>
+      <select id="ccFinishLineSel" onchange="ccLineChange('finish',this.value)"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:.85rem;padding:8px 10px"></select>
+    </div>
     <div class="ro-row" style="margin-bottom:14px">
       <label style="font-size:.85rem">Notes</label>
       <textarea id="courseCardNotes" rows="2" placeholder="e.g. Start 18:30 · Time limit 2.5 hrs"

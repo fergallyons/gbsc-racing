@@ -1019,7 +1019,25 @@ async function openCourseCardPanel(){
   p.style.display='flex';
   requestAnimationFrame(()=>requestAnimationFrame(()=>p.classList.add('open')));
   if(!courseCardData.length) courseCardData=await sbLoadCourseCard();
+  populateCcLineSelects();
   renderCourseCardList();
+}
+
+function populateCcLineSelects(){
+  const startSel=document.getElementById('ccStartLineSel');
+  const finishSel=document.getElementById('ccFinishLineSel');
+  if(!startSel||!finishSel) return;
+  const opts=LINES.filter(l=>l.isActive!==false).map(l=>
+    `<option value="${l.id}">${l.name}</option>`).join('');
+  startSel.innerHTML=opts;
+  finishSel.innerHTML=opts;
+  startSel.value=selectedStartLineId;
+  finishSel.value=selectedFinishLineId;
+}
+
+function ccLineChange(which, id){
+  if(which==='start') selectedStartLineId=id;
+  else selectedFinishLineId=id;
 }
 
 function renderCourseCardList(filter){
