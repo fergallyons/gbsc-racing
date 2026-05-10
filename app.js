@@ -8,7 +8,7 @@ if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have 
 (function applyClubBranding(){
   const short  = _C.short || 'GBSC';
   const name   = _C.name  || 'Galway Bay Sailing Club';
-  const logoUrl= _C.logoUrl|| _C.logourl|| _C.logo_url|| _C.logo|| '';
+  const logoUrl= _C.logoUrl|| _C.logoURL|| _C.logourl|| _C.logo_url|| _C.logo|| '';
   // Page title
   document.title = short + ' Racing \u2014 ' + name;
   // Header: logo image
@@ -79,7 +79,7 @@ async function sbSaveBoatConfig(id,fields){
   });
 }
 async function sbLoadClubSettings(){
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours,estella_url,worldtides_key,features');
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,results_published_race_key,features');
   if(!r||r._err){
     console.error('sbLoadClubSettings failed — columns may be missing from settings table. Run: ALTER TABLE settings ADD COLUMN IF NOT EXISTS stripe_link_member text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_student text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_visitor text DEFAULT \'\', ADD COLUMN IF NOT EXISTS pre_race_window_hours int DEFAULT 12;',r);
     return null;
@@ -95,7 +95,7 @@ async function sbSaveClubSettings(fields){
     body:JSON.stringify({id:'club',...fields})
   });
 }
-async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+id+'&order=id.asc');if(r===null)return null;if(!r.length)return[];return r.map(x=>({id:x.id,first:x.first,last:x.last,type:x.type,joinYear:x.join_year,outings:x.outings,phone:x.phone||'',selected:x.selected||false,paid:false}));}
+async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+id+'&order=id.asc');if(!r||r._err)return null;if(!r.length)return[];return r.map(x=>({id:x.id,first:x.first,last:x.last,type:x.type,joinYear:x.join_year,outings:x.outings,phone:x.phone||'',selected:x.selected||false,paid:false}));}
 async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:p.id,boat_id:bid,first:p.first,last:p.last,type:p.type,join_year:p.joinYear||null,outings:p.outings||0,phone:p.phone||null,selected:p.selected||false})});}
 async function sbSetCrewSelected(crewId,selected){return sbFetch('/rest/v1/crew?id=eq.'+crewId,{method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify({selected})});}
 async function sbDeleteCrew(id){return sbFetch('/rest/v1/crew?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});}
@@ -1387,7 +1387,7 @@ async function checkPin(){
     const correct=getRoPin();
     if(pinEntry===correct){
       closePinOverlay();
-      await _settingsReady;
+      await _settingsReady.catch(()=>{});
       enterApp({id:'ro',name:'Race Officer',icon:'🎌'},true);
     } else {
       errEl.textContent='Incorrect PIN';
@@ -1407,7 +1407,7 @@ async function checkPin(){
   if(pinEntry===correct){
     errEl.textContent='';
     closePinOverlay();
-    await _settingsReady;
+    await _settingsReady.catch(()=>{});
     const b=boats.find(x=>x.id===ctx);
     if(b) enterApp(b,false).then(()=>{
       if(correct==='0000') showDefaultPinModal();

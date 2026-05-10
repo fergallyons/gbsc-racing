@@ -34,6 +34,14 @@ export default async function handler(request) {
     try { club = JSON.parse(configJson); } catch (e) {}
   }
 
+  const faviconUrl = club.faviconUrl || club.faviconurl || club.logoUrl || club.logourl || club.logo_url || club.logo || '';
+  const ext = faviconUrl ? faviconUrl.split('.').pop().toLowerCase() : '';
+  const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/svg+xml';
+
+  const icons = faviconUrl
+    ? [{ src: faviconUrl, sizes: 'any', type: mime, purpose: 'any' }]
+    : [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }];
+
   const manifest = {
     name:             `${club.short} Racing — ${club.name}`,
     short_name:       `${club.short} Racing`,
@@ -43,14 +51,7 @@ export default async function handler(request) {
     orientation:      'portrait',
     background_color: '#081529',
     theme_color:      '#0f1f3d',
-    icons: [
-      {
-        src:     '/favicon.svg',
-        sizes:   'any',
-        type:    'image/svg+xml',
-        purpose: 'any',
-      },
-    ],
+    icons,
   };
 
   return new Response(JSON.stringify(manifest, null, 2), {

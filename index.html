@@ -133,7 +133,8 @@
   <div class="hdr">
     <div class="app-logo">
       <img id="clubLogoImg" src="" alt="" style="display:none"
-        onerror="this.style.display='none';document.getElementById('hlf').style.display='block'">
+        referrerpolicy="no-referrer"
+        onerror="this.style.display='none';var h=document.getElementById('hlf');if(h)h.style.display='block'">
       <div class="app-logo-fb2" id="hlf" style="display:none"></div>
       <div class="logo-div"></div>
       <div class="logo-text-stack">
@@ -1699,7 +1700,7 @@
       var short = C.short || '';
       var name  = C.name  || '';
       // Update splash veil with club branding
-      var logoUrl = C.logoUrl || C.logourl || C.logo_url || C.logo || '';
+      var logoUrl = C.logoUrl || C.logoURL || C.logourl || C.logo_url || C.logo || '';
       var veilLogo = document.getElementById('veilLogo');
       var veilShort = document.getElementById('veilShort');
       var veilFull = document.getElementById('veilFull');
@@ -1724,13 +1725,23 @@
         if(wll) wll.textContent = short || name || '';
         var hlf = document.getElementById('hlf');
         var img = document.getElementById('clubLogoImg');
-        var logoUrl = C.logoUrl || C.logourl || C.logo_url || C.logo || '';
+        var logoUrl = C.logoUrl || C.logoURL || C.logourl || C.logo_url || C.logo || '';
+        if(hlf) hlf.textContent = short; // always set so onerror fallback shows abbreviation
         if(img && logoUrl){
           img.src = logoUrl; img.alt = short; img.style.display = '';
           if(hlf) hlf.style.display = 'none';
         } else {
           if(img) img.style.display = 'none';
-          if(hlf){ hlf.textContent = short; hlf.style.display = ''; }
+          if(hlf) hlf.style.display = '';
+        }
+        var faviconUrl = C.faviconUrl || C.faviconurl || logoUrl || '';
+        if(faviconUrl){
+          var fi = document.querySelector('link[rel="icon"]');
+          var ai = document.querySelector('link[rel="apple-touch-icon"]');
+          var ext = faviconUrl.split('.').pop().toLowerCase();
+          var mime = ext==='svg'?'image/svg+xml':ext==='png'?'image/png':'image/jpeg';
+          if(fi){ fi.href = faviconUrl; fi.type = mime; }
+          if(ai)  ai.href = faviconUrl;
         }
       }
       var app = document.createElement('script');
