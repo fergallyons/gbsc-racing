@@ -2,14 +2,11 @@
 // Browsers can't call halsail.com directly (no CORS headers).
 // This function runs server-side and forwards the request, then returns the JSON.
 
-export default async (req) => {
-  const url = new URL(req.url);
-  const path = url.searchParams.get('path') || '';
+exports.handler = async (event) => {
+  const path = (event.queryStringParameters || {}).path || '';
 
   if (!path.startsWith('/')) {
-    return new Response(JSON.stringify({ error: 'Invalid path' }), {
-      status: 400, headers: { 'Content-Type': 'application/json' },
-    });
+    return { statusCode: 400, body: JSON.stringify({ error: 'Invalid path' }) };
   }
 
   try {
@@ -17,18 +14,18 @@ export default async (req) => {
       headers: { 'Accept': 'application/json' },
     });
     const body = await res.text();
-    return new Response(body, {
-      status: res.status,
+    return {
+      statusCode: res.status,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       },
-    });
+      body,
+    };
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 502, headers: { 'Content-Type': 'application/json' },
-    });
+    return {
+      statusCode: 502,
+      body: JSON.stringify({ error: e.message }),
+    };
   }
 };
-
-export const config = { path: '/api/halsail' };

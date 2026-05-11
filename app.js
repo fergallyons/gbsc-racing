@@ -5410,7 +5410,7 @@ let halResultsCache={};     // seriesId -> GetSeriesResult response (cleared on 
 let halBoatCache={};        // BoatID -> {name, sailText, helm} (cleared on each panel open)
 
 // Halsail fetch — tries direct first, falls back to Supabase proxy if CORS blocks it
-const HAL_PROXY='/api/halsail'; // Netlify function proxy — avoids CORS on direct Halsail calls
+const HAL_PROXY='/.netlify/functions/halsail-proxy'; // Netlify function proxy — avoids CORS on direct Halsail calls
 let halUsesProxy=false;
 
 async function halFetch(path){
