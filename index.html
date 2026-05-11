@@ -1689,7 +1689,7 @@
   (function(){
     var slug = new URLSearchParams(location.search).get('club');
     if(slug) sessionStorage.setItem('_clubOverride', slug);
-    else slug = sessionStorage.getItem('_clubOverride') || '';
+    else sessionStorage.removeItem('_clubOverride'); // clear override when ?club= not in URL
     var cfgSrc = '/club-config.js' + (slug ? '?club=' + encodeURIComponent(slug) : '');
     var cfg = document.createElement('script');
     cfg.src = cfgSrc;
