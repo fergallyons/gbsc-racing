@@ -79,22 +79,27 @@ async function sbSaveBoatConfig(id,fields){
   });
 }
 async function sbLoadClubSettings(){
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select='
-    +'stripe_link_member,stripe_link_student,stripe_link_visitor,'
+  // Full query including migration-020 columns
+  const fullSelect=
+    'stripe_link_member,stripe_link_student,stripe_link_visitor,'
     +'pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,'
     +'results_published_race_key,features,'
-    // Club config columns (migration 020)
     +'logo_url,favicon_url,primary_color,ro_color,'
     +'start_lat,start_lng,wind_lat,wind_lng,'
     +'tide_station,tide_odm_offset,'
     +'fee_full,fee_crew,fee_visitor,fee_student,fee_kid,'
     +'visitor_max,crew_max_yrs,ro_pin,'
-    +'noticeboard_url,results_url,hal_club,vapid_public_key'
-  );
-  if(!r||r._err){
-    console.error('sbLoadClubSettings failed — run migration 020_settings_club_config.sql',r);
-    return null;
+    +'noticeboard_url,results_url,hal_club,vapid_public_key';
+  let r=await sbFetch('/rest/v1/settings?id=eq.club&select='+fullSelect);
+  if(r&&r._err){
+    // Migration 020 likely not run yet — fall back to base columns so features still load
+    console.warn('sbLoadClubSettings: extended columns missing, falling back (run migration 020)');
+    r=await sbFetch('/rest/v1/settings?id=eq.club&select='
+      +'stripe_link_member,stripe_link_student,stripe_link_visitor,'
+      +'pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,'
+      +'results_published_race_key,features');
   }
+  if(!r||r._err) return null;
   if(!r.length) return null;
   return r[0];
 }
