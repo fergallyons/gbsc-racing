@@ -79,9 +79,20 @@ async function sbSaveBoatConfig(id,fields){
   });
 }
 async function sbLoadClubSettings(){
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_link_member,stripe_link_student,stripe_link_visitor,pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,results_published_race_key,features');
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select='
+    +'stripe_link_member,stripe_link_student,stripe_link_visitor,'
+    +'pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,'
+    +'results_published_race_key,features,'
+    // Club config columns (migration 020)
+    +'logo_url,favicon_url,primary_color,ro_color,'
+    +'start_lat,start_lng,wind_lat,wind_lng,'
+    +'tide_station,tide_odm_offset,'
+    +'fee_full,fee_crew,fee_visitor,fee_student,fee_kid,'
+    +'visitor_max,crew_max_yrs,ro_pin,'
+    +'noticeboard_url,results_url,hal_club,vapid_public_key'
+  );
   if(!r||r._err){
-    console.error('sbLoadClubSettings failed — columns may be missing from settings table. Run: ALTER TABLE settings ADD COLUMN IF NOT EXISTS stripe_link_member text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_student text DEFAULT \'\', ADD COLUMN IF NOT EXISTS stripe_link_visitor text DEFAULT \'\', ADD COLUMN IF NOT EXISTS pre_race_window_hours int DEFAULT 12;',r);
+    console.error('sbLoadClubSettings failed — run migration 020_settings_club_config.sql',r);
     return null;
   }
   if(!r.length) return null;
@@ -404,11 +415,13 @@ function buildSatTiles(refLat,refLng,cosLat,scale,ox,oy,W,H){
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS & STATE
 // ═══════════════════════════════════════════════════════════════
-const FEES=Object.assign({full:4,crew:4,visitor:10,student:5,kid:0}, _C.fees||{});
-const VISITOR_MAX=_C.visitorMax||6;
-const CREW_MAX_YRS=_C.crewMaxYrs||2;
+// Fees/limits/PIN start with env-var or hard-coded defaults; overwritten from DB
+// after settings load (see loadClubSettings below).
+let FEES=Object.assign({full:4,crew:4,visitor:10,student:5,kid:0}, _C.fees||{});
+let VISITOR_MAX=_C.visitorMax||6;
+let CREW_MAX_YRS=_C.crewMaxYrs||2;
 const CY=new Date().getFullYear();
-const RO_PIN=_C.roPin||'0000';
+let RO_PIN=_C.roPin||'0000';
 
 // ── Per-club feature flags ────────────────────────────────────────────────────
 // Sourced from window.CLUB.features; safe defaults preserve existing GBSC behaviour.
@@ -1924,8 +1937,8 @@ async function loadClubSettings(){
   if(cfg){
     clubSettings=cfg;
     try{localStorage.setItem('__club_settings__',JSON.stringify(cfg));}catch(e){}
-    // Keep the fast-apply cache in sync with authoritative DB data
     if(cfg.features) try{localStorage.setItem('__features__',JSON.stringify(cfg.features));}catch(e){}
+    _applyDbClubConfig(cfg);
   } else {
     try{
       const cached=localStorage.getItem('__club_settings__');
@@ -1933,6 +1946,81 @@ async function loadClubSettings(){
     }catch(e){ clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',estella_url:''}; }
   }
   applyAllFeatureVisibility();
+}
+
+// Merge DB-sourced club config into _C and refresh anything that depends on it.
+// DB values take precedence over env var values so clubs can update without a
+// Netlify redeploy.  Fields with no DB value fall back to the existing _C value.
+function _applyDbClubConfig(cfg){
+  // Geography
+  if(cfg.start_lat  != null) _C.startLat       = cfg.start_lat;
+  if(cfg.start_lng  != null) _C.startLng       = cfg.start_lng;
+  if(cfg.wind_lat   != null) _C.windLat        = cfg.wind_lat;
+  if(cfg.wind_lng   != null) _C.windLng        = cfg.wind_lng;
+
+  // Tides
+  if(cfg.tide_station)       _C.tideStation    = cfg.tide_station;
+  if(cfg.tide_odm_offset != null) _C.tideOdmOffset = cfg.tide_odm_offset;
+
+  // External links
+  if(cfg.noticeboard_url)    _C.noticeboardUrl = cfg.noticeboard_url;
+  if(cfg.results_url)        _C.resultsUrl     = cfg.results_url;
+
+  // Integrations
+  if(cfg.hal_club     != null) _C.halClub        = cfg.hal_club;
+  if(cfg.vapid_public_key)   _C.vapidPublicKey = cfg.vapid_public_key;
+
+  // Fees & limits
+  if(cfg.fee_full  != null) FEES.full      = cfg.fee_full;
+  if(cfg.fee_crew  != null) FEES.crew      = cfg.fee_crew;
+  if(cfg.fee_visitor != null) FEES.visitor  = cfg.fee_visitor;
+  if(cfg.fee_student != null) FEES.student  = cfg.fee_student;
+  if(cfg.fee_kid   != null) FEES.kid       = cfg.fee_kid;
+  if(cfg.visitor_max  != null) VISITOR_MAX  = cfg.visitor_max;
+  if(cfg.crew_max_yrs != null) CREW_MAX_YRS = cfg.crew_max_yrs;
+
+  // RO PIN
+  if(cfg.ro_pin) RO_PIN = cfg.ro_pin;
+
+  // Branding — re-apply only if DB provides values not present in env var
+  let brandingChanged = false;
+  if(cfg.logo_url && !(_C.logoUrl||_C.logoURL||_C.logourl||_C.logo_url||_C.logo)){
+    _C.logoUrl = cfg.logo_url; brandingChanged = true;
+  }
+  if(cfg.favicon_url && !(_C.faviconUrl||_C.faviconurl)){
+    _C.faviconUrl = cfg.favicon_url; brandingChanged = true;
+  }
+  if(cfg.primary_color && !_C.primaryColor){
+    _C.primaryColor = cfg.primary_color; brandingChanged = true;
+  }
+  if(cfg.ro_color && !_C.roColor){
+    _C.roColor = cfg.ro_color; brandingChanged = true;
+  }
+  if(brandingChanged) _reapplyBranding();
+}
+
+function _reapplyBranding(){
+  const short   = _C.short || 'GBSC';
+  const logoUrl = _C.logoUrl||_C.logoURL||_C.logourl||_C.logo_url||_C.logo||'';
+  const img = document.getElementById('clubLogoImg');
+  if(img && logoUrl){
+    img.src = logoUrl; img.alt = short; img.style.display = '';
+    const fb = document.getElementById('hlf'); if(fb) fb.style.display = 'none';
+  }
+  const faviconUrl = _C.faviconUrl||_C.faviconurl||logoUrl||'';
+  if(faviconUrl){
+    const fi = document.querySelector('link[rel="icon"]');
+    const ai = document.querySelector('link[rel="apple-touch-icon"]');
+    const ext = faviconUrl.split('.').pop().toLowerCase();
+    const mime = ext==='svg'?'image/svg+xml':ext==='png'?'image/png':'image/jpeg';
+    if(fi){ fi.href=faviconUrl; fi.type=mime; }
+    if(ai)  ai.href=faviconUrl;
+  }
+  if(_C.primaryColor){
+    document.documentElement.style.setProperty('--teal', _C.primaryColor);
+    document.documentElement.style.setProperty('--border', 'rgba('+hexToRgb(_C.primaryColor)+',0.18)');
+  }
+  if(_C.roColor) document.documentElement.style.setProperty('--ro', _C.roColor);
 }
 function applyAllFeatureVisibility(){
   // Use DB-loaded features if available; fall back to the fast-apply localStorage cache.
