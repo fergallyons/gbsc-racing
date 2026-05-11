@@ -34,10 +34,10 @@
 body{font-family:'Barlow',sans-serif;background:var(--navy);color:var(--white);min-height:100vh;
   background-image:
     radial-gradient(ellipse at 15% 0%,rgba(27,62,147,.35) 0%,transparent 55%),
-    radial-gradient(ellipse at 85% 100%,rgba(0,174,239,.08) 0%,transparent 50%);
-  transition:box-shadow .3s ease;}
-body.role-skipper{box-shadow:inset 5px 0 0 var(--teal);}
-body.role-ro{box-shadow:inset 5px 0 0 var(--ro);}
+    radial-gradient(ellipse at 85% 100%,rgba(0,174,239,.08) 0%,transparent 50%);}
+/* Role indicator — 3px accent line under the top bar */
+body.role-skipper header{border-bottom-color:var(--teal);border-bottom-width:3px;}
+body.role-ro header{border-bottom-color:var(--ro);border-bottom-width:3px;}
 
 /* ─── SCREENS ─────────────────────────────────────────────── */
 .screen{display:none;} .screen.active{display:block;}
