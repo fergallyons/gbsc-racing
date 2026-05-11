@@ -1972,7 +1972,7 @@ function _applyDbClubConfig(cfg){
   if(cfg.results_url)        _C.resultsUrl     = cfg.results_url;
 
   // Integrations
-  if(cfg.hal_club     != null) _C.halClub        = cfg.hal_club;
+  if(cfg.hal_club     != null){ _C.halClub = cfg.hal_club; HAL_CLUB = cfg.hal_club; }
   if(cfg.vapid_public_key)   _C.vapidPublicKey = cfg.vapid_public_key;
 
   // Fees & limits
@@ -5494,7 +5494,7 @@ function shareFeeStatement(){
 // HALSAIL RESULTS
 // ═══════════════════════════════════════════════════════════════
 const HAL_URL='https://halsail.com/HalApi';
-const HAL_CLUB=_C.halClub||0;
+let HAL_CLUB=_C.halClub||0; // updated from DB settings in _applyDbClubConfig
 // GBSC Halsail convention:
 //   GetSchedule only ever returns ECHO entries (Class "Cru - E")
 //   IRC is a tandem series — its SeryID is always echoId + 1
