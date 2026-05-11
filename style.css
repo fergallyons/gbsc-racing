@@ -540,8 +540,8 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .usage-badge.guest{background:rgba(122,164,204,.1);color:var(--muted);border:1px solid var(--border);}
 
 /* ─── VIEW TITLES ────────────────────────────────────────────── */
-.view-title{font-family:'Barlow Condensed',sans-serif;font-size:2.6rem;font-weight:800;
-  letter-spacing:.04em;text-transform:uppercase;padding:20px 4px 8px;
+.view-title{font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;
+  letter-spacing:.06em;text-transform:uppercase;padding:16px 4px 6px;
   max-width:680px;margin:0 auto;display:block;}
 .view-title--skipper{color:var(--teal);}
 .view-title--crew{color:var(--teal);}
