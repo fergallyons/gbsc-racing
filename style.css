@@ -539,6 +539,14 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .usage-badge.ro{background:rgba(232,160,32,.15);color:var(--ro);border:1px solid rgba(232,160,32,.3);}
 .usage-badge.guest{background:rgba(122,164,204,.1);color:var(--muted);border:1px solid var(--border);}
 
+/* ─── VIEW TITLES ────────────────────────────────────────────── */
+.view-title{font-family:'Barlow Condensed',sans-serif;font-size:2.6rem;font-weight:800;
+  letter-spacing:.04em;text-transform:uppercase;padding:20px 4px 8px;
+  max-width:680px;margin:0 auto;display:block;}
+.view-title--skipper{color:var(--teal);}
+.view-title--crew{color:var(--teal);}
+.view-title--ro{color:var(--ro);}
+
 /* ─── DASHBOARD ─────────────────────────────────────────────── */
 .dash-race-card{background:linear-gradient(135deg,rgba(27,62,147,.55),rgba(0,174,239,.12));
   border:1px solid var(--border);border-radius:16px;padding:18px 20px;margin-bottom:16px;}
