@@ -190,8 +190,18 @@
   </div>
   <!-- Register CTA -->
   <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:14px" onclick="registerForRace()">⛵ Register for This Race</button>
-  <!-- 2-column tile grid — crew & fees only (course/results/calendar/docs are on the public home) -->
+  <!-- 2-column tile grid -->
   <div class="dash-grid">
+    <div class="dash-card" onclick="openPanel('coursePanel')">
+      <div class="dash-card-icon">🗺</div>
+      <div class="dash-card-label">Course</div>
+      <div class="dash-card-sub">Today's course</div>
+    </div>
+    <div class="dash-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
+      <div class="dash-card-icon">🏆</div>
+      <div class="dash-card-label">Results</div>
+      <div class="dash-card-sub">Series standings</div>
+    </div>
     <div id="tile-sk-crew" class="dash-card" onclick="openPanel('crewPanel')">
       <div class="dash-card-icon">👥</div>
       <div class="dash-card-label">Crew Roster</div>
@@ -207,25 +217,15 @@
       <div class="dash-card-label">File Protest</div>
       <div class="dash-card-sub">Under RRS Rule 61</div>
     </div>
-    <div id="tile-sk-settings" class="dash-card" onclick="openSettingsSheet()">
-      <div class="dash-card-icon">⚙</div>
-      <div class="dash-card-label">Settings</div>
-      <div class="dash-card-sub">Revolut username</div>
-    </div>
     <div id="tile-sk-feeHistory" class="dash-card" onclick="openFeeStatement()">
       <div class="dash-card-icon">📋</div>
       <div class="dash-card-label">Fee History</div>
       <div class="dash-card-sub">My payment record</div>
     </div>
-    <div class="dash-card" onclick="openPanel('roCourseViewPanel')">
-      <div class="dash-card-icon">🗺</div>
-      <div class="dash-card-label">View Course</div>
-      <div class="dash-card-sub">Today's course card</div>
-    </div>
-    <div class="dash-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
-      <div class="dash-card-icon">🏆</div>
-      <div class="dash-card-label">Results</div>
-      <div class="dash-card-sub">Series standings</div>
+    <div id="tile-sk-settings" class="dash-card" onclick="openSettingsSheet()">
+      <div class="dash-card-icon">⚙</div>
+      <div class="dash-card-label">Settings</div>
+      <div class="dash-card-sub">Revolut username</div>
     </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">
