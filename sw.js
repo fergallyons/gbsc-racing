@@ -1,4 +1,4 @@
-const CACHE = 'gbsc-racing-v2';
+const CACHE = 'gbsc-racing-v3';
 const STATIC = ['/', '/index.html', '/app.js', '/style.css', '/favicon.svg', '/manifest.json'];
 
 // Install — cache static assets
@@ -44,12 +44,14 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Network-first for app shell files — ensures updates land immediately
+  // Network-first for app shell + dynamic edge-function responses — ensures updates land immediately
   if (
     url.endsWith('/') ||
     url.includes('/index.html') ||
     url.includes('/app.js') ||
-    url.includes('/style.css')
+    url.includes('/style.css') ||
+    url.includes('/club-config.js') ||
+    url.includes('/manifest.json')
   ) {
     e.respondWith(
       fetch(e.request)
