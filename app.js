@@ -1973,7 +1973,7 @@ function _applyDbClubConfig(cfg){
 
   // Integrations
   if(cfg.hal_club     != null){ _C.halClub = cfg.hal_club; HAL_CLUB = cfg.hal_club; }
-  if(cfg.vapid_public_key)   _C.vapidPublicKey = cfg.vapid_public_key;
+  if(cfg.vapid_public_key){ _C.vapidPublicKey = cfg.vapid_public_key; VAPID_PUBLIC_KEY = cfg.vapid_public_key; }
 
   // Fees & limits
   if(cfg.fee_full  != null) FEES.full      = cfg.fee_full;
@@ -2104,7 +2104,7 @@ async function saveClubStripeLinks(links){
 }
 
 // ── Push notifications ────────────────────────────────────────
-const VAPID_PUBLIC_KEY=_C.vapidPublicKey||'';
+let VAPID_PUBLIC_KEY=_C.vapidPublicKey||''; // updated from DB settings in _applyDbClubConfig
 
 function urlBase64ToUint8Array(b64){
   const pad='='.repeat((4-b64.length%4)%4);
