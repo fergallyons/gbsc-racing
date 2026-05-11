@@ -2766,7 +2766,14 @@ async function loadRaceWeather(){
   try{ const c=JSON.parse(localStorage.getItem('__race_tides__')||'null'); if(c&&c.src==='om') localStorage.removeItem('__race_tides__'); }catch(e){}
   try{
     const c=JSON.parse(localStorage.getItem('__race_weather_v2__')||'null');
-    if(c&&Date.now()-c.ts<3600000){ renderWeather(c.wx,c.tides); return; }
+    // Only use cache if tides were successfully fetched; re-fetch if tides is null
+    if(c&&Date.now()-c.ts<3600000&&c.tides!=null){ renderWeather(c.wx,c.tides); return; }
+    if(c&&Date.now()-c.ts<3600000&&c.wx){
+      // wx is cached and fresh; only re-fetch tides
+      const tides=await fetchTideData();
+      try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:c.ts,wx:c.wx,tides})); }catch(e){}
+      renderWeather(c.wx,tides); return;
+    }
   }catch(e){}
   const [wx,tides]=await Promise.all([fetchOpenMeteo(),fetchTideData()]);
   try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
