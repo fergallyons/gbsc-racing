@@ -3248,10 +3248,10 @@ function spStep0(){
     <div style="margin-bottom:16px">
       <div style="font-size:.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:4px">Race</div>
       <select onchange="spSelectRace(this.value)"
-        style="width:100%;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.45);border-radius:10px;
+        style="width:100%;background:var(--navy);border:1px solid var(--border);border-radius:10px;
         color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;
         padding:9px 12px;cursor:pointer;outline:none">
-        ${recent.map((r,i)=>`<option value="${i}"${i===selIdx?' selected':''}>${r.label}</option>`).join('')}
+        ${recent.map((r,i)=>`<option value="${i}"${i===selIdx?' selected':''} style="background:#0d1f3c;color:#fff">${r.label}</option>`).join('')}
       </select>
     </div>`:'';
   let html=raceSelector+`<div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
