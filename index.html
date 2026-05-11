@@ -1690,6 +1690,10 @@
     var slug = new URLSearchParams(location.search).get('club');
     if(slug) sessionStorage.setItem('_clubOverride', slug);
     else sessionStorage.removeItem('_clubOverride'); // clear override when ?club= not in URL
+    if(slug){
+      var ml = document.querySelector('link[rel="manifest"]');
+      if(ml) ml.href = '/manifest.json?club=' + encodeURIComponent(slug);
+    }
     var cfgSrc = '/club-config.js' + (slug ? '?club=' + encodeURIComponent(slug) : '');
     var cfg = document.createElement('script');
     cfg.src = cfgSrc;
