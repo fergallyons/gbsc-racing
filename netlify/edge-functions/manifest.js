@@ -42,11 +42,18 @@ export default async function handler(request) {
     ? [{ src: faviconUrl, sizes: 'any', type: mime, purpose: 'any' }]
     : [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }];
 
+  // Use club slug as unique app identifier so each club installs as a separate PWA.
+  // start_url carries ?club= so launching from home screen loads the correct club.
+  const isDefault = slug === (hostnameMap['default'] || 'gbsc');
+  const startUrl  = isDefault ? '/' : `/?club=${encodeURIComponent(slug)}`;
+
   const manifest = {
+    id:               startUrl,
     name:             `${club.short} Racing — ${club.name}`,
     short_name:       `${club.short} Racing`,
     description:      `${club.name} — Race Management`,
-    start_url:        '/',
+    start_url:        startUrl,
+    scope:            '/',
     display:          'standalone',
     orientation:      'portrait',
     background_color: '#081529',
