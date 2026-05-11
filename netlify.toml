@@ -11,6 +11,10 @@
   path = "/manifest.json"
   function = "manifest"
 
+[[edge_functions]]
+  path = "/"
+  function = "rewrite-manifest-link"
+
 # Stripe Payment Link success redirect — Stripe sends crew back here after card payment
 [[redirects]]
   from = "/stripe-success"
