@@ -891,6 +891,8 @@ async function enterApp(b,ro){
   if(nextRace) await applyRaceAttendance(nextRace);
   // Load payment state so dashboard summary is correct from first render
   await loadAndApplyPayments(nextRace);
+  // Check if this boat is under protest for the current race
+  checkForProtestsAgainstMe();
   // Feature: declaration gate (RCYC) — must come last so UI is ready
   if(FEAT.declaration) checkAndShowDeclaration();
 }
@@ -6329,6 +6331,92 @@ async function submitAddLine(){
 // ═══════════════════════════════════════════════════════════════
 // PROTESTS
 // ═══════════════════════════════════════════════════════════════
+async function checkForProtestsAgainstMe(){
+  const notice=document.getElementById('protestNotice');
+  const body=document.getElementById('myProtestBody');
+  if(!notice||!currentBoat||!selectedRace) return;
+  notice.style.display='none';
+
+  // Query protests where this boat is the protestee for the current race
+  const r=await sbFetch('/rest/v1/protests?protestee_id=eq.'+encodeURIComponent(currentBoat.id)
+    +'&race_name=eq.'+encodeURIComponent(selectedRace.label)
+    +'&order=filed_at.desc');
+  if(!r||r._err||!r.length) return;
+
+  const p=r[0]; // Show most recent protest if multiple
+  const protestor=boats.find(b=>b.id===p.protestor_id);
+  const filedTime=new Date(p.filed_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  const filedDate=new Date(p.filed_at).toLocaleDateString('en-IE',{day:'numeric',month:'short'});
+  const rules=(p.rules_broken||[]).join(', ')||'Not specified';
+
+  // Show the banner
+  const detail=document.getElementById('protestNoticeDetail');
+  if(detail) detail.textContent='By '+(protestor?protestor.name:'another boat')+' · '+filedDate+' '+filedTime;
+  notice.style.display='flex';
+
+  // Populate the detail panel
+  if(body) body.innerHTML=`
+    <div style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);
+      border-radius:12px;padding:16px;margin-bottom:16px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;
+        letter-spacing:.12em;text-transform:uppercase;color:#f87171;margin-bottom:6px">Protestor</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;
+        color:var(--white)">${protestor?protestor.name:'Unknown boat'}</div>
+      <div style="font-size:.82rem;color:var(--muted);margin-top:2px">Filed ${filedDate} at ${filedTime}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+          letter-spacing:.1em;font-weight:700;margin-bottom:4px">Race</div>
+        <div style="font-size:.9rem;color:var(--white);font-weight:600">${p.race_name}</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+          letter-spacing:.1em;font-weight:700;margin-bottom:4px">Status</div>
+        <div style="font-size:.9rem;font-weight:700;color:${p.status==='Pending'?'#f87171':p.status==='Upheld'?'var(--warn)':'var(--teal)'}">${p.status}</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+          letter-spacing:.1em;font-weight:700;margin-bottom:4px">Where</div>
+        <div style="font-size:.9rem;color:var(--white)">${p.incident_where||'—'}</div>
+      </div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
+        <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+          letter-spacing:.1em;font-weight:700;margin-bottom:4px">Time</div>
+        <div style="font-size:.9rem;color:var(--white)">${p.incident_time||'—'}</div>
+      </div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;
+      padding:14px;margin-bottom:12px">
+      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+        letter-spacing:.1em;font-weight:700;margin-bottom:6px">Rules Alleged</div>
+      <div style="font-size:.9rem;color:var(--white);font-weight:600">${rules}</div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;
+      padding:14px;margin-bottom:16px">
+      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+        letter-spacing:.1em;font-weight:700;margin-bottom:6px">Description</div>
+      <div style="font-size:.9rem;color:var(--white);line-height:1.5">${p.description||'—'}</div>
+    </div>
+
+    <div style="background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);
+      border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:6px">
+        Your rights under RRS Rule 63</div>
+      <div style="font-size:.82rem;color:var(--muted);line-height:1.5">
+        You are entitled to be present throughout the hearing, to hear all evidence,
+        and to call witnesses. Contact the Race Officer to confirm the hearing time and location.
+      </div>
+    </div>
+
+    ${r.length>1?`<div style="font-size:.78rem;color:var(--muted);text-align:center;padding:4px">
+      ${r.length} protests filed against you for this race</div>`:''}
+  `;
+}
+
 async function sbSaveProtest(p){
   return sbFetch('/rest/v1/protests',{method:'POST',
     headers:{...SBH,'Prefer':'return=minimal'},

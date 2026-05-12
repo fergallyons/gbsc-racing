@@ -158,6 +158,19 @@
 <!-- ═══ TAB: RACE FEES (Skipper Dashboard) ═══ -->
 <div class="tab-wrap active" id="feesTab">
   <div class="view-title view-title--skipper">Skipper</div>
+  <!-- Protest notice — shown when this boat is under protest -->
+  <div id="protestNotice" style="display:none;cursor:pointer;margin-bottom:12px;
+    background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.5);
+    border-radius:12px;padding:14px 16px;display:none;align-items:center;gap:12px"
+    onclick="openPanel('myProtestPanel')">
+    <div style="font-size:1.5rem;flex-shrink:0">🚩</div>
+    <div style="flex:1">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
+        color:#f87171;letter-spacing:.03em;text-transform:uppercase">You are under protest</div>
+      <div id="protestNoticeDetail" style="font-size:.82rem;color:rgba(248,113,113,.8);margin-top:2px"></div>
+    </div>
+    <div style="font-size:.9rem;color:#f87171;flex-shrink:0">›</div>
+  </div>
   <!-- Race card -->
   <div class="dash-race-card">
     <div class="dash-race-eyebrow" id="skipperRaceEyebrow">Next Race</div>
@@ -1515,6 +1528,16 @@
       <button class="btn btn-danger" style="flex:1;padding:12px" onclick="submitProtest()">🚩 File Protest</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('protestSheet')">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- myProtestPanel — Protest notice for the protestee (skipper view) -->
+<div class="panel-overlay" id="myProtestPanel" style="display:none">
+  <div class="panel-header" style="border-bottom-color:rgba(220,38,38,.35)">
+    <button class="panel-back" onclick="closePanel('myProtestPanel')">‹</button>
+    <span class="panel-title" style="color:#f87171">🚩 Protest Notice</span>
+  </div>
+  <div class="panel-body" id="myProtestBody">
   </div>
 </div>
 
