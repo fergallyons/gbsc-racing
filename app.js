@@ -6337,10 +6337,10 @@ async function checkForProtestsAgainstMe(){
   if(!notice||!currentBoat) return;
   notice.style.display='none';
 
-  // Query all unresolved protests where this boat is the protestee —
-  // no race filter: a protest stands until the RO clears it regardless of selected race
+  // Query all active protests where this boat is the protestee —
+  // no race filter: a protest stands until the RO reaches a decision (any outcome clears it)
   const r=await sbFetch('/rest/v1/protests?protestee_id=eq.'+encodeURIComponent(currentBoat.id)
-    +'&status=neq.Dismissed&status=neq.Withdrawn'
+    +'&status=in.(Pending,Hearing Scheduled)'
     +'&order=filed_at.desc');
   if(!r||r._err||!r.length) return;
 
