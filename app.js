@@ -6334,12 +6334,13 @@ async function submitAddLine(){
 async function checkForProtestsAgainstMe(){
   const notice=document.getElementById('protestNotice');
   const body=document.getElementById('myProtestBody');
-  if(!notice||!currentBoat||!selectedRace) return;
+  if(!notice||!currentBoat) return;
   notice.style.display='none';
 
-  // Query protests where this boat is the protestee for the current race
+  // Query all unresolved protests where this boat is the protestee —
+  // no race filter: a protest stands until the RO clears it regardless of selected race
   const r=await sbFetch('/rest/v1/protests?protestee_id=eq.'+encodeURIComponent(currentBoat.id)
-    +'&race_name=eq.'+encodeURIComponent(selectedRace.label)
+    +'&status=neq.Dismissed&status=neq.Withdrawn'
     +'&order=filed_at.desc');
   if(!r||r._err||!r.length) return;
 
@@ -6351,7 +6352,7 @@ async function checkForProtestsAgainstMe(){
 
   // Show the banner
   const detail=document.getElementById('protestNoticeDetail');
-  if(detail) detail.textContent='By '+(protestor?protestor.name:'another boat')+' · '+filedDate+' '+filedTime;
+  if(detail) detail.textContent=(protestor?protestor.name:'Another boat')+' · '+p.race_name+' · '+filedDate;
   notice.style.display='flex';
 
   // Populate the detail panel
