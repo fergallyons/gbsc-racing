@@ -2042,6 +2042,9 @@ function applyAllFeatureVisibility(){
     });
   });
   if(f.feeModel!==undefined) FEAT.feeModel=f.feeModel;
+  // Fee summary in crew panel is irrelevant when billing is per-series
+  const crewTotals=document.getElementById('crewTotalsPanel');
+  if(crewTotals) crewTotals.style.display=FEAT.feeModel==='per-series'?'none':'';
   if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
   if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
   else FEAT.courseCard=(FEAT_DEFAULTS.courseCard===true);
