@@ -2042,9 +2042,6 @@ function applyAllFeatureVisibility(){
     });
   });
   if(f.feeModel!==undefined) FEAT.feeModel=f.feeModel;
-  // Per-race fee tile is irrelevant when billing is per-series
-  const feesTile=document.getElementById('tile-sk-fees');
-  if(feesTile) feesTile.style.display=FEAT.feeModel==='per-series'?'none':'';
   if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
   if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
   else FEAT.courseCard=(FEAT_DEFAULTS.courseCard===true);
