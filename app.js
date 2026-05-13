@@ -1520,6 +1520,8 @@ function openPanel(id){
         if(sl) sl.value=forecastWindDeg;
         updateWind(forecastWindDeg);
       }
+      // Load any saved draft into the builder
+      if(!courseMarks.length) loadDraftIfExists();
     }
     if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
     if(id==='roCourseViewPanel') renderCourseDiagram('roCourseDisplay');
@@ -5050,29 +5052,71 @@ function updateFinishLine(id){
   renderRoCoursePreview();
 }
 
-async function publishCourse(){
-  if(!courseMarks.length){toast('Select at least one mark');return;}
+function _buildCoursePayload(id){
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   const dir=dirs[Math.round(windDeg/22.5)%16];
   const name='S/F – '+courseMarks.map(x=>{const m=MARKS.find(mk=>mk.id===x.id);return m?m.name:x.id;}).join(' – ')+' – Finish';
-  const notes=(document.getElementById('courseNotes').value||'').trim();
-  const course={
-    id:'current',
+  const notes=(document.getElementById('courseNotes')||{}).value||'';
+  return{
+    id,
     name,
-    marks:courseMarks,  // [{id, rounding}]
+    marks:courseMarks,
     windDeg,
     windDir:dir,
     race_name:selectedRace?selectedRace.label:'',
-    notes,
+    notes:notes.trim(),
     published_at:new Date().toISOString(),
     startLineId:selectedStartLineId,
     finishLineId:selectedFinishLineId
   };
+}
+
+async function saveDraft(){
+  if(!courseMarks.length){toast('Add at least one mark first');return;}
   setSyncStatus('syncing');
+  const ok=await sbSaveCourse(_buildCoursePayload('draft'));
+  if(ok){
+    setSyncStatus('ok');
+    const bar=document.getElementById('draftStatusBar');
+    if(bar) bar.style.display='';
+    toast('💾 Draft saved — not yet visible to skippers');
+  } else {
+    setSyncStatus('offline');
+    toast('⚠ Could not save draft');
+  }
+}
+
+async function loadDraftIfExists(){
+  const r=await sbFetch('/rest/v1/published_courses?id=eq.draft&limit=1');
+  if(!r||!r.length) return;
+  const row=r[0];
+  let marks=row.marks||[];
+  if(typeof marks==='string'){try{marks=JSON.parse(marks);}catch(e){marks=[];}}
+  if(!marks.length) return;
+  // Restore draft into builder
+  courseMarks=marks;
+  windDeg=row.wind_deg||0;
+  if(row.notes){const n=document.getElementById('courseNotes');if(n)n.value=row.notes;}
+  if(row.start_line_id) selectedStartLineId=row.start_line_id;
+  if(row.finish_line_id) selectedFinishLineId=row.finish_line_id;
+  renderCourseBuilder();
+  const bar=document.getElementById('draftStatusBar');
+  if(bar) bar.style.display='';
+  toast('📝 Draft course loaded');
+}
+
+async function publishCourse(){
+  if(!courseMarks.length){toast('Select at least one mark');return;}
+  setSyncStatus('syncing');
+  const course=_buildCoursePayload('current');
   const ok=await sbSaveCourse(course);
   if(ok){
+    // Clear the draft row so it doesn't reload next time
+    sbFetch('/rest/v1/published_courses?id=eq.draft',{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}}).catch(()=>{});
     publishedCourse=course;
     setSyncStatus('ok');
+    const bar=document.getElementById('draftStatusBar');
+    if(bar) bar.style.display='none';
     try{renderCourseDiagram();}catch(e){console.error('renderCourseDiagram error',e);}
     roDashCoursePublished=true;
     updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
