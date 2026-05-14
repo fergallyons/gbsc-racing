@@ -675,6 +675,16 @@ async function patchRaceTimesFromHalsail(){
   if(nextRace&&prevNextRace&&nextRace.date.getTime()!==prevNextRace.date.getTime()){
     renderRegisteredTab();
   }
+  updateWeatherVisibility();
+}
+function updateWeatherVisibility(){
+  // Hide the wind widget in the summary card and update the tile subtitle
+  // when the "current" race has already finished — no point showing a forecast for the past.
+  const isPast=nextRace&&nextRace.date<new Date();
+  const widget=document.getElementById('windWidget');
+  const sub=document.getElementById('wx-tile-sub');
+  if(widget) widget.style.display=isPast?'none':'flex';
+  if(sub) sub.textContent=isPast?'Check back before next race':'Wind, tide & forecast';
 }
 function getRaceEyebrow(race){
   if(!race) return 'Next Race';
@@ -7176,6 +7186,7 @@ loadRaceSchedule().then(()=>{
   if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   const ge=document.getElementById('guestRaceEyebrow');
   if(ge) ge.textContent=getRaceEyebrow(nextRace);
+  updateWeatherVisibility();
   startCountdown();
   loadAndDrawCourse().then(()=>updateHomeChips());
   if(HAL_CLUB) patchRaceTimesFromHalsail(); // patch start times from Halsail in background
