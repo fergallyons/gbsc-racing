@@ -7158,7 +7158,9 @@ loadRaceSchedule().then(()=>{
   if(ge) ge.textContent=getRaceEyebrow(nextRace);
   startCountdown();
   loadAndDrawCourse().then(()=>updateHomeChips());
-  if(HAL_CLUB) patchRaceTimesFromHalsail(); // patch start times from Halsail in background
+  // Only patch times from Halsail when the hardcoded fallback schedule is in use
+  // (i.e. DB races table unavailable). When DB loaded successfully, DB times are authoritative.
+  if(HAL_CLUB && !allRaces.length) patchRaceTimesFromHalsail();
 });
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
 fetch('/version.json').then(r=>r.ok?r.json():null).then(v=>{
