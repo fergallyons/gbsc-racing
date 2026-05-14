@@ -632,16 +632,26 @@ async function patchRaceTimesFromHalsail(){
     if(!timeByDate[key]||d<timeByDate[key]) timeByDate[key]=d;
   });
 
-  // Patch allRaces dates where Halsail has a matching day
+  // Patch allRaces dates where Halsail has a different time, and write back to DB
   let patched=false;
+  const dbUpdates=[];
   allRaces.forEach(r=>{
     const hal=timeByDate[r.date.toDateString()];
     if(!hal) return;
     if(hal.getHours()!==r.date.getHours()||hal.getMinutes()!==r.date.getMinutes()){
       r.date=hal;
       patched=true;
+      // Persist the corrected time to the DB so next page load starts with the right time
+      if(r.id) dbUpdates.push(
+        sbFetch('/rest/v1/races?id=eq.'+encodeURIComponent(r.id),{
+          method:'PATCH',
+          headers:{...SBH,'Prefer':'return=minimal'},
+          body:JSON.stringify({start_hour:hal.getHours(),start_min:hal.getMinutes()})
+        })
+      );
     }
   });
+  if(dbUpdates.length) Promise.all(dbUpdates).catch(e=>console.warn('Halsail→DB time sync failed',e));
 
   if(!patched) return;
 
