@@ -3043,6 +3043,14 @@ function wxPressureTrend(arr,idx){
   if(d>2) return '↑ Rising'; if(d<-2) return '↓ Falling'; return '→ Steady';
 }
 function wxBfColour(f){ return f<=2?'var(--success)':f<=4?'var(--teal)':f<=6?'#f4a261':f<=8?'var(--warn)':'var(--danger)'; }
+// Wind direction arrow — points toward the wind source (FROM convention).
+// Arrowhead at top + narrow shaft; rotate by wind_direction_10m degrees.
+function windArrowSvg(deg,color,px=24){
+  return `<svg width="${px}" height="${px}" viewBox="0 0 24 24" `
+    +`style="transform:rotate(${deg}deg);display:block;flex-shrink:0">`
+    +`<path d="M12 2 L7 13 L10.5 11.5 L10.5 22 L13.5 22 L13.5 11.5 L17 13 Z" fill="${color}"/>`
+    +`</svg>`;
+}
 
 // ── Main render ───────────────────────────────────────────────
 function renderWeather(wx,tides){
@@ -3105,8 +3113,7 @@ function renderWeather(wx,tides){
       padding:9px 4px;border:2px solid ${isRace?'rgba(0,174,239,.6)':'var(--border)'}">
       <div style="font-size:.75rem;color:${isRace?'var(--teal)':'var(--muted)'};
         font-weight:${isRace?'700':'400'};margin-bottom:5px">${isRace?'🏁 Race':hr}</div>
-      <div style="transform:rotate(${d}deg);font-size:1rem;line-height:1;
-        color:${bc};margin-bottom:3px">▲</div>
+      ${windArrowSvg(d,bc,20)}
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;
         font-weight:800;color:${bc};line-height:1">${w}</div>
       <div style="font-size:.75rem;color:var(--white);margin-top:1px">↑${g}</div>
@@ -3119,7 +3126,7 @@ function renderWeather(wx,tides){
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
         letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:14px">Wind at Race Start · ${_C.short||''}</div>
       <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
-        <div style="transform:rotate(${dir}deg);font-size:2.5rem;line-height:1;color:${bfCol}">▲</div>
+        ${windArrowSvg(dir,bfCol,52)}
         <div>
           <div style="display:flex;align-items:baseline;gap:6px">
             <span style="font-family:'Barlow Condensed',sans-serif;font-size:3.5rem;font-weight:800;
@@ -6105,8 +6112,7 @@ async function loadWindWidget(){
     document.getElementById('windArrow').innerHTML=
       `<svg width="32" height="32" viewBox="0 0 32 32" style="transform:rotate(${deg}deg);transition:transform .6s ease">
         <circle cx="16" cy="16" r="14" fill="rgba(0,174,239,.15)" stroke="rgba(0,174,239,.3)" stroke-width="1.5"/>
-        <polygon points="16,4 20,22 16,19 12,22" fill="#00aeef"/>
-        <circle cx="16" cy="16" r="3" fill="#00aeef"/>
+        <path d="M16 5 L11 17 L14 15.5 L14 27 L18 27 L18 15.5 L21 17 Z" fill="#00aeef"/>
       </svg>`;
 
     document.getElementById('windSpeed').textContent=spd+' kn';
