@@ -726,6 +726,7 @@ function newCrewId(){
 // ═══════════════════════════════════════════════════════════════
 async function buildBoatGrid(){
   await loadRaceSchedule(); // load from DB — populates allRaces + nextRace
+  loadWindWidget(); // re-run now that nextRace is known — hides widget if race has passed
 
   // Show next race label
   const raceEl=document.getElementById('loginRaceLabel');
@@ -6039,7 +6040,7 @@ async function loadWindWidget(){
       if(wxTileSub) wxTileSub.textContent='Check back before next race';
       return;
     }
-    if(widget) widget.style.display='';
+    if(widget) widget.style.display='flex';
     if(wxTileSub) wxTileSub.textContent='Wind, tide & forecast';
 
     // Use cached Open-Meteo data if fresh, otherwise fetch
