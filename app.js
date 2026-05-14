@@ -2911,10 +2911,14 @@ async function loadRaceWeather(){
   try{ const c=JSON.parse(localStorage.getItem('__race_tides__')||'null'); if(c&&c.src==='om') localStorage.removeItem('__race_tides__'); }catch(e){}
   try{
     const c=JSON.parse(localStorage.getItem('__race_weather_v2__')||'null');
+    const raceTs=race?Math.floor(race.date.getTime()/1000):0;
+    // Discard cache if it doesn't cover the race date (was fetched for a shorter horizon)
+    const cacheCoversRace=c&&c.wx&&c.wx.hourly&&c.wx.hourly.time&&
+      c.wx.hourly.time[c.wx.hourly.time.length-1]>=raceTs;
     // Only use cache if tides were successfully fetched; re-fetch if tides is null
-    if(c&&Date.now()-c.ts<3600000&&c.tides!=null){ renderWeather(c.wx,c.tides); return; }
-    if(c&&Date.now()-c.ts<3600000&&c.wx){
-      // wx is cached and fresh; only re-fetch tides
+    if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.tides!=null){ renderWeather(c.wx,c.tides); return; }
+    if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.wx){
+      // wx is cached, fresh, and covers race date — only re-fetch tides
       const tides=await fetchTideData();
       try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:c.ts,wx:c.wx,tides})); }catch(e){}
       renderWeather(c.wx,tides); return;
@@ -2934,17 +2938,25 @@ async function fetchOpenMeteo(){
     +',wind_direction_10m,cloud_cover,surface_pressure,weather_code'
     +'&daily=sunset'
     +'&wind_speed_unit=kn&timezone=Europe%2FDublin&timeformat=unixtime';
-  // Try AROME (Météo-France, 1.3km) first — best resolution for Irish coastal areas; 2-day horizon
+  // Days of forecast needed — enough to cover the next race, minimum 3
+  const race=nextRace||getNextRace();
+  const daysToRace=race?Math.ceil((race.date-new Date())/86400000)+1:3;
+  const forecastDays=Math.max(3,Math.min(daysToRace,7));
+
+  // Try AROME (Météo-France, 1.3km) first — best resolution but only 2-day horizon
+  // Only use if race is within 2 days; otherwise go straight to the longer-range model
+  if(forecastDays<=2){
+    try{
+      const r=await fetch(base+'&models=meteofrance_arome_france&forecast_days=2');
+      if(r.ok){
+        const data=await r.json();
+        if(data.hourly&&data.hourly.time&&data.hourly.time.length) return data;
+      }
+    }catch(e){}
+  }
+  // Open-Meteo default best-match model — covers up to 7 days
   try{
-    const r=await fetch(base+'&models=meteofrance_arome_france&forecast_days=2');
-    if(r.ok){
-      const data=await r.json();
-      if(data.hourly&&data.hourly.time&&data.hourly.time.length) return data;
-    }
-  }catch(e){}
-  // Fallback to Open-Meteo default best-match model (3-day)
-  try{
-    const r=await fetch(base+'&forecast_days=3'); if(!r.ok) return null;
+    const r=await fetch(base+'&forecast_days='+forecastDays); if(!r.ok) return null;
     return await r.json();
   }catch(e){ return null; }
 }
