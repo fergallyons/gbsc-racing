@@ -5581,7 +5581,9 @@ let halUsesProxy=false;
 
 async function halFetch(path){
   const url=(halUsesProxy?HAL_PROXY+'?path=':HAL_URL)+path;
-  const opts=halUsesProxy?{}:{mode:'cors'};
+  // cache:'no-store' bypasses the browser HTTP cache so schedule changes on Halsail
+  // are always picked up immediately rather than being served stale for up to an hour.
+  const opts=halUsesProxy?{cache:'no-store'}:{mode:'cors',cache:'no-store'};
   try{
     const r=await fetch(url,opts);
     if(!r.ok){ console.error('Halsail',r.status,path); return {_err:'HTTP '+r.status}; }
@@ -7158,9 +7160,7 @@ loadRaceSchedule().then(()=>{
   if(ge) ge.textContent=getRaceEyebrow(nextRace);
   startCountdown();
   loadAndDrawCourse().then(()=>updateHomeChips());
-  // Only patch times from Halsail when the hardcoded fallback schedule is in use
-  // (i.e. DB races table unavailable). When DB loaded successfully, DB times are authoritative.
-  if(HAL_CLUB && !allRaces.length) patchRaceTimesFromHalsail();
+  if(HAL_CLUB) patchRaceTimesFromHalsail(); // patch start times from Halsail in background
 });
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
 fetch('/version.json').then(r=>r.ok?r.json():null).then(v=>{
