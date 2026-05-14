@@ -726,7 +726,6 @@ function newCrewId(){
 // ═══════════════════════════════════════════════════════════════
 async function buildBoatGrid(){
   await loadRaceSchedule(); // load from DB — populates allRaces + nextRace
-  loadWindWidget(); // re-run now that nextRace is known — hides widget if race has passed
 
   // Show next race label
   const raceEl=document.getElementById('loginRaceLabel');
@@ -6028,21 +6027,6 @@ document.addEventListener('click',function(e){
 
 async function loadWindWidget(){
   try{
-    const race=nextRace||getNextRace();
-    const now=new Date();
-
-    // If the race has already passed, hide the wind widget in the summary card
-    // and update the weather tile subtitle — no point showing a stale forecast
-    const widget=document.getElementById('windWidget');
-    const wxTileSub=document.getElementById('wx-tile-sub');
-    if(race&&race.date<now){
-      if(widget) widget.style.display='none';
-      if(wxTileSub) wxTileSub.textContent='Check back before next race';
-      return;
-    }
-    if(widget) widget.style.display='flex';
-    if(wxTileSub) wxTileSub.textContent='Wind, tide & forecast';
-
     // Use cached Open-Meteo data if fresh, otherwise fetch
     let wx=null;
     try{
@@ -6053,7 +6037,9 @@ async function loadWindWidget(){
 
     if(!wx||!wx.hourly) throw new Error('No forecast data');
 
-    const raceDate=race?race.date:now;
+    const race=nextRace||getNextRace();
+    const raceDate=race?race.date:new Date();
+    const now=new Date();
     const isToday=raceDate.toDateString()===now.toDateString();
     const target=isToday?Math.max(now.getTime(),raceDate.getTime()):raceDate.getTime();
     const targetTs=Math.floor(target/1000);
