@@ -146,8 +146,8 @@ async function sbDeleteRaceAttendee(boatId,key,crewId){
     method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}
   });
 }
-async function sbLoadRaceRecords(raceName){
-  const r=await sbFetch('/rest/v1/race_records?race_name=eq.'+encodeURIComponent(raceName)+'&order=submitted_at.asc');
+async function sbLoadRaceRecords(key){
+  const r=await sbFetch('/rest/v1/race_records?race_key=eq.'+encodeURIComponent(key)+'&order=submitted_at.asc');
   return r||[];
 }
 // Auto-save race record on every payment change — replaces manual Submit
@@ -4008,7 +4008,7 @@ async function generatePaymentReport(){
   statusEl.textContent='⏳ Loading report…';
 
   const [records, regs]=await Promise.all([
-    sbLoadRaceRecords(raceName),
+    sbLoadRaceRecords(raceKey(race)),
     sbLoadRegistrations(race)
   ]);
 
