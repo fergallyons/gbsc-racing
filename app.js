@@ -2861,6 +2861,23 @@ function openWeatherPanel(){
 
 async function loadRaceWeather(){
   const body=document.getElementById('weatherBody'); if(!body) return;
+
+  // If the current race has already passed, don't show a (misleading) forecast
+  const race=nextRace||getNextRace();
+  if(race&&race.date<new Date()){
+    const nextFuture=allRaces.find(r=>r.date>new Date());
+    const hint=nextFuture
+      ? 'Next race: '+nextFuture.label+' · '+nextFuture.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})
+      : 'No upcoming race scheduled yet';
+    body.innerHTML=`<div style="text-align:center;padding:60px 24px;color:var(--muted)">
+      <div style="font-size:2rem;margin-bottom:12px">🌬️</div>
+      <div style="font-size:1rem;font-weight:600;margin-bottom:8px">No forecast right now</div>
+      <div style="font-size:.88rem">${hint}</div>
+      <div style="font-size:.82rem;margin-top:6px;color:var(--muted)">Check back closer to race day</div>
+    </div>`;
+    return;
+  }
+
   body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ Loading conditions…</div>';
   // Clear any stale Open-Meteo tide cache (replaced by IMI ERDDAP)
   try{ const c=JSON.parse(localStorage.getItem('__race_tides__')||'null'); if(c&&c.src==='om') localStorage.removeItem('__race_tides__'); }catch(e){}
@@ -6010,6 +6027,21 @@ document.addEventListener('click',function(e){
 
 async function loadWindWidget(){
   try{
+    const race=nextRace||getNextRace();
+    const now=new Date();
+
+    // If the race has already passed, hide the wind widget in the summary card
+    // and update the weather tile subtitle — no point showing a stale forecast
+    const widget=document.getElementById('windWidget');
+    const wxTileSub=document.getElementById('wx-tile-sub');
+    if(race&&race.date<now){
+      if(widget) widget.style.display='none';
+      if(wxTileSub) wxTileSub.textContent='Check back before next race';
+      return;
+    }
+    if(widget) widget.style.display='';
+    if(wxTileSub) wxTileSub.textContent='Wind, tide & forecast';
+
     // Use cached Open-Meteo data if fresh, otherwise fetch
     let wx=null;
     try{
@@ -6020,9 +6052,7 @@ async function loadWindWidget(){
 
     if(!wx||!wx.hourly) throw new Error('No forecast data');
 
-    const race=nextRace||getNextRace();
-    const raceDate=race?race.date:new Date();
-    const now=new Date();
+    const raceDate=race?race.date:now;
     const isToday=raceDate.toDateString()===now.toDateString();
     const target=isToday?Math.max(now.getTime(),raceDate.getTime()):raceDate.getTime();
     const targetTs=Math.floor(target/1000);
