@@ -646,6 +646,7 @@ async function patchRaceTimesFromHalsail(){
   if(!patched) return;
 
   // Rebuild nextRace and refresh public view
+  const prevNextRace=nextRace;
   nextRace=getNextRace();
   const el=document.getElementById('guestDashRaceName');
   const mel=document.getElementById('guestDashMeta');
@@ -657,6 +658,13 @@ async function patchRaceTimesFromHalsail(){
   if(guestEyebrow&&nextRace) guestEyebrow.textContent=getRaceEyebrow(nextRace);
   const raceEl=document.getElementById('loginRaceLabel');
   if(raceEl&&nextRace) raceEl.textContent=getRaceEyebrow(nextRace)+': '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+
+  // If the patch changed which race is "current", re-render the registration list —
+  // buildBoatGrid() may have already run with the pre-patch nextRace (e.g. Saturday)
+  // and loaded an empty registration list for that wrong race.
+  if(nextRace&&prevNextRace&&nextRace.date.getTime()!==prevNextRace.date.getTime()){
+    renderRegisteredTab();
+  }
 }
 function getRaceEyebrow(race){
   if(!race) return 'Next Race';
