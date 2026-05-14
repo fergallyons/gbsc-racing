@@ -5796,12 +5796,23 @@ async function renderResultsForSeries(series){
   const boatIds=[...new Set((data.ResultsOverall||[]).map(b=>b.BoatID).filter(Boolean))];
   await Promise.all(boatIds.filter(id=>!halBoatCache[id]).map(async id=>{
     const b=await halFetch('/GetBoat/'+id);
-    if(b&&!b._err) halBoatCache[id]={name:b.Name||'',sailText:b.SailText||'',helm:b.Helm||''};
+    if(b&&!b._err) halBoatCache[id]={name:b.Name||'',sailText:b.SailText||'',helm:b.Helm||'',handicaps:b.Handicaps||[]};
   }));
 
   buildResultsTable(data, series.label, fleetLabel, wrap, seriesId);
 }
 
+// Return the current TCC for a boat's cached handicap list, matching the given Halsail ClassID.
+// Picks the most-recent entry whose ValidDateTime is on or before now.
+function halCurrentTCC(handicaps, classId){
+  const now=Date.now();
+  const valid=(handicaps||[])
+    .filter(h=>h.ClassID===classId)
+    .map(h=>({h, ms:parseInt((h.ValidDateTime||'').replace(/\/Date\((-?\d+)\)\//,'$1'))||0}))
+    .filter(({ms})=>ms<=now)
+    .sort((a,b)=>b.ms-a.ms);
+  return valid.length?valid[0].h.Handicap:null;
+}
 function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId){
   const resultBoats=data.ResultsOverall||[];
   if(!resultBoats.length){ wrap.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No results yet</div></div>'; return; }
@@ -5841,14 +5852,11 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId){
 
   function resolveBoatDisplay(halBoat){
     const boatData=halBoatCache[halBoat.BoatID];
+    const tcc=boatData?halCurrentTCC(boatData.handicaps,seriesId):null;
     if(boatData&&boatData.name){
-      return {
-        primary: boatData.name,
-        secondary: boatData.sailText||boatData.helm||null
-      };
+      return {primary:boatData.name, secondary:boatData.sailText||boatData.helm||null, tcc};
     }
-    // Fallback if boat not in cache yet
-    return {primary: halBoat.HelmOrGuestName||'—', secondary: null};
+    return {primary:halBoat.HelmOrGuestName||'—', secondary:null, tcc:null};
   }
 
   // Rows
@@ -5858,10 +5866,13 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId){
     const isMe=b===myResult;
     const display=resolveBoatDisplay(b);
 
+    const tccBadge=display.tcc!=null
+      ?`<span style="font-size:.72rem;color:var(--muted);font-weight:400;margin-left:4px">(${display.tcc})</span>`
+      :'';
     const nameCell=display.secondary
-      ? `<div style="font-weight:600;line-height:1.2">${display.primary}</div>`+
+      ? `<div style="font-weight:600;line-height:1.2">${display.primary}${tccBadge}</div>`+
         `<div style="font-size:.8rem;color:var(--muted)">${display.secondary}</div>`
-      : `<div style="font-weight:600">${display.primary}</div>`;
+      : `<div style="font-weight:600">${display.primary}${tccBadge}</div>`;
 
     // Per-race points cells
     const raceCells=raceIds.map(rid=>{
