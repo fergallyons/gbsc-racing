@@ -5806,11 +5806,13 @@ async function renderResultsForSeries(series){
 // Picks the most-recent entry whose ValidDateTime is on or before now.
 function halCurrentTCC(handicaps, classId){
   const now=Date.now();
+  console.log('[TCC] classId=',classId,'handicaps=',JSON.stringify(handicaps));
   const valid=(handicaps||[])
     .filter(h=>h.ClassID===classId)
     .map(h=>({h, ms:parseInt((h.ValidDateTime||'').replace(/\/Date\((-?\d+)\)\//,'$1'))||0}))
     .filter(({ms})=>ms<=now)
     .sort((a,b)=>b.ms-a.ms);
+  console.log('[TCC] valid entries=',valid.length, valid.length?valid[0].h.Handicap:'none');
   return valid.length?valid[0].h.Handicap:null;
 }
 function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId){
