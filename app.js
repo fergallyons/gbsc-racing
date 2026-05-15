@@ -3044,10 +3044,11 @@ function wxPressureTrend(arr,idx){
 }
 function wxBfColour(f){ return f<=2?'var(--success)':f<=4?'var(--teal)':f<=6?'#f4a261':f<=8?'var(--warn)':'var(--danger)'; }
 // Wind direction arrow — points toward the wind source (FROM convention).
-// Arrowhead at top + narrow shaft; rotate by wind_direction_10m degrees.
+// Open-Meteo wind_direction_10m is the FROM direction; add 180° so the arrowhead
+// points back toward the source rather than in the direction the wind is travelling.
 function windArrowSvg(deg,color,px=24){
   return `<svg width="${px}" height="${px}" viewBox="0 0 24 24" `
-    +`style="transform:rotate(${deg}deg);display:block;flex-shrink:0">`
+    +`style="transform:rotate(${deg+180}deg);display:block;flex-shrink:0">`
     +`<path d="M12 2 L7 13 L10.5 11.5 L10.5 22 L13.5 22 L13.5 11.5 L17 13 Z" fill="${color}"/>`
     +`</svg>`;
 }
@@ -6138,7 +6139,7 @@ async function loadWindWidget(){
     const tag=isToday&&raceDate>now?'START':'FCST';
 
     document.getElementById('windArrow').innerHTML=
-      `<svg width="32" height="32" viewBox="0 0 32 32" style="transform:rotate(${deg}deg);transition:transform .6s ease">
+      `<svg width="32" height="32" viewBox="0 0 32 32" style="transform:rotate(${deg+180}deg);transition:transform .6s ease">
         <circle cx="16" cy="16" r="14" fill="rgba(0,174,239,.15)" stroke="rgba(0,174,239,.3)" stroke-width="1.5"/>
         <path d="M16 5 L11 17 L14 15.5 L14 27 L18 27 L18 15.5 L21 17 Z" fill="#00aeef"/>
       </svg>`;
