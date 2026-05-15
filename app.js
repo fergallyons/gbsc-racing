@@ -5709,9 +5709,11 @@ async function loadResultsIfNeeded(){
   schedule.forEach(r=>{
     if(!isEchoClass(r.Class)) return; // skip non-ECHO entries
     const key=r.Series;
-    if(!seriesMap[key]) seriesMap[key]={label:key,ircId:null,echoId:null,firstStart:null};
+    if(!seriesMap[key]) seriesMap[key]={label:key,ircId:null,echoId:null,echoClassId:null,ircClassId:null,firstStart:null};
     seriesMap[key].echoId=r.SeryID;
     seriesMap[key].ircId=r.SeryID+1; // IRC tandem series is always echoId + 1
+    // ClassID (handicap namespace) — store alongside SeryID so TCC lookup uses the right ID
+    if(r.ClassID){seriesMap[key].echoClassId=r.ClassID;seriesMap[key].ircClassId=r.ClassID+1;}
     // Track earliest start for chronological ordering
     const d=new Date(r.Start);
     if(!seriesMap[key].firstStart||d<seriesMap[key].firstStart) seriesMap[key].firstStart=d;
@@ -5799,23 +5801,33 @@ async function renderResultsForSeries(series){
     if(b&&!b._err) halBoatCache[id]={name:b.Name||'',sailText:b.SailText||'',helm:b.Helm||'',handicaps:b.Handicaps||[]};
   }));
 
-  buildResultsTable(data, series.label, fleetLabel, wrap, seriesId);
+  // handicapClassId is the GetBoat/Handicaps namespace (ClassID), distinct from SeryID
+  const handicapClassId=halCurrentFleet==='irc'?series.ircClassId:series.echoClassId;
+  buildResultsTable(data, series.label, fleetLabel, wrap, seriesId, handicapClassId);
 }
 
 // Return the current TCC for a boat's cached handicap list, matching the given Halsail ClassID.
 // Picks the most-recent entry whose ValidDateTime is on or before now.
 function halCurrentTCC(handicaps, classId){
   const now=Date.now();
-  console.log('[TCC] classId=',classId,'handicaps=',JSON.stringify(handicaps));
-  const valid=(handicaps||[])
-    .filter(h=>h.ClassID===classId)
+  const classIdN=+classId; // normalise to number
+  const byClass=(handicaps||[]).filter(h=>+h.ClassID===classIdN);
+  if(!byClass.length){
+    console.log('[TCC] no ClassID match: looking for',classIdN,'('+typeof classId+')',
+      'available:',(handicaps||[]).map(h=>h.ClassID+' ('+typeof h.ClassID+')').join(', '));
+  }
+  const valid=byClass
     .map(h=>({h, ms:parseInt((h.ValidDateTime||'').replace(/\/Date\((-?\d+)\)\//,'$1'))||0}))
     .filter(({ms})=>ms<=now)
     .sort((a,b)=>b.ms-a.ms);
-  console.log('[TCC] valid entries=',valid.length, valid.length?valid[0].h.Handicap:'none');
+  if(byClass.length&&!valid.length){
+    console.log('[TCC] ClassID matched but all ValidDateTime in future — ms values:'
+      ,byClass.map(h=>parseInt((h.ValidDateTime||'').replace(/\/Date\((-?\d+)\)\//,'$1'))).join(', ')
+      ,'now=',now);
+  }
   return valid.length?valid[0].h.Handicap:null;
 }
-function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId){
+function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handicapClassId){
   const resultBoats=data.ResultsOverall||[];
   if(!resultBoats.length){ wrap.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No results yet</div></div>'; return; }
 
@@ -5854,7 +5866,7 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId){
 
   function resolveBoatDisplay(halBoat){
     const boatData=halBoatCache[halBoat.BoatID];
-    const tcc=boatData?halCurrentTCC(boatData.handicaps,seriesId):null;
+    const tcc=boatData&&handicapClassId!=null?halCurrentTCC(boatData.handicaps,handicapClassId):null;
     if(boatData&&boatData.name){
       return {primary:boatData.name, secondary:boatData.sailText||boatData.helm||null, tcc};
     }
