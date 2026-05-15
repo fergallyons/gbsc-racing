@@ -5811,7 +5811,7 @@ async function renderResultsForSeries(series){
     boatIds.forEach(id=>{ const b=halBoatCache[id]; if(b)(b.handicaps||[]).forEach(h=>{ if(h.ClassID)classIds.add(+h.ClassID); }); });
     const sorted=[...classIds].filter(n=>n>0).sort((a,b)=>a-b);
     for(let i=0;i<sorted.length-1;i++){
-      if(sorted[i+1]===sorted[i]+1){ echoClassId=sorted[i]; ircClassId=sorted[i+1]; break; }
+      if(sorted[i+1]===sorted[i]+1){ ircClassId=sorted[i]; echoClassId=sorted[i+1]; break; }
     }
   }
   const handicapClassId=halCurrentFleet==='irc'?ircClassId:echoClassId;
