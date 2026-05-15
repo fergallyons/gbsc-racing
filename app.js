@@ -265,7 +265,7 @@ async function sbSaveCourse(course){
   }
 }
 async function sbLoadCourse(){
-  const r=await sbFetch('/rest/v1/published_courses?order=published_at.desc&limit=1');
+  const r=await sbFetch('/rest/v1/published_courses?id=eq.current&limit=1');
   if(!r||!r.length) return null;
   const row=r[0];
   // Normalise: marks may come back as a jsonb array or a JSON string
