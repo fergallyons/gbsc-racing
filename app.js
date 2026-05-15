@@ -5801,8 +5801,20 @@ async function renderResultsForSeries(series){
     if(b&&!b._err) halBoatCache[id]={name:b.Name||'',sailText:b.SailText||'',helm:b.Helm||'',handicaps:b.Handicaps||[]};
   }));
 
-  // handicapClassId is the GetBoat/Handicaps namespace (ClassID), distinct from SeryID
-  const handicapClassId=halCurrentFleet==='irc'?series.ircClassId:series.echoClassId;
+  // Resolve ClassID for TCC lookup — GetSchedule doesn't include ClassID, so discover it
+  // by scanning handicap entries across all fetched boats. IRC and ECHO always have
+  // consecutive ClassIDs (e.g. 31396/31397), so find the first pair differing by 1.
+  let echoClassId=series.echoClassId;  // may already be set if schedule included it
+  let ircClassId=series.ircClassId;
+  if(echoClassId==null){
+    const classIds=new Set();
+    boatIds.forEach(id=>{ const b=halBoatCache[id]; if(b)(b.handicaps||[]).forEach(h=>{ if(h.ClassID)classIds.add(+h.ClassID); }); });
+    const sorted=[...classIds].filter(n=>n>0).sort((a,b)=>a-b);
+    for(let i=0;i<sorted.length-1;i++){
+      if(sorted[i+1]===sorted[i]+1){ echoClassId=sorted[i]; ircClassId=sorted[i+1]; break; }
+    }
+  }
+  const handicapClassId=halCurrentFleet==='irc'?ircClassId:echoClassId;
   buildResultsTable(data, series.label, fleetLabel, wrap, seriesId, handicapClassId);
 }
 
@@ -5810,21 +5822,12 @@ async function renderResultsForSeries(series){
 // Picks the most-recent entry whose ValidDateTime is on or before now.
 function halCurrentTCC(handicaps, classId){
   const now=Date.now();
-  const classIdN=+classId; // normalise to number
-  const byClass=(handicaps||[]).filter(h=>+h.ClassID===classIdN);
-  if(!byClass.length){
-    console.log('[TCC] no ClassID match: looking for',classIdN,'('+typeof classId+')',
-      'available:',(handicaps||[]).map(h=>h.ClassID+' ('+typeof h.ClassID+')').join(', '));
-  }
-  const valid=byClass
+  const classIdN=+classId;
+  const valid=(handicaps||[])
+    .filter(h=>+h.ClassID===classIdN)
     .map(h=>({h, ms:parseInt((h.ValidDateTime||'').replace(/\/Date\((-?\d+)\)\//,'$1'))||0}))
     .filter(({ms})=>ms<=now)
     .sort((a,b)=>b.ms-a.ms);
-  if(byClass.length&&!valid.length){
-    console.log('[TCC] ClassID matched but all ValidDateTime in future — ms values:'
-      ,byClass.map(h=>parseInt((h.ValidDateTime||'').replace(/\/Date\((-?\d+)\)\//,'$1'))).join(', ')
-      ,'now=',now);
-  }
   return valid.length?valid[0].h.Handicap:null;
 }
 function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handicapClassId){
