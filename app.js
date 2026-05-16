@@ -5151,13 +5151,18 @@ async function saveDraft(){
 }
 
 async function loadDraftIfExists(){
-  const r=await sbFetch('/rest/v1/published_courses?id=eq.draft&limit=1');
+  // Prefer draft; fall back to the active published course
+  let r=await sbFetch('/rest/v1/published_courses?id=eq.draft&limit=1');
+  const isDraft=r&&r.length>0;
+  if(!isDraft){
+    r=await sbFetch('/rest/v1/published_courses?id=eq.current&limit=1');
+  }
   if(!r||!r.length) return;
   const row=r[0];
   let marks=row.marks||[];
   if(typeof marks==='string'){try{marks=JSON.parse(marks);}catch(e){marks=[];}}
   if(!marks.length) return;
-  // Restore draft into builder
+  // Restore into builder
   courseMarks=marks;
   windDeg=row.wind_deg||0;
   if(row.notes){const n=document.getElementById('courseNotes');if(n)n.value=row.notes;}
@@ -5165,8 +5170,13 @@ async function loadDraftIfExists(){
   if(row.finish_line_id) selectedFinishLineId=row.finish_line_id;
   renderCourseBuilder();
   const bar=document.getElementById('draftStatusBar');
-  if(bar) bar.style.display='';
-  toast('📝 Draft course loaded');
+  if(isDraft){
+    if(bar) bar.style.display='';
+    toast('📝 Draft course loaded');
+  } else {
+    if(bar) bar.style.display='none';
+    toast('📋 Active course loaded into builder');
+  }
 }
 
 async function publishCourse(){
