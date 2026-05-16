@@ -5168,7 +5168,14 @@ async function loadDraftIfExists(){
   if(row.notes){const n=document.getElementById('courseNotes');if(n)n.value=row.notes;}
   if(row.start_line_id) selectedStartLineId=row.start_line_id;
   if(row.finish_line_id) selectedFinishLineId=row.finish_line_id;
-  renderCourseBuilder();
+  // Highlight marks in the grid that are part of the course
+  courseMarks.forEach(entry=>{
+    const btn=document.getElementById('mt-'+entry.id);
+    if(btn) btn.classList.add('selected');
+  });
+  populateLineSelects();
+  renderSelectedOrder();
+  renderRoCoursePreview();
   const bar=document.getElementById('draftStatusBar');
   if(isDraft){
     if(bar) bar.style.display='';
