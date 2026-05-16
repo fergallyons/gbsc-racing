@@ -878,7 +878,6 @@ async function enterApp(b,ro){
     updateRODash();
     buildMarksGrid();
     loadMarks();
-    loadLines();
     loadAndDrawCourse();
     loadRegistrations();
     buildPinMgmtList();
@@ -4492,7 +4491,7 @@ function dist(lat1,lng1,lat2,lng2){
 // COURSE DIAGRAM (SVG)
 // ═══════════════════════════════════════════════════════════════
 async function loadAndDrawCourse(){
-  const [c]=await Promise.all([sbLoadCourse(), loadMarks()]);
+  const [c]=await Promise.all([sbLoadCourse(), loadMarks(), loadLines()]);
   if(c){
     publishedCourse=c;
     if(isRO){
