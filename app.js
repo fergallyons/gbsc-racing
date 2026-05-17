@@ -4071,12 +4071,20 @@ async function generatePaymentReport(){
 
   statusEl.textContent='⏳ Loading report…';
 
-  const [records, regs]=await Promise.all([
+  const [records, regs, selfPays]=await Promise.all([
     sbLoadRaceRecords(raceKey(race)),
-    sbLoadRegistrations(race)
+    sbLoadRegistrations(race),
+    sbFetch('/rest/v1/self_payments?race_key=eq.'+raceKey(race))
   ]);
 
   statusEl.textContent='';
+
+  // Group self_payments by boat_id for cross-reference
+  const selfPaysByBoat={};
+  (selfPays||[]).forEach(sp=>{
+    if(!selfPaysByBoat[sp.boat_id]) selfPaysByBoat[sp.boat_id]=[];
+    selfPaysByBoat[sp.boat_id].push(sp);
+  });
 
   // Boats that registered but never submitted a payment report
   const submittedBoatIds=new Set(records.map(r=>r.boat_id));
@@ -4084,6 +4092,10 @@ async function generatePaymentReport(){
     .filter(r=>!submittedBoatIds.has(r.boat_id))
     .map(r=>boats.find(b=>b.id===r.boat_id))
     .filter(Boolean);
+
+  // Split missing boats: those with self-payment evidence vs truly no data
+  const missingWithSelfPay=missingBoats.filter(b=>selfPaysByBoat[b.id]?.length);
+  const missingNoData=missingBoats.filter(b=>!selfPaysByBoat[b.id]?.length);
 
   // Aggregate totals from submissions
   let grandDue=0, grandPaid=0;
@@ -4153,14 +4165,35 @@ async function generatePaymentReport(){
     .join('');
 
   // Missing boats section — registered but no submission
-  const missingSection=missingBoats.length?`
+  const selfPaySection=missingWithSelfPay.length?`
+    <div style="margin-bottom:32px;page-break-inside:avoid;">
+      <div style="background:#e8f5e9;border:2px solid #2dc653;border-radius:8px;padding:14px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
+          color:#1a7a3a;letter-spacing:.04em;margin-bottom:10px;">
+          ℹ Self-paid crew — no skipper submission (${missingWithSelfPay.length})
+        </div>
+        ${missingWithSelfPay.map(b=>{
+          const pays=selfPaysByBoat[b.id];
+          const total=pays.reduce((s,p)=>s+(p.amount||0),0);
+          const methods=[...new Set(pays.map(p=>p.method).filter(Boolean))].join(', ')||'—';
+          return`<div style="padding:7px 0;border-bottom:1px solid rgba(0,0,0,.08);">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-weight:600;font-size:.95rem">${b.name}</span>
+              <span style="font-size:.8rem;color:#1a7a3a;font-weight:600">${pays.length} crew · €${total} · ${methods}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`:'';
+
+  const missingSection=missingNoData.length?`
     <div style="margin-bottom:32px;page-break-inside:avoid;">
       <div style="background:#fff3cd;border:2px solid #e8a020;border-radius:8px;padding:14px;">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
           color:#c0392b;letter-spacing:.04em;margin-bottom:10px;">
-          ⚠ Registered — No Payment Submission (${missingBoats.length})
+          ⚠ Registered — No Payment Submission (${missingNoData.length})
         </div>
-        ${missingBoats.map(b=>`
+        ${missingNoData.map(b=>`
           <div style="display:flex;align-items:center;justify-content:space-between;
             padding:7px 0;border-bottom:1px solid rgba(0,0,0,.08);">
             <span style="font-weight:600;font-size:.95rem">${b.name}</span>
@@ -4198,8 +4231,10 @@ async function generatePaymentReport(){
       <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">${(regs||[]).length}</div></div>
     <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Submitted</div>
       <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">${records.length}</div></div>
-    ${missingBoats.length?`<div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Missing</div>
-      <div style="font-size:1.6rem;font-weight:800;color:#c0392b;font-family:'Barlow Condensed',sans-serif">${missingBoats.length}</div></div>`:''}
+    ${missingWithSelfPay.length?`<div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Self-paid</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#1a7a3a;font-family:'Barlow Condensed',sans-serif">${missingWithSelfPay.length}</div></div>`:''}
+    ${missingNoData.length?`<div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Missing</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#c0392b;font-family:'Barlow Condensed',sans-serif">${missingNoData.length}</div></div>`:''}
     <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Total Due</div>
       <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">€${grandDue}</div></div>
     <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Collected</div>
@@ -4212,6 +4247,7 @@ async function generatePaymentReport(){
     </div>
   </div>
 
+  ${selfPaySection}
   ${missingSection}
   ${boatRows}
 </body></html>`;
