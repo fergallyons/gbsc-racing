@@ -209,6 +209,17 @@ async function sbRegisterBoat(boatId,race){
     return false;
   }
 }
+async function sbToggleLookingForCrew(boatId,race,value){
+  const key=raceKey(race);
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/registrations?boat_id=eq.'+boatId+'&race_key=eq.'+encodeURIComponent(key),{
+      method:'PATCH',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({looking_for_crew:value})
+    });
+    return r.ok;
+  }catch(e){ return false; }
+}
 async function sbUnregisterBoat(boatId,race){
   const key=raceKey(race);
   try{
@@ -555,6 +566,7 @@ let publishedCourse=null;
 let selectedStartLineId='club';   // id from LINES[]
 let selectedFinishLineId='club';  // can differ for destination-finish races
 let registeredBoatIds=new Set(); // boat IDs registered for the next race
+let lookingForCrew=false;        // whether currentBoat is looking for crew for nextRace
 let roDashRegsCount=0, roDashProtestsCount=0, roDashCoursePublished=false;
 
 // ═══════════════════════════════════════════════════════════════
@@ -842,9 +854,44 @@ function updateRegisterButton(){
   btn.textContent=isReg?'✓ Registered — Withdraw':'⛵ Register for This Race';
   if(isReg){btn.style.color='var(--success)';btn.style.borderColor='rgba(45,198,83,.4)';}
   else{btn.style.color='';btn.style.borderColor='';}
+  // Show/hide crew wanted toggle
+  const crewRow=document.getElementById('lookingForCrewRow');
+  const crewBtn=document.getElementById('lookingForCrewBtn');
+  if(crewRow) crewRow.style.display=isReg?'block':'none';
+  if(crewBtn) updateCrewWantedChip(crewBtn);
   renderBoatGrid();
   updateHomeChips();
   if(!isRO&&!isGuest) updateSkipperDash();
+}
+function updateCrewWantedChip(btn){
+  if(!btn) btn=document.getElementById('lookingForCrewBtn');
+  if(!btn) return;
+  if(lookingForCrew){
+    btn.textContent='🔍 Looking for crew — tap to cancel';
+    btn.style.background='rgba(0,180,216,.15)';
+    btn.style.borderColor='var(--teal)';
+    btn.style.color='var(--teal)';
+  } else {
+    btn.textContent='🔍 Looking for crew?';
+    btn.style.background='transparent';
+    btn.style.borderColor='var(--border)';
+    btn.style.color='var(--muted)';
+  }
+}
+async function toggleLookingForCrew(){
+  if(!currentBoat||!selectedRace) return;
+  const newVal=!lookingForCrew;
+  const btn=document.getElementById('lookingForCrewBtn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳…'; }
+  const ok=await sbToggleLookingForCrew(currentBoat.id,selectedRace,newVal);
+  if(ok){
+    lookingForCrew=newVal;
+    toast(newVal?'🔍 Listed as looking for crew':'Crew wanted listing removed');
+  } else {
+    toast('⚠ Could not update — try again');
+  }
+  if(btn) btn.disabled=false;
+  updateCrewWantedChip(btn);
 }
 function loginAs(id){
   const b=boats.find(x=>x.id===id); if(!b)return;
@@ -911,6 +958,14 @@ async function enterApp(b,ro){
   buildRaceDropdown();
   // Refresh registration state for this boat
   updateRegisterButton();
+  // Load looking_for_crew state for this boat
+  if(nextRace){
+    sbLoadRegistrations(nextRace).then(regs=>{
+      const myReg=(regs||[]).find(r=>r.boat_id===b.id);
+      lookingForCrew=myReg?!!myReg.looking_for_crew:false;
+      updateCrewWantedChip();
+    }).catch(()=>{});
+  }
   loadAndDrawCourse();
   renderCrew();
   updateSkipperDash();
@@ -2881,6 +2936,38 @@ function showRevolutQR(firstName,revLink,amt){
 
 const GBSC_LAT=53.262, GBSC_LNG=-8.942; // Rinville, Oranmore, Galway Bay
 
+function openCrewWantedPanel(){
+  openPanel('crewWantedPanel');
+  loadAndRenderCrewWanted();
+}
+async function loadAndRenderCrewWanted(){
+  const list=document.getElementById('crewWantedList'); if(!list) return;
+  list.innerHTML='<div class="empty-state"><div class="icon">🔍</div>Loading…</div>';
+  if(!nextRace){ list.innerHTML='<div class="empty-state"><div class="icon">📅</div>No upcoming race found</div>'; return; }
+  const regs=await sbLoadRegistrations(nextRace);
+  const wanted=(regs||[]).filter(r=>r.looking_for_crew);
+  // Update tile subtitles
+  const label=wanted.length?wanted.length+' boat'+(wanted.length===1?'':' s')+ ' looking':'No boats looking yet';
+  ['sk-crew-wanted-sub','pub-crew-wanted-sub'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.textContent=label;
+  });
+  if(!wanted.length){
+    list.innerHTML='<div class="empty-state"><div class="icon">🔍</div><div>No boats are looking for crew tonight</div></div>';
+    return;
+  }
+  list.innerHTML=wanted.map(r=>{
+    const boat=boats.find(b=>b.id===r.boat_id);
+    const name=boat?boat.name:r.boat_id;
+    return`<div style="display:flex;align-items:center;gap:12px;background:var(--navy);
+        border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+      <div style="font-size:1.4rem">⛵</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem">${name}</div>
+        <div style="font-size:.8rem;color:var(--teal);margin-top:2px">Looking for crew tonight</div>
+      </div>
+    </div>`;
+  }).join('');
+}
 function openWeatherPanel(){
   openPanel('weatherPanel');
   loadRaceWeather();

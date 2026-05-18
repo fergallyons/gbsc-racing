@@ -202,7 +202,15 @@
     </div>
   </div>
   <!-- Register CTA -->
-  <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:14px" onclick="registerForRace()">⛵ Register for This Race</button>
+  <button id="registerBtn" class="btn btn-primary" style="width:100%;padding:12px;margin-bottom:8px" onclick="registerForRace()">⛵ Register for This Race</button>
+  <div id="lookingForCrewRow" style="display:none;margin-bottom:14px;text-align:center">
+    <button id="lookingForCrewBtn" onclick="toggleLookingForCrew()"
+      style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
+        padding:6px 14px;border-radius:20px;border:1px solid var(--border);
+        background:transparent;color:var(--muted);cursor:pointer;transition:all .2s">
+      🔍 Looking for crew?
+    </button>
+  </div>
   <!-- 2-column tile grid -->
   <div class="dash-grid">
     <div class="dash-card" onclick="openPanel('coursePanel')">
@@ -239,6 +247,11 @@
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Settings</div>
       <div class="dash-card-sub">Revolut username</div>
+    </div>
+    <div class="dash-card" onclick="openCrewWantedPanel()">
+      <div class="dash-card-icon">🔍</div>
+      <div class="dash-card-label">Crew Wanted</div>
+      <div class="dash-card-sub" id="sk-crew-wanted-sub">Boats needing crew</div>
     </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">
@@ -311,6 +324,22 @@
     </div>
   </div>
 </div><!-- /coursePanel -->
+
+<!-- ═══ PANEL: CREW WANTED ═══ -->
+<div class="panel-overlay" id="crewWantedPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('crewWantedPanel')">‹</button>
+    <span class="panel-title">🔍 Crew Wanted</span>
+  </div>
+  <div class="panel-body">
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:18px;line-height:1.5">
+      Boats below are registered for tonight and looking for crew. Speak to the skipper on the dock or contact them directly.
+    </p>
+    <div id="crewWantedList">
+      <div class="empty-state"><div class="icon">🔍</div>Loading…</div>
+    </div>
+  </div>
+</div><!-- /crewWantedPanel -->
 
 <!-- ═══ PANEL: RESULTS ═══ -->
 <div class="panel-overlay" id="resultsPanel" style="display:none">
@@ -466,6 +495,11 @@
       <div class="dash-card-icon">📄</div>
       <div class="dash-card-label">Documents</div>
       <div class="dash-card-sub">Sailing instructions</div>
+    </div>
+    <div class="dash-card" onclick="openCrewWantedPanel()">
+      <div class="dash-card-icon">🔍</div>
+      <div class="dash-card-label">Crew Wanted</div>
+      <div class="dash-card-sub" id="pub-crew-wanted-sub">Boats needing crew</div>
     </div>
   </div>
   <!-- Starting line -->
