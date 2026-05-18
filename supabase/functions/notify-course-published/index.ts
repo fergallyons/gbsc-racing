@@ -47,6 +47,14 @@ Deno.serve(async (req) => {
     return new Response("Ignored event type: " + eventType, { status: 200 });
   }
 
+  // Only notify when the live course is published — ignore draft saves
+  const record = body.record as Record<string, unknown> | undefined;
+  if (record && record.id !== "current") {
+    return new Response(JSON.stringify({ sent: 0, message: "Draft save — no notification" }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   // Fetch all push subscriptions
