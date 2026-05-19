@@ -3165,14 +3165,21 @@ async function fetchOpenMeteo(){
       const r=await fetch(base+'&models=meteofrance_arome_france&forecast_days=2');
       if(r.ok){
         const data=await r.json();
-        if(data.hourly&&data.hourly.time&&data.hourly.time.length) return data;
+        if(data.hourly&&data.hourly.time&&data.hourly.time.length){
+          data._model='AROME (Météo-France, 1.3 km)';
+          data._fetchedAt=Date.now();
+          return data;
+        }
       }
     }catch(e){}
   }
-  // Open-Meteo default best-match model — covers up to 7 days
+  // Open-Meteo default best-match model — ICON-EU for Ireland, covers up to 7 days
   try{
     const r=await fetch(base+'&forecast_days='+forecastDays); if(!r.ok) return null;
-    return await r.json();
+    const data=await r.json();
+    data._model='ICON-EU (DWD, 7 km)';
+    data._fetchedAt=Date.now();
+    return data;
   }catch(e){ return null; }
 }
 
@@ -3451,12 +3458,15 @@ function renderWeather(wx,tides){
       <div style="font-size:.85rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
     </div>
     ${windBlock}${condBlock}${tidesBlock}
-    <div style="display:flex;align-items:center;justify-content:space-between;
-      padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
-      <span>Open-Meteo${tides?' · '+tideSource:''}</span>
-      <button onclick="localStorage.removeItem('__race_weather__');localStorage.removeItem('__race_tides__');loadRaceWeather()"
-        style="font-size:.8rem;color:var(--teal);background:transparent;border:none;
-        cursor:pointer;font-family:inherit;padding:0">↺ Refresh</button>
+    <div style="padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
+        <span style="font-weight:600;color:var(--muted)">Model: ${wx._model||'Open-Meteo'}</span>
+        <button onclick="localStorage.removeItem('__race_weather__');localStorage.removeItem('__race_tides__');loadRaceWeather()"
+          style="font-size:.8rem;color:var(--teal);background:transparent;border:none;
+          cursor:pointer;font-family:inherit;padding:0">↺ Refresh</button>
+      </div>
+      <div>${wx._fetchedAt?'Fetched '+new Date(wx._fetchedAt).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · ':''}\
+Open-Meteo${tides?' · '+tideSource:''}</div>
     </div>`;
 }
 
