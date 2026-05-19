@@ -253,6 +253,11 @@
       <div class="dash-card-label">Crew Wanted</div>
       <div class="dash-card-sub" id="sk-crew-wanted-sub">Boats needing crew</div>
     </div>
+    <div id="tile-sk-crewAvailable" class="dash-card" onclick="openCrewAvailableListPanel()">
+      <div class="dash-card-icon">🙋</div>
+      <div class="dash-card-label">Available Crew</div>
+      <div class="dash-card-sub" id="sk-crew-available-sub">Sailors looking to crew</div>
+    </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">
     <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px;opacity:0.55" onclick="openHelpSheet()">❓ Help &amp; Setup</button>
@@ -340,6 +345,70 @@
     </div>
   </div>
 </div><!-- /crewWantedPanel -->
+
+<!-- ═══ PANEL: CREW AVAILABLE — public registration form ═══ -->
+<div class="panel-overlay" id="crewAvailableFormPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('crewAvailableFormPanel')">‹</button>
+    <span class="panel-title">🙋 Available to Crew</span>
+  </div>
+  <div class="panel-body">
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:20px;line-height:1.5">
+      Let skippers know you're available to crew. Your name and phone number will only be visible to registered skippers.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div>
+        <label style="display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Your Name</label>
+        <input id="caf-name" type="text" placeholder="First and last name"
+          style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--navy);color:var(--fg);font-size:.95rem;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Phone Number</label>
+        <input id="caf-phone" type="tel" placeholder="e.g. 087 123 4567"
+          style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--navy);color:var(--fg);font-size:.95rem;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Experience Level</label>
+        <select id="caf-experience"
+          style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--navy);color:var(--fg);font-size:.95rem;box-sizing:border-box">
+          <option value="">— Select your level —</option>
+          <option value="beginner">Beginner</option>
+          <option value="dinghy">Dinghy Sailor</option>
+          <option value="cruising">Cruising Experience</option>
+          <option value="limited_racing">Limited Racing Experience</option>
+          <option value="experienced_racer">Experienced Racer</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;letter-spacing:.06em;color:var(--muted);text-transform:uppercase;margin-bottom:6px">Notes <span style="font-weight:400;text-transform:none">(optional)</span></label>
+        <textarea id="caf-notes" placeholder="e.g. Available most Wednesdays, happy to helm"
+          rows="3"
+          style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--navy);color:var(--fg);font-size:.95rem;box-sizing:border-box;resize:none"></textarea>
+      </div>
+      <button onclick="submitCrewAvailable()"
+        style="width:100%;padding:12px;border-radius:12px;border:none;background:var(--teal);color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem;letter-spacing:.04em;cursor:pointer">
+        Register Interest
+      </button>
+      <p id="caf-status" style="text-align:center;font-size:.85rem;color:var(--muted);display:none"></p>
+    </div>
+  </div>
+</div><!-- /crewAvailableFormPanel -->
+
+<!-- ═══ PANEL: AVAILABLE CREW — skipper list view ═══ -->
+<div class="panel-overlay" id="crewAvailableListPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('crewAvailableListPanel')">‹</button>
+    <span class="panel-title">🙋 Available Crew</span>
+  </div>
+  <div class="panel-body">
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:18px;line-height:1.5">
+      Sailors who have registered interest in crewing. Tap a phone number to call.
+    </p>
+    <div id="crewAvailableList">
+      <div class="empty-state"><div class="icon">🙋</div>Loading…</div>
+    </div>
+  </div>
+</div><!-- /crewAvailableListPanel -->
 
 <!-- ═══ PANEL: RESULTS ═══ -->
 <div class="panel-overlay" id="resultsPanel" style="display:none">
@@ -500,6 +569,11 @@
       <div class="dash-card-icon">🔍</div>
       <div class="dash-card-label">Crew Wanted</div>
       <div class="dash-card-sub" id="pub-crew-wanted-sub">Boats needing crew</div>
+    </div>
+    <div id="tile-pub-crewAvailable" class="dash-card" onclick="openCrewAvailableFormPanel()">
+      <div class="dash-card-icon">🙋</div>
+      <div class="dash-card-label">Available to Crew</div>
+      <div class="dash-card-sub">Register your interest</div>
     </div>
   </div>
   <!-- Starting line -->

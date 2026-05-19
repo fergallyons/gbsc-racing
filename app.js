@@ -478,6 +478,7 @@ const FEAT_TILE_MAP={
   documents:      ['tile-pub-documents'],
   results:        ['tile-pub-results'],
   crewWanted:     ['tile-sk-crewWanted','tile-pub-crewWanted'],
+  crewAvailable:  ['tile-sk-crewAvailable','tile-pub-crewAvailable'],
   // Additive-only tiles (hidden by default, DB turns them on)
   courseCard:     ['roCourseCardTile'],
 };
@@ -492,7 +493,7 @@ const FEAT_DEFAULTS={
   courseCard:false,
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
-  crewWanted:true,
+  crewWanted:true, crewAvailable:true,
 };
 // Feature catalog for the admin panel UI (rendered by renderFeaturesPanel).
 const FEAT_CATALOG=[
@@ -522,7 +523,8 @@ const FEAT_CATALOG=[
   {key:'calendar',   label:'Calendar',    type:'bool', group:'Public Tiles'},
   {key:'documents',  label:'Documents',   type:'bool', group:'Public Tiles'},
   {key:'results',    label:'Results',     type:'bool', group:'Public Tiles'},
-  {key:'crewWanted', label:'Crew Wanted', type:'bool', group:'Public Tiles'},
+  {key:'crewWanted',    label:'Crew Wanted',    type:'bool', group:'Public Tiles'},
+  {key:'crewAvailable', label:'Available Crew',  type:'bool', group:'Public Tiles'},
 ];
 function liftVeil(){
   const v=document.getElementById('appVeil');
@@ -2940,6 +2942,120 @@ function showRevolutQR(firstName,revLink,amt){
 // ════════════════════════════════════════════════════════════
 
 const GBSC_LAT=53.262, GBSC_LNG=-8.942; // Rinville, Oranmore, Galway Bay
+
+// ── Crew Available ────────────────────────────────────────────────────────────
+const EXPERIENCE_LABELS={
+  beginner:         'Beginner',
+  dinghy:           'Dinghy Sailor',
+  cruising:         'Cruising Experience',
+  limited_racing:   'Limited Racing Experience',
+  experienced_racer:'Experienced Racer',
+};
+const EXPERIENCE_COLOURS={
+  beginner:         '#888',
+  dinghy:           '#00b4d8',
+  cruising:         '#2dc653',
+  limited_racing:   '#e8a020',
+  experienced_racer:'#e63946',
+};
+
+function openCrewAvailableFormPanel(){
+  // Reset form
+  ['caf-name','caf-phone','caf-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const sel=document.getElementById('caf-experience');if(sel)sel.value='';
+  const st=document.getElementById('caf-status');if(st){st.style.display='none';st.textContent='';}
+  openPanel('crewAvailableFormPanel');
+}
+async function submitCrewAvailable(){
+  const name=(document.getElementById('caf-name')?.value||'').trim();
+  const phone=(document.getElementById('caf-phone')?.value||'').trim();
+  const experience=document.getElementById('caf-experience')?.value||'';
+  const notes=(document.getElementById('caf-notes')?.value||'').trim();
+  const statusEl=document.getElementById('caf-status');
+  const btn=document.querySelector('#crewAvailableFormPanel button[onclick="submitCrewAvailable()"]');
+
+  if(!name){toast('Please enter your name');return;}
+  if(!phone){toast('Please enter your phone number');return;}
+  if(!experience){toast('Please select your experience level');return;}
+
+  if(btn){btn.disabled=true;btn.textContent='Saving…';}
+
+  const r=await sbFetch('/rest/v1/crew_available?on_conflict=phone',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify({name,phone,experience,notes:notes||null,is_active:true})
+  });
+
+  if(btn){btn.disabled=false;btn.textContent='Register Interest';}
+
+  if(r&&!r._err){
+    if(statusEl){
+      statusEl.textContent='✅ You\'re registered — skippers can now see your details.';
+      statusEl.style.display='block';
+      statusEl.style.color='var(--success)';
+    }
+    toast('🙋 Registered as available crew');
+  } else {
+    toast('⚠ Could not save — please try again');
+  }
+}
+
+function openCrewAvailableListPanel(){
+  openPanel('crewAvailableListPanel');
+  loadAndRenderCrewAvailableList();
+}
+async function loadAndRenderCrewAvailableList(){
+  const list=document.getElementById('crewAvailableList');if(!list)return;
+  list.innerHTML='<div class="empty-state"><div class="icon">🙋</div>Loading…</div>';
+
+  const rows=await sbFetch('/rest/v1/crew_available?is_active=eq.true&order=created_at.desc');
+  const sub=document.getElementById('sk-crew-available-sub');
+  if(!rows||!rows.length){
+    if(sub) sub.textContent='No one registered yet';
+    list.innerHTML='<div class="empty-state"><div class="icon">🙋</div><div>No sailors registered yet</div></div>';
+    return;
+  }
+  if(sub) sub.textContent=rows.length+' sailor'+(rows.length===1?'':'s')+' available';
+
+  list.innerHTML=rows.map(r=>{
+    const expLabel=EXPERIENCE_LABELS[r.experience]||r.experience;
+    const expColour=EXPERIENCE_COLOURS[r.experience]||'#888';
+    return`<div style="background:var(--navy);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:10px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;margin-bottom:4px">${r.name}</div>
+          <span style="display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;
+            padding:2px 8px;border-radius:10px;border:1px solid ${expColour};color:${expColour};margin-bottom:6px">${expLabel}</span>
+          ${r.notes?`<div style="font-size:.82rem;color:var(--muted);margin-top:4px;line-height:1.4">${r.notes}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
+          <a href="tel:${r.phone}" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;
+            color:var(--teal);text-decoration:none;white-space:nowrap">📞 ${r.phone}</a>
+          <button onclick="deactivateCrewAvailable(${r.id},this)"
+            style="font-size:.72rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+              padding:3px 8px;border-radius:6px;border:1px solid var(--border);
+              background:transparent;color:var(--muted);cursor:pointer">Remove</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function deactivateCrewAvailable(id,btn){
+  if(!confirm('Remove this sailor from the available crew list?'))return;
+  if(btn){btn.disabled=true;btn.textContent='…';}
+  const ok=await sbFetch('/rest/v1/crew_available?id=eq.'+id,{
+    method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({is_active:false})
+  });
+  if(ok&&!ok._err){
+    toast('Removed from list');
+    loadAndRenderCrewAvailableList();
+  } else {
+    toast('⚠ Could not remove — try again');
+    if(btn){btn.disabled=false;btn.textContent='Remove';}
+  }
+}
 
 function openCrewWantedPanel(){
   openPanel('crewWantedPanel');
