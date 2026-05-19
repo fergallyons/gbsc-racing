@@ -2944,6 +2944,13 @@ function showRevolutQR(firstName,revLink,amt){
 const GBSC_LAT=53.262, GBSC_LNG=-8.942; // Rinville, Oranmore, Galway Bay
 
 // ── Crew Available ────────────────────────────────────────────────────────────
+// Normalise a phone number to E.164-style digits for WhatsApp wa.me links.
+// Leading 0 → Irish country code 353; strips all non-digit chars otherwise.
+function waPhone(p){
+  const digits=String(p).replace(/\D/g,'');
+  if(digits.startsWith('0')) return '353'+digits.slice(1);
+  return digits;
+}
 const EXPERIENCE_LABELS={
   beginner:         'Beginner',
   dinghy:           'Dinghy Sailor',
@@ -3029,8 +3036,9 @@ async function loadAndRenderCrewAvailableList(){
           ${r.notes?`<div style="font-size:.82rem;color:var(--muted);margin-top:4px;line-height:1.4">${r.notes}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
-          <a href="tel:${r.phone}" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;
-            color:var(--teal);text-decoration:none;white-space:nowrap">📞 ${r.phone}</a>
+          <a href="https://wa.me/${waPhone(r.phone)}" target="_blank" rel="noopener"
+            style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;
+            color:#25d366;text-decoration:none;white-space:nowrap">💬 ${r.phone}</a>
           <button onclick="deactivateCrewAvailable(${r.id},this)"
             style="font-size:.72rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
               padding:3px 8px;border-radius:6px;border:1px solid var(--border);
