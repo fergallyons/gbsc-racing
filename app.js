@@ -695,12 +695,8 @@ async function patchRaceTimesFromHalsail(){
   updateWeatherVisibility();
 }
 function updateWeatherVisibility(){
-  // Hide the wind widget in the summary card and update the tile subtitle
-  // when the "current" race has already finished — no point showing a forecast for the past.
   const isPast=nextRace&&nextRace.date<new Date();
-  const widget=document.getElementById('windWidget');
   const sub=document.getElementById('wx-tile-sub');
-  if(widget) widget.style.display=isPast?'none':'flex';
   if(sub) sub.textContent=isPast?'Check back before next race':'Wind, tide & forecast';
 }
 function getRaceEyebrow(race){
@@ -6382,57 +6378,26 @@ document.addEventListener('click',function(e){
 // fetchOpenMeteo uses _C.windLat/_C.windLng (or GBSC_LAT/GBSC_LNG fallback) — see above
 
 async function loadWindWidget(){
+  // Fetches forecast wind direction to pre-fill the RO course builder wind slider.
+  // The visible wind widget was removed from the summary card — use the Race Weather tab.
   try{
-    // Use cached Open-Meteo data if fresh, otherwise fetch
     let wx=null;
     try{
       const c=JSON.parse(localStorage.getItem('__race_weather_v2__')||'null');
       if(c&&Date.now()-c.ts<3600000) wx=c.wx;
     }catch(e){}
     if(!wx) wx=await fetchOpenMeteo();
-
-    if(!wx||!wx.hourly) throw new Error('No forecast data');
-
+    if(!wx||!wx.hourly) return;
     const race=nextRace||getNextRace();
     const raceDate=race?race.date:new Date();
     const now=new Date();
-    const isToday=raceDate.toDateString()===now.toDateString();
-    const target=isToday?Math.max(now.getTime(),raceDate.getTime()):raceDate.getTime();
-    const targetTs=Math.floor(target/1000);
-
+    const targetTs=Math.floor((raceDate.toDateString()===now.toDateString()
+      ?Math.max(now.getTime(),raceDate.getTime()):raceDate.getTime())/1000);
     const times=wx.hourly.time;
     let idx=times.findIndex(t=>t>=targetTs);
     if(idx<0) idx=times.length-1;
-    idx=Math.min(Math.max(idx,0),times.length-1);
-
-    const spd=Math.round(wx.hourly.wind_speed_10m[idx]);
-    const gust=Math.round(wx.hourly.wind_gusts_10m[idx]);
-    const deg=Math.round(wx.hourly.wind_direction_10m[idx]);
-    forecastWindDeg=deg;
-
-    const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-    const dir=dirs[Math.round(deg/22.5)%16];
-
-    const startTime=new Date(times[idx]*1000).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-    const tag=isToday&&raceDate>now?'START':'FCST';
-
-    document.getElementById('windArrow').innerHTML=
-      `<svg width="32" height="32" viewBox="0 0 32 32" style="transform:rotate(${deg+180}deg);transition:transform .6s ease">
-        <circle cx="16" cy="16" r="14" fill="rgba(0,174,239,.15)" stroke="rgba(0,174,239,.3)" stroke-width="1.5"/>
-        <path d="M16 5 L11 17 L14 15.5 L14 27 L18 27 L18 15.5 L21 17 Z" fill="#00aeef"/>
-      </svg>`;
-
-    document.getElementById('windSpeed').textContent=spd+' kn';
-    const gustEl=document.getElementById('windGust');
-    if(gustEl) gustEl.textContent=gust>spd+5?`(gusts ${gust} kn)`:'';
-    document.getElementById('windDir').textContent=`From ${dir} · ${deg}°`;
-    const tl=document.getElementById('windTimeLabel'); if(tl) tl.textContent=tag;
-    const tv=document.getElementById('windTimeVal'); if(tv) tv.textContent=startTime;
-
-  }catch(e){
-    document.getElementById('windDir').textContent='Wind data unavailable';
-    console.warn('Wind widget error:',e);
-  }
+    forecastWindDeg=Math.round(wx.hourly.wind_direction_10m[Math.min(Math.max(idx,0),times.length-1)]);
+  }catch(e){ console.warn('Wind widget error:',e); }
 }
 
 // ═══════════════════════════════════════════════════════════════
