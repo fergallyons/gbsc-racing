@@ -477,6 +477,7 @@ const FEAT_TILE_MAP={
   calendar:       ['tile-pub-calendar'],
   documents:      ['tile-pub-documents'],
   results:        ['tile-pub-results'],
+  crewWanted:     ['tile-sk-crewWanted','tile-pub-crewWanted'],
   // Additive-only tiles (hidden by default, DB turns them on)
   courseCard:     ['roCourseCardTile'],
 };
@@ -491,6 +492,7 @@ const FEAT_DEFAULTS={
   courseCard:false,
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
+  crewWanted:true,
 };
 // Feature catalog for the admin panel UI (rendered by renderFeaturesPanel).
 const FEAT_CATALOG=[
@@ -515,11 +517,12 @@ const FEAT_CATALOG=[
   {key:'protest',      label:'Protest',       type:'bool', group:'Skipper Tiles'},
   {key:'boatSettings', label:'Boat Settings', type:'bool', group:'Skipper Tiles'},
   {key:'feeHistory',   label:'Fee History',   type:'bool', group:'Skipper Tiles'},
-  {key:'selfPay',   label:'Self Pay',  type:'bool', group:'Public Tiles'},
-  {key:'weather',   label:'Weather',   type:'bool', group:'Public Tiles'},
-  {key:'calendar',  label:'Calendar',  type:'bool', group:'Public Tiles'},
-  {key:'documents', label:'Documents', type:'bool', group:'Public Tiles'},
-  {key:'results',   label:'Results',   type:'bool', group:'Public Tiles'},
+  {key:'selfPay',    label:'Self Pay',    type:'bool', group:'Public Tiles'},
+  {key:'weather',    label:'Weather',     type:'bool', group:'Public Tiles'},
+  {key:'calendar',   label:'Calendar',    type:'bool', group:'Public Tiles'},
+  {key:'documents',  label:'Documents',   type:'bool', group:'Public Tiles'},
+  {key:'results',    label:'Results',     type:'bool', group:'Public Tiles'},
+  {key:'crewWanted', label:'Crew Wanted', type:'bool', group:'Public Tiles'},
 ];
 function liftVeil(){
   const v=document.getElementById('appVeil');
@@ -857,7 +860,9 @@ function updateRegisterButton(){
   // Show/hide crew wanted toggle
   const crewRow=document.getElementById('lookingForCrewRow');
   const crewBtn=document.getElementById('lookingForCrewBtn');
-  if(crewRow) crewRow.style.display=isReg?'block':'none';
+  const _cwf=(clubSettings&&clubSettings.features)||{};
+  const crewWantedOn=_cwf.crewWanted!==undefined?_cwf.crewWanted:FEAT_DEFAULTS.crewWanted;
+  if(crewRow) crewRow.style.display=(isReg&&crewWantedOn)?'block':'none';
   if(crewBtn) updateCrewWantedChip(crewBtn);
   renderBoatGrid();
   updateHomeChips();
