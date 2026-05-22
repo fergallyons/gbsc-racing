@@ -148,14 +148,14 @@ async function sbDeleteRaceAttendee(boatId,key,crewId){
 }
 async function sbLoadRaceRecords(key){
   const r=await sbFetch('/rest/v1/race_records?race_key=eq.'+encodeURIComponent(key)+'&order=submitted_at.asc');
-  return r||[];
+  return Array.isArray(r)?r:[];
 }
-// Auto-save race record on every payment change — replaces manual Submit
+// Auto-save race record when all selected crew have paid — replaces manual Submit
 function autoSaveRaceRecord(){
   const race=selectedRace||nextRace;
   if(!race||!currentBoat) return;
   const s=roster.filter(p=>p.selected);
-  if(!s.length) return;
+  if(!s.length||!s.every(p=>p.paid)) return;
   const tot=s.reduce((a,p)=>a+fee(p),0);
   const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
   const byMethod={};
