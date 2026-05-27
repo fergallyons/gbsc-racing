@@ -292,6 +292,36 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   cursor:pointer;transition:opacity .2s;width:100%;}
 .revolut-btn:hover{opacity:.9;}
 
+/* ─── CREW PANEL TABS ─────────────────────────────────────── */
+.crew-tab-bar{display:flex;gap:4px;background:var(--navy-input);border-radius:10px;padding:4px;margin-bottom:16px;}
+.crew-tab{flex:1;font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase;padding:8px 0;border:none;border-radius:7px;
+  background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;}
+.crew-tab.active{background:var(--navy-lt);color:var(--teal);}
+
+/* ─── NEW SAILOR INFO TAB ─────────────────────────────────── */
+.join-step{display:flex;gap:12px;background:var(--navy-mid);border:1px solid var(--border);
+  border-radius:12px;padding:14px;margin-bottom:10px;}
+.join-step-num{width:28px;height:28px;min-width:28px;border-radius:50%;background:var(--teal);
+  color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
+  display:flex;align-items:center;justify-content:center;margin-top:1px;}
+.join-step-body{flex:1;}
+.join-step-title{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;
+  color:var(--white);margin-bottom:4px;}
+.join-step-desc{font-size:.83rem;color:var(--muted);line-height:1.45;margin-bottom:8px;}
+.join-step-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.join-step-chips span{font-size:.77rem;font-family:'Barlow Condensed',sans-serif;font-weight:600;
+  color:var(--teal);background:rgba(0,174,239,.1);border-radius:6px;padding:3px 8px;}
+.info-fees-card{background:var(--navy-mid);border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;margin-top:20px;}
+.info-fees-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+.fee-row{display:flex;justify-content:space-between;align-items:center;
+  padding:7px 0;border-bottom:1px solid rgba(0,174,239,.1);}
+.fee-row:last-child{border-bottom:none;}
+.fee-row>span:first-child{font-size:.88rem;color:var(--white);}
+.fee-val{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;color:var(--white);}
+
 /* ─── OVERLAYS ────────────────────────────────────────────── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);
   z-index:250;align-items:flex-end;justify-content:center;backdrop-filter:blur(4px);}

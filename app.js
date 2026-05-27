@@ -1610,6 +1610,7 @@ function openPanel(id){
     }
     if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
     if(id==='roCourseViewPanel') renderCourseDiagram('roCourseDisplay');
+    if(id==='crewPanel') switchCrewTab('roster');
   }));
 }
 function closePanel(id){
@@ -1804,6 +1805,83 @@ const ini=p=>(p.first[0]+p.last[0]).toUpperCase();
 const over=p=>p.type==='crew'&&p.joinYear&&(CY-p.joinYear)>=CREW_MAX_YRS;
 const vmax=p=>p.type==='visitor'&&p.outings>=VISITOR_MAX;
 const vnr=p=>p.type==='visitor'&&p.outings===VISITOR_MAX-1;
+
+// ── Crew panel tab switching ─────────────────────────────────
+function switchCrewTab(tab){
+  const roster=document.getElementById('crewRosterTab');
+  const info=document.getElementById('crewInfoTab');
+  if(roster) roster.style.display=tab==='roster'?'':'none';
+  if(info)   info.style.display  =tab==='info'  ?'':'none';
+  document.querySelectorAll('.crew-tab').forEach(b=>
+    b.classList.toggle('active', b.dataset.tab===tab));
+  if(tab==='info') renderCrewInfoTab();
+}
+
+function renderCrewInfoTab(){
+  const el=document.getElementById('crewInfoTab');
+  if(!el) return;
+  const vmax=VISITOR_MAX||6;
+  const cmax=CREW_MAX_YRS||2;
+  const fVis=FEES.visitor||10;
+  const fRace=FEES.crew||4;
+  const fStu=FEES.student||5;
+  const fKid=FEES.kid||0;
+  el.innerHTML=`
+    <div style="margin-bottom:20px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;font-weight:700;color:var(--white);margin-bottom:6px">New to GBSC Racing? ⛵</div>
+      <div style="font-size:.85rem;color:var(--muted);line-height:1.55">Anyone can race with the club. Here's the journey from your first outing to full membership.</div>
+    </div>
+
+    <div class="join-step">
+      <div class="join-step-num">1</div>
+      <div class="join-step-body">
+        <div class="join-step-title">Race as a Visitor</div>
+        <div class="join-step-desc">Join any registered boat as guest crew — no commitment needed. Try out club racing and see if it's for you.</div>
+        <div class="join-step-chips">
+          <span>€${fVis} per race night</span>
+          <span>Up to ${vmax} outings per season</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="join-step">
+      <div class="join-step-num">2</div>
+      <div class="join-step-body">
+        <div class="join-step-title">Join as Crew Member</div>
+        <div class="join-step-desc">After up to ${vmax} visitor outings you must join the club. Crew Membership gives you a reduced race fee and puts you on the official roster.</div>
+        <div class="join-step-chips">
+          <span>€200 / year membership</span>
+          <span>€${fRace} per race night</span>
+          <span>Race for up to ${cmax} seasons</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="join-step">
+      <div class="join-step-num">3</div>
+      <div class="join-step-body">
+        <div class="join-step-title">Full Membership</div>
+        <div class="join-step-desc">After ${cmax} seasons as a Crew Member, upgrade to Full Membership — or apply directly if you plan to skipper your own boat.</div>
+        <div class="join-step-chips">
+          <span>€${fRace} per race night</span>
+          <span>Full club rights &amp; benefits</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-fees-card">
+      <div class="info-fees-title">Race Night Fees</div>
+      <div class="fee-row"><span>Full / Crew Member</span><span class="fee-val">€${fRace}</span></div>
+      <div class="fee-row"><span>Student</span><span class="fee-val">€${fStu}</span></div>
+      <div class="fee-row"><span>Visitor</span><span class="fee-val">€${fVis}</span></div>
+      <div class="fee-row"><span>Junior</span><span class="fee-val">${fKid===0?'Free':'€'+fKid}</span></div>
+    </div>
+
+    <div style="text-align:center;padding:18px 0 4px;font-size:.82rem;color:var(--muted);line-height:1.6">
+      Interested in joining? Speak to the boat skipper<br>or contact the club on race night.
+    </div>
+  `;
+}
 
 function renderCrew(){
   const list=document.getElementById('crewList'); list.innerHTML='';

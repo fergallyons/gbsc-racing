@@ -698,69 +698,82 @@
     <span class="panel-title">👥 Crew Roster</span>
   </div>
   <div class="panel-body">
-    <!-- Race bar context -->
-    <div class="race-bar" style="margin-bottom:16px">
-      <div class="race-bar-icon">🏁</div>
-      <div class="race-bar-text">
-        <div class="race-bar-label">Race</div>
-        <div id="crewPanelRaceName" style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;color:var(--white)">—</div>
-      </div>
+    <!-- Tab bar -->
+    <div class="crew-tab-bar">
+      <button class="crew-tab active" data-tab="roster" onclick="switchCrewTab('roster')">Roster</button>
+      <button class="crew-tab" data-tab="info" onclick="switchCrewTab('info')">New Sailors ⚓</button>
     </div>
-    <div class="sec-head">
-      <div class="sec-title">Crew on Board</div>
-      <div class="crew-count" id="crewCount">0 selected</div>
-    </div>
-    <div class="crew-list" id="crewList"></div>
-    <button id="crewAddBtn" class="crew-add-main-btn" onclick="toggleCrewForm()">
-      <span style="font-size:1.2rem;line-height:1">＋</span> Add Crew Member
-    </button>
-    <div class="add-form" id="crewForm">
-      <h3>Add to Roster</h3>
-      <div class="form-row">
-        <div class="form-group"><label>First Name</label><input type="text" id="cf-first" placeholder="e.g. Ciarán"></div>
-        <div class="form-group"><label>Last Name</label><input type="text" id="cf-last" placeholder="e.g. Murphy"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Membership Type</label>
-          <select id="cf-type" onchange="onCrewTypeChange()">
-            <option value="full">Full Member — €4</option>
-            <option value="crew">Crew Member — €4</option>
-            <option value="student">Student — €5</option>
-            <option value="visitor">Visitor — €10</option>
-            <option value="kid">Junior — Free</option>
-          </select>
+
+    <!-- ── ROSTER TAB ── -->
+    <div id="crewRosterTab">
+      <!-- Race bar context -->
+      <div class="race-bar" style="margin-bottom:16px">
+        <div class="race-bar-icon">🏁</div>
+        <div class="race-bar-text">
+          <div class="race-bar-label">Race</div>
+          <div id="crewPanelRaceName" style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;color:var(--white)">—</div>
         </div>
-        <div class="form-group" id="cf-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="cf-join" placeholder="2023" min="2015" max="2030"></div>
-        <div class="form-group" id="cf-outGrp" style="display:none"><label>Prev Outings</label><input type="number" id="cf-out" value="0" min="0" max="6"></div>
       </div>
-      <div class="form-row">
-        <div class="form-group" style="flex:1"><label>Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="tel" id="cf-phone" placeholder="+353 87 123 4567"></div>
+      <div class="sec-head">
+        <div class="sec-title">Crew on Board</div>
+        <div class="crew-count" id="crewCount">0 selected</div>
       </div>
-      <div style="font-size:.78rem;color:var(--muted);line-height:1.4;padding:6px 2px">
-        🔒 Phone numbers are stored securely and used only to send race fee payment reminders. Crew members may request deletion at any time by contacting the club.
+      <div class="crew-list" id="crewList"></div>
+      <button id="crewAddBtn" class="crew-add-main-btn" onclick="toggleCrewForm()">
+        <span style="font-size:1.2rem;line-height:1">＋</span> Add Crew Member
+      </button>
+      <div class="add-form" id="crewForm">
+        <h3>Add to Roster</h3>
+        <div class="form-row">
+          <div class="form-group"><label>First Name</label><input type="text" id="cf-first" placeholder="e.g. Ciarán"></div>
+          <div class="form-group"><label>Last Name</label><input type="text" id="cf-last" placeholder="e.g. Murphy"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Membership Type</label>
+            <select id="cf-type" onchange="onCrewTypeChange()">
+              <option value="full">Full Member — €4</option>
+              <option value="crew">Crew Member — €4</option>
+              <option value="student">Student — €5</option>
+              <option value="visitor">Visitor — €10</option>
+              <option value="kid">Junior — Free</option>
+            </select>
+          </div>
+          <div class="form-group" id="cf-joinGrp" style="display:none"><label>Joined (year)</label><input type="number" id="cf-join" placeholder="2023" min="2015" max="2030"></div>
+          <div class="form-group" id="cf-outGrp" style="display:none"><label>Prev Outings</label><input type="number" id="cf-out" value="0" min="0" max="6"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="flex:1"><label>Phone <span style="font-weight:400;color:var(--muted)">(optional)</span></label><input type="tel" id="cf-phone" placeholder="+353 87 123 4567"></div>
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);line-height:1.4;padding:6px 2px">
+          🔒 Phone numbers are stored securely and used only to send race fee payment reminders. Crew members may request deletion at any time by contacting the club.
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary" onclick="addCrewMember()">Add to Roster</button>
+          <button class="btn btn-ghost" onclick="toggleCrewForm()">Cancel</button>
+        </div>
       </div>
-      <div class="form-actions">
-        <button class="btn btn-primary" onclick="addCrewMember()">Add to Roster</button>
-        <button class="btn btn-ghost" onclick="toggleCrewForm()">Cancel</button>
+      <div class="totals-panel" id="crewTotalsPanel">
+        <div class="totals-title">Race Summary</div>
+        <div class="totals-rows">
+          <div class="t-row"><span>Full / Crew members</span><span class="val-sm" id="s-mem">—</span></div>
+          <div class="t-row"><span>Students</span><span class="val-sm" id="s-stu">—</span></div>
+          <div class="t-row"><span>Visitors</span><span class="val-sm" id="s-vis">—</span></div>
+          <div class="t-row"><span>Juniors</span><span class="val-sm" id="s-kid">—</span></div>
+          <div class="t-row hi"><span>Paid</span><span class="val-sm c-ok" id="s-paid">€0</span></div>
+          <div class="t-row hi"><span>Outstanding</span><span class="val-sm c-bad" id="s-owed">€0</span></div>
+          <div class="t-row big"><span style="font-size:1rem;color:var(--white)">Race Total</span><span class="val-lg" id="s-total">€0</span></div>
+        </div>
       </div>
-    </div>
-    <div class="totals-panel" id="crewTotalsPanel">
-      <div class="totals-title">Race Summary</div>
-      <div class="totals-rows">
-        <div class="t-row"><span>Full / Crew members</span><span class="val-sm" id="s-mem">—</span></div>
-        <div class="t-row"><span>Students</span><span class="val-sm" id="s-stu">—</span></div>
-        <div class="t-row"><span>Visitors</span><span class="val-sm" id="s-vis">—</span></div>
-        <div class="t-row"><span>Juniors</span><span class="val-sm" id="s-kid">—</span></div>
-        <div class="t-row hi"><span>Paid</span><span class="val-sm c-ok" id="s-paid">€0</span></div>
-        <div class="t-row hi"><span>Outstanding</span><span class="val-sm c-bad" id="s-owed">€0</span></div>
-        <div class="t-row big"><span style="font-size:1rem;color:var(--white)">Race Total</span><span class="val-lg" id="s-total">€0</span></div>
+      <button class="btn btn-primary" style="width:100%;padding:15px;font-size:1.05rem;margin-top:8px" onclick="closePanel('crewPanel')">Done</button>
+      <div style="text-align:center;font-size:.75rem;color:var(--muted);margin-top:10px;line-height:1.4">
+        Personal data handled in accordance with GBSC's privacy policy.<br>Contact the club to request access or deletion of your data.
       </div>
-    </div>
-    <button class="btn btn-primary" style="width:100%;padding:15px;font-size:1.05rem;margin-top:8px" onclick="closePanel('crewPanel')">Done</button>
-    <div style="text-align:center;font-size:.75rem;color:var(--muted);margin-top:10px;line-height:1.4">
-      Personal data handled in accordance with GBSC's privacy policy.<br>Contact the club to request access or deletion of your data.
-    </div>
+    </div><!-- /crewRosterTab -->
+
+    <!-- ── NEW SAILORS INFO TAB ── rendered by renderCrewInfoTab() -->
+    <div id="crewInfoTab" style="display:none"></div>
+
   </div>
 </div>
 
