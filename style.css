@@ -292,14 +292,15 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   cursor:pointer;transition:opacity .2s;width:100%;}
 .revolut-btn:hover{opacity:.9;}
 
-/* ─── CREW PANEL TABS ─────────────────────────────────────── */
-.crew-tab-bar{display:flex;gap:4px;background:var(--navy-input);border-radius:10px;padding:4px;margin-bottom:16px;}
-.crew-tab{flex:1;font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;
-  letter-spacing:.07em;text-transform:uppercase;padding:8px 0;border:none;border-radius:7px;
-  background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;}
-.crew-tab.active{background:var(--navy-lt);color:var(--teal);}
+/* ─── NEW SAILORS CTA BUTTON ──────────────────────────────── */
+.new-sailor-cta{width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:13px 16px;margin-bottom:14px;border-radius:12px;
+  border:1.5px solid var(--teal);background:rgba(0,174,239,.08);
+  color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;
+  letter-spacing:.04em;cursor:pointer;box-sizing:border-box;}
+.new-sailor-cta-sub{font-size:.82rem;font-weight:600;opacity:.7;}
 
-/* ─── NEW SAILOR INFO TAB ─────────────────────────────────── */
+/* ─── NEW SAILOR INFO PANEL ───────────────────────────────── */
 .join-step{display:flex;gap:12px;background:var(--navy-mid);border:1px solid var(--border);
   border-radius:12px;padding:14px;margin-bottom:10px;}
 .join-step-num{width:28px;height:28px;min-width:28px;border-radius:50%;background:var(--teal);

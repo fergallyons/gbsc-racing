@@ -1610,7 +1610,7 @@ function openPanel(id){
     }
     if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
     if(id==='roCourseViewPanel') renderCourseDiagram('roCourseDisplay');
-    if(id==='crewPanel') switchCrewTab('roster');
+    if(id==='newSailorsPanel') renderNewSailorsPanel();
   }));
 }
 function closePanel(id){
@@ -1806,19 +1806,8 @@ const over=p=>p.type==='crew'&&p.joinYear&&(CY-p.joinYear)>=CREW_MAX_YRS;
 const vmax=p=>p.type==='visitor'&&p.outings>=VISITOR_MAX;
 const vnr=p=>p.type==='visitor'&&p.outings===VISITOR_MAX-1;
 
-// ── Crew panel tab switching ─────────────────────────────────
-function switchCrewTab(tab){
-  const roster=document.getElementById('crewRosterTab');
-  const info=document.getElementById('crewInfoTab');
-  if(roster) roster.style.display=tab==='roster'?'':'none';
-  if(info)   info.style.display  =tab==='info'  ?'':'none';
-  document.querySelectorAll('.crew-tab').forEach(b=>
-    b.classList.toggle('active', b.dataset.tab===tab));
-  if(tab==='info') renderCrewInfoTab();
-}
-
-function renderCrewInfoTab(){
-  const el=document.getElementById('crewInfoTab');
+function renderNewSailorsPanel(){
+  const el=document.getElementById('newSailersPanelBody');
   if(!el) return;
   const vmax=VISITOR_MAX||6;
   const cmax=CREW_MAX_YRS||2;

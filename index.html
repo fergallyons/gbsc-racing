@@ -330,6 +330,15 @@
   </div>
 </div><!-- /coursePanel -->
 
+<!-- ═══ PANEL: NEW SAILORS INFO ═══ -->
+<div class="panel-overlay" id="newSailorsPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('newSailorsPanel')">‹</button>
+    <span class="panel-title">⛵ New to GBSC Racing</span>
+  </div>
+  <div class="panel-body" id="newSailersPanelBody"></div>
+</div>
+
 <!-- ═══ PANEL: CREW WANTED ═══ -->
 <div class="panel-overlay" id="crewWantedPanel" style="display:none">
   <div class="panel-header">
@@ -515,6 +524,11 @@
     </div>
     <div style="font-size:.78rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;flex-shrink:0">Visit →</div>
   </a>
+  <!-- New sailors CTA -->
+  <button class="new-sailor-cta" onclick="openPanel('newSailorsPanel')">
+    <span>⛵ New to GBSC Racing?</span>
+    <span class="new-sailor-cta-sub">Find out how to join →</span>
+  </button>
   <!-- 2-column tile grid -->
   <div class="dash-grid">
     <div class="dash-card" onclick="openPanel('coursePanel')">
@@ -698,12 +712,6 @@
     <span class="panel-title">👥 Crew Roster</span>
   </div>
   <div class="panel-body">
-    <!-- Tab bar -->
-    <div class="crew-tab-bar">
-      <button class="crew-tab active" data-tab="roster" onclick="switchCrewTab('roster')">Roster</button>
-      <button class="crew-tab" data-tab="info" onclick="switchCrewTab('info')">New Sailors ⚓</button>
-    </div>
-
     <!-- ── ROSTER TAB ── -->
     <div id="crewRosterTab">
       <!-- Race bar context -->
@@ -770,9 +778,6 @@
         Personal data handled in accordance with GBSC's privacy policy.<br>Contact the club to request access or deletion of your data.
       </div>
     </div><!-- /crewRosterTab -->
-
-    <!-- ── NEW SAILORS INFO TAB ── rendered by renderCrewInfoTab() -->
-    <div id="crewInfoTab" style="display:none"></div>
 
   </div>
 </div>
