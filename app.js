@@ -2639,12 +2639,18 @@ async function browseEstelaRaces(){
   }).join('');
 }
 
-function pickEstelaRace(idx){
+async function pickEstelaRace(idx){
   const race=(window._estelaRaces||[])[idx];
   if(!race) return;
+  // Reflect the choice in the settings input immediately
   document.getElementById('ro-estella-url').value=race.link;
   closeSheet('estelaPickerSheet');
-  toast('Selected: '+race.name);
+  // Auto-save — no separate Save tap required.
+  // saveClubStripeLinks updates clubSettings + localStorage immediately and
+  // toasts on DB failure, so the public link refreshes whether online or not.
+  await saveClubStripeLinks({estella_url: race.link});
+  updateEstellaLink();
+  toast('eStela link saved: '+race.name);
 }
 
 async function downloadDatabaseBackup(){
