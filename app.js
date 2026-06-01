@@ -3037,7 +3037,7 @@ async function rfBulkPayConfirm(method){
   if(!chosen.length){ toast('Tick at least one crew member'); return; }
   const total=chosen.reduce((a,p)=>a+fee(p),0);
   if(total<=0){ toast('Total is €0 — nothing to charge'); return; }
-  const paymentRef=newId();
+  const paymentRef=newCrewId(); // reuse the existing UUID helper — generic v4 generator
   const key=raceKey(race);
   const raceDate=race.date.toISOString().split('T')[0];
 
