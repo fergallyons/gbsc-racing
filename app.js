@@ -3003,21 +3003,24 @@ function renderBulkPaySheet(){
     <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;color:${total>0?'var(--teal)':'var(--muted)'}">€${total}</span>
   </div>`;
 
-  const disabled=chosen.length<2||total<=0;
-  const btnStyle=(bg,bd,col)=>`flex:1;padding:13px 8px;font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:${disabled?'not-allowed':'pointer'};background:${bg};border:1px solid ${bd};color:${col};${disabled?'opacity:.4;':''}`;
+  // Buttons are always clickable — rfBulkPayConfirm() validates and toasts on bad state.
+  // This is more forgiving than HTML `disabled` (which silently swallows clicks and
+  // leaves the user guessing why nothing happens).
+  const btnStyle=(bg,bd,col)=>`flex:1;padding:13px 8px;font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:pointer;background:${bg};border:1px solid ${bd};color:${col};`;
+  const offStyle=`flex:1;padding:13px 8px;font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:pointer;background:transparent;border:1px dashed var(--border);color:var(--muted);opacity:.5;`;
 
-  const cashBtn=`<button onclick="rfBulkPayConfirm('Cash')" ${disabled?'disabled':''}
+  const cashBtn=`<button onclick="rfBulkPayConfirm('Cash')"
     style="${btnStyle('rgba(45,198,83,.12)','rgba(45,198,83,.4)','var(--success)')}">💵 Cash</button>`;
   const revBtn=revUser
-    ?`<button onclick="rfBulkPayConfirm('Revolut')" ${disabled?'disabled':''}
+    ?`<button onclick="rfBulkPayConfirm('Revolut')"
         style="${btnStyle('rgba(110,64,216,.18)','rgba(110,64,216,.5)','#a78bfa')}">💜 Revolut</button>`
     :`<button onclick="toast('Set your Revolut @username in Settings ⚙')"
-        style="${btnStyle('transparent','var(--border)','var(--muted)')};opacity:.4;cursor:pointer">💜 Revolut</button>`;
+        style="${offStyle}">💜 Revolut</button>`;
   const cardBtn=hasStripe
-    ?`<button onclick="rfBulkPayConfirm('Card')" ${disabled?'disabled':''}
+    ?`<button onclick="rfBulkPayConfirm('Card')"
         style="${btnStyle('rgba(0,174,239,.1)','rgba(0,174,239,.35)','var(--teal)')}">💳 Card</button>`
     :`<button onclick="toast('Card payments not configured — see RO Club Settings')"
-        style="${btnStyle('transparent','var(--border)','var(--muted)')};opacity:.4;cursor:pointer">💳 Card</button>`;
+        style="${offStyle}">💳 Card</button>`;
 
   body.innerHTML=
     `<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Tick the crew this payment covers. Each will get their own payment record but share a transaction reference.</div>`+
@@ -3031,9 +3034,9 @@ async function rfBulkPayConfirm(method){
   const race=selectedRace||nextRace;
   if(!race||!currentBoat){ toast('No race or boat selected'); return; }
   const chosen=roster.filter(p=>p.selected&&!p.paid&&_bulkSel.has(p.id));
-  if(chosen.length<2){ toast('Select at least 2 crew'); return; }
+  if(!chosen.length){ toast('Tick at least one crew member'); return; }
   const total=chosen.reduce((a,p)=>a+fee(p),0);
-  if(total<=0){ toast('Nothing to charge'); return; }
+  if(total<=0){ toast('Total is €0 — nothing to charge'); return; }
   const paymentRef=newId();
   const key=raceKey(race);
   const raceDate=race.date.toISOString().split('T')[0];
