@@ -1,4 +1,4 @@
-const CACHE = 'gbsc-racing-v5';
+const CACHE = 'gbsc-racing-v6';
 const STATIC = ['/', '/index.html', '/app.js', '/style.css', '/favicon.svg', '/manifest.json'];
 
 // Install — cache static assets
