@@ -2877,7 +2877,12 @@ function renderRaceFeesPanel(){
           style="flex:1;padding:12px;font-family:'Barlow Condensed',sans-serif;font-size:.92rem;
           font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:pointer;
           background:rgba(45,198,83,.12);border:1px solid rgba(45,198,83,.4);color:var(--success)">
-          ✓ All Cash</button>`:''}
+          ✓ All Cash</button>
+        <button onclick="rfBulkPay()"
+          style="flex:1;padding:12px;font-family:'Barlow Condensed',sans-serif;font-size:.92rem;
+          font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:pointer;
+          background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.4);color:var(--teal)">
+          💳 Pay Together</button>`:''}
       </div>`;
 
   body.innerHTML=
@@ -2943,6 +2948,181 @@ function rfPayRevolut(id){
 function rfPayCard(id){
   // Skipper confirms card payment received — just mark paid
   rfMarkPaid(id,'Card');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BULK PAY — one transaction for multiple crew
+// ═══════════════════════════════════════════════════════════════
+// Used when (eg) a parent pays by card for their whole boat in one go.
+// We write N race_payments rows sharing the same payment_ref so the
+// transaction can be reconciled later, but each crew member still has
+// their own row (same schema as individual payments).
+
+let _bulkSel = new Set(); // crew IDs selected in the bulk-pay sheet
+
+function rfBulkPay(){
+  const unpaid=roster.filter(p=>p.selected&&!p.paid);
+  if(unpaid.length<2){ toast('Need at least 2 unpaid crew for bulk pay'); return; }
+  _bulkSel=new Set(unpaid.map(p=>p.id));
+  renderBulkPaySheet();
+  document.getElementById('bulkPaySheet').classList.add('open');
+}
+
+function rfBulkPayToggle(id){
+  if(_bulkSel.has(id)) _bulkSel.delete(id);
+  else _bulkSel.add(id);
+  renderBulkPaySheet();
+}
+
+function renderBulkPaySheet(){
+  const body=document.getElementById('bulkPaySheetBody'); if(!body)return;
+  const unpaid=roster.filter(p=>p.selected&&!p.paid);
+  const chosen=unpaid.filter(p=>_bulkSel.has(p.id));
+  const total=chosen.reduce((a,p)=>a+fee(p),0);
+  const revUser=getRevolutUser();
+  const hasStripe=hasAnyStripeLink(); // signal that Stripe is enabled at the club
+
+  const typeLabel=p=>p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+
+  const rows=unpaid.map(p=>{
+    const checked=_bulkSel.has(p.id)?'checked':'';
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">
+      <input type="checkbox" ${checked} onchange="rfBulkPayToggle('${p.id}')"
+        style="width:20px;height:20px;accent-color:var(--teal);flex-shrink:0">
+      <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.92rem;font-weight:700">${p.first} ${p.last}</div>
+        <div style="font-size:.76rem;color:var(--muted)">${typeLabel(p)}</div>
+      </div>
+      <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--white)">€${fee(p)}</span>
+    </label>`;
+  }).join('');
+
+  const totalLine=`<div style="display:flex;justify-content:space-between;align-items:baseline;padding:14px 0 12px;margin-top:6px;border-top:2px solid var(--border)">
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase">Total · ${chosen.length} crew</span>
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;color:${total>0?'var(--teal)':'var(--muted)'}">€${total}</span>
+  </div>`;
+
+  const disabled=chosen.length<2||total<=0;
+  const btnStyle=(bg,bd,col)=>`flex:1;padding:13px 8px;font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:.04em;border-radius:10px;cursor:${disabled?'not-allowed':'pointer'};background:${bg};border:1px solid ${bd};color:${col};${disabled?'opacity:.4;':''}`;
+
+  const cashBtn=`<button onclick="rfBulkPayConfirm('Cash')" ${disabled?'disabled':''}
+    style="${btnStyle('rgba(45,198,83,.12)','rgba(45,198,83,.4)','var(--success)')}">💵 Cash</button>`;
+  const revBtn=revUser
+    ?`<button onclick="rfBulkPayConfirm('Revolut')" ${disabled?'disabled':''}
+        style="${btnStyle('rgba(110,64,216,.18)','rgba(110,64,216,.5)','#a78bfa')}">💜 Revolut</button>`
+    :`<button onclick="toast('Set your Revolut @username in Settings ⚙')"
+        style="${btnStyle('transparent','var(--border)','var(--muted)')};opacity:.4;cursor:pointer">💜 Revolut</button>`;
+  const cardBtn=hasStripe
+    ?`<button onclick="rfBulkPayConfirm('Card')" ${disabled?'disabled':''}
+        style="${btnStyle('rgba(0,174,239,.1)','rgba(0,174,239,.35)','var(--teal)')}">💳 Card</button>`
+    :`<button onclick="toast('Card payments not configured — see RO Club Settings')"
+        style="${btnStyle('transparent','var(--border)','var(--muted)')};opacity:.4;cursor:pointer">💳 Card</button>`;
+
+  body.innerHTML=
+    `<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Tick the crew this payment covers. Each will get their own payment record but share a transaction reference.</div>`+
+    `<div style="max-height:40vh;overflow-y:auto">${rows||'<div class="empty-state">No unpaid crew</div>'}</div>`+
+    totalLine+
+    `<div style="display:flex;gap:8px;margin-bottom:10px">${cashBtn}${revBtn}${cardBtn}</div>`+
+    `<button class="btn btn-ghost" style="width:100%;padding:11px" onclick="closeSheet('bulkPaySheet')">Cancel</button>`;
+}
+
+async function rfBulkPayConfirm(method){
+  const race=selectedRace||nextRace;
+  if(!race||!currentBoat){ toast('No race or boat selected'); return; }
+  const chosen=roster.filter(p=>p.selected&&!p.paid&&_bulkSel.has(p.id));
+  if(chosen.length<2){ toast('Select at least 2 crew'); return; }
+  const total=chosen.reduce((a,p)=>a+fee(p),0);
+  if(total<=0){ toast('Nothing to charge'); return; }
+  const paymentRef=newId();
+  const key=raceKey(race);
+  const raceDate=race.date.toISOString().split('T')[0];
+
+  // Helper — write all rows + update local state, shared by Cash/Revolut
+  const writeAllRows=(paidMethod)=>{
+    chosen.forEach(p=>{ p.paid=true; p.payMethod=paidMethod; });
+    renderCrew(); renderRaceFeesPanel();
+    closeSheet('bulkPaySheet');
+    chosen.forEach(p=>{
+      sbUpsertRacePayment({
+        boat_id:currentBoat.id, crew_id:p.id, race_key:key,
+        race_name:race.label, race_date:raceDate,
+        method:paidMethod, amount:fee(p), payment_ref:paymentRef
+      });
+    });
+    toast(`✓ ${chosen.length} crew marked ${paidMethod} (€${total})`);
+    autoSaveRaceRecord();
+    if(roster.filter(q=>q.selected).every(q=>q.paid)) incrementVisitorOutings();
+  };
+
+  if(method==='Cash'){
+    writeAllRows('Cash');
+    return;
+  }
+
+  if(method==='Revolut'){
+    const revUser=getRevolutUser();
+    if(!revUser){ toast('Set your Revolut @username in Settings ⚙'); return; }
+    // Open Revolut with the summed amount
+    const url=`https://revolut.me/${revUser}?amount=${total}&currency=EUR`;
+    window.open(url,'_blank');
+    // Skipper confirms after the payment arrives in their Revolut
+    if(!confirm(`Opening Revolut for €${total}. After the payment is received, tap OK to mark ${chosen.length} crew paid.`)) return;
+    writeAllRows('Revolut');
+    return;
+  }
+
+  if(method==='Card'){
+    // Group line items by fee amount so Stripe shows a clean receipt
+    const typeName=p=>p.type==='full'?'Full Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+    const groups={};
+    chosen.forEach(p=>{
+      const name=`Race fee — ${typeName(p)}`;
+      const amount_cents=fee(p)*100;
+      const k=name+'|'+amount_cents;
+      if(!groups[k]) groups[k]={name,amount_cents,quantity:0};
+      groups[k].quantity++;
+    });
+    const items=Object.values(groups);
+
+    // Stash context for the return handler (Stripe redirects back here)
+    const pending={
+      paymentRef, boatId:currentBoat.id, raceKey:key, raceName:race.label, raceDate,
+      crew:chosen.map(p=>({id:p.id, amount:fee(p)})),
+      total
+    };
+    try{ sessionStorage.setItem('bulk_pending',JSON.stringify(pending)); }catch(e){}
+
+    toast('⏳ Opening Stripe Checkout…');
+    try{
+      const origin=window.location.origin;
+      const r=await fetch('/.netlify/functions/create-bulk-checkout',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          items,
+          returnUrl:`${origin}/?stripe_success=1&bulk_ref=${encodeURIComponent(paymentRef)}`,
+          cancelUrl:origin+'/',
+          paymentRef,
+          boatId:currentBoat.id,
+          raceKey:key,
+          description:`${currentBoat.name} — ${race.label} (${chosen.length} crew)`
+        })
+      });
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok||!data.url){
+        sessionStorage.removeItem('bulk_pending');
+        toast('⚠ Stripe error: '+(data.error||('HTTP '+r.status)));
+        return;
+      }
+      window.location.href=data.url;
+    }catch(e){
+      sessionStorage.removeItem('bulk_pending');
+      toast('⚠ Could not reach payment service');
+      console.error('rfBulkPayConfirm card',e);
+    }
+    return;
+  }
 }
 
 // ── Phone number normaliser (wa.me format) ────────────────────
@@ -7518,11 +7698,52 @@ function startCountdown(){
 // INIT — open directly to public view, no login gate
 // ═══════════════════════════════════════════════════════════════
 loadWindWidget();
-// Handle Stripe success redirect — auto-confirm Card self-payment without extra tap
+// Handle Stripe success redirect — auto-confirm Card payment without extra tap.
+// Two flows share this entry point:
+//   • Single-crew self-pay (sp_pending in sessionStorage) → writes self_payments row
+//   • Bulk pay from crew panel (bulk_pending + ?bulk_ref=…)→ writes N race_payments rows
 (function handleStripeReturn(){
   const params=new URLSearchParams(window.location.search);
   if(params.get('stripe_success')!=='1') return;
-  history.replaceState({},'',window.location.pathname); // clean URL
+
+  // ── Bulk pay return ────────────────────────────────────────────
+  const bulkRef=params.get('bulk_ref');
+  if(bulkRef){
+    history.replaceState({},'',window.location.pathname);
+    try{
+      const pending=JSON.parse(sessionStorage.getItem('bulk_pending')||'null');
+      if(!pending||pending.paymentRef!==bulkRef){
+        console.warn('bulk pay return: no matching pending context');
+        return;
+      }
+      sessionStorage.removeItem('bulk_pending');
+      // Write N race_payments rows sharing the same payment_ref
+      pending.crew.forEach(c=>{
+        sbUpsertRacePayment({
+          boat_id:pending.boatId, crew_id:c.id,
+          race_key:pending.raceKey, race_name:pending.raceName,
+          race_date:pending.raceDate,
+          method:'Card', amount:c.amount, payment_ref:pending.paymentRef
+        });
+      });
+      // If the same boat is still logged in, update in-memory state immediately
+      if(currentBoat&&currentBoat.id===pending.boatId){
+        const paidIds=new Set(pending.crew.map(c=>c.id));
+        roster.forEach(p=>{ if(paidIds.has(p.id)){ p.paid=true; p.payMethod='Card'; } });
+        renderCrew();
+        if(document.getElementById('raceFeesPanel')?.classList.contains('open')){
+          renderRaceFeesPanel();
+        }
+        autoSaveRaceRecord();
+        if(roster.filter(q=>q.selected).every(q=>q.paid)) incrementVisitorOutings();
+      }
+      toast(`✅ €${pending.total} paid — ${pending.crew.length} crew marked Card`);
+    }catch(e){ console.error('bulk return handler',e); }
+    return;
+  }
+
+  // ── Single-crew self-pay return (existing flow) ────────────────
+  history.replaceState({},'',window.location.pathname);
   try{
     const ctx=JSON.parse(sessionStorage.getItem('sp_pending')||'null');
     if(!ctx) return;
