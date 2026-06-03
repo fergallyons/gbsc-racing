@@ -585,8 +585,11 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   border-color:rgba(254,224,30,.35);}
 .dash-race-card.guest{background:linear-gradient(135deg,rgba(0,174,239,.14),rgba(0,174,239,.05));
   border-color:rgba(0,174,239,.3);}
+.dash-race-card.race-cancelled{background:linear-gradient(135deg,rgba(180,30,30,.25),rgba(120,20,20,.1));
+  border-color:rgba(255,80,80,.4);}
 .dash-race-eyebrow{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;
   font-family:'Barlow Condensed',sans-serif;font-weight:700;margin-bottom:4px;}
+.dash-race-eyebrow.cancelled{color:rgba(255,100,100,.9);}
 .dash-race-name{font-family:'Barlow Condensed',sans-serif;font-size:1.35rem;font-weight:800;
   color:var(--white);line-height:1.1;margin-bottom:4px;}
 .dash-race-meta{font-size:.8rem;color:var(--muted);margin-bottom:10px;}

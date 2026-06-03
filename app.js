@@ -563,7 +563,7 @@ const DECL_DOCS=Object.assign(
 );
 
 let boats=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
-let roster=[], allRaces=[], selectedRace=null, nextRace=null;
+let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225, forecastWindDeg=null;
 let courseMarks=[];
@@ -591,6 +591,17 @@ async function loadRaceSchedule(){
     return {id:r.id, label:r.label, date:d, series:r.series||''};
   });
   nextRace=getNextRace();
+  // Check for a cancelled race today so the dashboard can announce it
+  const todayStr=new Date().toISOString().slice(0,10);
+  const cancelled=await sbFetch(`/rest/v1/races?active=eq.false&race_date=eq.${todayStr}&order=sort_order.asc&limit=1`);
+  if(cancelled&&!cancelled._err&&cancelled.length){
+    const r=cancelled[0];
+    const d=new Date(r.race_date+'T00:00:00');
+    d.setHours(r.start_hour||19, r.start_min||0, 0, 0);
+    cancelledTodayRace={id:r.id, label:r.label, date:d, series:r.series||''};
+  } else {
+    cancelledTodayRace=null;
+  }
 }
 
 // GBSC hardcoded schedule — used as fallback if races table is empty / DB unavailable
@@ -1627,8 +1638,22 @@ function updateSkipperDash(){
   const regEl=document.getElementById('dashRegStatus');
   const crewRaceName=document.getElementById('crewPanelRaceName');
   const eyebrow=document.getElementById('skipperRaceEyebrow');
+  const card=nameEl?.closest('.dash-race-card');
   if(!nameEl)return;
-  if(eyebrow) eyebrow.textContent=getRaceEyebrow(r);
+
+  // Show cancellation notice when today's race was cancelled and no manual race is selected
+  if(!selectedRace && cancelledTodayRace){
+    if(eyebrow){ eyebrow.textContent='Race Cancelled'; eyebrow.classList.add('cancelled'); }
+    nameEl.textContent=cancelledTodayRace.label;
+    if(metaEl) metaEl.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'})+'  ·  Cancelled due to weather';
+    if(crewRaceName) crewRaceName.textContent=cancelledTodayRace.label;
+    if(card) card.classList.add('race-cancelled');
+    if(regEl) regEl.innerHTML='';
+    return;
+  }
+
+  if(card) card.classList.remove('race-cancelled');
+  if(eyebrow){ eyebrow.textContent=getRaceEyebrow(r); eyebrow.classList.remove('cancelled'); }
   if(r){
     nameEl.textContent=r.label;
     if(metaEl) metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
@@ -7767,12 +7792,21 @@ loadRaceSchedule().then(()=>{
   const el=document.getElementById('guestDashRaceName');
   const mel=document.getElementById('guestDashMeta');
   const tel=document.getElementById('guestDashTime');
-  if(el&&nextRace) el.textContent=nextRace.label;
-  else if(el) el.textContent='No races scheduled';
-  if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
-  if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   const ge=document.getElementById('guestRaceEyebrow');
-  if(ge) ge.textContent=getRaceEyebrow(nextRace);
+  const guestCard=el?.closest('.dash-race-card');
+  if(cancelledTodayRace){
+    if(el) el.textContent=cancelledTodayRace.label;
+    if(mel) mel.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'})+'  ·  Cancelled due to weather';
+    if(tel) tel.textContent='';
+    if(ge){ ge.textContent='Race Cancelled'; ge.classList.add('cancelled'); }
+    if(guestCard) guestCard.classList.add('race-cancelled');
+  } else {
+    if(el&&nextRace) el.textContent=nextRace.label;
+    else if(el) el.textContent='No races scheduled';
+    if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+    if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    if(ge) ge.textContent=getRaceEyebrow(nextRace);
+  }
   updateWeatherVisibility();
   startCountdown();
   loadAndDrawCourse().then(()=>updateHomeChips());
