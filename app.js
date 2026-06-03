@@ -591,17 +591,6 @@ async function loadRaceSchedule(){
     return {id:r.id, label:r.label, date:d, series:r.series||''};
   });
   nextRace=getNextRace();
-  // Check for a cancelled race today so the dashboard can announce it
-  const todayStr=new Date().toISOString().slice(0,10);
-  const cancelled=await sbFetch(`/rest/v1/races?active=eq.false&race_date=eq.${todayStr}&order=sort_order.asc&limit=1`);
-  if(cancelled&&!cancelled._err&&cancelled.length){
-    const r=cancelled[0];
-    const d=new Date(r.race_date+'T00:00:00');
-    d.setHours(r.start_hour||19, r.start_min||0, 0, 0);
-    cancelledTodayRace={id:r.id, label:r.label, date:d, series:r.series||''};
-  } else {
-    cancelledTodayRace=null;
-  }
 }
 
 // GBSC hardcoded schedule — used as fallback if races table is empty / DB unavailable
@@ -650,6 +639,25 @@ async function patchRaceTimesFromHalsail(){
   const raw=await halFetch('/GetSchedule/'+HAL_CLUB);
   if(!raw||raw._err||!Array.isArray(raw)) return;
   if(!halSchedule) halSchedule=raw;
+
+  // Check for a cancellation note on today's race entries
+  const todayStr=new Date().toDateString();
+  const cancelledEntry=raw.find(r=>isCruiserClass(r.Class)&&new Date(r.Start).toDateString()===todayStr&&r.Notes&&/cancel/i.test(r.Notes));
+  if(cancelledEntry){
+    const d=new Date(cancelledEntry.Start);
+    const matchedRace=allRaces.find(r=>r.date.toDateString()===todayStr);
+    cancelledTodayRace={
+      id:matchedRace?.id||null,
+      label:matchedRace?.label||cancelledEntry.Race.replace(/_/g,' '),
+      date:matchedRace?.date||d,
+      series:matchedRace?.series||cancelledEntry.Series||'',
+      note:cancelledEntry.Notes.trim()
+    };
+  } else {
+    cancelledTodayRace=null;
+  }
+  updateSkipperDash();
+  updateGuestDashCancellation();
 
   // Build a map of dateString → earliest Start from Halsail (dedup IRC/ECHO pairs)
   const timeByDate={};
@@ -1645,7 +1653,7 @@ function updateSkipperDash(){
   if(!selectedRace && cancelledTodayRace){
     if(eyebrow){ eyebrow.textContent='Race Cancelled'; eyebrow.classList.add('cancelled'); }
     nameEl.textContent=cancelledTodayRace.label;
-    if(metaEl) metaEl.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'})+'  ·  Cancelled due to weather';
+    if(metaEl) metaEl.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'})+'  ·  '+cancelledTodayRace.note;
     if(crewRaceName) crewRaceName.textContent=cancelledTodayRace.label;
     if(card) card.classList.add('race-cancelled');
     if(regEl) regEl.innerHTML='';
@@ -1667,6 +1675,28 @@ function updateSkipperDash(){
   if(regEl) regEl.innerHTML=isReg
     ?'<span class="dash-reg-pill registered">✓ Registered</span>'
     :'<span class="dash-reg-pill unregistered">Not registered</span>';
+}
+
+function updateGuestDashCancellation(){
+  const el=document.getElementById('guestDashRaceName');
+  const mel=document.getElementById('guestDashMeta');
+  const tel=document.getElementById('guestDashTime');
+  const ge=document.getElementById('guestRaceEyebrow');
+  const guestCard=el?.closest('.dash-race-card');
+  if(cancelledTodayRace){
+    if(el) el.textContent=cancelledTodayRace.label;
+    if(mel) mel.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'})+'  ·  '+cancelledTodayRace.note;
+    if(tel) tel.textContent='';
+    if(ge){ ge.textContent='Race Cancelled'; ge.classList.add('cancelled'); }
+    if(guestCard) guestCard.classList.add('race-cancelled');
+  } else {
+    if(el&&nextRace) el.textContent=nextRace.label;
+    else if(el) el.textContent='No races scheduled';
+    if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+    if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    if(ge){ ge.textContent=getRaceEyebrow(nextRace); ge.classList.remove('cancelled'); }
+    if(guestCard) guestCard.classList.remove('race-cancelled');
+  }
 }
 
 // ── Results embargo ───────────────────────────────────────────
@@ -7789,24 +7819,7 @@ showTab('registeredTab', null);
 // Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
 loadRaceSchedule().then(()=>{
   if(!allRaces.length){ buildAllRaces(); nextRace=getNextRace(); }
-  const el=document.getElementById('guestDashRaceName');
-  const mel=document.getElementById('guestDashMeta');
-  const tel=document.getElementById('guestDashTime');
-  const ge=document.getElementById('guestRaceEyebrow');
-  const guestCard=el?.closest('.dash-race-card');
-  if(cancelledTodayRace){
-    if(el) el.textContent=cancelledTodayRace.label;
-    if(mel) mel.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'})+'  ·  Cancelled due to weather';
-    if(tel) tel.textContent='';
-    if(ge){ ge.textContent='Race Cancelled'; ge.classList.add('cancelled'); }
-    if(guestCard) guestCard.classList.add('race-cancelled');
-  } else {
-    if(el&&nextRace) el.textContent=nextRace.label;
-    else if(el) el.textContent='No races scheduled';
-    if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
-    if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-    if(ge) ge.textContent=getRaceEyebrow(nextRace);
-  }
+  updateGuestDashCancellation();
   updateWeatherVisibility();
   startCountdown();
   loadAndDrawCourse().then(()=>updateHomeChips());
