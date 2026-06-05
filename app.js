@@ -4604,6 +4604,16 @@ async function generatePaymentReport(){
   const raceName=race.label;
   const raceDate=race.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
+  // Check for cancellation: match report race date against Halsail schedule or today's cancelledTodayRace
+  const raceDateStr=race.date.toDateString();
+  let cancellationNote=null;
+  if(cancelledTodayRace&&cancelledTodayRace.date.toDateString()===raceDateStr){
+    cancellationNote=cancelledTodayRace.note||'Race cancelled';
+  } else if(halSchedule){
+    const halEntry=halSchedule.find(r=>isCruiserClass(r.Class)&&new Date(r.Start).toDateString()===raceDateStr&&r.Notes&&/cancel/i.test(r.Notes));
+    if(halEntry) cancellationNote=halEntry.Notes.trim();
+  }
+
   statusEl.textContent='⏳ Loading report…';
 
   const [records, regs, selfPays]=await Promise.all([
@@ -4761,6 +4771,13 @@ async function generatePaymentReport(){
     </div>
   </div>
 
+  ${cancellationNote?`<div style="background:#fff3cd;border:2px solid #e8a020;border-radius:8px;padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+    <span style="font-size:1.3rem">⚠️</span>
+    <div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:#b45309;letter-spacing:.04em;text-transform:uppercase">Race Cancelled</div>
+      <div style="font-size:.82rem;color:#92400e;margin-top:2px">${cancellationNote}</div>
+    </div>
+  </div>`:''}
   <div style="display:flex;gap:24px;background:#f0f4ff;border-radius:8px;padding:14px;margin-bottom:28px;flex-wrap:wrap;">
     <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Registered</div>
       <div style="font-size:1.6rem;font-weight:800;color:#1B3E93;font-family:'Barlow Condensed',sans-serif">${(regs||[]).length}</div></div>
