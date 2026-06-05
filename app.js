@@ -950,7 +950,6 @@ async function enterApp(b,ro){
     loadAndDrawCourse();
     loadRegistrations();
     buildPinMgmtList();
-    buildRoReportDropdown();
     loadProtests();
     initRoFeatures();
     return;
@@ -1631,6 +1630,7 @@ function openPanel(id){
     if(id==='roCourseViewPanel') renderCourseDiagram('roCourseDisplay');
     if(id==='newSailorsPanel') renderNewSailorsPanel();
     if(id==='roNewsPanel') renderRONewsList();
+    if(id==='roPaymentReportPanel') buildRoReportDropdown();
   }));
 }
 function closePanel(id){
@@ -1783,9 +1783,8 @@ function guestNav(tabId){
 let roReportRace=null;
 function buildRoReportDropdown(){
   const sel=document.getElementById('roReportRaceSelect'); if(!sel) return;
-  const nr=nextRace||getNextRace();
   sel.innerHTML='';
-  // Show all races, most recent first — past races are the main use case here
+  // Show all races, most recent first
   const sorted=[...allRaces].sort((a,b)=>b.date-a.date);
   sorted.forEach(r=>{
     const o=document.createElement('option');
@@ -1793,13 +1792,18 @@ function buildRoReportDropdown(){
     o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' · '+r.label;
     sel.appendChild(o);
   });
-  // Default to nextRace
-  roReportRace=nr||allRaces[0];
+  // Default: most recent past race (or first in list)
+  const now=Date.now();
+  const mostRecentPast=sorted.find(r=>r.date.getTime()<=now);
+  roReportRace=mostRecentPast||sorted[0]||nextRace;
   if(roReportRace) sel.value=roReportRace.label;
+  // Clear any stale status
+  const st=document.getElementById('reportStatus'); if(st) st.textContent='';
 }
 function roReportRaceChanged(){
   const sel=document.getElementById('roReportRaceSelect'); if(!sel) return;
   roReportRace=allRaces.find(r=>r.label===sel.value)||nextRace;
+  const st=document.getElementById('reportStatus'); if(st) st.textContent='';
 }
 
 function buildRaceDropdown(){

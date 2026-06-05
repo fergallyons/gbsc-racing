@@ -644,7 +644,7 @@
       <div class="dash-card-sub" id="roProtestsStatus">None filed</div>
     </div>
     <!-- Fees & admin -->
-    <div id="tile-ro-paymentReport" class="dash-card ro-card" onclick="generatePaymentReport()">
+    <div id="tile-ro-paymentReport" class="dash-card ro-card" onclick="openPaymentReportPanel()">
       <div class="dash-card-icon">💰</div>
       <div class="dash-card-label">Payment Report</div>
       <div class="dash-card-sub">Generate PDF</div>
@@ -701,15 +701,6 @@
       <div class="dash-card-sub" id="roNewsSub">Manage news items</div>
     </div>
   </div>
-  <div style="margin-top:12px">
-    <label style="font-size:.75rem;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:4px">Payment Report Race</label>
-    <select id="roReportRaceSelect" onchange="roReportRaceChanged()"
-      style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid var(--border);
-      background:var(--navy);color:var(--white);font-family:'Barlow Condensed',sans-serif;
-      font-size:.95rem;font-weight:600;cursor:pointer">
-    </select>
-  </div>
-  <div id="reportStatus" style="font-size:.75rem;color:var(--muted);margin-top:4px;text-align:center"></div>
 </div><!-- /roTab -->
 
 </main>
@@ -1686,6 +1677,26 @@
   </div>
   <div class="panel-body" id="usageContent">
     <div class="empty-state"><div class="icon">📊</div>Loading…</div>
+  </div>
+</div>
+
+<!-- ═══ RO PAYMENT REPORT PANEL ════════════════════════════ -->
+<div class="panel-overlay" id="roPaymentReportPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roPaymentReportPanel')">‹</button>
+    <span class="panel-title">💰 Payment Report</span>
+  </div>
+  <div class="panel-body">
+    <div style="margin-bottom:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:6px">Race</label>
+      <select id="roReportRaceSelect" onchange="roReportRaceChanged()"
+        style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+        background:var(--navy);color:var(--white);font-family:'Barlow Condensed',sans-serif;
+        font-size:.95rem;font-weight:600;cursor:pointer">
+      </select>
+    </div>
+    <button onclick="generatePaymentReport()" style="width:100%;padding:13px;border-radius:10px;border:none;background:var(--teal);color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;letter-spacing:.04em;cursor:pointer">Generate PDF Report</button>
+    <div id="reportStatus" style="font-size:.8rem;color:var(--muted);margin-top:8px;text-align:center;min-height:18px"></div>
   </div>
 </div>
 
