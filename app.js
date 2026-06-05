@@ -1630,6 +1630,7 @@ function openPanel(id){
     if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
     if(id==='roCourseViewPanel') renderCourseDiagram('roCourseDisplay');
     if(id==='newSailorsPanel') renderNewSailorsPanel();
+    if(id==='roNewsPanel') renderRONewsList();
   }));
 }
 function closePanel(id){
@@ -7826,6 +7827,7 @@ loadRaceSchedule().then(()=>{
   if(HAL_CLUB) patchRaceTimesFromHalsail(); // patch start times from Halsail in background
 });
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
+loadNewsFeed();
 fetch('/version.json').then(r=>r.ok?r.json():null).then(v=>{
   if(!v) return;
   const el=document.getElementById('buildBadge');
@@ -7848,3 +7850,172 @@ document.addEventListener('keydown', function(e){
     if(pinOpen) closePinOverlay(); else closeChangePinOverlay();
   }
 });
+
+// ═══════════════════════════════════════════════════════════════
+// NEWS FEED
+// ═══════════════════════════════════════════════════════════════
+let _newsItems = [];          // cache of active items from Supabase
+let _newsTickerTimer = null;  // cycling interval handle
+let _newsTickerIdx = 0;       // which item is currently shown
+
+async function loadNewsFeed(){
+  const el = document.getElementById('newsTicker');
+  if(!el || !SB_URL) return;
+  const data = await sbFetch('/rest/v1/news_items?active=eq.true&order=display_order.asc,created_at.desc&select=id,title,url,body&limit=3');
+  if(!data || !Array.isArray(data) || !data.length){ el.style.display='none'; stopNewsTicker(); return; }
+  _newsItems = data;
+  el.style.display = 'flex';
+  _newsTickerIdx = 0;
+  showNewsTickerItem(0);
+  stopNewsTicker();
+  if(data.length > 1){
+    _newsTickerTimer = setInterval(()=>{
+      _newsTickerIdx = (_newsTickerIdx + 1) % _newsItems.length;
+      fadeNewsTickerTo(_newsTickerIdx);
+    }, 5000);
+  }
+}
+
+function showNewsTickerItem(idx){
+  const txt = document.getElementById('newsTickerText');
+  if(!txt || !_newsItems[idx]) return;
+  txt.textContent = _newsItems[idx].title;
+}
+
+function fadeNewsTickerTo(idx){
+  const inner = document.getElementById('newsTickerInner');
+  if(!inner) return;
+  inner.style.transition = 'opacity .35s';
+  inner.style.opacity = '0';
+  setTimeout(()=>{ showNewsTickerItem(idx); inner.style.opacity='1'; }, 380);
+}
+
+function stopNewsTicker(){
+  if(_newsTickerTimer){ clearInterval(_newsTickerTimer); _newsTickerTimer=null; }
+}
+
+function openNewsDetail(){
+  const item = _newsItems[_newsTickerIdx];
+  if(!item) return;
+  const content = document.getElementById('newsDetailContent');
+  if(!content) return;
+  let html = `<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:800;color:var(--white);margin-bottom:10px;letter-spacing:.02em">${escHtml(item.title)}</div>`;
+  if(item.body) html += `<p style="font-size:.9rem;color:rgba(255,255,255,.75);line-height:1.55;margin:0 0 12px">${escHtml(item.body)}</p>`;
+  if(item.url) html += `<a href="${escHtml(item.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:10px;background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.3);color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;letter-spacing:.04em;text-decoration:none">Read more →</a>`;
+  content.innerHTML = html;
+  const sheet = document.getElementById('newsDetailSheet');
+  sheet.style.display = 'flex';
+  requestAnimationFrame(()=>requestAnimationFrame(()=> sheet.classList.add('open')));
+}
+
+function closeNewsDetail(){
+  const sheet = document.getElementById('newsDetailSheet');
+  sheet.classList.remove('open');
+  setTimeout(()=>{ sheet.style.display='none'; }, 300);
+}
+
+// ── RO: manage news items ────────────────────────────────────
+let _roNewsCache = {};  // id → item, for edit lookups
+
+async function renderRONewsList(){
+  const list = document.getElementById('roNewsItemsList');
+  const sub = document.getElementById('roNewsSub');
+  if(!list) return;
+  list.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:8px 0">Loading…</div>';
+  const data = await sbFetch('/rest/v1/news_items?order=display_order.asc,created_at.desc&select=id,title,url,body,active&limit=10');
+  if(!data || data._err){ list.innerHTML = '<div style="color:#f87171;font-size:.85rem">Failed to load.</div>'; return; }
+  _roNewsCache = {};
+  data.forEach(i=>{ _roNewsCache[i.id]=i; });
+  const active = data.filter(i=>i.active);
+  if(sub) sub.textContent = active.length ? active.length+' active item'+(active.length>1?'s':'') : 'No active items';
+  if(!data.length){ list.innerHTML = '<div style="color:var(--muted);font-size:.85rem;padding:8px 0">No items yet. Add one below.</div>'; return; }
+  list.innerHTML = data.map(item=>`
+    <div style="background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(item.title)}</div>
+          ${item.url?`<div style="font-size:.75rem;color:var(--teal);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(item.url)}</div>`:''}
+          ${item.body?`<div style="font-size:.78rem;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.body)}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
+          <button onclick="toggleNewsActive('${item.id}',${!item.active})" style="padding:5px 10px;border-radius:7px;border:1px solid ${item.active?'rgba(0,174,239,.4)':'var(--border)'};background:${item.active?'rgba(0,174,239,.12)':'transparent'};color:${item.active?'var(--teal)':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer">${item.active?'Active':'Inactive'}</button>
+          <button onclick="openEditNewsItem('${item.id}')" style="padding:5px 10px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer">Edit</button>
+          <button onclick="deleteNewsItem('${item.id}')" style="padding:5px 10px;border-radius:7px;border:1px solid rgba(220,38,38,.3);background:transparent;color:#f87171;font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer">Delete</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function openAddNewsItem(){
+  document.getElementById('newsItemId').value = '';
+  document.getElementById('newsItemTitle').value = '';
+  document.getElementById('newsItemUrl').value = '';
+  document.getElementById('newsItemBody').value = '';
+  document.getElementById('newsItemSheetTitle').textContent = 'Add News Item';
+  const sheet = document.getElementById('newsItemSheet');
+  sheet.style.display = 'flex';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>sheet.classList.add('open')));
+}
+
+function openEditNewsItem(id){
+  const item = _roNewsCache[id];
+  if(!item) return;
+  document.getElementById('newsItemId').value = item.id;
+  document.getElementById('newsItemTitle').value = item.title || '';
+  document.getElementById('newsItemUrl').value = item.url || '';
+  document.getElementById('newsItemBody').value = item.body || '';
+  document.getElementById('newsItemSheetTitle').textContent = 'Edit News Item';
+  const sheet = document.getElementById('newsItemSheet');
+  sheet.style.display = 'flex';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>sheet.classList.add('open')));
+}
+
+function closeNewsItemSheet(){
+  const sheet = document.getElementById('newsItemSheet');
+  sheet.classList.remove('open');
+  setTimeout(()=>{ sheet.style.display='none'; }, 300);
+}
+
+async function saveNewsItem(){
+  const id = document.getElementById('newsItemId').value.trim();
+  const title = document.getElementById('newsItemTitle').value.trim();
+  const url = document.getElementById('newsItemUrl').value.trim();
+  const body = document.getElementById('newsItemBody').value.trim();
+  if(!title){ alert('Title is required.'); return; }
+  const payload = { title, url: url||null, body: body||null };
+  let ok;
+  if(id){
+    ok = await sbFetch('/rest/v1/news_items?id=eq.'+id, {method:'PATCH', headers:{...SBH,'Prefer':'return=minimal'}, body:JSON.stringify(payload)});
+  } else {
+    // Check active count before adding
+    const active = await sbFetch('/rest/v1/news_items?active=eq.true&select=id');
+    if(active && Array.isArray(active) && active.length >= 3){ alert('Maximum 3 active items. Deactivate one first.'); return; }
+    ok = await sbFetch('/rest/v1/news_items', {method:'POST', headers:{...SBH,'Prefer':'return=minimal'}, body:JSON.stringify({...payload, active:true, display_order:0})});
+  }
+  if(!ok || ok._err){ alert('Save failed.'); return; }
+  closeNewsItemSheet();
+  renderRONewsList();
+  loadNewsFeed();
+}
+
+async function toggleNewsActive(id, newActive){
+  // Enforce max 3 active
+  if(newActive){
+    const active = await sbFetch('/rest/v1/news_items?active=eq.true&select=id');
+    if(active && Array.isArray(active) && active.length >= 3){ alert('Maximum 3 active items. Deactivate one first.'); return; }
+  }
+  const ok = await sbFetch('/rest/v1/news_items?id=eq.'+id, {method:'PATCH', headers:{...SBH,'Prefer':'return=minimal'}, body:JSON.stringify({active:newActive})});
+  if(!ok || ok._err){ alert('Update failed.'); return; }
+  renderRONewsList();
+  loadNewsFeed();
+}
+
+async function deleteNewsItem(id){
+  if(!confirm('Delete this news item?')) return;
+  const ok = await sbFetch('/rest/v1/news_items?id=eq.'+id, {method:'DELETE', headers:{...SBH,'Prefer':'return=minimal'}});
+  if(!ok || ok._err){ alert('Delete failed.'); return; }
+  renderRONewsList();
+  loadNewsFeed();
+}
+
+function escHtml(s){ return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''; }
