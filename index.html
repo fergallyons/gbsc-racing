@@ -685,6 +685,11 @@
       <div class="dash-card-label">Publish Results</div>
       <div class="dash-card-sub" id="roResultsStatus">—</div>
     </div>
+    <div id="tile-ro-outstanding" class="dash-card ro-card" onclick="openOutstandingReport()">
+      <div class="dash-card-icon">🔴</div>
+      <div class="dash-card-label">Outstanding</div>
+      <div class="dash-card-sub" id="roOutstandingSub">Who owes money</div>
+    </div>
     <div id="tile-ro-feeStatements" class="dash-card ro-card" onclick="openFeeStatement()">
       <div class="dash-card-icon">📋</div>
       <div class="dash-card-label">Fee Statements</div>
@@ -1677,6 +1682,20 @@
   </div>
   <div class="panel-body" id="usageContent">
     <div class="empty-state"><div class="icon">📊</div>Loading…</div>
+  </div>
+</div>
+
+<!-- ═══ RO OUTSTANDING BALANCES PANEL ══════════════════════ -->
+<div class="panel-overlay" id="roOutstandingPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roOutstandingPanel')">‹</button>
+    <span class="panel-title">🔴 Outstanding Balances</span>
+  </div>
+  <div class="panel-body">
+    <div id="roOutstandingBody">
+      <div class="empty-state"><div class="icon">⏳</div>Loading…</div>
+    </div>
+    <button onclick="printOutstandingReport()" id="roOutstandingPrintBtn" style="display:none;width:100%;margin-top:16px;padding:13px;border-radius:10px;border:none;background:var(--teal);color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;letter-spacing:.04em;cursor:pointer">Print / Save PDF</button>
   </div>
 </div>
 

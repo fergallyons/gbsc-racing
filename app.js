@@ -1631,6 +1631,7 @@ function openPanel(id){
     if(id==='newSailorsPanel') renderNewSailorsPanel();
     if(id==='roNewsPanel') renderRONewsList();
     if(id==='roPaymentReportPanel') buildRoReportDropdown();
+    if(id==='roOutstandingPanel') loadOutstandingReport();
   }));
 }
 function closePanel(id){
@@ -8041,3 +8042,185 @@ async function deleteNewsItem(id){
 }
 
 function escHtml(s){ return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''; }
+
+// ═══════════════════════════════════════════════════════════════
+// OUTSTANDING BALANCES REPORT
+// ═══════════════════════════════════════════════════════════════
+let _outstandingHtml = '';  // cached for print
+
+function openOutstandingReport(){
+  openPanel('roOutstandingPanel');
+}
+
+async function loadOutstandingReport(){
+  const body = document.getElementById('roOutstandingBody');
+  const printBtn = document.getElementById('roOutstandingPrintBtn');
+  const subEl = document.getElementById('roOutstandingSub');
+  if(!body) return;
+  body.innerHTML = '<div class="empty-state"><div class="icon">⏳</div>Loading…</div>';
+  if(printBtn) printBtn.style.display = 'none';
+
+  // Fetch all race records that have an outstanding balance
+  const records = await sbFetch('/rest/v1/race_records?select=boat_id,race_key,total_due,total_paid,crew_snapshot,submitted_at&order=race_key.asc');
+  if(!records || records._err){
+    body.innerHTML = '<div style="color:#f87171;padding:16px;text-align:center">Could not load data — check connection.</div>';
+    return;
+  }
+
+  // Filter to only records with outstanding balance
+  const outstanding = records.filter(r => (r.total_due||0) - (r.total_paid||0) > 0);
+
+  if(!outstanding.length){
+    body.innerHTML = '<div class="empty-state"><div class="icon">✅</div><div>No outstanding balances</div></div>';
+    if(subEl) subEl.textContent = 'All clear';
+    _outstandingHtml = '';
+    return;
+  }
+
+  // Group by boat
+  const byBoat = {};
+  outstanding.forEach(r => {
+    if(!byBoat[r.boat_id]) byBoat[r.boat_id] = [];
+    byBoat[r.boat_id].push(r);
+  });
+
+  // Build a race label lookup from race_key (date prefix + allRaces match)
+  function raceLabel(key){
+    // race_key format: YYYY-MM-DD_labelslug
+    const datePart = key.split('_')[0];
+    const matched = allRaces.find(r => raceKey(r) === key);
+    if(matched) return { label: matched.label, date: matched.date };
+    // fallback: parse date from key
+    const d = new Date(datePart+'T00:00:00');
+    return { label: key.replace(/_/g,' '), date: isNaN(d)?null:d };
+  }
+
+  // Sort boats by total outstanding descending
+  const boatTotals = Object.entries(byBoat).map(([boatId, recs]) => {
+    const boat = boats.find(b => b.id === boatId) || { name: boatId, icon: '⛵' };
+    const totalOwed = recs.reduce((s,r) => s + (r.total_due||0) - (r.total_paid||0), 0);
+    return { boat, recs, totalOwed };
+  }).sort((a,b) => b.totalOwed - a.totalOwed);
+
+  const grandTotal = boatTotals.reduce((s,b) => s + b.totalOwed, 0);
+  if(subEl) subEl.textContent = `€${grandTotal} across ${boatTotals.length} boat${boatTotals.length>1?'s':''}`;
+
+  // ── In-panel summary ──────────────────────────────────────
+  body.innerHTML = boatTotals.map(({ boat, recs, totalOwed }) => {
+    const raceRows = recs.map(r => {
+      const { label, date } = raceLabel(r.race_key);
+      const owed = (r.total_due||0) - (r.total_paid||0);
+      const dateStr = date ? date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'}) : '';
+      return `<div style="display:flex;justify-content:space-between;align-items:baseline;
+        padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:.83rem">
+        <div>
+          <span style="color:var(--white);font-weight:600">${escHtml(label)}</span>
+          ${dateStr?`<span style="color:var(--muted);margin-left:8px">${dateStr}</span>`:''}
+        </div>
+        <span style="color:#f87171;font-weight:700;flex-shrink:0;margin-left:12px">€${owed}</span>
+      </div>`;
+    }).join('');
+
+    return `<div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">${boat.icon} ${escHtml(boat.name)}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#f87171">€${totalOwed}</div>
+      </div>
+      ${raceRows}
+    </div>`;
+  }).join('') +
+  `<div style="display:flex;justify-content:space-between;align-items:center;
+    padding:12px 14px;border-top:2px solid rgba(255,255,255,.12);margin-top:4px">
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
+      letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Total Outstanding</span>
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;color:#f87171">€${grandTotal}</span>
+  </div>`;
+
+  // ── Build print HTML ──────────────────────────────────────
+  const printBoatSections = boatTotals.map(({ boat, recs, totalOwed }) => {
+    const raceRows = recs.map(r => {
+      const { label, date } = raceLabel(r.race_key);
+      const owed = (r.total_due||0) - (r.total_paid||0);
+      const dateStr = date ? date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'}) : '';
+      // List unpaid crew from snapshot
+      const unpaidCrew = (r.crew_snapshot||[]).filter(p=>!p.paid);
+      const crewStr = unpaidCrew.length ? unpaidCrew.map(p=>`${p.first} ${p.last}`).join(', ') : '—';
+      return `<tr>
+        <td style="padding:5px 8px">${escHtml(label)}</td>
+        <td style="padding:5px 8px;color:#888">${dateStr}</td>
+        <td style="padding:5px 8px;color:#888;font-size:.8em">${escHtml(crewStr)}</td>
+        <td style="padding:5px 8px;color:#c0392b;font-weight:700;text-align:right">€${owed}</td>
+      </tr>`;
+    }).join('');
+
+    return `<div style="margin-bottom:24px;page-break-inside:avoid">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;
+        border-bottom:2px solid #1B3E93;padding-bottom:4px;margin-bottom:8px">
+        <h3 style="font-size:1rem;color:#1B3E93;margin:0">${boat.icon} ${escHtml(boat.name)}</h3>
+        <span style="font-size:.95rem;font-weight:800;color:#c0392b">€${totalOwed} outstanding</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem">
+        <thead>
+          <tr style="background:#f0f4ff">
+            <th style="text-align:left;padding:4px 8px;font-weight:600">Race</th>
+            <th style="text-align:left;padding:4px 8px;font-weight:600">Date</th>
+            <th style="text-align:left;padding:4px 8px;font-weight:600">Unpaid crew</th>
+            <th style="text-align:right;padding:4px 8px;font-weight:600">Owed</th>
+          </tr>
+        </thead>
+        <tbody>${raceRows}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  _outstandingHtml = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Outstanding Balances — GBSC Racing</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Barlow',sans-serif;color:#1a1a2e;padding:32px;max-width:800px;margin:0 auto;font-size:13px;}
+  h1{font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:#1B3E93;letter-spacing:.04em;}
+  h2{font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#666;margin-bottom:20px;}
+  table td, table th{padding:4px 8px;border-bottom:1px solid #e8eef8;}
+  @media print{body{padding:16px;}@page{margin:15mm;}}
+</style>
+</head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+    <div>
+      <h1>Outstanding Balances</h1>
+      <h2>Race Fees — As of ${new Date().toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</h2>
+    </div>
+    <div style="text-align:right;font-size:.8rem;color:#888">
+      Generated ${new Date().toLocaleString('en-IE')}<br>
+      GBSC Racing App
+    </div>
+  </div>
+
+  <div style="display:flex;gap:24px;background:#fff3f3;border:2px solid #e8a0a0;border-radius:8px;padding:14px;margin-bottom:28px;flex-wrap:wrap;">
+    <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Boats with Balance</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#c0392b;font-family:'Barlow Condensed',sans-serif">${boatTotals.length}</div></div>
+    <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Races Affected</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#c0392b;font-family:'Barlow Condensed',sans-serif">${outstanding.length}</div></div>
+    <div><div style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:#666;font-weight:600">Total Outstanding</div>
+      <div style="font-size:1.6rem;font-weight:800;color:#c0392b;font-family:'Barlow Condensed',sans-serif">€${grandTotal}</div></div>
+  </div>
+
+  ${printBoatSections}
+
+  <div style="border-top:3px solid #1B3E93;margin-top:8px;padding-top:10px;display:flex;justify-content:flex-end">
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#c0392b">Total Outstanding: €${grandTotal}</span>
+  </div>
+</body></html>`;
+
+  if(printBtn) printBtn.style.display = '';
+}
+
+function printOutstandingReport(){
+  if(!_outstandingHtml) return;
+  const w = window.open('','_blank');
+  w.document.write(_outstandingHtml);
+  w.document.close();
+  w.focus();
+  setTimeout(()=>w.print(), 600);
+}
