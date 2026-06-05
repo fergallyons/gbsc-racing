@@ -1708,8 +1708,9 @@ function isResultsBlocked(){
   const published=clubSettings.results_published_race_key||'';
   if(!published) return false;   // feature never used — show results by default
   if(!nextRace) return false;
+  if(cancelledTodayRace) return false;  // no embargo on cancelled races
   const hoursSince=(Date.now()-nextRace.date.getTime())/3600000;
-  if(hoursSince<0||hoursSince>48) return false;  // outside post-race window
+  if(hoursSince<0||hoursSince>4) return false;  // auto-lift 4 hrs after race start
   return published!==raceKey(nextRace);
 }
 async function publishResults(){
