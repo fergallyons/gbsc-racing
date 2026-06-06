@@ -3812,7 +3812,7 @@ async function sbLoadBoatRegistrations(boatId){
 }
 
 // ── State ─────────────────────────────────────────────────────
-let selfPayState={step:0,race:null,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
+let selfPayState={step:0,race:null,boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null,history:null};
 
 function openSelfPayPanel(){
   selfPayState={step:0,race:getNextRace(),boatId:null,boat:null,loadedCrew:[],crewId:null,person:null,confirmedMethod:null};
@@ -3834,11 +3834,12 @@ function spRecentRaces(){
 }
 
 function selfPayBack(){
-  if(selfPayState.step===4){closePanel('selfPayPanel');return;}
+  if(selfPayState.step===4||selfPayState.step===3){closePanel('selfPayPanel');return;}
   if(selfPayState.step<=0){closePanel('selfPayPanel');return;}
+  if(selfPayState.step===2){selfPayState.step='history';renderSelfPayPanel();return;}
+  if(selfPayState.step==='history'){selfPayState.step=1;selfPayState.crewId=null;selfPayState.person=null;selfPayState.history=null;renderSelfPayPanel();return;}
   selfPayState.step--;
   if(selfPayState.step===0){selfPayState.boatId=null;selfPayState.boat=null;}
-  if(selfPayState.step===1){selfPayState.crewId=null;selfPayState.person=null;}
   renderSelfPayPanel();
 }
 
@@ -3846,10 +3847,11 @@ function renderSelfPayPanel(){
   const body=document.getElementById('selfPayBody');
   const titleEl=document.getElementById('selfPayTitle');
   if(!body) return;
-  const titles=['💰 Pay My Fee','👤 Who Are You?','💳 Pay Your Fee','✅ Recorded!'];
+  const titles={0:'💰 Pay My Fee',1:'👤 Who Are You?','history':'📋 My Race Record',2:'💳 Pay Your Fee',3:'✅ Recorded!'};
   if(titleEl) titleEl.textContent=titles[selfPayState.step]||'💰 Pay My Fee';
   if(selfPayState.step===0) body.innerHTML=spStep0();
   else if(selfPayState.step===1) body.innerHTML=spStep1();
+  else if(selfPayState.step==='history') renderSpHistory(body);
   else if(selfPayState.step===2) body.innerHTML=spStep2();
   else if(selfPayState.step===3) body.innerHTML=spStep3();
 }
@@ -3938,13 +3940,164 @@ function spStep1(){
   return html;
 }
 
-function spPickCrew(crewId){
+async function spPickCrew(crewId){
   const p=selfPayState.loadedCrew.find(x=>x.id===crewId);
   if(!p) return;
   selfPayState.crewId=crewId;
   selfPayState.person=p;
-  selfPayState.step=2;
-  renderSelfPayPanel();
+  selfPayState.step='history';
+  selfPayState.history=null;
+  renderSelfPayPanel(); // show loading state immediately
+  // Load history in parallel
+  const [attendees, selfPays, racePays] = await Promise.all([
+    sbFetch('/rest/v1/race_attendees?crew_id=eq.'+encodeURIComponent(crewId)+'&order=race_date.desc&limit=52'),
+    sbFetch('/rest/v1/self_payments?crew_id=eq.'+encodeURIComponent(crewId)+'&order=race_date.desc&limit=52'),
+    sbFetch('/rest/v1/race_payments?crew_id=eq.'+encodeURIComponent(crewId)+'&order=race_date.desc&limit=52')
+  ]);
+  selfPayState.history={ attendees:attendees||[], selfPays:selfPays||[], racePays:racePays||[] };
+  if(selfPayState.step==='history'){
+    const body=document.getElementById('selfPayBody');
+    if(body) renderSpHistory(body);
+  }
+}
+
+// ── History / personal record ─────────────────────────────────
+function renderSpHistory(body){
+  const p=selfPayState.person;
+  const b=selfPayState.boat;
+  const race=selfPayState.race||getNextRace();
+  const h=selfPayState.history;
+
+  // Header — person summary card
+  const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+  const headerHtml=`<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;
+    background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:12px;margin-bottom:16px">
+    <div class="cc-avatar" style="width:40px;height:40px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
+    <div style="flex:1">
+      <div style="font-weight:800;font-size:1rem;color:var(--white)">${p.first} ${p.last}</div>
+      <div style="font-size:.78rem;color:var(--muted)">${typeLabel} · ${b.name}</div>
+    </div>
+  </div>`;
+
+  // Loading state
+  if(!h){
+    body.innerHTML=headerHtml+`<div style="text-align:center;padding:32px;color:var(--muted);font-size:.9rem">Loading your record…</div>`;
+    return;
+  }
+
+  // Build a paid set: race_key → {method, amount, source}
+  const paidMap={};
+  (h.racePays||[]).forEach(rp=>{
+    paidMap[rp.race_key]={method:rp.method||'—',amount:rp.amount||0,source:'skipper'};
+  });
+  (h.selfPays||[]).forEach(sp=>{
+    if(!paidMap[sp.race_key]) paidMap[sp.race_key]={method:sp.method||'—',amount:sp.amount||0,source:'self'};
+  });
+
+  // Attended races — sorted newest first
+  const attended=(h.attendees||[]).filter(a=>a.race_key);
+
+  // Also include races where payment exists but no attendee record (skipper paid them directly)
+  const allRaceKeys=new Set([...attended.map(a=>a.race_key),...Object.keys(paidMap)]);
+
+  // Build unified list
+  const raceList=[...allRaceKeys].map(key=>{
+    const att=attended.find(a=>a.race_key===key);
+    const pay=paidMap[key];
+    const dateStr=att?.race_date||(h.selfPays.find(s=>s.race_key===key)?.race_date)||(h.racePays.find(r=>r.race_key===key)?.race_date)||'';
+    const label=att?.race_name||(h.selfPays.find(s=>s.race_key===key)?.race_name)||(h.racePays.find(r=>r.race_key===key)?.race_name)||key;
+    const date=dateStr?new Date(dateStr+'T00:00:00'):null;
+    return {key,label,date,wasOnBoard:!!att,paid:!!pay,payMethod:pay?.method,payAmount:pay?.amount,paySource:pay?.source};
+  }).sort((a,b)=>(b.date||0)-(a.date||0));
+
+  // Stats
+  const onBoardCount=raceList.filter(r=>r.wasOnBoard).length;
+  const paidCount=raceList.filter(r=>r.paid).length;
+  const unpaidOnBoard=raceList.filter(r=>r.wasOnBoard&&!r.paid);
+  const totalPaid=raceList.reduce((s,r)=>s+(r.payAmount||0),0);
+
+  // Stats strip
+  const statsHtml=`<div style="display:flex;gap:10px;margin-bottom:16px">
+    <div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--white)">${onBoardCount}</div>
+      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Races</div>
+    </div>
+    <div style="flex:1;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">${paidCount}</div>
+      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Paid</div>
+    </div>
+    ${unpaidOnBoard.length?`<div style="flex:1;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--warn)">${unpaidOnBoard.length}</div>
+      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Unpaid</div>
+    </div>`:''}
+    ${totalPaid>0?`<div style="flex:1;background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--teal)">€${totalPaid}</div>
+      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Total paid</div>
+    </div>`:''}
+  </div>`;
+
+  // Unpaid-on-board alert
+  const alertHtml=unpaidOnBoard.length?`<div style="background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);
+    border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start">
+    <span style="font-size:1.2rem;flex-shrink:0">⚠️</span>
+    <div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:800;color:var(--warn);letter-spacing:.04em;text-transform:uppercase">No payment recorded</div>
+      <div style="font-size:.78rem;color:rgba(255,255,255,.65);margin-top:3px;line-height:1.45">
+        You were listed on board for ${unpaidOnBoard.length} race${unpaidOnBoard.length>1?'s':''} with no payment found:
+        <strong style="color:var(--warn)">${unpaidOnBoard.map(r=>r.label).join(', ')}</strong>
+      </div>
+    </div>
+  </div>`:'';
+
+  // Race history list
+  const historyRows=raceList.length?raceList.map(r=>{
+    const dateStr=r.date?r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'}):'';
+    let statusHtml;
+    if(r.paid){
+      const src=r.paySource==='skipper'?'Skipper confirmed':'Self-recorded';
+      statusHtml=`<div style="text-align:right;flex-shrink:0">
+        <div style="font-size:.8rem;font-weight:700;color:var(--success)">✓ Paid ${r.payAmount?'€'+r.payAmount:''}</div>
+        <div style="font-size:.7rem;color:var(--muted)">${r.payMethod||''} · ${src}</div>
+      </div>`;
+    } else if(r.wasOnBoard){
+      statusHtml=`<div style="text-align:right;flex-shrink:0">
+        <div style="font-size:.8rem;font-weight:700;color:var(--warn)">⚠ Unpaid</div>
+        <div style="font-size:.7rem;color:var(--muted)">On board, no payment</div>
+      </div>`;
+    } else {
+      statusHtml=`<div style="text-align:right;flex-shrink:0">
+        <div style="font-size:.78rem;color:var(--success)">✓ Paid ${r.payAmount?'€'+r.payAmount:''}</div>
+        <div style="font-size:.7rem;color:var(--muted)">${r.payMethod||''}</div>
+      </div>`;
+    }
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.88rem;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.label)}</div>
+        ${dateStr?`<div style="font-size:.72rem;color:var(--muted)">${dateStr}</div>`:''}
+      </div>
+      ${statusHtml}
+    </div>`;
+  }).join('')
+  :`<div style="text-align:center;padding:24px 0;color:var(--muted);font-size:.85rem">No race history found yet.</div>`;
+
+  // Pay now CTA for the current race
+  const currentRaceKey=race?raceKey(race):'';
+  const alreadyPaid=!!paidMap[currentRaceKey];
+  const payCtaHtml=race?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)">
+    ${alreadyPaid
+      ?`<div style="text-align:center;padding:12px;border-radius:10px;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);font-size:.85rem;color:var(--success);font-weight:700">
+          ✓ ${race.label} — already paid
+        </div>`
+      :`<button onclick="selfPayState.step=2;renderSelfPayPanel()"
+          style="width:100%;padding:13px;border-radius:10px;border:none;background:var(--teal);
+          color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
+          letter-spacing:.04em;cursor:pointer">Pay for ${escHtml(race.label)} →</button>`}
+  </div>`:'';
+
+  body.innerHTML = headerHtml + statsHtml + alertHtml +
+    `<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Race History</div>`+
+    `<div style="max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch">${historyRows}</div>`+
+    payCtaHtml;
 }
 
 // ── Step 2: Choose payment method ────────────────────────────
