@@ -3834,7 +3834,14 @@ function spRecentRaces(){
 }
 
 function selfPayBack(){
-  if(selfPayState.step===4||selfPayState.step===3){closePanel('selfPayPanel');return;}
+  if(selfPayState.step===4){closePanel('selfPayPanel');return;}
+  if(selfPayState.step===3){
+    // Return to history so they can see the updated record
+    selfPayState.step='history';
+    selfPayState.history=null; // force reload
+    spPickCrew(selfPayState.crewId); // re-fetch and re-render
+    return;
+  }
   if(selfPayState.step<=0){closePanel('selfPayPanel');return;}
   if(selfPayState.step===2){selfPayState.step='history';renderSelfPayPanel();return;}
   if(selfPayState.step==='history'){selfPayState.step=1;selfPayState.crewId=null;selfPayState.person=null;selfPayState.history=null;renderSelfPayPanel();return;}
@@ -4053,16 +4060,17 @@ function renderSpHistory(body){
   const historyRows=raceList.length?raceList.map(r=>{
     const dateStr=r.date?r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'}):'';
     let statusHtml;
+    const isUnpaidOnBoard = r.wasOnBoard && !r.paid;
     if(r.paid){
       const src=r.paySource==='skipper'?'Skipper confirmed':'Self-recorded';
       statusHtml=`<div style="text-align:right;flex-shrink:0">
         <div style="font-size:.8rem;font-weight:700;color:var(--success)">✓ Paid ${r.payAmount?'€'+r.payAmount:''}</div>
         <div style="font-size:.7rem;color:var(--muted)">${r.payMethod||''} · ${src}</div>
       </div>`;
-    } else if(r.wasOnBoard){
+    } else if(isUnpaidOnBoard){
       statusHtml=`<div style="text-align:right;flex-shrink:0">
         <div style="font-size:.8rem;font-weight:700;color:var(--warn)">⚠ Unpaid</div>
-        <div style="font-size:.7rem;color:var(--muted)">On board, no payment</div>
+        <div style="font-size:.7rem;color:var(--teal)">Tap to pay →</div>
       </div>`;
     } else {
       statusHtml=`<div style="text-align:right;flex-shrink:0">
@@ -4070,9 +4078,10 @@ function renderSpHistory(body){
         <div style="font-size:.7rem;color:var(--muted)">${r.payMethod||''}</div>
       </div>`;
     }
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06)">
+    const rowClick=isUnpaidOnBoard?`onclick="spPayForRace('${r.key}')" style="cursor:pointer"`:'style=""';
+    return `<div ${rowClick} style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);${isUnpaidOnBoard?'background:rgba(251,191,36,.04);margin:0 -4px;padding-left:4px;padding-right:4px;border-radius:6px':''}">
       <div style="flex:1;min-width:0">
-        <div style="font-size:.88rem;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.label)}</div>
+        <div style="font-size:.88rem;font-weight:700;color:${isUnpaidOnBoard?'var(--warn)':'var(--white)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.label)}</div>
         ${dateStr?`<div style="font-size:.72rem;color:var(--muted)">${dateStr}</div>`:''}
       </div>
       ${statusHtml}
@@ -4098,6 +4107,25 @@ function renderSpHistory(body){
     `<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Race History</div>`+
     `<div style="max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch">${historyRows}</div>`+
     payCtaHtml;
+}
+
+function spPayForRace(key){
+  // Resolve the race object from allRaces, or reconstruct a minimal one from the key
+  let race = allRaces.find(r => raceKey(r) === key);
+  if(!race){
+    // Fallback: parse date + label from the key (YYYY-MM-DD_labelslug)
+    const [datePart, ...rest] = key.split('_');
+    const d = new Date(datePart + 'T00:00:00');
+    const h = selfPayState.history;
+    const label = (h?.attendees.find(a=>a.race_key===key)?.race_name)
+                ||(h?.selfPays.find(s=>s.race_key===key)?.race_name)
+                ||(h?.racePays.find(r=>r.race_key===key)?.race_name)
+                ||rest.join(' ');
+    race = { date: d, label };
+  }
+  selfPayState.race = race;
+  selfPayState.step = 2;
+  renderSelfPayPanel();
 }
 
 // ── Step 2: Choose payment method ────────────────────────────
