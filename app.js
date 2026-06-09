@@ -6102,6 +6102,7 @@ function clearCourse(){
   document.querySelectorAll('.mark-toggle').forEach(el=>el.classList.remove('selected'));
   document.getElementById('courseNotes').value='';
   renderSelectedOrder();
+  renderRoCoursePreview();
 }
 function shareRegistrationInvite(){
   if(!nextRace){toast('No upcoming race found');return;}
