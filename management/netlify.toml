@@ -2,9 +2,6 @@
   path = "/club-config.js"
   function = "club-config"
 
-[[edge_functions]]
-  path = "/api/google-cal"
-  function = "google-cal"
 
 [[headers]]
   for = "/*"
