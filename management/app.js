@@ -168,8 +168,25 @@ const App = {
     data: [],
 
     async load() {
-      const rows = await sbGet('hub_events', 'order=start_date.asc&select=*');
-      if (rows && !rows._err) this.data = rows;
+      const [sbRows, gcalRows] = await Promise.all([
+        sbGet('hub_events', 'order=start_date.asc&select=*'),
+        this.loadGoogle(),
+      ]);
+      const sb = (sbRows && !sbRows._err) ? sbRows : [];
+      // Merge: Supabase events first, then Google Calendar events
+      this.data = [...sb, ...gcalRows]
+        .sort((a, b) => a.start_date.localeCompare(b.start_date));
+    },
+
+    async loadGoogle() {
+      try {
+        const r = await fetch('/api/google-cal');
+        if (!r.ok) return [];
+        return await r.json();
+      } catch (e) {
+        console.warn('Google Calendar unavailable', e);
+        return [];
+      }
     },
 
     render() {
@@ -769,15 +786,22 @@ function makeCell(day, otherMonth, dateStr, events, isToday, isSelected) {
 
 // ── Render helpers ─────────────────────────────────────────────
 function eventCardHTML(ev) {
-  const colour = evTypeColour(ev.event_type);
-  return `<div class="event-card admin-card" style="border-left-color:${colour}"
-    onclick="App.cal.openEdit(App.cal.data.find(e=>e.id==='${ev.id}'))">
+  const isGoogle = ev._source === 'google';
+  const colour   = isGoogle ? '#4285f4' : evTypeColour(ev.event_type);
+  const badge    = isGoogle
+    ? `<span class="event-badge" style="color:#4285f4;border-color:#4285f4">GCal</span>`
+    : `<span class="event-badge" style="color:${colour};border-color:${colour}">${evTypeLabel(ev.event_type)}</span>`;
+  const clickAttr = isGoogle
+    ? ''
+    : `onclick="App.cal.openEdit(App.cal.data.find(e=>e.id==='${ev.id}'))"`;
+
+  return `<div class="event-card ${isGoogle ? '' : 'admin-card'}" style="border-left-color:${colour}" ${clickAttr}>
     <div class="event-card-body">
       <div class="event-card-title">${esc(ev.title)}</div>
       <div class="event-card-meta">
         <span>${fmtEventDate(ev)}</span>
         ${ev.location ? `<span>📍 ${esc(ev.location)}</span>` : ''}
-        <span class="event-badge" style="color:${colour};border-color:${colour}">${evTypeLabel(ev.event_type)}</span>
+        ${badge}
       </div>
       ${ev.description ? `<div class="event-desc">${esc(ev.description)}</div>` : ''}
     </div>
