@@ -241,13 +241,17 @@ body {
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
+  gap: 1px;
+  background: rgba(0,174,239,.12);
+  border: 1px solid rgba(0,174,239,.12);
+  border-radius: 8px;
+  overflow: hidden;
   margin-bottom: 10px;
 }
 
 .cal-cell {
   aspect-ratio: 1 / 0.72;
-  border-radius: 6px;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -263,10 +267,10 @@ body {
 .cal-cell:hover { background: var(--navy-mid); }
 .cal-cell.other-month { color: rgba(125,164,204,.35); }
 .cal-cell.today {
-  background: var(--navy-mid);
-  border: 1.5px solid var(--teal);
+  background: rgba(0,174,239,.15);
   color: var(--teal);
   font-weight: 700;
+  box-shadow: inset 0 0 0 1.5px var(--teal);
 }
 .cal-cell.selected {
   background: var(--teal);
