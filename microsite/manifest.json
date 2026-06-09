@@ -1,0 +1,15 @@
+{
+  "name": "GBSC Club Hub",
+  "short_name": "Club Hub",
+  "description": "Galway Bay Sailing Club — Calendar, Events, Maintenance & SOPs",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f1f3d",
+  "theme_color": "#0f1f3d",
+  "icons": [
+    { "src": "/logos/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/logos/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "categories": ["sports", "utilities"]
+}
