@@ -1,7 +1,7 @@
 {
-  "name": "GBSC Club Hub",
-  "short_name": "Club Hub",
-  "description": "Galway Bay Sailing Club — Calendar, Events, Maintenance & SOPs",
+  "name": "GBSC Club Management",
+  "short_name": "GBSC Mgmt",
+  "description": "Galway Bay Sailing Club — Committee Operations Management",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

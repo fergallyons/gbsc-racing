@@ -1,4 +1,4 @@
-/* ── GBSC Club Hub — Design System ──────────────────────────── */
+/* ── GBSC Club Management — Design System ───────────────────── */
 :root {
   --navy:       #0f1f3d;
   --navy-mid:   #1a3260;
@@ -96,7 +96,7 @@ body {
   color: var(--teal);
 }
 
-.header-hub-label {
+.header-app-label {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: 1rem;
   font-weight: 600;
@@ -107,31 +107,18 @@ body {
   margin-left: 2px;
 }
 
-.header-admin-btn {
+.header-logout-btn {
   background: transparent;
   border: none;
   color: var(--muted);
   cursor: pointer;
-  padding: 6px;
+  padding: 8px;
   border-radius: 8px;
   display: flex;
   align-items: center;
-  gap: 6px;
   transition: color .2s;
 }
-.header-admin-btn:hover{color:var(--white);}
-.header-admin-btn.active{color:var(--teal);}
-
-.admin-badge {
-  font-size: .7rem;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--teal);
-  border: 1px solid var(--teal);
-  border-radius: 4px;
-  padding: 1px 5px;
-}
+.header-logout-btn:hover { color: var(--white); }
 
 /* ── Main Content ────────────────────────────────────────────── */
 #mainContent {
@@ -173,8 +160,6 @@ body {
   padding: 0 14px;
   z-index: 5;
 }
-.admin-bar.hidden{display:none;}
-
 /* ── Bottom Nav ──────────────────────────────────────────────── */
 #bottomNav {
   height: var(--nav-h);
@@ -824,7 +809,71 @@ body {
 }
 .form-error.hidden { display: none; }
 
-/* ── Admin PIN Modal ─────────────────────────────────────────── */
+/* ── Login Screen ────────────────────────────────────────────── */
+#loginScreen {
+  position: fixed;
+  inset: 0;
+  background: var(--navy-dark);
+  background-image:
+    radial-gradient(ellipse at 20% 10%, rgba(27,62,147,.4) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 90%, rgba(0,174,239,.1) 0%, transparent 50%);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 32px 24px 40px;
+  overflow-y: auto;
+}
+#loginScreen.hidden { display: none; }
+
+.login-box {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: auto;
+}
+
+.login-logo {
+  height: 60px;
+  width: auto;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.login-logo-text {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  color: var(--teal);
+  margin-bottom: 4px;
+}
+
+.login-club-name {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--white);
+  opacity: .9;
+  margin-bottom: 2px;
+  text-align: center;
+}
+
+.login-sub {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .85rem;
+  font-weight: 600;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 32px;
+}
+
+/* ── PIN Modal (shared styles) ───────────────────────────────── */
 .pin-display {
   display: flex;
   justify-content: center;

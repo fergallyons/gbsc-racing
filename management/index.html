@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>GBSC Club Hub</title>
-  <meta name="description" content="Galway Bay Sailing Club — Calendar, Events, Maintenance &amp; SOPs">
+  <title>GBSC Club Management</title>
+  <meta name="description" content="Galway Bay Sailing Club — Committee Operations Management">
   <meta name="theme-color" content="#0f1f3d">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,20 +17,53 @@
 </head>
 <body>
 
-<div id="app">
+<!-- ── LOGIN SCREEN ─────────────────────────────────────────── -->
+<div id="loginScreen">
+  <div class="login-box">
+    <img id="loginLogoImg" class="login-logo" alt="GBSC" style="display:none">
+    <div id="loginLogoText" class="login-logo-text">GBSC</div>
+    <div class="login-club-name" id="loginClubName">Galway Bay Sailing Club</div>
+    <div class="login-sub">Committee Management</div>
+
+    <div class="pin-display" id="loginPinDisplay">
+      <span class="pin-dot" id="lpd0"></span>
+      <span class="pin-dot" id="lpd1"></span>
+      <span class="pin-dot" id="lpd2"></span>
+      <span class="pin-dot" id="lpd3"></span>
+    </div>
+    <div id="loginPinError" class="pin-error hidden">Incorrect PIN — try again</div>
+
+    <div class="numpad">
+      <button class="numpad-btn" onclick="loginPinKey('1')">1</button>
+      <button class="numpad-btn" onclick="loginPinKey('2')">2</button>
+      <button class="numpad-btn" onclick="loginPinKey('3')">3</button>
+      <button class="numpad-btn" onclick="loginPinKey('4')">4</button>
+      <button class="numpad-btn" onclick="loginPinKey('5')">5</button>
+      <button class="numpad-btn" onclick="loginPinKey('6')">6</button>
+      <button class="numpad-btn" onclick="loginPinKey('7')">7</button>
+      <button class="numpad-btn" onclick="loginPinKey('8')">8</button>
+      <button class="numpad-btn" onclick="loginPinKey('9')">9</button>
+      <button class="numpad-btn numpad-clear" onclick="loginPinKey('C')">C</button>
+      <button class="numpad-btn" onclick="loginPinKey('0')">0</button>
+      <button class="numpad-btn numpad-del" onclick="loginPinKey('DEL')">&#9003;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN APP (hidden until authenticated) ────────────────── -->
+<div id="app" class="hidden">
 
   <!-- Top Header -->
   <header id="appHeader">
     <div class="header-brand">
       <img id="clubLogoImg" class="header-logo" alt="GBSC" style="display:none">
       <span id="clubLogoText" class="header-logo-text">GBSC</span>
-      <span id="clubHubLabel" class="header-hub-label">Club Hub</span>
+      <span class="header-app-label">Management</span>
     </div>
-    <button id="adminBtn" class="header-admin-btn" onclick="showAdminLogin()" title="Admin login">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+    <button class="header-logout-btn" onclick="logout()" title="Lock / log out">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
       </svg>
-      <span id="adminBadge" class="admin-badge hidden">Admin</span>
     </button>
   </header>
 
@@ -53,7 +86,7 @@
         <div class="cal-upcoming-heading">Upcoming Events</div>
         <div id="calUpcoming" class="cal-upcoming"></div>
       </div>
-      <div id="calAdminBar" class="admin-bar hidden">
+      <div class="admin-bar">
         <button class="btn-add" onclick="App.cal.openAdd()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add Event
@@ -71,7 +104,7 @@
         </div>
         <div id="eventsList" class="events-list"></div>
       </div>
-      <div id="eventsAdminBar" class="admin-bar hidden">
+      <div class="admin-bar">
         <button class="btn-add" onclick="App.cal.openAdd()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add Event
@@ -97,7 +130,7 @@
           <div id="logList" class="item-list"></div>
         </div>
       </div>
-      <div id="maintAdminBar" class="admin-bar hidden">
+      <div class="admin-bar">
         <button class="btn-secondary" onclick="App.maint.openAddEquipment()">+ Equipment</button>
         <button class="btn-add" onclick="App.maint.openLogMaintenance(null)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -120,7 +153,7 @@
         </div>
         <div id="sopsList" class="item-list"></div>
       </div>
-      <div id="sopsAdminBar" class="admin-bar hidden">
+      <div class="admin-bar">
         <button class="btn-add" onclick="App.sops.openAdd()">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Add SOP
@@ -161,41 +194,6 @@
 </div><!-- #app -->
 
 <!-- ══════════ MODALS ══════════ -->
-
-<!-- Admin Login -->
-<div id="adminLoginModal" class="modal-overlay hidden" onclick="overlayClose(event,'adminLoginModal')">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adminLoginTitle">
-    <div class="modal-header">
-      <h3 id="adminLoginTitle">Admin Login</h3>
-      <button class="modal-close" onclick="closeModal('adminLoginModal')" aria-label="Close">&#215;</button>
-    </div>
-    <div class="modal-body">
-      <p class="modal-hint">Enter your admin PIN to manage content.</p>
-      <div class="pin-display" id="adminPinDisplay">
-        <span class="pin-dot" id="pd0"></span>
-        <span class="pin-dot" id="pd1"></span>
-        <span class="pin-dot" id="pd2"></span>
-        <span class="pin-dot" id="pd3"></span>
-      </div>
-      <div id="adminPinError" class="pin-error hidden">Incorrect PIN — try again</div>
-      <div class="numpad">
-        <button class="numpad-btn" onclick="adminPinKey('1')">1</button>
-        <button class="numpad-btn" onclick="adminPinKey('2')">2</button>
-        <button class="numpad-btn" onclick="adminPinKey('3')">3</button>
-        <button class="numpad-btn" onclick="adminPinKey('4')">4</button>
-        <button class="numpad-btn" onclick="adminPinKey('5')">5</button>
-        <button class="numpad-btn" onclick="adminPinKey('6')">6</button>
-        <button class="numpad-btn" onclick="adminPinKey('7')">7</button>
-        <button class="numpad-btn" onclick="adminPinKey('8')">8</button>
-        <button class="numpad-btn" onclick="adminPinKey('9')">9</button>
-        <button class="numpad-btn numpad-clear" onclick="adminPinKey('C')">C</button>
-        <button class="numpad-btn" onclick="adminPinKey('0')">0</button>
-        <button class="numpad-btn numpad-del" onclick="adminPinKey('DEL')">&#9003;</button>
-      </div>
-      <button id="adminLogoutBtn" class="btn-logout hidden" onclick="setAdminMode(false)">Log Out Admin</button>
-    </div>
-  </div>
-</div>
 
 <!-- Event Add/Edit -->
 <div id="eventModal" class="modal-overlay hidden" onclick="overlayClose(event,'eventModal')">
@@ -408,7 +406,7 @@
       <div id="sopViewContent" class="sop-content"></div>
     </div>
     <div class="modal-footer">
-      <button id="sopViewEditBtn" class="btn-secondary hidden" onclick="App.sops.editCurrent()">Edit</button>
+      <button class="btn-secondary" onclick="App.sops.editCurrent()">Edit</button>
       <button class="btn-ghost" onclick="closeModal('sopViewModal')">Close</button>
     </div>
   </div>
@@ -427,8 +425,8 @@
       <div id="equipDetailLog"></div>
     </div>
     <div class="modal-footer">
-      <button id="equipDetailEditBtn" class="btn-secondary hidden" onclick="App.maint.editEquipment()">Edit</button>
-      <button id="equipDetailLogBtn" class="btn-primary hidden" onclick="App.maint.openLogForCurrent()">Log Work</button>
+      <button class="btn-secondary" onclick="App.maint.editEquipment()">Edit</button>
+      <button class="btn-primary" onclick="App.maint.openLogForCurrent()">Log Work</button>
       <button class="btn-ghost" onclick="closeModal('equipDetailModal')">Close</button>
     </div>
   </div>
