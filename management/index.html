@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GBSC Club Management</title>
+  <meta name="description" content="Galway Bay Sailing Club — Committee Operations Management">
+  <meta name="theme-color" content="#0f1f3d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="/club-config.js"></script>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ─────────────────────────────────────────── -->
+<div id="loginScreen">
+  <div class="login-box">
+    <img id="loginLogoImg" class="login-logo" alt="GBSC" style="display:none">
+    <div id="loginLogoText" class="login-logo-text">GBSC</div>
+    <div class="login-club-name" id="loginClubName">Galway Bay Sailing Club</div>
+    <div class="login-sub">Committee Management</div>
+
+    <div class="pin-display" id="loginPinDisplay">
+      <span class="pin-dot" id="lpd0"></span>
+      <span class="pin-dot" id="lpd1"></span>
+      <span class="pin-dot" id="lpd2"></span>
+      <span class="pin-dot" id="lpd3"></span>
+    </div>
+    <div id="loginPinError" class="pin-error hidden">Incorrect PIN — try again</div>
+
+    <div class="numpad">
+      <button class="numpad-btn" onclick="loginPinKey('1')">1</button>
+      <button class="numpad-btn" onclick="loginPinKey('2')">2</button>
+      <button class="numpad-btn" onclick="loginPinKey('3')">3</button>
+      <button class="numpad-btn" onclick="loginPinKey('4')">4</button>
+      <button class="numpad-btn" onclick="loginPinKey('5')">5</button>
+      <button class="numpad-btn" onclick="loginPinKey('6')">6</button>
+      <button class="numpad-btn" onclick="loginPinKey('7')">7</button>
+      <button class="numpad-btn" onclick="loginPinKey('8')">8</button>
+      <button class="numpad-btn" onclick="loginPinKey('9')">9</button>
+      <button class="numpad-btn numpad-clear" onclick="loginPinKey('C')">C</button>
+      <button class="numpad-btn" onclick="loginPinKey('0')">0</button>
+      <button class="numpad-btn numpad-del" onclick="loginPinKey('DEL')">&#9003;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN APP (hidden until authenticated) ────────────────── -->
+<div id="app" class="hidden">
+
+  <!-- Top Header -->
+  <header id="appHeader">
+    <div class="header-brand">
+      <img id="clubLogoImg" class="header-logo" alt="GBSC" style="display:none">
+      <span id="clubLogoText" class="header-logo-text">GBSC</span>
+      <span class="header-app-label">Management</span>
+    </div>
+    <button class="header-logout-btn" onclick="logout()" title="Lock / log out">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Main Content Area -->
+  <main id="mainContent">
+
+    <!-- ── CALENDAR VIEW ── -->
+    <section id="calendarView" class="view active" data-view="calendar">
+      <div class="view-scroll">
+        <div class="cal-nav-bar">
+          <button class="cal-nav-btn" onclick="App.cal.prev()">&#8249;</button>
+          <h2 id="calMonthLabel" class="cal-month-label">Loading…</h2>
+          <button class="cal-nav-btn" onclick="App.cal.next()">&#8250;</button>
+        </div>
+        <div class="cal-dow-row">
+          <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+        </div>
+        <div id="calGrid" class="cal-grid"></div>
+        <div id="calDayDetail" class="cal-day-detail"></div>
+        <div class="cal-upcoming-heading">Upcoming Events</div>
+        <div id="calUpcoming" class="cal-upcoming"></div>
+      </div>
+      <div class="admin-bar">
+        <button class="btn-add" onclick="App.cal.openAdd()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Event
+        </button>
+      </div>
+    </section>
+
+    <!-- ── EVENTS VIEW ── -->
+    <section id="eventsView" class="view" data-view="events">
+      <div class="view-scroll">
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="App.events.filter('upcoming', this)">Upcoming</button>
+          <button class="filter-btn" onclick="App.events.filter('past', this)">Past</button>
+          <button class="filter-btn" onclick="App.events.filter('all', this)">All</button>
+        </div>
+        <div id="eventsList" class="events-list"></div>
+      </div>
+      <div class="admin-bar">
+        <button class="btn-add" onclick="App.cal.openAdd()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Event
+        </button>
+      </div>
+    </section>
+
+    <!-- ── MAINTENANCE VIEW ── -->
+    <section id="maintenanceView" class="view" data-view="maintenance">
+      <div class="view-scroll">
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="App.maint.showTab('equipment', this)">Equipment</button>
+          <button class="tab-btn" onclick="App.maint.showTab('upcoming', this)">Upcoming</button>
+          <button class="tab-btn" onclick="App.maint.showTab('log', this)">History</button>
+        </div>
+        <div id="equipmentTab" class="tab-panel active">
+          <div id="equipmentList" class="item-list"></div>
+        </div>
+        <div id="upcomingTab" class="tab-panel">
+          <div id="upcomingList" class="item-list"></div>
+        </div>
+        <div id="logTab" class="tab-panel">
+          <div id="logList" class="item-list"></div>
+        </div>
+      </div>
+      <div class="admin-bar">
+        <button class="btn-secondary" onclick="App.maint.openAddEquipment()">+ Equipment</button>
+        <button class="btn-add" onclick="App.maint.openLogMaintenance(null)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Log Work
+        </button>
+      </div>
+    </section>
+
+    <!-- ── SOPs VIEW ── -->
+    <section id="sopsView" class="view" data-view="sops">
+      <div class="view-scroll">
+        <div class="filter-bar filter-bar-wrap">
+          <button class="filter-btn active" onclick="App.sops.filterCat('all', this)">All</button>
+          <button class="filter-btn" onclick="App.sops.filterCat('tractor', this)">Tractor</button>
+          <button class="filter-btn" onclick="App.sops.filterCat('rib', this)">RIB</button>
+          <button class="filter-btn" onclick="App.sops.filterCat('engine', this)">Engine</button>
+          <button class="filter-btn" onclick="App.sops.filterCat('safety', this)">Safety</button>
+          <button class="filter-btn" onclick="App.sops.filterCat('launch', this)">Launch</button>
+          <button class="filter-btn" onclick="App.sops.filterCat('recovery', this)">Recovery</button>
+        </div>
+        <div id="sopsList" class="item-list"></div>
+      </div>
+      <div class="admin-bar">
+        <button class="btn-add" onclick="App.sops.openAdd()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add SOP
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav id="bottomNav">
+    <button class="nav-btn active" onclick="App.navigate('calendar')" data-view="calendar">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <span>Calendar</span>
+    </button>
+    <button class="nav-btn" onclick="App.navigate('events')" data-view="events">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      <span>Events</span>
+    </button>
+    <button class="nav-btn" onclick="App.navigate('maintenance')" data-view="maintenance">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+      </svg>
+      <span>Maintenance</span>
+    </button>
+    <button class="nav-btn" onclick="App.navigate('sops')" data-view="sops">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+      </svg>
+      <span>SOPs</span>
+    </button>
+  </nav>
+
+</div><!-- #app -->
+
+<!-- ══════════ MODALS ══════════ -->
+
+<!-- Event Add/Edit -->
+<div id="eventModal" class="modal-overlay hidden" onclick="overlayClose(event,'eventModal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="eventModalTitle">
+    <div class="modal-header">
+      <h3 id="eventModalTitle">Add Event</h3>
+      <button class="modal-close" onclick="closeModal('eventModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="evtId">
+      <div class="form-group">
+        <label>Title *</label>
+        <input type="text" id="evtTitle" placeholder="Event title" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="evtType">
+          <option value="general">General</option>
+          <option value="racing">Racing</option>
+          <option value="social">Social</option>
+          <option value="training">Training</option>
+          <option value="maintenance">Maintenance</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start Date *</label>
+          <input type="date" id="evtStartDate">
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input type="date" id="evtEndDate">
+        </div>
+      </div>
+      <div class="form-group form-check">
+        <label><input type="checkbox" id="evtAllDay" checked onchange="toggleEventTime()"> All day event</label>
+      </div>
+      <div id="evtTimeRow" class="form-row hidden">
+        <div class="form-group">
+          <label>Start Time</label>
+          <input type="time" id="evtStartTime">
+        </div>
+        <div class="form-group">
+          <label>End Time</label>
+          <input type="time" id="evtEndTime">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Location</label>
+        <input type="text" id="evtLocation" placeholder="Optional" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="evtDescription" rows="3" placeholder="Optional description"></textarea>
+      </div>
+      <div id="evtError" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="evtDeleteBtn" class="btn-danger hidden" onclick="App.cal.deleteEvent()">Delete</button>
+      <button class="btn-ghost" onclick="closeModal('eventModal')">Cancel</button>
+      <button class="btn-primary" onclick="App.cal.saveEvent()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Equipment Add/Edit -->
+<div id="equipmentModal" class="modal-overlay hidden" onclick="overlayClose(event,'equipmentModal')">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="equipmentModalTitle">
+    <div class="modal-header">
+      <h3 id="equipmentModalTitle">Add Equipment</h3>
+      <button class="modal-close" onclick="closeModal('equipmentModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="eqId">
+      <div class="form-group">
+        <label>Name *</label>
+        <input type="text" id="eqName" placeholder="e.g. Tractor 1" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Type *</label>
+        <select id="eqType">
+          <option value="tractor">Tractor</option>
+          <option value="rib">RIB</option>
+          <option value="engine">Engine</option>
+          <option value="safety_boat">Safety Boat</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Year</label>
+        <input type="number" id="eqYear" placeholder="e.g. 2018" min="1900" max="2099">
+      </div>
+      <div class="form-group">
+        <label>Description / Notes</label>
+        <textarea id="eqDescription" rows="2" placeholder="Optional"></textarea>
+      </div>
+      <div id="eqError" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="eqDeleteBtn" class="btn-danger hidden" onclick="App.maint.deleteEquipment()">Delete</button>
+      <button class="btn-ghost" onclick="closeModal('equipmentModal')">Cancel</button>
+      <button class="btn-primary" onclick="App.maint.saveEquipment()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Maintenance Log -->
+<div id="maintModal" class="modal-overlay hidden" onclick="overlayClose(event,'maintModal')">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="maintModalTitle">
+    <div class="modal-header">
+      <h3 id="maintModalTitle">Log Maintenance</h3>
+      <button class="modal-close" onclick="closeModal('maintModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="maintId">
+      <div class="form-group">
+        <label>Equipment *</label>
+        <select id="maintEquipmentSel"></select>
+      </div>
+      <div class="form-group">
+        <label>Task Performed *</label>
+        <input type="text" id="maintTask" placeholder="e.g. Engine oil changed" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Date Performed *</label>
+        <input type="date" id="maintDate">
+      </div>
+      <div class="form-group">
+        <label>Performed By</label>
+        <input type="text" id="maintBy" placeholder="Name" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Next Due Date</label>
+        <input type="date" id="maintNextDue">
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="maintNotes" rows="2" placeholder="Optional"></textarea>
+      </div>
+      <div id="maintError" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="maintDeleteBtn" class="btn-danger hidden" onclick="App.maint.deleteRecord()">Delete</button>
+      <button class="btn-ghost" onclick="closeModal('maintModal')">Cancel</button>
+      <button class="btn-primary" onclick="App.maint.saveMaintenance()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- SOP Add/Edit -->
+<div id="sopModal" class="modal-overlay hidden" onclick="overlayClose(event,'sopModal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="sopModalTitle">
+    <div class="modal-header">
+      <h3 id="sopModalTitle">Add SOP</h3>
+      <button class="modal-close" onclick="closeModal('sopModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sopId">
+      <div class="form-group">
+        <label>Title *</label>
+        <input type="text" id="sopTitle" placeholder="SOP title" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="sopCategory">
+            <option value="general">General</option>
+            <option value="tractor">Tractor</option>
+            <option value="rib">RIB</option>
+            <option value="engine">Engine</option>
+            <option value="safety">Safety</option>
+            <option value="launch">Launch</option>
+            <option value="recovery">Recovery</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Version</label>
+          <input type="text" id="sopVersion" value="1.0" style="width:80px">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Related Equipment</label>
+        <select id="sopEquipment">
+          <option value="">— Not equipment-specific —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Content *</label>
+        <textarea id="sopContent" rows="12" placeholder="Write the procedure here. Use numbered steps, blank lines between sections."></textarea>
+      </div>
+      <div id="sopError" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="sopDeleteBtn" class="btn-danger hidden" onclick="App.sops.deleteSOP()">Delete</button>
+      <button class="btn-ghost" onclick="closeModal('sopModal')">Cancel</button>
+      <button class="btn-primary" onclick="App.sops.saveSOP()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- SOP View -->
+<div id="sopViewModal" class="modal-overlay hidden" onclick="overlayClose(event,'sopViewModal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="sopViewTitle">
+    <div class="modal-header">
+      <h3 id="sopViewTitle"></h3>
+      <button class="modal-close" onclick="closeModal('sopViewModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <div id="sopViewMeta" class="sop-meta"></div>
+      <div id="sopViewContent" class="sop-content"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="App.sops.editCurrent()">Edit</button>
+      <button class="btn-ghost" onclick="closeModal('sopViewModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Equipment Detail -->
+<div id="equipDetailModal" class="modal-overlay hidden" onclick="overlayClose(event,'equipDetailModal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="equipDetailTitle">
+    <div class="modal-header">
+      <h3 id="equipDetailTitle"></h3>
+      <button class="modal-close" onclick="closeModal('equipDetailModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <div id="equipDetailInfo" class="equip-detail-info"></div>
+      <h4 class="section-subheading">Maintenance History</h4>
+      <div id="equipDetailLog"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="App.maint.editEquipment()">Edit</button>
+      <button class="btn-primary" onclick="App.maint.openLogForCurrent()">Log Work</button>
+      <button class="btn-ghost" onclick="closeModal('equipDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
