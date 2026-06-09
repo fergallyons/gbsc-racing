@@ -2,6 +2,10 @@
   path = "/club-config.js"
   function = "club-config"
 
+[[edge_functions]]
+  path = "/api/google-cal"
+  function = "google-cal"
+
 [[headers]]
   for = "/*"
   [headers.values]
@@ -31,7 +35,3 @@
 
 [build]
   publish = "."
-
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
