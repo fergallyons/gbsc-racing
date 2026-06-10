@@ -170,6 +170,9 @@ const App = {
   cal: {
     data: [],
     resources: [],
+    corsizioEvents:  [],
+    corsizioFetched: false,
+    corsizioLoading: false,
 
     async load() {
       const [rows, res] = await Promise.all([
@@ -180,14 +183,32 @@ const App = {
       if (res  && !res._err)  this.resources = res;
     },
 
+    async fetchCorsizio() {
+      if (this.corsizioLoading) return;
+      this.corsizioLoading = true;
+      try {
+        const r = await fetch('/.netlify/functions/corsizio-events');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const json = await r.json();
+        this.corsizioEvents = json.events || [];
+      } catch (e) {
+        console.error('Corsizio fetch failed:', e.message);
+        this.corsizioEvents = [];
+      }
+      this.corsizioLoading  = false;
+      this.corsizioFetched  = true;
+    },
+
     setType(type) {
       State.cal.calType = type;
       State.cal.selectedDay = null;
       document.getElementById('calTypeClub').classList.toggle('active', type === 'club');
       document.getElementById('calTypeTraining').classList.toggle('active', type === 'training');
-      const calSection = document.getElementById('calendarView');
-      calSection.classList.toggle('cal-training', type === 'training');
+      document.getElementById('calendarView').classList.toggle('cal-training', type === 'training');
       this.render();
+      if (type === 'training' && !this.corsizioFetched) {
+        this.fetchCorsizio().then(() => this.render());
+      }
     },
 
     render() {
@@ -201,7 +222,9 @@ const App = {
       const startDow = (firstDay.getDay() + 6) % 7;
       const todayStr = fmtDate(new Date());
 
-      const calData = this.data.filter(ev => (ev.calendar_type || 'club') === State.cal.calType);
+      const calData = State.cal.calType === 'training'
+        ? [...this.data.filter(ev => (ev.calendar_type || 'club') === 'training'), ...this.corsizioEvents]
+        : this.data.filter(ev => (ev.calendar_type || 'club') === 'club');
       const byDate = {};
       calData.forEach(ev => {
         const s = ev.start_date.slice(0, 10);
@@ -230,7 +253,11 @@ const App = {
 
     renderPanel(dateStr) {
       const el = document.getElementById('calPanel');
-      const calData = this.data.filter(ev => (ev.calendar_type || 'club') === State.cal.calType);
+      const calData = State.cal.calType === 'training'
+        ? [...this.data.filter(ev => (ev.calendar_type || 'club') === 'training'), ...this.corsizioEvents]
+        : this.data.filter(ev => (ev.calendar_type || 'club') === 'club');
+      const loadingBanner = (State.cal.calType === 'training' && this.corsizioLoading)
+        ? '<div class="corsizio-loading">⟳ Syncing with Corsizio…</div>' : '';
       if (dateStr) {
         const dayEvs = calData.filter(ev => {
           const s = ev.start_date.slice(0, 10), e = ev.end_date ? ev.end_date.slice(0, 10) : s;
@@ -238,15 +265,19 @@ const App = {
         });
         const heading = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-IE',
           { weekday: 'long', day: 'numeric', month: 'long' });
-        el.innerHTML = `<div class="cal-panel-heading">${heading}</div>` +
-          (dayEvs.length ? dayEvs.map(eventCardHTML).join('') :
-            `<div style="color:var(--muted);font-size:.85rem;padding:4px 0">No events — <a href="#" style="color:var(--teal)" onclick="App.cal.openAdd('${dateStr}');return false">add one</a></div>`);
+        const addLink = State.cal.calType === 'club'
+          ? `<div style="color:var(--muted);font-size:.85rem;padding:4px 0">No events — <a href="#" style="color:var(--teal)" onclick="App.cal.openAdd('${dateStr}');return false">add one</a></div>`
+          : `<div style="color:var(--muted);font-size:.85rem;padding:4px 0">No training on this date</div>`;
+        el.innerHTML = loadingBanner + `<div class="cal-panel-heading">${heading}</div>` +
+          (dayEvs.length ? dayEvs.map(eventCardHTML).join('') : addLink);
       } else {
         const todayStr = fmtDate(new Date());
         const upcoming = calData.filter(ev => ev.start_date.slice(0, 10) >= todayStr).slice(0, 6);
-        el.innerHTML = '<div class="cal-panel-heading">Upcoming Events</div>' +
-          (upcoming.length ? upcoming.map(eventCardHTML).join('') :
-            '<div class="empty-state"><div class="empty-state-text">No upcoming events</div></div>');
+        const emptyMsg = State.cal.calType === 'training'
+          ? '<div class="empty-state"><div class="empty-state-text">No upcoming training courses</div></div>'
+          : '<div class="empty-state"><div class="empty-state-text">No upcoming events</div></div>';
+        el.innerHTML = loadingBanner + '<div class="cal-panel-heading">Upcoming</div>' +
+          (upcoming.length ? upcoming.map(eventCardHTML).join('') : emptyMsg);
       }
     },
 
@@ -853,15 +884,36 @@ function makeCell(day, otherMonth, dateStr, events, isToday, isSelected) {
 
 // ── Render helpers ─────────────────────────────────────────────
 function eventCardHTML(ev) {
-  const colour    = evTypeColour(ev.event_type);
-  const resources = App.cal.resources
+  const colour     = evTypeColour(ev.event_type);
+  const isCorsizio = ev._source === 'corsizio';
+  const resources  = isCorsizio ? [] : App.cal.resources
     .filter(r => r.event_id === ev.id)
     .map(r => App.maint.equipment?.find(e => e.id === r.equipment_id))
     .filter(Boolean);
-  const sessionLabel = ev.calendar_type === 'training' && ev.session_half !== 'full'
+  const sessionLabel = !isCorsizio && ev.calendar_type === 'training' && ev.session_half !== 'full'
     ? `<span class="event-badge" style="color:var(--ev-dinghys);border-color:var(--ev-dinghys)">${ev.session_half === 'morning' ? 'AM' : 'PM'}</span>` : '';
+  const sourceBadge = isCorsizio
+    ? `<span class="event-badge corsizio-badge">Corsizio</span>` : '';
   const resourceBadges = resources.length
     ? `<div class="event-resources">${resources.map(eq => `<span class="resource-badge">${eqIcon(eq.type)} ${esc(eq.name)}</span>`).join('')}</div>` : '';
+  const regLink = isCorsizio && ev._corsizio_url
+    ? `<div style="margin-top:4px"><a href="${esc(ev._corsizio_url)}" target="_blank" rel="noopener" style="color:var(--teal);font-size:.78rem">Register on Corsizio ↗</a></div>` : '';
+
+  if (isCorsizio) {
+    return `<div class="event-card" style="border-left-color:${colour}">
+      <div class="event-card-body">
+        <div class="event-card-title">${esc(ev.title)}</div>
+        <div class="event-card-meta">
+          <span>${fmtEventDate(ev)}</span>
+          ${ev.location ? `<span>📍 ${esc(ev.location)}</span>` : ''}
+          ${sourceBadge}
+        </div>
+        ${ev.description ? `<div class="event-desc">${esc(ev.description)}</div>` : ''}
+        ${regLink}
+      </div>
+    </div>`;
+  }
+
   return `<div class="event-card admin-card" style="border-left-color:${colour}"
     onclick="App.cal.openEdit(App.cal.data.find(e=>e.id==='${ev.id}'))">
     <div class="event-card-body">

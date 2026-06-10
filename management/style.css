@@ -1058,6 +1058,23 @@ body {
 .resource-conflict { color: #f4a261; font-size: .72rem; font-weight: 700; margin-left: auto; }
 .resource-check-item.has-conflict { opacity: .75; }
 
+/* ── Corsizio sync indicator ─────────────────────────────────── */
+.corsizio-loading {
+  font-size: .72rem;
+  color: var(--ev-dinghys);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+.corsizio-badge {
+  color: var(--ev-dinghys) !important;
+  border-color: var(--ev-dinghys) !important;
+}
+
 /* ── Resource badges on event cards ─────────────────────────── */
 .event-resources {
   display: flex;
