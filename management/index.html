@@ -110,6 +110,14 @@
           <button id="calTypeClub"     class="cal-type-btn active" onclick="App.cal.setType('club')">Club</button>
           <button id="calTypeTraining" class="cal-type-btn"        onclick="App.cal.setType('training')">Training</button>
         </div>
+        <div id="calFilterBar" class="cal-filter-bar">
+          <button class="cal-filter-pill active" data-type="cruisers" onclick="App.cal.toggleFilter('cruisers')"><span class="cal-fp-dot"></span>Cruisers</button>
+          <button class="cal-filter-pill active" data-type="dinghys"  onclick="App.cal.toggleFilter('dinghys')"><span class="cal-fp-dot"></span>Dinghys</button>
+          <button class="cal-filter-pill active" data-type="regattas" onclick="App.cal.toggleFilter('regattas')"><span class="cal-fp-dot"></span>Regattas</button>
+          <button class="cal-filter-pill active" data-type="social"   onclick="App.cal.toggleFilter('social')"><span class="cal-fp-dot"></span>Social</button>
+          <button class="cal-filter-pill active" data-type="external" onclick="App.cal.toggleFilter('external')"><span class="cal-fp-dot"></span>External</button>
+          <button class="cal-filter-pill active" data-type="other"    onclick="App.cal.toggleFilter('other')"><span class="cal-fp-dot"></span>Other</button>
+        </div>
         <div class="cal-nav-bar">
           <button class="cal-nav-btn" onclick="App.cal.prev()">&#8249;</button>
           <h2 id="calMonthLabel" class="cal-month-label">Loading…</h2>

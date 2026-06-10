@@ -1093,6 +1093,59 @@ body {
   color: var(--ev-dinghys);
 }
 
+/* ── Calendar filter / legend bar ───────────────────────────── */
+.cal-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 0 10px;
+}
+.cal-filter-bar.hidden { display: none; }
+
+.cal-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 4px 7px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Barlow', sans-serif;
+  font-size: .72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s, color .15s, background .15s, border-color .15s;
+  opacity: .38;
+}
+.cal-filter-pill.active {
+  opacity: 1;
+  color: var(--white);
+}
+
+.cal-fp-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Per-type dot colours + active tint */
+.cal-filter-pill[data-type="cruisers"] .cal-fp-dot { background: var(--ev-cruisers); }
+.cal-filter-pill[data-type="dinghys"]  .cal-fp-dot { background: var(--ev-dinghys);  }
+.cal-filter-pill[data-type="regattas"] .cal-fp-dot { background: var(--ev-regattas); }
+.cal-filter-pill[data-type="social"]   .cal-fp-dot { background: var(--ev-social);   }
+.cal-filter-pill[data-type="external"] .cal-fp-dot { background: var(--ev-external); }
+.cal-filter-pill[data-type="other"]    .cal-fp-dot { background: var(--ev-other);    }
+
+.cal-filter-pill.active[data-type="cruisers"] { background: rgba(33,150,243,.12);  border-color: rgba(33,150,243,.4);  }
+.cal-filter-pill.active[data-type="dinghys"]  { background: rgba(39,174,96,.12);   border-color: rgba(39,174,96,.4);   }
+.cal-filter-pill.active[data-type="regattas"] { background: rgba(230,57,70,.12);   border-color: rgba(230,57,70,.4);   }
+.cal-filter-pill.active[data-type="social"]   { background: rgba(254,224,30,.1);   border-color: rgba(254,224,30,.4);  }
+.cal-filter-pill.active[data-type="external"] { background: rgba(156,39,176,.12);  border-color: rgba(156,39,176,.4);  }
+.cal-filter-pill.active[data-type="other"]    { background: rgba(144,164,174,.1);  border-color: rgba(144,164,174,.35);}
+
+
 /* ── Resource Checklist (event modal) ────────────────────────── */
 .resource-checklist {
   background: var(--navy-input);

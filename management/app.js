@@ -1,4 +1,4 @@
-const BUILD = '20260610.11';
+const BUILD = '20260610.12';
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
@@ -138,7 +138,8 @@ function logout() {
 // ── State ──────────────────────────────────────────────────────
 const State = {
   view: 'calendar',
-  cal:  { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null, calType: 'club' },
+  cal:  { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null, calType: 'club',
+          filters: new Set(['cruisers','dinghys','regattas','social','external','other']) },
   maint: { tab: 'equipment', current: null },
   sops:  { catFilter: 'all', current: null },
 };
@@ -221,10 +222,25 @@ const App = {
       document.getElementById('calTypeClub').classList.toggle('active', type === 'club');
       document.getElementById('calTypeTraining').classList.toggle('active', type === 'training');
       document.getElementById('calendarView').classList.toggle('cal-training', type === 'training');
+      document.getElementById('calFilterBar').classList.toggle('hidden', type !== 'club');
       this.render();
       if (type === 'training' && !this.corsizioFetched) {
         this.fetchCorsizio().then(() => this.render());
       }
+    },
+
+    toggleFilter(type) {
+      const f = State.cal.filters;
+      if (f.has(type)) {
+        if (f.size === 1) { f.clear(); ['cruisers','dinghys','regattas','social','external','other'].forEach(t => f.add(t)); }
+        else f.delete(type);
+      } else {
+        f.add(type);
+      }
+      document.querySelectorAll('.cal-filter-pill').forEach(btn =>
+        btn.classList.toggle('active', f.has(btn.dataset.type))
+      );
+      this.render();
     },
 
     render() {
@@ -240,7 +256,10 @@ const App = {
 
       const calData = State.cal.calType === 'training'
         ? [...this.data.filter(ev => (ev.calendar_type || 'club') === 'training'), ...this.corsizioEvents]
-        : this.data.filter(ev => (ev.calendar_type || 'club') === 'club');
+        : this.data.filter(ev =>
+            (ev.calendar_type || 'club') === 'club' &&
+            State.cal.filters.has(ev.event_type || 'other')
+          );
       const byDate = {};
       calData.forEach(ev => {
         const s = ev.start_date.slice(0, 10);
@@ -271,7 +290,10 @@ const App = {
       const el = document.getElementById('calPanel');
       const calData = State.cal.calType === 'training'
         ? [...this.data.filter(ev => (ev.calendar_type || 'club') === 'training'), ...this.corsizioEvents]
-        : this.data.filter(ev => (ev.calendar_type || 'club') === 'club');
+        : this.data.filter(ev =>
+            (ev.calendar_type || 'club') === 'club' &&
+            State.cal.filters.has(ev.event_type || 'other')
+          );
       const loadingBanner = State.cal.calType === 'training'
         ? (this.corsizioLoading
             ? '<div class="corsizio-loading">⟳ Syncing with Corsizio…</div>'
