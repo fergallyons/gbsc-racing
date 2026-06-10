@@ -42,7 +42,6 @@ async function fetchAllEvents(key) {
   let more = true;
 
   while (more) {
-    // No extra filters — fetch everything the account key can see
     const url = `${CORSIZIO_BASE}/events?limit=100&page=${page}`;
     const r = await fetch(url, {
       headers: { Authorization: `Bearer ${key}` },
@@ -53,19 +52,34 @@ async function fetchAllEvents(key) {
     }
     const payload = await r.json();
 
-    // Record raw paging for diagnostics
-    pages.push(payload.paging || payload.meta || { page, rawKeys: Object.keys(payload) });
+    // Record ALL top-level keys + paging on first page so we can diagnose shape
+    const pageInfo = {
+      page,
+      topLevelKeys: Object.keys(payload),
+      paging: payload.paging || payload.meta || payload.pagination || null,
+      // snapshot first element of every array-valued key
+      arraySizes: Object.fromEntries(
+        Object.entries(payload)
+          .filter(([, v]) => Array.isArray(v))
+          .map(([k, v]) => [k, v.length])
+      ),
+    };
+    if (page === 1) pageInfo.firstPageSample = JSON.stringify(payload).slice(0, 500);
+    pages.push(pageInfo);
 
-    const items = Array.isArray(payload.data)
-      ? payload.data
-      : Array.isArray(payload.events)
-        ? payload.events           // alternate key some APIs use
-        : Array.isArray(payload)
-          ? payload                // bare array response
-          : [];
+    // Try every plausible key for the items array
+    const items = Array.isArray(payload.data)   ? payload.data
+      : Array.isArray(payload.events)           ? payload.events
+      : Array.isArray(payload.items)            ? payload.items
+      : Array.isArray(payload.results)          ? payload.results
+      : Array.isArray(payload.list)             ? payload.list
+      : Array.isArray(payload)                  ? payload
+      : [];
 
     all.push(...items);
-    more = payload.paging?.more === true || payload.meta?.more === true;
+
+    const paging = payload.paging || payload.meta || payload.pagination || {};
+    more = paging.more === true || paging.hasMore === true || paging.has_more === true;
     page++;
     if (page > 20) break;
   }
