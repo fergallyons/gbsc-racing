@@ -157,9 +157,12 @@ const App = {
 
   navigate(view) {
     const viewMap = { calendar:'calendarView', events:'eventsView', maintenance:'maintenanceView', sops:'sopsView' };
+    const addMap  = { calendar:'hAddCal', events:'hAddCal', maintenance:'hAddMaint', sops:'hAddSops' };
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(viewMap[view])?.classList.add('active');
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    document.querySelectorAll('.h-add-group').forEach(g => g.classList.add('hidden'));
+    document.getElementById(addMap[view])?.classList.remove('hidden');
     State.view = view;
   },
 
