@@ -897,71 +897,59 @@ body {
     radial-gradient(ellipse at 80% 90%, rgba(0,174,239,.1) 0%, transparent 50%);
   z-index: 500;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: 32px 24px 40px;
+  justify-content: center;
+  padding: 24px;
   overflow-y: auto;
 }
 #loginScreen.hidden { display: none; }
 
 .login-box {
   width: 100%;
-  max-width: 340px;
+  max-width: 300px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: auto;
+  gap: 0;
 }
 
-.login-logo {
-  height: 60px;
-  width: auto;
-  border-radius: 10px;
-  margin-bottom: 10px;
-}
-
-.login-logo-text {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 3rem;
-  font-weight: 800;
-  letter-spacing: .06em;
-  color: var(--teal);
-  margin-bottom: 4px;
+.login-pennant {
+  width: 80px;
+  height: auto;
+  margin-bottom: 14px;
 }
 
 .login-club-name {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  color: var(--white);
-  opacity: .9;
-  margin-bottom: 2px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  color: var(--teal);
   text-align: center;
+  margin-bottom: 2px;
 }
 
 .login-sub {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: .85rem;
+  font-size: .75rem;
   font-weight: 600;
-  letter-spacing: .22em;
+  letter-spacing: .2em;
   text-transform: uppercase;
-  color: var(--teal);
-  margin-bottom: 32px;
+  color: var(--muted);
+  margin-bottom: 28px;
 }
 
-/* ── PIN Modal (shared styles) ───────────────────────────────── */
+/* ── PIN display ─────────────────────────────────────────────── */
 .pin-display {
   display: flex;
   justify-content: center;
-  gap: 14px;
-  margin-bottom: 14px;
+  gap: 16px;
+  margin-bottom: 12px;
 }
 
 .pin-dot {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   border: 2px solid var(--muted);
   transition: background .15s, border-color .15s;
@@ -969,40 +957,44 @@ body {
 .pin-dot.filled {
   background: var(--teal);
   border-color: var(--teal);
+  box-shadow: 0 0 8px rgba(0,174,239,.5);
 }
 
 .pin-error {
   text-align: center;
   color: var(--danger);
-  font-size: .85rem;
+  font-size: .82rem;
   font-weight: 600;
   margin-bottom: 10px;
+  min-height: 1.2em;
 }
-.pin-error.hidden { display: none; }
+.pin-error.hidden { visibility: hidden; }
 
+/* ── Numpad ──────────────────────────────────────────────────── */
 .numpad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  max-width: 260px;
-  margin: 0 auto;
+  gap: 10px;
+  width: 100%;
 }
 
 .numpad-btn {
+  aspect-ratio: 1;
   background: var(--navy-lt);
   border: 1px solid var(--border);
   color: var(--white);
   border-radius: var(--radius-sm);
-  height: 54px;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background .15s;
+  transition: background .15s, transform .08s;
   -webkit-tap-highlight-color: transparent;
+  width: 100%;
 }
-.numpad-btn:hover,.numpad-btn:active { background: var(--navy-mid); }
+.numpad-btn:hover { background: var(--navy-mid); }
+.numpad-btn:active { background: var(--navy-mid); transform: scale(.95); }
 .numpad-clear { font-size: .8rem; letter-spacing: .05em; color: var(--warn); }
-.numpad-del { font-size: 1.1rem; color: var(--muted); }
+.numpad-del { font-size: 1.2rem; color: var(--muted); }
 
 /* ── Toast ───────────────────────────────────────────────────── */
 .toast {
