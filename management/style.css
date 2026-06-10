@@ -1058,15 +1058,35 @@ body {
 .resource-conflict { color: #f4a261; font-size: .72rem; font-weight: 700; margin-left: auto; }
 .resource-check-item.has-conflict { opacity: .75; }
 
+/* ── Build ID ────────────────────────────────────────────────── */
+.build-id {
+  position: fixed;
+  bottom: 6px;
+  right: 10px;
+  font-size: .6rem;
+  color: rgba(255,255,255,.2);
+  pointer-events: none;
+  letter-spacing: .05em;
+  z-index: 1;
+}
+
 /* ── Corsizio sync indicator ─────────────────────────────────── */
-.corsizio-loading {
+.corsizio-loading, .corsizio-error, .corsizio-ok {
   font-size: .72rem;
-  color: var(--ev-dinghys);
   margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+.corsizio-loading {
+  color: var(--ev-dinghys);
   animation: pulse 1.2s ease-in-out infinite;
+}
+.corsizio-error {
+  color: #f4a261;
+  background: rgba(244,162,97,.1);
+}
+.corsizio-ok {
+  color: rgba(255,255,255,.35);
 }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 

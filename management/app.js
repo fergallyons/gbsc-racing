@@ -1,3 +1,5 @@
+const BUILD = '20260610.2';
+
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
 if (!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have failed');
@@ -153,6 +155,8 @@ const App = {
     App.events.render();
     App.maint.renderEquipment();
     App.sops.render();
+    const bid = document.getElementById('buildId');
+    if (bid) bid.textContent = 'build ' + BUILD;
   },
 
   navigate(view) {
@@ -173,6 +177,7 @@ const App = {
     corsizioEvents:  [],
     corsizioFetched: false,
     corsizioLoading: false,
+    corsizioError:   null,
 
     async load() {
       const [rows, res] = await Promise.all([
@@ -186,15 +191,21 @@ const App = {
     async fetchCorsizio() {
       if (this.corsizioLoading) return;
       this.corsizioLoading = true;
+      this.corsizioError   = null;
       try {
         const r = await fetch('/.netlify/functions/corsizio-events');
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const json = await r.json();
-        this.corsizioEvents = json.events || [];
+        const json = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          this.corsizioError = json.error || ('HTTP ' + r.status);
+          this.corsizioEvents = [];
+        } else {
+          this.corsizioEvents = json.events || [];
+        }
       } catch (e) {
-        console.error('Corsizio fetch failed:', e.message);
+        this.corsizioError  = e.message;
         this.corsizioEvents = [];
       }
+      if (this.corsizioError) console.error('Corsizio:', this.corsizioError);
       this.corsizioLoading  = false;
       this.corsizioFetched  = true;
     },
@@ -256,8 +267,15 @@ const App = {
       const calData = State.cal.calType === 'training'
         ? [...this.data.filter(ev => (ev.calendar_type || 'club') === 'training'), ...this.corsizioEvents]
         : this.data.filter(ev => (ev.calendar_type || 'club') === 'club');
-      const loadingBanner = (State.cal.calType === 'training' && this.corsizioLoading)
-        ? '<div class="corsizio-loading">⟳ Syncing with Corsizio…</div>' : '';
+      const loadingBanner = State.cal.calType === 'training'
+        ? (this.corsizioLoading
+            ? '<div class="corsizio-loading">⟳ Syncing with Corsizio…</div>'
+            : this.corsizioError
+              ? `<div class="corsizio-error">⚠ Corsizio: ${esc(this.corsizioError)}</div>`
+              : this.corsizioFetched
+                ? `<div class="corsizio-ok">✓ Corsizio synced · ${this.corsizioEvents.length} course${this.corsizioEvents.length !== 1 ? 's' : ''}</div>`
+                : '')
+        : '';
       if (dateStr) {
         const dayEvs = calData.filter(ev => {
           const s = ev.start_date.slice(0, 10), e = ev.end_date ? ev.end_date.slice(0, 10) : s;
