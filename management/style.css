@@ -20,11 +20,12 @@
   --radius-sm:  8px;
 
   /* Event type colours */
-  --ev-general:     #00aeef;
-  --ev-racing:      #e63946;
-  --ev-social:      #fee01e;
-  --ev-training:    #27ae60;
-  --ev-maintenance: #f4a261;
+  --ev-cruisers:  #2196f3;
+  --ev-dinghys:   #27ae60;
+  --ev-regattas:  #e63946;
+  --ev-social:    #fee01e;
+  --ev-other:     #90a4ae;
+  --ev-external:  #9c27b0;
 
   /* Equipment type icons / colours */
   --eq-tractor:    #f4a261;

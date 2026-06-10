@@ -142,11 +142,12 @@ function makeEvent(title, desc, location, start, end, allDay) {
 
 function guessType(title) {
   const t = title.toLowerCase();
-  if (/race|racing|regatta|series|pursuit|league/.test(t)) return 'racing';
-  if (/agm|meeting|committee|training|course|safety/.test(t)) return 'training';
-  if (/social|dinner|prize|prizegiving|party|bbq|céilí/.test(t)) return 'social';
-  if (/maintenance|service|repair|haul/.test(t)) return 'maintenance';
-  return 'general';
+  if (/regatta|pursuit|league|race week|series/.test(t)) return 'regattas';
+  if (/cruiser|cruise|offshore|isora|coastal/.test(t))   return 'cruisers';
+  if (/dinghy|dingy|laser|optimist|mirror|wayfarer|frostbite|junior/.test(t)) return 'dinghys';
+  if (/social|dinner|prize|prizegiving|party|bbq|céilí|agm|meeting|committee/.test(t)) return 'social';
+  if (/external|inter-club|interprovincial|nationals|worlds/.test(t)) return 'external';
+  return 'other';
 }
 
 function parseICSDate(field) {

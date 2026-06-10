@@ -253,7 +253,7 @@ const App = {
       document.getElementById('eventModalTitle').textContent = 'Add Event';
       document.getElementById('evtId').value          = '';
       document.getElementById('evtTitle').value       = '';
-      document.getElementById('evtType').value        = 'general';
+      document.getElementById('evtType').value        = 'other';
       document.getElementById('evtStartDate').value   = d;
       document.getElementById('evtEndDate').value     = d;
       document.getElementById('evtAllDay').checked    = true;
@@ -272,7 +272,7 @@ const App = {
       document.getElementById('eventModalTitle').textContent  = 'Edit Event';
       document.getElementById('evtId').value          = ev.id;
       document.getElementById('evtTitle').value       = ev.title;
-      document.getElementById('evtType').value        = ev.event_type || 'general';
+      document.getElementById('evtType').value        = ev.event_type || 'other';
       document.getElementById('evtStartDate').value   = ev.start_date.slice(0, 10);
       document.getElementById('evtEndDate').value     = ev.end_date ? ev.end_date.slice(0, 10) : ev.start_date.slice(0, 10);
       const allDay = ev.all_day !== false;
@@ -807,8 +807,8 @@ function fmtEventDate(ev) {
   return (!ev.all_day && ev.start_date.length > 10) ? s+' at '+ev.start_date.slice(11,16)+e : s+e;
 }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function evTypeColour(t)  { return {general:'#00aeef',racing:'#e63946',social:'#fee01e',training:'#27ae60',maintenance:'#f4a261'}[t]||'#00aeef'; }
-function evTypeLabel(t)   { return {general:'General',racing:'Racing',social:'Social',training:'Training',maintenance:'Maintenance'}[t]||t; }
+function evTypeColour(t)  { return {cruisers:'#2196f3',dinghys:'#27ae60',regattas:'#e63946',social:'#fee01e',other:'#90a4ae',external:'#9c27b0'}[t]||'#90a4ae'; }
+function evTypeLabel(t)   { return {cruisers:'Cruisers',dinghys:'Dinghys',regattas:'Regattas',social:'Social',other:'Other',external:'External'}[t]||t; }
 function eqIcon(t)        { return {tractor:'🚜',rib:'🚤',engine:'⚙️',safety_boat:'🛥️',other:'🔧'}[t]||'🔧'; }
 function eqTypeLabel(t)   { return {tractor:'Tractor',rib:'RIB',engine:'Engine',safety_boat:'Safety Boat',other:'Other'}[t]||t; }
 function catLabel(c)      { return {general:'General',tractor:'Tractor',rib:'RIB',engine:'Engine',safety:'Safety',launch:'Launch',recovery:'Recovery'}[c]||c; }
