@@ -93,19 +93,22 @@ function mapEvent(ev) {
     ? loc
     : loc?.name || loc?.address || loc?.city || null;
 
+  const desc = ev.summary
+    || stripHtml(ev.summaryHtml || ev.description || '');
+
   return {
-    id:            ev._id || ev.id,
+    id:            ev.id || ev._id,
     title:         ev.name || ev.title || '(no title)',
-    description:   stripHtml(ev.description || ''),
+    description:   desc || null,
     location:      locationStr,
-    start_date:    ev.startDate || ev.start_date || ev.start,
-    end_date:      ev.endDate   || ev.end_date   || ev.end || null,
+    start_date:    ev.startDate || ev.start_date || ev.start || null,
+    end_date:      ev.endDate   || ev.end_date   || ev.end  || null,
     all_day:       false,
     event_type:    'other',
     calendar_type: 'training',
     session_half:  'full',
     _source:       'corsizio',
-    _corsizio_url: ev.registrationUrl || ev.registration_url || ev.url || null,
+    _corsizio_url: ev.pageUrl || ev.formUrl || ev.registrationUrl || null,
   };
 }
 

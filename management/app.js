@@ -1,4 +1,4 @@
-const BUILD = '20260610.4';
+const BUILD = '20260610.5';
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
