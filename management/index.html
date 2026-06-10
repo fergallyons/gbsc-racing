@@ -91,6 +91,10 @@
     <!-- ── CALENDAR VIEW ── -->
     <section id="calendarView" class="view active" data-view="calendar">
       <div class="view-scroll">
+        <div class="cal-type-toggle">
+          <button id="calTypeClub"     class="cal-type-btn active" onclick="App.cal.setType('club')">Club</button>
+          <button id="calTypeTraining" class="cal-type-btn"        onclick="App.cal.setType('training')">Training</button>
+        </div>
         <div class="cal-nav-bar">
           <button class="cal-nav-btn" onclick="App.cal.prev()">&#8249;</button>
           <h2 id="calMonthLabel" class="cal-month-label">Loading…</h2>
@@ -214,6 +218,14 @@
           <input type="time" id="evtEndTime">
         </div>
       </div>
+      <div id="evtSessionRow" class="form-group hidden">
+        <label>Session</label>
+        <select id="evtSessionHalf">
+          <option value="full">Full Day</option>
+          <option value="morning">Morning</option>
+          <option value="afternoon">Afternoon</option>
+        </select>
+      </div>
       <div class="form-group">
         <label>Location</label>
         <input type="text" id="evtLocation" placeholder="Optional" autocomplete="off">
@@ -222,6 +234,11 @@
         <label>Description</label>
         <textarea id="evtDescription" rows="3" placeholder="Optional description"></textarea>
       </div>
+      <div class="form-group">
+        <label>Equipment / Resources</label>
+        <div id="evtResourceList" class="resource-checklist"><span class="form-hint">Loading…</span></div>
+      </div>
+      <input type="hidden" id="evtCalType" value="club">
       <div id="evtError" class="form-error hidden"></div>
     </div>
     <div class="modal-footer">

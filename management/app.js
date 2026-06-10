@@ -136,7 +136,7 @@ function logout() {
 // ── State ──────────────────────────────────────────────────────
 const State = {
   view: 'calendar',
-  cal:  { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null },
+  cal:  { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null, calType: 'club' },
   maint: { tab: 'equipment', current: null },
   sops:  { catFilter: 'all', current: null },
 };
@@ -169,10 +169,25 @@ const App = {
   // ── Calendar ─────────────────────────────────────────────────
   cal: {
     data: [],
+    resources: [],
 
     async load() {
-      const rows = await sbGet('hub_events', 'order=start_date.asc&select=*');
+      const [rows, res] = await Promise.all([
+        sbGet('hub_events', 'order=start_date.asc&select=*'),
+        sbGet('hub_event_resources', 'select=*'),
+      ]);
       if (rows && !rows._err) this.data = rows;
+      if (res  && !res._err)  this.resources = res;
+    },
+
+    setType(type) {
+      State.cal.calType = type;
+      State.cal.selectedDay = null;
+      document.getElementById('calTypeClub').classList.toggle('active', type === 'club');
+      document.getElementById('calTypeTraining').classList.toggle('active', type === 'training');
+      const calSection = document.getElementById('calendarView');
+      calSection.classList.toggle('cal-training', type === 'training');
+      this.render();
     },
 
     render() {
@@ -186,8 +201,9 @@ const App = {
       const startDow = (firstDay.getDay() + 6) % 7;
       const todayStr = fmtDate(new Date());
 
+      const calData = this.data.filter(ev => (ev.calendar_type || 'club') === State.cal.calType);
       const byDate = {};
-      this.data.forEach(ev => {
+      calData.forEach(ev => {
         const s = ev.start_date.slice(0, 10);
         const e = ev.end_date ? ev.end_date.slice(0, 10) : s;
         let cur = new Date(s + 'T12:00:00'), end = new Date(e + 'T12:00:00');
@@ -214,8 +230,9 @@ const App = {
 
     renderPanel(dateStr) {
       const el = document.getElementById('calPanel');
+      const calData = this.data.filter(ev => (ev.calendar_type || 'club') === State.cal.calType);
       if (dateStr) {
-        const dayEvs = this.data.filter(ev => {
+        const dayEvs = calData.filter(ev => {
           const s = ev.start_date.slice(0, 10), e = ev.end_date ? ev.end_date.slice(0, 10) : s;
           return dateStr >= s && dateStr <= e;
         });
@@ -226,7 +243,7 @@ const App = {
             `<div style="color:var(--muted);font-size:.85rem;padding:4px 0">No events — <a href="#" style="color:var(--teal)" onclick="App.cal.openAdd('${dateStr}');return false">add one</a></div>`);
       } else {
         const todayStr = fmtDate(new Date());
-        const upcoming = this.data.filter(ev => ev.start_date.slice(0, 10) >= todayStr).slice(0, 6);
+        const upcoming = calData.filter(ev => ev.start_date.slice(0, 10) >= todayStr).slice(0, 6);
         el.innerHTML = '<div class="cal-panel-heading">Upcoming Events</div>' +
           (upcoming.length ? upcoming.map(eventCardHTML).join('') :
             '<div class="empty-state"><div class="empty-state-text">No upcoming events</div></div>');
@@ -267,6 +284,11 @@ const App = {
       document.getElementById('evtDescription').value = '';
       document.getElementById('evtDeleteBtn').classList.add('hidden');
       document.getElementById('evtError').classList.add('hidden');
+      const ct = State.cal.calType;
+      document.getElementById('evtCalType').value = ct;
+      document.getElementById('evtSessionRow').classList.toggle('hidden', ct !== 'training');
+      document.getElementById('evtSessionHalf').value = 'full';
+      this._loadResourceList(d, d, null);
       openModal('eventModal');
     },
 
@@ -289,7 +311,53 @@ const App = {
       document.getElementById('evtDescription').value = ev.description || '';
       document.getElementById('evtDeleteBtn').classList.remove('hidden');
       document.getElementById('evtError').classList.add('hidden');
+      const ct = ev.calendar_type || 'club';
+      document.getElementById('evtCalType').value = ct;
+      document.getElementById('evtSessionRow').classList.toggle('hidden', ct !== 'training');
+      document.getElementById('evtSessionHalf').value = ev.session_half || 'full';
+      this._loadResourceList(ev.start_date.slice(0,10), (ev.end_date || ev.start_date).slice(0,10), ev.id);
       openModal('eventModal');
+    },
+
+    _loadResourceList(startDate, endDate, currentEventId) {
+      const container = document.getElementById('evtResourceList');
+      const bookable = (App.maint.equipment || []).filter(eq => ['rib','safety_boat','dinghy'].includes(eq.type));
+      if (!bookable.length) {
+        container.innerHTML = '<span class="form-hint" style="padding:4px 6px;display:block">No RIBs or safety boats registered</span>';
+        return;
+      }
+      const currentlyAssigned = new Set(
+        this.resources.filter(r => r.event_id === currentEventId).map(r => r.equipment_id)
+      );
+      const s = startDate?.slice(0,10), e = (endDate || startDate)?.slice(0,10);
+      const conflicted = new Set();
+      if (s) {
+        this.resources.filter(r => r.event_id !== currentEventId).forEach(r => {
+          const ev = this.data.find(ev => ev.id === r.event_id);
+          if (!ev) return;
+          const evS = ev.start_date.slice(0,10), evE = (ev.end_date || ev.start_date).slice(0,10);
+          if (evS <= e && evE >= s) conflicted.add(r.equipment_id);
+        });
+      }
+      container.innerHTML = bookable.map(eq => {
+        const checked  = currentlyAssigned.has(eq.id) ? 'checked' : '';
+        const conflict = !currentlyAssigned.has(eq.id) && conflicted.has(eq.id);
+        const warn     = conflict ? '<span class="resource-conflict">⚠ already booked</span>' : '';
+        return `<label class="resource-check-item${conflict ? ' has-conflict' : ''}">
+          <input type="checkbox" class="evtResourceCheck" value="${eq.id}" ${checked}>
+          <span>${eqIcon(eq.type)} ${esc(eq.name)}</span>${warn}
+        </label>`;
+      }).join('');
+    },
+
+    async _saveResources(eventId) {
+      await sbDelete('hub_event_resources', 'event_id=eq.' + eventId);
+      const checked = [...document.querySelectorAll('.evtResourceCheck:checked')].map(cb => cb.value);
+      if (checked.length) {
+        await sbPost('hub_event_resources', checked.map(eqId => ({ event_id: eventId, equipment_id: eqId })));
+      }
+      const res = await sbGet('hub_event_resources', 'select=*');
+      if (res && !res._err) this.resources = res;
     },
 
     async saveEvent() {
@@ -309,10 +377,14 @@ const App = {
       const startDate = allDay ? startD : startD + 'T' + (startT || '00:00') + ':00';
       const endDate   = endD ? (allDay ? endD : endD + 'T' + (endT || '23:59') + ':00') : null;
 
+      const calType    = document.getElementById('evtCalType').value || 'club';
+      const sessionHalf = document.getElementById('evtSessionHalf').value || 'full';
       const payload = {
         title, event_type: type, all_day: allDay, start_date: startDate, end_date: endDate,
-        description: document.getElementById('evtDescription').value.trim() || null,
-        location:    document.getElementById('evtLocation').value.trim()    || null,
+        description:   document.getElementById('evtDescription').value.trim() || null,
+        location:      document.getElementById('evtLocation').value.trim()    || null,
+        calendar_type: calType,
+        session_half:  calType === 'training' ? sessionHalf : 'full',
       };
 
       const result = id
@@ -320,6 +392,10 @@ const App = {
         : await sbPost('hub_events', payload);
 
       if (result?._err) { showFormError(errEl, result._err); return; }
+
+      const eventId = id || (Array.isArray(result) ? result[0]?.id : null);
+      if (eventId) await this._saveResources(eventId);
+
       closeModal('eventModal');
       await this.load(); this.render(); App.events.render();
       showToast(id ? 'Event updated' : 'Event added', 'success');
@@ -755,7 +831,8 @@ function makeCell(day, otherMonth, dateStr, events, isToday, isSelected) {
       const lbl = document.createElement('span');
       lbl.className = 'cal-ev-label';
       lbl.style.background = evTypeColour(ev.event_type);
-      lbl.textContent = ev.title;
+      const prefix = ev.session_half === 'morning' ? 'AM: ' : ev.session_half === 'afternoon' ? 'PM: ' : '';
+      lbl.textContent = prefix + ev.title;
       lbl.title = ev.title;
       div.appendChild(lbl);
     });
@@ -776,7 +853,15 @@ function makeCell(day, otherMonth, dateStr, events, isToday, isSelected) {
 
 // ── Render helpers ─────────────────────────────────────────────
 function eventCardHTML(ev) {
-  const colour = evTypeColour(ev.event_type);
+  const colour    = evTypeColour(ev.event_type);
+  const resources = App.cal.resources
+    .filter(r => r.event_id === ev.id)
+    .map(r => App.maint.equipment?.find(e => e.id === r.equipment_id))
+    .filter(Boolean);
+  const sessionLabel = ev.calendar_type === 'training' && ev.session_half !== 'full'
+    ? `<span class="event-badge" style="color:var(--ev-dinghys);border-color:var(--ev-dinghys)">${ev.session_half === 'morning' ? 'AM' : 'PM'}</span>` : '';
+  const resourceBadges = resources.length
+    ? `<div class="event-resources">${resources.map(eq => `<span class="resource-badge">${eqIcon(eq.type)} ${esc(eq.name)}</span>`).join('')}</div>` : '';
   return `<div class="event-card admin-card" style="border-left-color:${colour}"
     onclick="App.cal.openEdit(App.cal.data.find(e=>e.id==='${ev.id}'))">
     <div class="event-card-body">
@@ -785,8 +870,10 @@ function eventCardHTML(ev) {
         <span>${fmtEventDate(ev)}</span>
         ${ev.location ? `<span>📍 ${esc(ev.location)}</span>` : ''}
         <span class="event-badge" style="color:${colour};border-color:${colour}">${evTypeLabel(ev.event_type)}</span>
+        ${sessionLabel}
       </div>
       ${ev.description ? `<div class="event-desc">${esc(ev.description)}</div>` : ''}
+      ${resourceBadges}
     </div>
   </div>`;
 }

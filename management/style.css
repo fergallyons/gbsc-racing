@@ -989,3 +989,87 @@ body {
 
 /* ── Utilities ───────────────────────────────────────────────── */
 .hidden { display: none !important; }
+
+/* ── Calendar Type Toggle ────────────────────────────────────── */
+.cal-type-toggle {
+  display: flex;
+  background: var(--navy-mid);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px;
+  gap: 0;
+  margin-bottom: 8px;
+  align-self: center;
+  width: fit-content;
+}
+.cal-type-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 5px 22px;
+  border-radius: 16px;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.cal-type-btn.active {
+  background: var(--teal);
+  color: var(--navy-dark);
+}
+.cal-training .cal-type-btn.active {
+  background: var(--ev-dinghys);
+}
+.cal-training .cal-month-label {
+  color: var(--ev-dinghys);
+}
+.cal-training .cal-nav-btn {
+  border-color: var(--ev-dinghys);
+  color: var(--ev-dinghys);
+}
+
+/* ── Resource Checklist (event modal) ────────────────────────── */
+.resource-checklist {
+  background: var(--navy-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+.resource-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: .85rem;
+  transition: background .12s;
+}
+.resource-check-item:hover { background: rgba(255,255,255,.05); }
+.resource-check-item input[type="checkbox"] { accent-color: var(--teal); width: 14px; height: 14px; cursor: pointer; }
+.resource-conflict { color: #f4a261; font-size: .72rem; font-weight: 700; margin-left: auto; }
+.resource-check-item.has-conflict { opacity: .75; }
+
+/* ── Resource badges on event cards ─────────────────────────── */
+.event-resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+.resource-badge {
+  font-size: .7rem;
+  background: rgba(255,255,255,.07);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  color: var(--muted);
+}
