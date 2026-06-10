@@ -1,4 +1,4 @@
-const BUILD = '20260610.8';
+const BUILD = '20260610.9';
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
@@ -588,8 +588,14 @@ const App = {
         el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔧</div><div class="empty-state-text">No equipment — tap + Equipment to add</div></div>';
         return;
       }
+      const typeOrder = ['tractor','rib','safety_boat','dinghy','engine','other'];
+      const sorted = [...this.equipment].sort((a, b) => {
+        const ai = typeOrder.indexOf(a.type), bi = typeOrder.indexOf(b.type);
+        const td = (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        return td !== 0 ? td : a.name.localeCompare(b.name);
+      });
       el.className = 'eq-grid';
-      el.innerHTML = this.equipment.map(eq => {
+      el.innerHTML = sorted.map(eq => {
         const nextDueRec = this.records.filter(r => r.equipment_id === eq.id && r.next_due_date)
           .sort((a,b) => a.next_due_date.localeCompare(b.next_due_date))[0];
         const badge = nextDueBadge(nextDueRec);
