@@ -809,8 +809,8 @@ function fmtEventDate(ev) {
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function evTypeColour(t)  { return {cruisers:'#2196f3',dinghys:'#27ae60',regattas:'#e63946',social:'#fee01e',other:'#90a4ae',external:'#9c27b0'}[t]||'#90a4ae'; }
 function evTypeLabel(t)   { return {cruisers:'Cruisers',dinghys:'Dinghys',regattas:'Regattas',social:'Social',other:'Other',external:'External'}[t]||t; }
-function eqIcon(t)        { return {tractor:'🚜',rib:'🚤',engine:'⚙️',safety_boat:'🛥️',other:'🔧'}[t]||'🔧'; }
-function eqTypeLabel(t)   { return {tractor:'Tractor',rib:'RIB',engine:'Engine',safety_boat:'Safety Boat',other:'Other'}[t]||t; }
+function eqIcon(t)        { return {tractor:'🚜',rib:'🚤',dinghy:'⛵',engine:'⚙️',safety_boat:'🛥️',other:'🔧'}[t]||'🔧'; }
+function eqTypeLabel(t)   { return {tractor:'Tractor',rib:'RIB',dinghy:'Dinghy',engine:'Engine',safety_boat:'Safety Boat',other:'Other'}[t]||t; }
 function catLabel(c)      { return {general:'General',tractor:'Tractor',rib:'RIB',engine:'Engine',safety:'Safety',launch:'Launch',recovery:'Recovery'}[c]||c; }
 
 // ── Service Worker ─────────────────────────────────────────────
