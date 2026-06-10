@@ -78,13 +78,19 @@
           <h2 id="calMonthLabel" class="cal-month-label">Loading…</h2>
           <button class="cal-nav-btn" onclick="App.cal.next()">&#8250;</button>
         </div>
-        <div class="cal-dow-row">
-          <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+        <div class="cal-layout">
+          <!-- Left: month grid -->
+          <div class="cal-grid-col">
+            <div class="cal-dow-row">
+              <span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>
+            </div>
+            <div id="calGrid" class="cal-grid"></div>
+          </div>
+          <!-- Right: detail panel -->
+          <div class="cal-details-col">
+            <div id="calPanel" class="cal-panel"></div>
+          </div>
         </div>
-        <div id="calGrid" class="cal-grid"></div>
-        <div id="calDayDetail" class="cal-day-detail"></div>
-        <div class="cal-upcoming-heading">Upcoming Events</div>
-        <div id="calUpcoming" class="cal-upcoming"></div>
       </div>
       <div class="admin-bar">
         <button class="btn-add" onclick="App.cal.openAdd()">

@@ -206,34 +206,28 @@ const App = {
       const trailing = (startDow + lastDay.getDate()) % 7;
       for (let i = 1; i <= (trailing ? 7 - trailing : 0); i++) grid.appendChild(makeCell(i, true, '', []));
 
-      this.renderDayDetail(State.cal.selectedDay);
-      this.renderUpcoming();
+      this.renderPanel(State.cal.selectedDay);
     },
 
-    renderDayDetail(dateStr) {
-      const el = document.getElementById('calDayDetail');
-      if (!dateStr) { el.className = 'cal-day-detail empty'; el.innerHTML = ''; return; }
-
-      const dayEvs = this.data.filter(ev => {
-        const s = ev.start_date.slice(0, 10), e = ev.end_date ? ev.end_date.slice(0, 10) : s;
-        return dateStr >= s && dateStr <= e;
-      });
-
-      const heading = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-IE',
-        { weekday: 'long', day: 'numeric', month: 'long' });
-
-      el.className = 'cal-day-detail';
-      el.innerHTML = `<div class="cal-day-detail-heading">${heading}</div>` +
-        (dayEvs.length ? dayEvs.map(eventCardHTML).join('') :
-          `<div style="color:var(--muted);font-size:.85rem">No events</div>`);
-    },
-
-    renderUpcoming() {
-      const todayStr = fmtDate(new Date());
-      const upcoming = this.data.filter(ev => ev.start_date.slice(0, 10) >= todayStr).slice(0, 5);
-      document.getElementById('calUpcoming').innerHTML = upcoming.length
-        ? upcoming.map(eventCardHTML).join('')
-        : '<div class="empty-state"><div class="empty-state-text">No upcoming events</div></div>';
+    renderPanel(dateStr) {
+      const el = document.getElementById('calPanel');
+      if (dateStr) {
+        const dayEvs = this.data.filter(ev => {
+          const s = ev.start_date.slice(0, 10), e = ev.end_date ? ev.end_date.slice(0, 10) : s;
+          return dateStr >= s && dateStr <= e;
+        });
+        const heading = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-IE',
+          { weekday: 'long', day: 'numeric', month: 'long' });
+        el.innerHTML = `<div class="cal-panel-heading">${heading}</div>` +
+          (dayEvs.length ? dayEvs.map(eventCardHTML).join('') :
+            `<div style="color:var(--muted);font-size:.85rem;padding:4px 0">No events — <a href="#" style="color:var(--teal)" onclick="App.cal.openAdd('${dateStr}');return false">add one</a></div>`);
+      } else {
+        const todayStr = fmtDate(new Date());
+        const upcoming = this.data.filter(ev => ev.start_date.slice(0, 10) >= todayStr).slice(0, 6);
+        el.innerHTML = '<div class="cal-panel-heading">Upcoming Events</div>' +
+          (upcoming.length ? upcoming.map(eventCardHTML).join('') :
+            '<div class="empty-state"><div class="empty-state-text">No upcoming events</div></div>');
+      }
     },
 
     prev() {
@@ -747,22 +741,32 @@ function makeCell(day, otherMonth, dateStr, events, isToday, isSelected) {
   div.className = 'cal-cell' +
     (otherMonth ? ' other-month' : '') +
     (isToday    ? ' today'       : '') +
-    (isSelected ? ' selected'    : '');
-  div.innerHTML = `<span>${day}</span>`;
-  if (events.length) {
-    const dots = document.createElement('div');
-    dots.className = 'cal-dots';
+    (isSelected ? ' selected'    : '') +
+    (events.length ? ' has-events' : '');
+  const numSpan = document.createElement('span');
+  numSpan.className = 'cal-num';
+  numSpan.textContent = day;
+  div.appendChild(numSpan);
+  if (!otherMonth && events.length) {
     events.slice(0, 3).forEach(ev => {
-      const d = document.createElement('span');
-      d.className = 'cal-dot'; d.style.background = evTypeColour(ev.event_type);
-      dots.appendChild(d);
+      const lbl = document.createElement('span');
+      lbl.className = 'cal-ev-label';
+      lbl.style.background = evTypeColour(ev.event_type);
+      lbl.textContent = ev.title;
+      lbl.title = ev.title;
+      div.appendChild(lbl);
     });
-    div.appendChild(dots);
+    if (events.length > 3) {
+      const more = document.createElement('span');
+      more.className = 'cal-ev-label';
+      more.style.background = 'rgba(255,255,255,.15)';
+      more.style.color = 'var(--white)';
+      more.textContent = '+' + (events.length - 3) + ' more';
+      div.appendChild(more);
+    }
   }
   if (!otherMonth && dateStr) {
-    div.addEventListener('click', () =>
-      events.length ? App.cal.selectDay(dateStr) : App.cal.openAdd(dateStr)
-    );
+    div.addEventListener('click', () => App.cal.selectDay(dateStr));
   }
   return div;
 }
