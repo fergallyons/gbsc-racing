@@ -1,4 +1,4 @@
-const BUILD = '20260610.6';
+const BUILD = '20260610.7';
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
@@ -588,21 +588,16 @@ const App = {
         el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔧</div><div class="empty-state-text">No equipment — tap + Equipment to add</div></div>';
         return;
       }
+      el.className = 'eq-grid';
       el.innerHTML = this.equipment.map(eq => {
         const nextDueRec = this.records.filter(r => r.equipment_id === eq.id && r.next_due_date)
           .sort((a,b) => a.next_due_date.localeCompare(b.next_due_date))[0];
-        const lastRec = this.records.filter(r => r.equipment_id === eq.id)
-          .sort((a,b) => b.performed_date.localeCompare(a.performed_date))[0];
-        return `<div class="item-card" onclick="App.maint.openDetail('${eq.id}')">
-          <div class="item-card-header">
-            <div class="item-icon eq-icon-${eq.type}">${eqIcon(eq.type)}</div>
-            <div class="item-card-title">${esc(eq.name)}</div>
-            ${nextDueBadge(nextDueRec)}
-          </div>
-          <div class="item-card-meta">
-            ${eqTypeLabel(eq.type)}${eq.year ? ' &bull; ' + eq.year : ''}
-            ${lastRec ? ' &bull; Last: ' + fmtDateShort(lastRec.performed_date) : ''}
-          </div>
+        const badge = nextDueBadge(nextDueRec);
+        return `<div class="eq-tile" onclick="App.maint.openDetail('${eq.id}')">
+          <div class="eq-tile-icon eq-icon-${eq.type}">${eqIcon(eq.type)}</div>
+          <div class="eq-tile-name">${esc(eq.name)}</div>
+          <div class="eq-tile-type">${eqTypeLabel(eq.type)}${eq.year ? ' · ' + eq.year : ''}</div>
+          ${badge ? `<div class="eq-tile-badge">${badge}</div>` : ''}
         </div>`;
       }).join('');
     },
@@ -690,6 +685,13 @@ const App = {
       this._equipForm(eq);
     },
     openAddEquipment() { this._equipForm(null); },
+    duplicateEquipment(eqId) {
+      const eq = this.equipment.find(e => e.id === eqId);
+      if (!eq) return;
+      closeModal('equipDetailModal');
+      this._equipForm({ ...eq, id: '' }); // blank id = new record
+      document.getElementById('equipmentModalTitle').textContent = 'Duplicate Equipment';
+    },
 
     _equipForm(eq) {
       document.getElementById('equipmentModalTitle').textContent = eq ? 'Edit Equipment' : 'Add Equipment';

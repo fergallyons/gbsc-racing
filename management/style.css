@@ -32,6 +32,7 @@
   --eq-rib:        #00aeef;
   --eq-engine:     #e63946;
   --eq-safety_boat:#27ae60;
+  --eq-dinghy:     #fee01e;
   --eq-other:      #7da4cc;
 
   --header-h:  58px;
@@ -93,32 +94,38 @@ body {
 .header-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
-.header-logo {
-  height: 34px;
+.header-pennant-svg {
+  height: 36px;
   width: auto;
-  border-radius: 6px;
+  flex-shrink: 0;
 }
 
-.header-logo-text {
+.header-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.header-brand-name {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 1.4rem;
+  font-size: 1.05rem;
   font-weight: 800;
-  letter-spacing: .06em;
+  letter-spacing: .04em;
   color: var(--teal);
+  white-space: nowrap;
 }
 
 .header-app-label {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 1rem;
+  font-size: .65rem;
   font-weight: 600;
-  letter-spacing: .12em;
+  letter-spacing: .18em;
   text-transform: uppercase;
-  color: var(--white);
-  opacity: .65;
-  margin-left: 2px;
+  color: var(--muted);
 }
 
 .header-logout-btn {
@@ -516,7 +523,70 @@ body {
 .eq-icon-rib        { background: rgba(0,174,239,.15);   color: var(--eq-rib);        }
 .eq-icon-engine     { background: rgba(230,57,70,.15);   color: var(--eq-engine);     }
 .eq-icon-safety_boat{ background: rgba(39,174,96,.15);   color: var(--eq-safety_boat);}
+.eq-icon-dinghy     { background: rgba(254,224,30,.15);  color: var(--eq-dinghy);     }
 .eq-icon-other      { background: rgba(125,164,204,.1);  color: var(--eq-other);      }
+
+/* ── Equipment Grid ──────────────────────────────────────────── */
+.eq-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.eq-tile {
+  background: var(--navy-mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 8px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  text-align: center;
+  min-width: 0;
+}
+.eq-tile:hover { background: var(--navy-lt); border-color: rgba(0,174,239,.35); }
+
+.eq-tile-icon {
+  font-size: 1.5rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.eq-tile-name {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.eq-tile-type {
+  font-size: .65rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.eq-tile-badge {
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
 
 /* SOP items */
 .sop-cat-badge {

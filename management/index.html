@@ -56,9 +56,18 @@
   <!-- Top Header -->
   <header id="appHeader">
     <div class="header-brand">
-      <img id="clubLogoImg" class="header-logo" alt="GBSC" style="display:none">
-      <span id="clubLogoText" class="header-logo-text">GBSC</span>
-      <span class="header-app-label">Management</span>
+      <svg class="header-pennant-svg" viewBox="0 0 46 30" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <polygon points="0,0 0,30 46,15" fill="#1e3799"/>
+        <rect x="13" y="4" width="2" height="7" rx=".5" fill="#fee01e"/>
+        <polygon points="15,4 15,8.5 20,6.2" fill="#fee01e"/>
+        <polygon points="7,11 21,11 18,18 10,18" fill="#fee01e"/>
+        <rect x="13" y="18" width="2" height="3" rx=".5" fill="#fee01e"/>
+        <path d="M9,21 Q9,27 14,27 Q19,27 19,21" stroke="#fee01e" stroke-width="2" fill="none" stroke-linecap="round"/>
+      </svg>
+      <div class="header-brand-text">
+        <span class="header-brand-name">Galway Bay SC</span>
+        <span class="header-app-label">Management</span>
+      </div>
     </div>
     <nav class="header-nav">
       <button class="nav-btn active" onclick="App.navigate('calendar')" data-view="calendar">Calendar</button>
@@ -439,6 +448,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="App.maint.editEquipment()">Edit</button>
+      <button class="btn-secondary" onclick="App.maint.duplicateEquipment(State.maint.current?.id)">Duplicate</button>
       <button class="btn-primary" onclick="App.maint.openLogForCurrent()">Log Work</button>
       <button class="btn-ghost" onclick="closeModal('equipDetailModal')">Close</button>
     </div>
