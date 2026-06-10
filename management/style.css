@@ -1109,24 +1109,65 @@ body {
   padding: 6px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-height: 160px;
+  gap: 3px;
+  max-height: 200px;
   overflow-y: auto;
 }
 .resource-check-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 4px;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
   cursor: pointer;
   font-size: .85rem;
-  transition: background .12s;
+  transition: background .12s, border-color .12s;
+  user-select: none;
 }
-.resource-check-item:hover { background: rgba(255,255,255,.05); }
-.resource-check-item input[type="checkbox"] { accent-color: var(--teal); width: 14px; height: 14px; cursor: pointer; }
-.resource-conflict { color: #f4a261; font-size: .72rem; font-weight: 700; margin-left: auto; }
-.resource-check-item.has-conflict { opacity: .75; }
+.resource-check-item:hover { background: rgba(255,255,255,.06); }
+
+/* Custom checkbox */
+.resource-check-item input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--muted);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: border-color .15s, background .15s;
+}
+.resource-check-item input[type="checkbox"]:checked {
+  background: var(--teal);
+  border-color: var(--teal);
+}
+.resource-check-item input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 8px;
+  height: 5px;
+  border-left: 2.5px solid var(--navy-dark);
+  border-bottom: 2.5px solid var(--navy-dark);
+  transform: rotate(-45deg);
+}
+
+/* Highlight whole row when checked */
+.resource-check-item:has(input:checked) {
+  background: rgba(0,174,239,.12);
+  border-color: rgba(0,174,239,.35);
+}
+.resource-check-item:has(input:checked):hover {
+  background: rgba(0,174,239,.18);
+}
+
+.resource-conflict { color: var(--warn); font-size: .72rem; font-weight: 700; margin-left: auto; }
+.resource-check-item.has-conflict { opacity: .7; }
 
 /* ── Build ID ────────────────────────────────────────────────── */
 .build-id {
