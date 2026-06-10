@@ -1,4 +1,4 @@
-const BUILD = '20260610.2';
+const BUILD = '20260610.3';
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
@@ -196,10 +196,11 @@ const App = {
         const r = await fetch('/.netlify/functions/corsizio-events');
         const json = await r.json().catch(() => ({}));
         if (!r.ok) {
-          this.corsizioError = json.error || ('HTTP ' + r.status);
+          this.corsizioError  = json.error || ('HTTP ' + r.status);
           this.corsizioEvents = [];
         } else {
           this.corsizioEvents = json.events || [];
+          if (json._debug) console.info('Corsizio debug:', json._debug);
         }
       } catch (e) {
         this.corsizioError  = e.message;

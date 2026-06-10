@@ -1,10 +1,5 @@
 // Proxy for Corsizio REST API — keeps the API key server-side
-// Fetches all events (handles pagination) and maps to hub_events shape.
-//
 // Set CORSIZIO_API_KEY in Netlify → Site settings → Environment variables.
-//
-// Response is CDN-cached for 5 min with stale-while-revalidate for 1 hour,
-// so after the first hit it's served instantly from the edge.
 
 const CORSIZIO_BASE = 'https://api.corsizio.com/v1';
 
@@ -15,16 +10,24 @@ exports.handler = async () => {
   }
 
   try {
-    const raw = await fetchAllEvents(key);
+    const { raw, pages } = await fetchAllEvents(key);
     const events = raw.map(mapEvent);
+
+    // _debug included so the browser console / panel shows exactly what came back
+    const _debug = {
+      pages,
+      rawCount: raw.length,
+      firstRawKeys: raw[0] ? Object.keys(raw[0]) : [],
+      sampleTitle: raw[0]?.name || raw[0]?.title || null,
+    };
+
     return {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        // CDN caches for 5 min; serves stale up to 1 h while revalidating
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
       },
-      body: JSON.stringify({ events }),
+      body: JSON.stringify({ events, _debug }),
     };
   } catch (e) {
     console.error('Corsizio fetch error:', e.message);
@@ -34,48 +37,61 @@ exports.handler = async () => {
 
 async function fetchAllEvents(key) {
   const all = [];
+  const pages = [];
   let page = 1;
   let more = true;
 
   while (more) {
+    // No extra filters — fetch everything the account key can see
     const url = `${CORSIZIO_BASE}/events?limit=100&page=${page}`;
     const r = await fetch(url, {
       headers: { Authorization: `Bearer ${key}` },
     });
     if (!r.ok) {
       const body = await r.text().catch(() => '');
-      throw new Error(`HTTP ${r.status} — ${body.slice(0, 120)}`);
+      throw new Error(`HTTP ${r.status} — ${body.slice(0, 200)}`);
     }
     const payload = await r.json();
-    const items = Array.isArray(payload.data) ? payload.data : [];
+
+    // Record raw paging for diagnostics
+    pages.push(payload.paging || payload.meta || { page, rawKeys: Object.keys(payload) });
+
+    const items = Array.isArray(payload.data)
+      ? payload.data
+      : Array.isArray(payload.events)
+        ? payload.events           // alternate key some APIs use
+        : Array.isArray(payload)
+          ? payload                // bare array response
+          : [];
+
     all.push(...items);
-    more = payload.paging?.more === true;
+    more = payload.paging?.more === true || payload.meta?.more === true;
     page++;
-    if (page > 20) break; // safety valve
+    if (page > 20) break;
   }
 
-  return all;
+  return { raw: all, pages };
 }
 
 function mapEvent(ev) {
   const loc = ev.location;
   const locationStr = typeof loc === 'string'
     ? loc
-    : loc?.name || loc?.address || null;
+    : loc?.name || loc?.address || loc?.city || null;
 
   return {
-    id:            ev._id,
-    title:         ev.name || '(no title)',
+    id:            ev._id || ev.id,
+    title:         ev.name || ev.title || '(no title)',
     description:   stripHtml(ev.description || ''),
     location:      locationStr,
-    start_date:    ev.startDate,
-    end_date:      ev.endDate || null,
+    start_date:    ev.startDate || ev.start_date || ev.start,
+    end_date:      ev.endDate   || ev.end_date   || ev.end || null,
     all_day:       false,
     event_type:    'other',
     calendar_type: 'training',
     session_half:  'full',
     _source:       'corsizio',
-    _corsizio_url: ev.registrationUrl || null,
+    _corsizio_url: ev.registrationUrl || ev.registration_url || ev.url || null,
   };
 }
 
