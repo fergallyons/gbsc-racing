@@ -1,4 +1,4 @@
-const BUILD = '20260610.5';
+const BUILD = '20260610.6';
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
@@ -174,18 +174,22 @@ const App = {
   cal: {
     data: [],
     resources: [],
-    corsizioEvents:  [],
-    corsizioFetched: false,
-    corsizioLoading: false,
-    corsizioError:   null,
+    corsizioEvents:   [],
+    corsizioBookings: [],
+    corsizioFetched:  false,
+    corsizioLoading:  false,
+    corsizioError:    null,
+    _crzEvent:        null,
 
     async load() {
-      const [rows, res] = await Promise.all([
+      const [rows, res, crz] = await Promise.all([
         sbGet('hub_events', 'order=start_date.asc&select=*'),
         sbGet('hub_event_resources', 'select=*'),
+        sbGet('hub_corsizio_resource_bookings', 'select=*'),
       ]);
       if (rows && !rows._err) this.data = rows;
       if (res  && !res._err)  this.resources = res;
+      if (crz  && !crz._err)  this.corsizioBookings = crz;
     },
 
     async fetchCorsizio() {
@@ -388,6 +392,10 @@ const App = {
           const evS = ev.start_date.slice(0,10), evE = (ev.end_date || ev.start_date).slice(0,10);
           if (evS <= e && evE >= s) conflicted.add(r.equipment_id);
         });
+        // Also check Corsizio training event bookings
+        this.corsizioBookings.forEach(b => {
+          if (b.start_date <= e && b.end_date >= s) conflicted.add(b.equipment_id);
+        });
       }
       container.innerHTML = bookable.map(eq => {
         const checked  = currentlyAssigned.has(eq.id) ? 'checked' : '';
@@ -408,6 +416,72 @@ const App = {
       }
       const res = await sbGet('hub_event_resources', 'select=*');
       if (res && !res._err) this.resources = res;
+    },
+
+    openCorsizioResources(ev) {
+      if (!ev) return;
+      this._crzEvent = ev;
+      const startStr = ev.start_date ? new Date(ev.start_date).toLocaleDateString('en-IE', { day:'numeric', month:'short', year:'numeric' }) : '—';
+      const endStr   = ev.end_date   ? new Date(ev.end_date).toLocaleDateString('en-IE',   { day:'numeric', month:'short', year:'numeric' }) : startStr;
+      document.getElementById('crzEventInfo').innerHTML =
+        `<div class="crz-event-title">${esc(ev.title)}</div>` +
+        `<div class="crz-event-dates">${startStr}${endStr !== startStr ? ' → ' + endStr : ''}</div>`;
+      this._loadCorsizioResourceList(ev);
+      openModal('corsizioResourceModal');
+    },
+
+    _loadCorsizioResourceList(ev) {
+      const container = document.getElementById('crzResourceList');
+      const bookable = (App.maint.equipment || []).filter(eq => ['rib','safety_boat','dinghy'].includes(eq.type));
+      if (!bookable.length) {
+        container.innerHTML = '<span class="form-hint" style="padding:4px 6px;display:block">No RIBs or safety boats registered</span>';
+        return;
+      }
+      const s = ev.start_date?.slice(0,10), e = (ev.end_date || ev.start_date)?.slice(0,10);
+      const alreadyAssigned = new Set(
+        this.corsizioBookings.filter(b => b.corsizio_event_id === ev.id).map(b => b.equipment_id)
+      );
+      // Conflicts: equipment booked on overlapping dates by OTHER events (both club and Corsizio)
+      const conflicted = new Set();
+      if (s) {
+        this.resources.forEach(r => {
+          const clubEv = this.data.find(d => d.id === r.event_id);
+          if (!clubEv) return;
+          const evS = clubEv.start_date.slice(0,10), evE = (clubEv.end_date || clubEv.start_date).slice(0,10);
+          if (evS <= e && evE >= s) conflicted.add(r.equipment_id);
+        });
+        this.corsizioBookings.filter(b => b.corsizio_event_id !== ev.id).forEach(b => {
+          if (b.start_date <= e && b.end_date >= s) conflicted.add(b.equipment_id);
+        });
+      }
+      container.innerHTML = bookable.map(eq => {
+        const checked  = alreadyAssigned.has(eq.id) ? 'checked' : '';
+        const conflict = !alreadyAssigned.has(eq.id) && conflicted.has(eq.id);
+        const warn     = conflict ? '<span class="resource-conflict">⚠ already booked</span>' : '';
+        return `<label class="resource-check-item${conflict ? ' has-conflict' : ''}">
+          <input type="checkbox" class="crzResourceCheck" value="${eq.id}" ${checked}>
+          <span>${eqIcon(eq.type)} ${esc(eq.name)}</span>${warn}
+        </label>`;
+      }).join('');
+    },
+
+    async saveCorsizioResources() {
+      const ev = this._crzEvent;
+      if (!ev) return;
+      const startDate = ev.start_date?.slice(0,10);
+      const endDate   = (ev.end_date || ev.start_date)?.slice(0,10);
+      await sbDelete('hub_corsizio_resource_bookings', 'corsizio_event_id=eq.' + ev.id);
+      const checked = [...document.querySelectorAll('.crzResourceCheck:checked')].map(cb => cb.value);
+      if (checked.length) {
+        await sbPost('hub_corsizio_resource_bookings',
+          checked.map(eqId => ({ corsizio_event_id: ev.id, equipment_id: eqId, start_date: startDate, end_date: endDate }))
+        );
+      }
+      const crz = await sbGet('hub_corsizio_resource_bookings', 'select=*');
+      if (crz && !crz._err) this.corsizioBookings = crz;
+      closeModal('corsizioResourceModal');
+      this.renderPanel(State.cal.selectedDay);
+      showToast('Resources updated', 'success');
     },
 
     async saveEvent() {
@@ -919,6 +993,12 @@ function eventCardHTML(ev) {
     ? `<div style="margin-top:4px"><a href="${esc(ev._corsizio_url)}" target="_blank" rel="noopener" style="color:var(--teal);font-size:.78rem">Register on Corsizio ↗</a></div>` : '';
 
   if (isCorsizio) {
+    const crzResources = (App.cal.corsizioBookings || [])
+      .filter(b => b.corsizio_event_id === ev.id)
+      .map(b => App.maint.equipment?.find(e => e.id === b.equipment_id))
+      .filter(Boolean);
+    const crzResourceBadges = crzResources.length
+      ? `<div class="event-resources">${crzResources.map(eq => `<span class="resource-badge">${eqIcon(eq.type)} ${esc(eq.name)}</span>`).join('')}</div>` : '';
     return `<div class="event-card" style="border-left-color:${colour}">
       <div class="event-card-body">
         <div class="event-card-title">${esc(ev.title)}</div>
@@ -928,7 +1008,11 @@ function eventCardHTML(ev) {
           ${sourceBadge}
         </div>
         ${ev.description ? `<div class="event-desc">${esc(ev.description)}</div>` : ''}
-        ${regLink}
+        ${crzResourceBadges}
+        <div class="crz-card-actions">
+          ${regLink ? regLink : ''}
+          <button class="btn-crz-resources" onclick="App.cal.openCorsizioResources(App.cal.corsizioEvents.find(e=>e.id==='${ev.id}'))">⚙ Resources</button>
+        </div>
       </div>
     </div>`;
   }

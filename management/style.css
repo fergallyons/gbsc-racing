@@ -1095,6 +1095,35 @@ body {
   border-color: var(--ev-dinghys) !important;
 }
 
+.crz-event-info {
+  background: var(--navy-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.crz-event-title { font-weight: 600; margin-bottom: 3px; }
+.crz-event-dates { font-size: .8rem; color: var(--muted); }
+
+.crz-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+.btn-crz-resources {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-size: .72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.btn-crz-resources:hover { color: var(--white); border-color: var(--white); }
+
 /* ── Resource badges on event cards ─────────────────────────── */
 .event-resources {
   display: flex;

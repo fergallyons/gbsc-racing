@@ -250,6 +250,27 @@
   </div>
 </div>
 
+<!-- Corsizio Resource Assignment -->
+<div id="corsizioResourceModal" class="modal-overlay hidden" onclick="overlayClose(event,'corsizioResourceModal')">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h3>Assign Equipment</h3>
+      <button class="modal-close" onclick="closeModal('corsizioResourceModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <div id="crzEventInfo" class="crz-event-info"></div>
+      <div class="form-group">
+        <label>Equipment / Resources</label>
+        <div id="crzResourceList" class="resource-checklist"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('corsizioResourceModal')">Cancel</button>
+      <button class="btn-primary" onclick="App.cal.saveCorsizioResources()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Equipment Add/Edit -->
 <div id="equipmentModal" class="modal-overlay hidden" onclick="overlayClose(event,'equipmentModal')">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="equipmentModalTitle">
