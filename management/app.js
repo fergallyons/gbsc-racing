@@ -1,4 +1,4 @@
-const BUILD = '20260610.15';
+const BUILD = '20260610.16';
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
@@ -155,6 +155,7 @@ const App = {
     App.cal.render();
     App.events.render();
     App.maint.renderEquipment();
+    App.maint._updateIssuesTabBadge();
     App.sops.render();
     const bid = document.getElementById('buildId');
     if (bid) bid.textContent = 'build ' + BUILD;
@@ -604,7 +605,48 @@ const App = {
       btn?.classList.add('active');
       document.querySelectorAll('#maintenanceView .tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById(tab + 'Tab').classList.add('active');
-      ({ equipment: () => this.renderEquipment(), upcoming: () => this.renderUpcoming(), log: () => this.renderLog() })[tab]?.();
+      ({ equipment: () => this.renderEquipment(), issues: () => this.renderIssues(),
+         upcoming: () => this.renderUpcoming(), log: () => this.renderLog() })[tab]?.();
+    },
+
+    _updateIssuesTabBadge() {
+      const open = this.issues.filter(i => i.status !== 'resolved').length;
+      const btn  = document.getElementById('issuesTabBtn');
+      if (!btn) return;
+      btn.textContent = open ? `Issues (${open})` : 'Issues';
+      btn.classList.toggle('tab-btn-alert', open > 0);
+    },
+
+    renderIssues() {
+      const sevOrder = { critical:4, high:3, medium:2, low:1 };
+      const stOrder  = { open:0, in_progress:1, resolved:2 };
+      const sorted = [...this.issues].sort((a, b) => {
+        const sd = stOrder[a.status] - stOrder[b.status];
+        if (sd !== 0) return sd;
+        return (sevOrder[b.severity]||0) - (sevOrder[a.severity]||0);
+      });
+      const eqMap = Object.fromEntries(this.equipment.map(e => [e.id, e]));
+      document.getElementById('issuesList').innerHTML = sorted.length
+        ? sorted.map(i => {
+            const eq = eqMap[i.equipment_id];
+            const eqLabel = eq ? `<span class="issue-eq-label">${eqIcon(eq.type)} ${esc(eq.name)}</span>` : '';
+            return `<div class="issue-row${i.status==='resolved'?' resolved':''}" onclick="App.maint.openEditIssue('${i.id}')">
+              <div class="issue-row-top">
+                <div class="issue-row-title">${esc(i.title)}</div>
+                <div class="issue-row-badges">
+                  <span class="issue-sev issue-sev-${i.severity}">${i.severity}</span>
+                  <span class="issue-st issue-st-${i.status}">${i.status.replace('_',' ')}</span>
+                </div>
+              </div>
+              <div class="issue-row-meta">
+                ${eqLabel}
+                ${i.assigned_to ? `<span>→ ${esc(i.assigned_to)}</span>` : '<span class="issue-unassigned">unassigned</span>'}
+                <span>${fmtDateShort(i.reported_date)}</span>
+              </div>
+              ${i.notes ? `<div class="issue-row-notes">${esc(i.notes)}</div>` : ''}
+            </div>`;
+          }).join('')
+        : '<div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-text">No issues logged</div></div>';
     },
 
     renderEquipment() {
@@ -813,6 +855,7 @@ const App = {
       document.getElementById('issueStatus').value         = 'open';
       document.getElementById('issueDate').value           = fmtDate(new Date());
       document.getElementById('issueBy').value             = '';
+      document.getElementById('issueAssignedTo').value     = '';
       document.getElementById('issueResolvedDate').value   = '';
       document.getElementById('issueNotes').value          = '';
       document.getElementById('issueDeleteBtn').classList.add('hidden');
@@ -832,6 +875,7 @@ const App = {
       document.getElementById('issueStatus').value         = iss.status;
       document.getElementById('issueDate').value           = iss.reported_date;
       document.getElementById('issueBy').value             = iss.reported_by || '';
+      document.getElementById('issueAssignedTo').value     = iss.assigned_to || '';
       document.getElementById('issueResolvedDate').value   = iss.resolved_date || '';
       document.getElementById('issueNotes').value          = iss.notes || '';
       document.getElementById('issueDeleteBtn').classList.remove('hidden');
@@ -871,6 +915,7 @@ const App = {
         status,
         reported_date: date,
         reported_by:   document.getElementById('issueBy').value.trim()           || null,
+        assigned_to:   document.getElementById('issueAssignedTo').value.trim()   || null,
         resolved_date: status === 'resolved'
                          ? (document.getElementById('issueResolvedDate').value || null) : null,
         notes:         document.getElementById('issueNotes').value.trim()         || null,
@@ -879,7 +924,9 @@ const App = {
       if (result?._err) { showFormError(errEl, result._err); return; }
       closeModal('issueModal');
       await this.load();
-      ({ equipment:()=>this.renderEquipment(), upcoming:()=>this.renderUpcoming(), log:()=>this.renderLog() })[State.maint.tab]?.();
+      this._updateIssuesTabBadge();
+      ({ equipment:()=>this.renderEquipment(), issues:()=>this.renderIssues(),
+         upcoming:()=>this.renderUpcoming(), log:()=>this.renderLog() })[State.maint.tab]?.();
       showToast(id ? 'Issue updated' : 'Issue logged', 'success');
     },
 
@@ -890,6 +937,7 @@ const App = {
       if (r?._err) { showToast('Delete failed','error'); return; }
       closeModal('issueModal');
       await this.load();
+      this._updateIssuesTabBadge();
       this.renderEquipment();
       showToast('Issue deleted','success');
     },
