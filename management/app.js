@@ -1,4 +1,4 @@
-const BUILD = '20260610.24';
+const BUILD = '20260611.25';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -79,8 +79,8 @@ async function sb(path, opts = {}) {
     const r = await fetch(SB_URL + path, { headers: { ...SBH }, ...opts });
     if (!r.ok) {
       const e = await r.text();
-      // Table not found (PGRST205) → treat as empty rather than an error
-      try { if (JSON.parse(e)?.code === 'PGRST205') return []; } catch {}
+      // Table not found (PGRST205) or permission denied (42501) → treat as empty
+      try { const c = JSON.parse(e)?.code; if (c === 'PGRST205' || c === '42501') return []; } catch {}
       console.error('SB', r.status, path, e);
       return { _err: 'HTTP ' + r.status + ': ' + e, _status: r.status };
     }
@@ -263,14 +263,18 @@ const App = {
     _crzEvent:        null,
 
     async load() {
-      const [rows, res, crz] = await Promise.all([
+      const [rows, res] = await Promise.all([
         sbGet('hub_events', 'order=start_date.asc&select=*'),
         sbGet('hub_event_resources', 'select=*'),
-        sbGet('hub_corsizio_resource_bookings', 'select=*'),
       ]);
       if (rows && !rows._err) this.data = rows;
       if (res  && !res._err)  this.resources = res;
-      if (crz  && !crz._err)  this.corsizioBookings = crz;
+    },
+
+    async _loadCorsizioBookings() {
+      if (this.corsizioBookings.length) return;
+      const crz = await sbGet('hub_corsizio_resource_bookings', 'select=*');
+      if (crz && !crz._err) this.corsizioBookings = crz;
     },
 
     async syncHalsail() {
@@ -528,7 +532,8 @@ const App = {
       openModal('eventModal');
     },
 
-    _loadResourceList(startDate, endDate, currentEventId) {
+    async _loadResourceList(startDate, endDate, currentEventId) {
+      await this._loadCorsizioBookings();
       const container = document.getElementById('evtResourceList');
       const bookable = (App.maint.equipment || []).filter(eq => ['rib','safety_boat','dinghy'].includes(eq.type));
       if (!bookable.length) {
@@ -573,8 +578,9 @@ const App = {
       if (res && !res._err) this.resources = res;
     },
 
-    openCorsizioResources(ev) {
+    async openCorsizioResources(ev) {
       if (!ev) return;
+      await this._loadCorsizioBookings();
       this._crzEvent = ev;
       const startStr = ev.start_date ? new Date(ev.start_date).toLocaleDateString('en-IE', { day:'numeric', month:'short', year:'numeric' }) : '—';
       const endStr   = ev.end_date   ? new Date(ev.end_date).toLocaleDateString('en-IE',   { day:'numeric', month:'short', year:'numeric' }) : startStr;
