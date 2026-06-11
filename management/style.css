@@ -1427,6 +1427,12 @@ body {
   color: var(--white);
   text-align: center;
 }
+.ppc-sub {
+  font-size: .62rem;
+  color: var(--muted);
+  text-align: center;
+  margin-top: -2px;
+}
 .ppc-check {
   position: absolute;
   top: 5px;
