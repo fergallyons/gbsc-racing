@@ -1,4 +1,4 @@
-const BUILD = '20260610.20';
+const BUILD = '20260610.21';
 
 const PORTAL_LINKS = [
   { name: 'Corsizio',       desc: 'Training & courses',    icon: '🎓', color: '#27ae60', bg: 'rgba(39,174,96,.12)',    url: 'https://manager.corsizio.com/dashboard'     },
@@ -1163,6 +1163,99 @@ const App = {
       showToast('SOP deleted','success');
     },
   },
+
+  // ── Post Update ───────────────────────────────────────────────
+  post: {
+    // Platforms needing Meta Graph API tokens (set in club-config or Supabase settings):
+    //   facebook  → page_access_token + page_id
+    //   instagram → ig_user_id + same page_access_token
+    //   whatsapp  → waba_id + whatsapp_access_token + channel_phone_number_id
+    // Blog posts are stored directly in hub_posts and require no external credentials.
+    _SOCIAL: ['facebook','instagram','whatsapp'],
+
+    openCompose() {
+      document.getElementById('postContent').value    = '';
+      document.getElementById('postImageUrl').value   = '';
+      document.getElementById('postImagePreview').classList.add('hidden');
+      document.getElementById('postImagePreview').innerHTML = '';
+      document.getElementById('postError').classList.add('hidden');
+      document.getElementById('postPlatformHint').textContent = '';
+      // Reset checkboxes — blog on by default
+      document.querySelectorAll('.postPlatformCheck').forEach(cb => {
+        cb.checked = cb.value === 'blog';
+      });
+      this._updatePlatformHints();
+      openModal('postModal');
+    },
+
+    _updatePlatformHints() {
+      const selected = [...document.querySelectorAll('.postPlatformCheck:checked')].map(cb => cb.value);
+      const social   = selected.filter(p => this._SOCIAL.includes(p));
+      const hint     = document.getElementById('postPlatformHint');
+      if (social.length) {
+        hint.textContent = social.map(p => {
+          const label = { facebook:'Facebook', instagram:'Instagram', whatsapp:'WhatsApp' }[p];
+          return label + ' posting requires API credentials — post will be queued.';
+        }).join(' · ');
+      } else {
+        hint.textContent = '';
+      }
+    },
+
+    _previewImage() {
+      const url = document.getElementById('postImageUrl').value.trim();
+      const el  = document.getElementById('postImagePreview');
+      if (url) {
+        el.innerHTML = `<img src="${esc(url)}" alt="Preview" onerror="this.parentElement.classList.add('hidden')">`;
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+      }
+    },
+
+    async _save(status) {
+      const content   = document.getElementById('postContent').value.trim();
+      const imageUrl  = document.getElementById('postImageUrl').value.trim() || null;
+      const platforms = [...document.querySelectorAll('.postPlatformCheck:checked')].map(cb => cb.value);
+      const errEl     = document.getElementById('postError');
+
+      errEl.classList.add('hidden');
+      if (!content)          { showFormError(errEl, 'Post content is required.'); return null; }
+      if (!platforms.length) { showFormError(errEl, 'Select at least one platform.'); return null; }
+
+      const rec = {
+        content,
+        image_url:  imageUrl,
+        platforms:  JSON.stringify(platforms),
+        status,
+        created_at: new Date().toISOString(),
+      };
+      const result = await sbPost('hub_posts', rec);
+      if (result?._err) { showFormError(errEl, result._err); return null; }
+      return { record: result, platforms };
+    },
+
+    async saveDraft() {
+      const saved = await this._save('draft');
+      if (!saved) return;
+      closeModal('postModal');
+      showToast('Draft saved', 'success');
+    },
+
+    async submit() {
+      const saved = await this._save('queued');
+      if (!saved) return;
+      const { platforms } = saved;
+      const social = platforms.filter(p => this._SOCIAL.includes(p));
+      closeModal('postModal');
+      if (social.length) {
+        showToast('Post queued — blog live, social media pending API setup', 'success');
+      } else {
+        showToast('Post published to blog ✓', 'success');
+      }
+    },
+  },
 };
 
 // ── Modal helpers ──────────────────────────────────────────────
@@ -1314,6 +1407,14 @@ function catLabel(c)      { return {general:'General',tractor:'Tractor',rib:'RIB
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW reg failed', e));
 }
+
+// ── Post modal listeners ───────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('postImageUrl')
+    ?.addEventListener('input', () => App.post._previewImage());
+  document.querySelectorAll('.postPlatformCheck')
+    .forEach(cb => cb.addEventListener('change', () => App.post._updatePlatformHints()));
+});
 
 // ── Boot ───────────────────────────────────────────────────────
 App.init();

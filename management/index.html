@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="style.css?v=21">
   <script src="/club-config.js"></script>
 </head>
 <body>
@@ -105,6 +105,32 @@
     <!-- ── PORTAL VIEW ── -->
     <section id="portalView" class="view active" data-view="portal">
       <div class="view-scroll portal-scroll">
+
+        <div class="portal-section-label">Quick Actions</div>
+        <div class="portal-actions-grid">
+          <div class="portal-action-tile action-green" onclick="App.cal.openAdd()">
+            <div class="action-tile-icon">📅</div>
+            <div class="action-tile-body">
+              <div class="action-tile-name">Add Event</div>
+              <div class="action-tile-sub">Calendar</div>
+            </div>
+          </div>
+          <div class="portal-action-tile action-orange" onclick="App.maint.openLogIssue(null)">
+            <div class="action-tile-icon">⚠️</div>
+            <div class="action-tile-body">
+              <div class="action-tile-name">Report Issue</div>
+              <div class="action-tile-sub">Maintenance</div>
+            </div>
+          </div>
+          <div class="portal-action-tile action-teal" onclick="App.post.openCompose()">
+            <div class="action-tile-icon">📣</div>
+            <div class="action-tile-body">
+              <div class="action-tile-name">Post Update</div>
+              <div class="action-tile-sub">Share news</div>
+            </div>
+          </div>
+        </div>
+
         <div id="portalSummary" class="portal-summary"></div>
 
         <div class="portal-section-label">Club Tools</div>
@@ -577,9 +603,66 @@
   </div>
 </div>
 
+<!-- ── POST UPDATE MODAL ── -->
+<div id="postModal" class="modal-overlay hidden">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h3>Post Update</h3>
+      <button class="modal-close" onclick="closeModal('postModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Message</label>
+        <textarea id="postContent" rows="5" placeholder="What's happening at the club?"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Image URL <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">(optional)</span></label>
+        <input type="url" id="postImageUrl" placeholder="https://…" autocomplete="off">
+      </div>
+      <div id="postImagePreview" class="post-image-preview hidden"></div>
+      <div class="form-group">
+        <label>Post to</label>
+        <div class="post-platform-grid">
+          <label class="post-platform-card" id="ppc-facebook">
+            <input type="checkbox" class="postPlatformCheck" value="facebook">
+            <div class="ppc-logo" style="background:#1877F2;color:#fff;font-family:Georgia,serif;font-weight:900;font-size:1.1rem">f</div>
+            <span class="ppc-name">Facebook</span>
+            <span class="ppc-check">✓</span>
+          </label>
+          <label class="post-platform-card" id="ppc-instagram">
+            <input type="checkbox" class="postPlatformCheck" value="instagram">
+            <div class="ppc-logo" style="background:radial-gradient(circle at 30% 107%,#fdf497 0%,#fdf497 5%,#fd5949 45%,#d6249f 60%,#285AEB 90%);color:#fff;font-size:1.1rem">📸</div>
+            <span class="ppc-name">Instagram</span>
+            <span class="ppc-check">✓</span>
+          </label>
+          <label class="post-platform-card" id="ppc-whatsapp">
+            <input type="checkbox" class="postPlatformCheck" value="whatsapp">
+            <div class="ppc-logo" style="background:#25D366;color:#fff;font-size:1.1rem">💬</div>
+            <span class="ppc-name">WhatsApp</span>
+            <span class="ppc-check">✓</span>
+          </label>
+          <label class="post-platform-card" id="ppc-blog">
+            <input type="checkbox" class="postPlatformCheck" value="blog" checked>
+            <div class="ppc-logo" style="background:var(--navy-lt);color:var(--teal);font-size:1.1rem">✏️</div>
+            <span class="ppc-name">Club Blog</span>
+            <span class="ppc-check">✓</span>
+          </label>
+        </div>
+        <div id="postPlatformHint" class="post-platform-hint"></div>
+      </div>
+      <div id="postError" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('postModal')">Cancel</button>
+      <button class="btn-secondary" onclick="App.post.saveDraft()">Save Draft</button>
+      <button class="btn-primary" onclick="App.post.submit()">Post Now</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=20"></script>
+<script src="app.js?v=21"></script>
 </body>
 </html>
