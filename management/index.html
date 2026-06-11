@@ -457,14 +457,81 @@
     </div>
     <div class="modal-body">
       <div id="equipDetailInfo" class="equip-detail-info"></div>
-      <h4 class="section-subheading">Maintenance History</h4>
+      <h4 class="section-subheading">Issues</h4>
+      <div id="equipDetailIssues"></div>
+      <h4 class="section-subheading" style="margin-top:14px">Maintenance History</h4>
       <div id="equipDetailLog"></div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="App.maint.editEquipment()">Edit</button>
       <button class="btn-secondary" onclick="App.maint.duplicateEquipment(State.maint.current?.id)">Duplicate</button>
+      <button class="btn-issue" onclick="App.maint.openLogIssueForCurrent()">Log Issue</button>
       <button class="btn-primary" onclick="App.maint.openLogForCurrent()">Log Work</button>
       <button class="btn-ghost" onclick="closeModal('equipDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Log Issue -->
+<div id="issueModal" class="modal-overlay hidden" onclick="overlayClose(event,'issueModal')">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="issueModalTitle">
+    <div class="modal-header">
+      <h3 id="issueModalTitle">Log Issue</h3>
+      <button class="modal-close" onclick="closeModal('issueModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="issueId">
+      <div class="form-group">
+        <label>Equipment *</label>
+        <select id="issueEquipmentSel"></select>
+      </div>
+      <div class="form-group">
+        <label>Issue *</label>
+        <input type="text" id="issueTitle" placeholder="e.g. Engine overheating" autocomplete="off">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Severity</label>
+          <select id="issueSeverity">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="issueStatus" onchange="App.maint.onIssueStatusChange()">
+            <option value="open" selected>Open</option>
+            <option value="in_progress">In Progress</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Date Reported *</label>
+          <input type="date" id="issueDate">
+        </div>
+        <div class="form-group">
+          <label>Reported By</label>
+          <input type="text" id="issueBy" placeholder="Name" autocomplete="off">
+        </div>
+      </div>
+      <div class="form-group hidden" id="issueResolvedRow">
+        <label>Date Resolved</label>
+        <input type="date" id="issueResolvedDate">
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="issueNotes" rows="2" placeholder="Optional details"></textarea>
+      </div>
+      <div id="issueError" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="issueDeleteBtn" class="btn-danger hidden" onclick="App.maint.deleteIssue()">Delete</button>
+      <button class="btn-ghost" onclick="closeModal('issueModal')">Cancel</button>
+      <button class="btn-primary" onclick="App.maint.saveIssue()">Save</button>
     </div>
   </div>
 </div>

@@ -1,4 +1,4 @@
-const BUILD = '20260610.13';
+const BUILD = '20260610.14';
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
@@ -585,14 +585,17 @@ const App = {
   maint: {
     equipment: [],
     records:   [],
+    issues:    [],
 
     async load() {
-      const [eq, rec] = await Promise.all([
+      const [eq, rec, iss] = await Promise.all([
         sbGet('hub_equipment', 'order=name.asc&active=eq.true'),
         sbGet('hub_maintenance_records', 'order=performed_date.desc'),
+        sbGet('hub_equipment_issues', 'order=reported_date.desc'),
       ]);
       if (eq  && !eq._err)  this.equipment = eq;
       if (rec && !rec._err) this.records   = rec;
+      if (iss && !iss._err) this.issues    = iss;
     },
 
     showTab(tab, btn) {
@@ -620,12 +623,19 @@ const App = {
       el.innerHTML = sorted.map(eq => {
         const nextDueRec = this.records.filter(r => r.equipment_id === eq.id && r.next_due_date)
           .sort((a,b) => a.next_due_date.localeCompare(b.next_due_date))[0];
-        const badge = nextDueBadge(nextDueRec);
+        const maintBadge = nextDueBadge(nextDueRec);
+        const openIssues = this.issues.filter(i => i.equipment_id === eq.id && i.status !== 'resolved');
+        const sevOrder = {critical:4,high:3,medium:2,low:1};
+        const maxSev = openIssues.reduce((m,i) => Math.max(m, sevOrder[i.severity]||0), 0);
+        const sevKey = ['','low','medium','high','critical'][maxSev];
+        const issueBadge = openIssues.length
+          ? `<div class="eq-tile-issue issue-sev-${sevKey}">${openIssues.length} issue${openIssues.length>1?'s':''}</div>` : '';
         return `<div class="eq-tile" onclick="App.maint.openDetail('${eq.id}')">
           <div class="eq-tile-icon eq-icon-${eq.type}">${eqIcon(eq.type)}</div>
           <div class="eq-tile-name">${esc(eq.name)}</div>
           <div class="eq-tile-type">${eqTypeLabel(eq.type)}${eq.year ? ' · ' + eq.year : ''}</div>
-          ${badge ? `<div class="eq-tile-badge">${badge}</div>` : ''}
+          ${maintBadge ? `<div class="eq-tile-badge">${maintBadge}</div>` : ''}
+          ${issueBadge}
         </div>`;
       }).join('');
     },
@@ -686,9 +696,29 @@ const App = {
         (eq.year ? ` &bull; <strong>Year:</strong> ${eq.year}` : '') +
         (eq.description ? `<br>${esc(eq.description)}` : '');
 
+      // Issues
+      const issueList = this.issues.filter(i => i.equipment_id === eqId);
+      const openFirst = [...issueList].sort((a,b) => {
+        const stO = {open:0,in_progress:1,resolved:2};
+        return (stO[a.status]||0) - (stO[b.status]||0) || b.reported_date.localeCompare(a.reported_date);
+      });
+      document.getElementById('equipDetailIssues').innerHTML = openFirst.length
+        ? openFirst.map(i =>
+            `<div class="issue-card${i.status==='resolved'?' resolved':''}" onclick="App.maint.openEditIssue('${i.id}')">
+              <div class="issue-card-title">${esc(i.title)}</div>
+              <div class="issue-card-meta">
+                <span class="issue-sev issue-sev-${i.severity}">${i.severity}</span>
+                <span class="issue-st issue-st-${i.status}">${i.status.replace('_',' ')}</span>
+                <span>${fmtDateShort(i.reported_date)}${i.reported_by ? ' &bull; ' + esc(i.reported_by) : ''}</span>
+              </div>
+              ${i.notes ? `<div class="issue-card-meta" style="margin-top:3px">${esc(i.notes)}</div>` : ''}
+            </div>`
+          ).join('')
+        : '<div style="color:var(--muted);font-size:.85rem;padding:4px 0">No issues logged</div>';
+
+      // Maintenance records
       const recs = this.records.filter(r => r.equipment_id === eqId)
         .sort((a,b) => b.performed_date.localeCompare(a.performed_date));
-
       document.getElementById('equipDetailLog').innerHTML = recs.length
         ? recs.map(r =>
             `<div class="maint-record item-card" onclick="App.maint.openEditRecord('${r.id}')">
@@ -773,6 +803,96 @@ const App = {
       openModal('maintModal');
     },
     openLogForCurrent() { closeModal('equipDetailModal'); this.openLogMaintenance(State.maint.current?.id); },
+    openLogIssueForCurrent() { closeModal('equipDetailModal'); this.openLogIssue(State.maint.current?.id); },
+
+    openLogIssue(eqId) {
+      document.getElementById('issueModalTitle').textContent = 'Log Issue';
+      document.getElementById('issueId').value             = '';
+      document.getElementById('issueTitle').value          = '';
+      document.getElementById('issueSeverity').value       = 'medium';
+      document.getElementById('issueStatus').value         = 'open';
+      document.getElementById('issueDate').value           = fmtDate(new Date());
+      document.getElementById('issueBy').value             = '';
+      document.getElementById('issueResolvedDate').value   = '';
+      document.getElementById('issueNotes').value          = '';
+      document.getElementById('issueDeleteBtn').classList.add('hidden');
+      document.getElementById('issueError').classList.add('hidden');
+      document.getElementById('issueResolvedRow').classList.add('hidden');
+      this._populateIssueEquipSel(eqId);
+      openModal('issueModal');
+    },
+
+    openEditIssue(issueId) {
+      const iss = this.issues.find(i => i.id === issueId);
+      if (!iss) return;
+      document.getElementById('issueModalTitle').textContent = 'Edit Issue';
+      document.getElementById('issueId').value             = iss.id;
+      document.getElementById('issueTitle').value          = iss.title;
+      document.getElementById('issueSeverity').value       = iss.severity;
+      document.getElementById('issueStatus').value         = iss.status;
+      document.getElementById('issueDate').value           = iss.reported_date;
+      document.getElementById('issueBy').value             = iss.reported_by || '';
+      document.getElementById('issueResolvedDate').value   = iss.resolved_date || '';
+      document.getElementById('issueNotes').value          = iss.notes || '';
+      document.getElementById('issueDeleteBtn').classList.remove('hidden');
+      document.getElementById('issueError').classList.add('hidden');
+      document.getElementById('issueResolvedRow').classList.toggle('hidden', iss.status !== 'resolved');
+      this._populateIssueEquipSel(iss.equipment_id);
+      openModal('issueModal');
+    },
+
+    onIssueStatusChange() {
+      const resolved = document.getElementById('issueStatus').value === 'resolved';
+      document.getElementById('issueResolvedRow').classList.toggle('hidden', !resolved);
+      if (resolved && !document.getElementById('issueResolvedDate').value)
+        document.getElementById('issueResolvedDate').value = fmtDate(new Date());
+    },
+
+    _populateIssueEquipSel(selectedId) {
+      document.getElementById('issueEquipmentSel').innerHTML = this.equipment.length
+        ? this.equipment.map(e => `<option value="${e.id}" ${e.id===selectedId?'selected':''}>${esc(e.name)}</option>`).join('')
+        : '<option value="">No equipment — add some first</option>';
+    },
+
+    async saveIssue() {
+      const id      = document.getElementById('issueId').value;
+      const eqId    = document.getElementById('issueEquipmentSel').value;
+      const title   = document.getElementById('issueTitle').value.trim();
+      const date    = document.getElementById('issueDate').value;
+      const errEl   = document.getElementById('issueError');
+      if (!eqId)  { showFormError(errEl, 'Select equipment'); return; }
+      if (!title) { showFormError(errEl, 'Issue description is required'); return; }
+      if (!date)  { showFormError(errEl, 'Date is required'); return; }
+      const status = document.getElementById('issueStatus').value;
+      const payload = {
+        equipment_id:  eqId,
+        title,
+        severity:      document.getElementById('issueSeverity').value,
+        status,
+        reported_date: date,
+        reported_by:   document.getElementById('issueBy').value.trim()           || null,
+        resolved_date: status === 'resolved'
+                         ? (document.getElementById('issueResolvedDate').value || null) : null,
+        notes:         document.getElementById('issueNotes').value.trim()         || null,
+      };
+      const result = id ? await sbPatch('hub_equipment_issues','id=eq.'+id,payload) : await sbPost('hub_equipment_issues',payload);
+      if (result?._err) { showFormError(errEl, result._err); return; }
+      closeModal('issueModal');
+      await this.load();
+      ({ equipment:()=>this.renderEquipment(), upcoming:()=>this.renderUpcoming(), log:()=>this.renderLog() })[State.maint.tab]?.();
+      showToast(id ? 'Issue updated' : 'Issue logged', 'success');
+    },
+
+    async deleteIssue() {
+      const id = document.getElementById('issueId').value;
+      if (!id || !confirm('Delete this issue?')) return;
+      const r = await sbDelete('hub_equipment_issues','id=eq.'+id);
+      if (r?._err) { showToast('Delete failed','error'); return; }
+      closeModal('issueModal');
+      await this.load();
+      this.renderEquipment();
+      showToast('Issue deleted','success');
+    },
 
     openEditRecord(recId) {
       const rec = this.records.find(r => r.id === recId);

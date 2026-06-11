@@ -704,6 +704,63 @@ body {
 }
 .btn-danger:hover { background: rgba(230,57,70,.3); }
 
+.btn-issue {
+  background: rgba(244,162,97,.15);
+  color: var(--warn);
+  border: 1px solid rgba(244,162,97,.35);
+  border-radius: var(--radius-sm);
+  padding: 9px 18px;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s;
+}
+.btn-issue:hover { background: rgba(244,162,97,.28); }
+
+/* ── Issue severity & status ─────────────────────────────────── */
+.issue-sev, .issue-st {
+  display: inline-block;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.issue-sev-critical { background: rgba(230,57,70,.2);   color: var(--danger);  }
+.issue-sev-high     { background: rgba(244,162,97,.2);  color: var(--warn);    }
+.issue-sev-medium   { background: rgba(254,224,30,.15); color: #c9a800;        }
+.issue-sev-low      { background: rgba(39,174,96,.15);  color: var(--success); }
+
+.issue-st-open        { background: rgba(230,57,70,.1);  color: var(--danger);  }
+.issue-st-in_progress { background: rgba(0,174,239,.1);  color: var(--teal);    }
+.issue-st-resolved    { background: rgba(39,174,96,.1);  color: var(--success); }
+
+.issue-card {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--navy-input);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.issue-card:hover { background: var(--navy-mid); }
+.issue-card.resolved { opacity: .5; }
+.issue-card-title { font-size: .88rem; font-weight: 600; color: var(--white); margin-bottom: 4px; }
+.issue-card-meta  { font-size: .75rem; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+/* Open issue badge on equipment tiles */
+.eq-tile-issue {
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 1px;
+}
+
 .btn-logout {
   background: transparent;
   color: var(--danger);
