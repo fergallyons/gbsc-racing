@@ -1,12 +1,12 @@
 const BUILD = '20260610.18';
 
 const PORTAL_LINKS = [
-  { name: 'Corsizio',       desc: 'Training & courses',    icon: '🎓', color: '#27ae60', bg: 'rgba(39,174,96,.12)',    url: 'https://app.corsizio.com'     },
-  { name: 'Irish Sailing',  desc: 'National authority',    icon: '⛵', color: '#4287f5', bg: 'rgba(66,135,245,.12)',   url: 'https://www.irishsailing.ie'  },
+  { name: 'Corsizio',       desc: 'Training & courses',    icon: '🎓', color: '#27ae60', bg: 'rgba(39,174,96,.12)',    url: 'https://manager.corsizio.com/dashboard'     },
+  { name: 'Irish Sailing',  desc: 'National authority',    icon: '⛵', color: '#4287f5', bg: 'rgba(66,135,245,.12)',   url: 'https://www.sailing.ie'  },
   { name: 'Stripe',         desc: 'Payments & finance',    icon: '💳', color: '#6772e5', bg: 'rgba(103,114,229,.12)', url: 'https://dashboard.stripe.com' },
-  { name: 'ClubMin',        desc: 'Membership',            icon: '👥', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://app.clubmin.ie'       },
+  { name: 'ClubMin',        desc: 'Membership',            icon: '👥', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://gbsc.clubmin.net/dashboard'       },
   { name: 'racing.gbsc.ie', desc: 'Racing website',        icon: '🏆', color: '#e8c900', bg: 'rgba(232,201,0,.1)',    url: 'https://racing.gbsc.ie'       },
-  { name: 'Checklist',      desc: 'Checklists & forms',    icon: '✅', color: '#f4a261', bg: 'rgba(244,162,97,.12)',   url: 'https://checklist.com'        },
+  { name: 'Checklist',      desc: 'Checklists & forms',    icon: '✅', color: '#f4a261', bg: 'rgba(244,162,97,.12)',   url: 'https://irishsailing.checklick.com/'        },
 ];
 
 // ── Club Config (set by /club-config.js edge function) ────────
