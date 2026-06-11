@@ -35,7 +35,7 @@
   --eq-dinghy:     #fee01e;
   --eq-other:      #7da4cc;
 
-  --header-h:  58px;
+  --header-h:  70px;
 }
 
 /* ── Reset ──────────────────────────────────────────────────── */
@@ -243,6 +243,27 @@ body {
   .portal-summary    { grid-template-columns: repeat(3, 1fr); }
 }
 
+/* Calendar: stack grid above panel on portrait phones & tablets */
+@media (orientation: portrait) and (max-width: 1024px) {
+  .cal-layout {
+    flex-direction: column;
+  }
+  .cal-grid-col {
+    flex: none;
+    width: 100%;
+  }
+  .cal-details-col {
+    width: 100%;
+  }
+  .cal-panel { min-height: 120px; }
+}
+
+/* Scale down header branding on very small phones */
+@media (max-width: 380px) {
+  .header-brand-name  { font-size: 1rem; }
+  .header-pennant-svg { height: 38px; }
+}
+
 .header-brand {
   display: flex;
   align-items: center;
@@ -251,7 +272,7 @@ body {
 }
 
 .header-pennant-svg {
-  height: 36px;
+  height: 46px;
   width: auto;
   flex-shrink: 0;
 }
@@ -264,7 +285,7 @@ body {
 
 .header-brand-name {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: .95rem;
+  font-size: 1.25rem;
   font-weight: 800;
   letter-spacing: .03em;
   color: var(--teal);
@@ -273,7 +294,7 @@ body {
 
 .header-app-label {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: .65rem;
+  font-size: .75rem;
   font-weight: 600;
   letter-spacing: .18em;
   text-transform: uppercase;
