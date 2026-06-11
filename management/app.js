@@ -1,4 +1,4 @@
-const BUILD = '20260611.26';
+const BUILD = '20260611.27';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -1250,12 +1250,8 @@ const App = {
 
   // ── Post Update ───────────────────────────────────────────────
   post: {
-    // Platforms needing Meta Graph API tokens (set in club-config or Supabase settings):
-    //   facebook  → page_access_token + page_id
-    //   instagram → ig_user_id + same page_access_token
-    // WhatsApp uses a wa.me deep link — no API credentials needed.
-    // Blog posts are stored directly in hub_posts and require no external credentials.
-    _SOCIAL: ['facebook','instagram'],
+    // All platforms use deep links / clipboard — no API credentials required.
+    // Blog posts are stored in hub_posts; social platforms open in a new tab.
 
     openCompose() {
       document.getElementById('postContent').value    = '';
@@ -1274,12 +1270,11 @@ const App = {
 
     _updatePlatformHints() {
       const selected = [...document.querySelectorAll('.postPlatformCheck:checked')].map(cb => cb.value);
-      const social   = selected.filter(p => this._SOCIAL.includes(p));
-      const hasWA    = selected.includes('whatsapp');
       const hint     = document.getElementById('postPlatformHint');
       const parts    = [];
-      if (social.length) parts.push(social.map(p => ({ facebook:'Facebook', instagram:'Instagram' }[p])).join(' & ') + ' require API credentials — post will be queued.');
-      if (hasWA)         parts.push('WhatsApp will open with the message pre-filled — choose your group and tap Send.');
+      if (selected.includes('facebook'))  parts.push('Facebook will open — message copied to clipboard.');
+      if (selected.includes('instagram')) parts.push('Instagram will open — message copied to clipboard.');
+      if (selected.includes('whatsapp'))  parts.push('WhatsApp will open with the message pre-filled.');
       hint.textContent = parts.join(' ');
     },
 
@@ -1326,22 +1321,25 @@ const App = {
 
     async submit() {
       const content  = document.getElementById('postContent').value.trim();
-      const saved    = await this._save('queued');
+      const saved    = await this._save('published');
       if (!saved) return;
       const { platforms } = saved;
-      const social   = platforms.filter(p => this._SOCIAL.includes(p));
-      const hasWA    = platforms.includes('whatsapp');
       closeModal('postModal');
-      if (hasWA) {
-        window.open('https://wa.me/?text=' + encodeURIComponent(content), '_blank');
+
+      const needsClipboard = platforms.includes('facebook') || platforms.includes('instagram');
+      if (needsClipboard) {
+        try { await navigator.clipboard.writeText(content); } catch {}
       }
-      if (social.length) {
-        showToast('Post queued — blog live, social media pending API setup', 'success');
-      } else if (hasWA && !platforms.includes('blog')) {
-        showToast('WhatsApp opened ✓', 'success');
-      } else {
-        showToast('Post published ✓', 'success');
-      }
+      if (platforms.includes('facebook'))  window.open('https://www.facebook.com/', '_blank');
+      if (platforms.includes('instagram')) window.open('https://www.instagram.com/', '_blank');
+      if (platforms.includes('whatsapp'))  window.open('https://wa.me/?text=' + encodeURIComponent(content), '_blank');
+
+      const opened = ['facebook','instagram','whatsapp'].filter(p => platforms.includes(p))
+        .map(p => ({ facebook:'Facebook', instagram:'Instagram', whatsapp:'WhatsApp' }[p]));
+      const toastMsg = opened.length
+        ? (needsClipboard ? 'Message copied — ' : '') + opened.join(' & ') + ' opened ✓'
+        : 'Post saved ✓';
+      showToast(toastMsg, 'success');
     },
   },
 };
