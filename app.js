@@ -648,7 +648,7 @@ async function patchRaceTimesFromHalsail(){
     const matchedRace=allRaces.find(r=>r.date.toDateString()===todayStr);
     cancelledTodayRace={
       id:matchedRace?.id||null,
-      label:matchedRace?.label||cancelledEntry.Race.replace(/_/g,' '),
+      label:matchedRace?.label||halRaceLabel(cancelledEntry),
       date:matchedRace?.date||d,
       series:matchedRace?.series||cancelledEntry.Series||'',
       note:cancelledEntry.Notes.trim()
@@ -5188,7 +5188,7 @@ function renderCalList(){
           <div class="cal-date-mon">${mon}</div>
         </div>
         <div class="cal-info">
-          <div class="cal-race-name">${r.Notes&&r.Notes.trim()?r.Notes.trim():r.Race.replace(/_/g,' ')}</div>
+          <div class="cal-race-name">${halRaceLabel(r)}</div>
           <div class="cal-series-name">${weekday} · ${time}</div>
         </div>
         ${isNext?'<div class="cal-badge next">Next</div>':isKotb&&!isPast?'<div class="cal-badge kotb">KOTB</div>':isPast?'<div class="cal-badge past">Done</div>':''}
@@ -5227,7 +5227,7 @@ function renderCalByDate(){
       const mon=d.toLocaleDateString('en-IE',{month:'short'});
       const weekday=d.toLocaleDateString('en-IE',{weekday:'short'});
       const time=d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-      const raceName=r.Notes&&r.Notes.trim()?r.Notes.trim():r.Race.replace(/_/g,' ');
+      const raceName=halRaceLabel(r);
       html+=`<div class="cal-race-row${isNext?' next-race':''}${isPast?' past':''}">
         <div class="cal-date${isPast?' past':''}">
           <div class="cal-date-day">${dayNum}</div>
@@ -6406,6 +6406,18 @@ let HAL_CLUB=_C.halClub||0; // updated from DB settings in _applyDbClubConfig
 //   Both pull from GetSeriesResult; Halsail handles the different handicapping
 function isEchoClass(name){ return /cru\s*-\s*e\b/i.test(name); }
 function isCruiserClass(name){ return /cru\s*-/i.test(name); } // matches Cru-E, Cru-IRC, Cru-ORC etc.
+
+function halRaceLabel(r) {
+  const base = r.Race.replace(/_/g, ' ').trim();
+  if (r.Notes && r.Notes.trim()) return r.Notes.trim();
+  if (r.Class) {
+    const cls = r.Class.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const re  = new RegExp('^' + cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i');
+    const stripped = base.replace(re, '').trim();
+    if (stripped) return stripped;
+  }
+  return base;
+}
 
 let halSchedule=null;       // raw GetSchedule response
 let halSeriesList=[];        // [{label, ircId, echoId}] — one per series name
