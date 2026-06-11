@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
   <script src="/club-config.js"></script>
 </head>
 <body>
@@ -84,6 +84,7 @@
     <div class="header-actions">
       <div id="hAddCal" class="h-add-group">
         <button class="btn-add btn-sm" onclick="App.cal.openAdd()">+ Event</button>
+        <button class="btn-issue btn-sm" onclick="App.maint.openLogIssue(null)">+ Issue</button>
       </div>
       <div id="hAddMaint" class="h-add-group hidden">
         <button class="btn-secondary btn-sm" onclick="App.maint.openAddEquipment()">+ Equipment</button>
@@ -548,6 +549,6 @@
 <!-- Toast -->
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>
