@@ -1,4 +1,4 @@
-const CACHE = 'gbsc-hub-v1';
+const CACHE = 'gbsc-hub-v2';
 const PRECACHE = ['/', '/style.css', '/app.js', '/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -32,7 +32,7 @@ self.addEventListener('fetch', e => {
   if (e.request.mode === 'navigate') {
     e.respondWith(
       fetch(e.request)
-        .then(r => { caches.open(CACHE).then(c => c.put(e.request, r.clone())); return r; })
+        .then(r => { const clone = r.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); return r; })
         .catch(() => caches.match('/'))
     );
   } else {

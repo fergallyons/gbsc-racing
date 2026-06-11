@@ -1,4 +1,4 @@
-const BUILD = '20260610.23';
+const BUILD = '20260610.24';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -79,6 +79,8 @@ async function sb(path, opts = {}) {
     const r = await fetch(SB_URL + path, { headers: { ...SBH }, ...opts });
     if (!r.ok) {
       const e = await r.text();
+      // Table not found (PGRST205) → treat as empty rather than an error
+      try { if (JSON.parse(e)?.code === 'PGRST205') return []; } catch {}
       console.error('SB', r.status, path, e);
       return { _err: 'HTTP ' + r.status + ': ' + e, _status: r.status };
     }

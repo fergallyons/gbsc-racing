@@ -5,11 +5,10 @@
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0f1f3d",
-  "theme_color": "#0f1f3d",
+  "background_color": "#10213f",
+  "theme_color": "#234d8c",
   "icons": [
-    { "src": "/logos/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/logos/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/logos/gbsc.jpg", "sizes": "any", "type": "image/jpeg" }
   ],
   "categories": ["sports", "utilities"]
 }
