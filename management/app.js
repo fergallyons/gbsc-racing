@@ -1,14 +1,36 @@
-const BUILD = '20260610.22';
+const BUILD = '20260610.23';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
   { name: 'racing.gbsc.ie', desc: 'Racing website',        icon: '🏆', color: '#e8c900', bg: 'rgba(232,201,0,.1)',    url: 'https://racing.gbsc.ie'                     },
+  { name: 'Halsail',        desc: 'Race management',       icon: '🧭', color: '#e63946', bg: 'rgba(230,57,70,.12)',    url: 'https://halsail.com'                        },
   { name: 'Corsizio',       desc: 'Training & courses',    icon: '🎓', color: '#27ae60', bg: 'rgba(39,174,96,.12)',    url: 'https://manager.corsizio.com/dashboard'     },
   { name: 'Irish Sailing',  desc: 'National authority',    icon: '⛵', color: '#4287f5', bg: 'rgba(66,135,245,.12)',   url: 'https://www.sailing.ie'                     },
   { name: 'Stripe',         desc: 'Payments & finance',    icon: '💳', color: '#6772e5', bg: 'rgba(103,114,229,.12)', url: 'https://dashboard.stripe.com'               },
   { name: 'ClubMin',        desc: 'Membership',            icon: '👥', color: '#7da4cc', bg: 'rgba(125,164,204,.12)', url: 'https://gbsc.clubmin.net/dashboard'         },
   { name: 'Checklick',      desc: 'Irish Sailing Passport',icon: '✅', color: '#f4a261', bg: 'rgba(244,162,97,.12)',   url: 'https://irishsailing.checklick.com/'        },
 ];
+
+// ── Halsail helpers ────────────────────────────────────────────
+// Strip the class name prefix Halsail prepends to every race name.
+// e.g. "Cru E McSwiggans R1" → "McSwiggans R1", "Fireball Race 1" → "Race 1"
+function halRaceLabel(r) {
+  const base = r.Race.replace(/_/g, ' ').trim();
+  if (r.Notes && r.Notes.trim()) return r.Notes.trim();
+  if (r.Class) {
+    const cls = r.Class.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const re  = new RegExp('^' + cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i');
+    const stripped = base.replace(re, '').trim();
+    if (stripped) return stripped;
+  }
+  return base;
+}
+
+function halEventType(r) {
+  if (/cru\s*-/i.test(r.Class  || '')) return 'cruisers';
+  if (/king|kotb/i.test(r.Series || '')) return 'regattas';
+  return 'dinghys';
+}
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
@@ -247,6 +269,59 @@ const App = {
       if (rows && !rows._err) this.data = rows;
       if (res  && !res._err)  this.resources = res;
       if (crz  && !crz._err)  this.corsizioBookings = crz;
+    },
+
+    async syncHalsail() {
+      const halClub = _C.halClub;
+      if (!halClub) { showToast('Halsail club ID not in club config', 'error'); return; }
+
+      const btn = document.getElementById('halsailSyncBtn');
+      if (btn) { btn.disabled = true; btn.textContent = '⟳ Syncing…'; }
+
+      try {
+        const r = await fetch('/.netlify/functions/halsail-proxy?path=/GetSchedule/' + halClub);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const raw = await r.json();
+        if (!Array.isArray(raw)) throw new Error(raw.error || 'Unexpected response from Halsail');
+
+        // One event per RaceID — Halsail returns duplicate entries per scoring class
+        const seen = new Set();
+        const pad  = n => String(n).padStart(2, '0');
+        const events = raw
+          .filter(r => { if (seen.has(r.RaceID)) return false; seen.add(r.RaceID); return true; })
+          .map(r => {
+            const d = new Date(r.Start);
+            const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+            const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+            return {
+              halsail_race_id: r.RaceID,
+              title:           halRaceLabel(r),
+              event_type:      halEventType(r),
+              calendar_type:   'club',
+              start_date:      `${dateStr}T${timeStr}`,
+              end_date:        `${dateStr}T${timeStr}`,
+              all_day:         false,
+              description:     r.Series || '',
+            };
+          });
+
+        if (!events.length) { showToast('No races found in Halsail schedule', 'error'); return; }
+
+        const result = await sb('/rest/v1/hub_events?on_conflict=halsail_race_id', {
+          method:  'POST',
+          headers: { ...SBH, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+          body:    JSON.stringify(events),
+        });
+        if (result?._err) throw new Error(result._err);
+
+        await this.load();
+        this.render();
+        showToast(`Synced ${events.length} races from Halsail ✓`, 'success');
+      } catch (e) {
+        showToast('Halsail sync failed: ' + e.message, 'error');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '⟳ Halsail'; }
+      }
     },
 
     async fetchCorsizio() {
