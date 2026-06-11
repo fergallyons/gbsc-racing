@@ -12,7 +12,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=18">
   <script src="/club-config.js"></script>
 </head>
 <body>
@@ -61,7 +61,7 @@
 
   <!-- Top Header -->
   <header id="appHeader">
-    <div class="header-brand">
+    <div class="header-brand" onclick="App.navigate('portal')" style="cursor:pointer" title="Back to portal">
       <svg class="header-pennant-svg" viewBox="0 0 46 30" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <polygon points="0,0 0,30 46,15" fill="#1e3799"/>
         <rect x="13" y="4" width="2" height="7" rx=".5" fill="#fee01e"/>
@@ -75,14 +75,11 @@
         <span class="header-app-label">Management</span>
       </div>
     </div>
-    <nav class="header-nav">
-      <button class="nav-btn active" onclick="App.navigate('calendar')" data-view="calendar">Calendar</button>
-      <button class="nav-btn" onclick="App.navigate('events')" data-view="events">Events</button>
-      <button class="nav-btn" onclick="App.navigate('maintenance')" data-view="maintenance">Maintenance</button>
-      <button class="nav-btn" onclick="App.navigate('sops')" data-view="sops">SOPs</button>
-    </nav>
+    <div id="headerBreadcrumb" class="header-breadcrumb hidden">
+      <span class="header-section-title" id="headerSectionTitle"></span>
+    </div>
     <div class="header-actions">
-      <div id="hAddCal" class="h-add-group">
+      <div id="hAddCal" class="h-add-group hidden">
         <button class="btn-add btn-sm" onclick="App.cal.openAdd()">+ Event</button>
         <button class="btn-issue btn-sm" onclick="App.maint.openLogIssue(null)">+ Issue</button>
       </div>
@@ -105,8 +102,42 @@
   <!-- Main Content Area -->
   <main id="mainContent">
 
+    <!-- ── PORTAL VIEW ── -->
+    <section id="portalView" class="view active" data-view="portal">
+      <div class="view-scroll portal-scroll">
+        <div id="portalSummary" class="portal-summary"></div>
+
+        <div class="portal-section-label">Club Tools</div>
+        <div class="portal-tools-grid">
+          <div class="portal-tile" onclick="App.navigate('calendar')">
+            <div class="portal-tile-icon" style="background:rgba(0,174,239,.12);color:#00aeef">📅</div>
+            <div class="portal-tile-name">Calendar</div>
+            <div class="portal-tile-stat" id="pstat-calendar">—</div>
+          </div>
+          <div class="portal-tile" onclick="App.navigate('events')">
+            <div class="portal-tile-icon" style="background:rgba(33,150,243,.12);color:#2196f3">📋</div>
+            <div class="portal-tile-name">Events</div>
+            <div class="portal-tile-stat" id="pstat-events">—</div>
+          </div>
+          <div class="portal-tile" onclick="App.navigate('maintenance')">
+            <div class="portal-tile-icon" style="background:rgba(244,162,97,.12);color:#f4a261">🔧</div>
+            <div class="portal-tile-name">Maintenance</div>
+            <div class="portal-tile-stat" id="pstat-maintenance">—</div>
+          </div>
+          <div class="portal-tile" onclick="App.navigate('sops')">
+            <div class="portal-tile-icon" style="background:rgba(254,224,30,.1);color:#c9a800">📄</div>
+            <div class="portal-tile-name">SOPs</div>
+            <div class="portal-tile-stat" id="pstat-sops">—</div>
+          </div>
+        </div>
+
+        <div class="portal-section-label">Club Links</div>
+        <div id="portalLinksGrid" class="portal-links-grid"></div>
+      </div>
+    </section>
+
     <!-- ── CALENDAR VIEW ── -->
-    <section id="calendarView" class="view active" data-view="calendar">
+    <section id="calendarView" class="view" data-view="calendar">
       <div class="view-scroll">
         <div class="cal-type-toggle">
           <button id="calTypeClub"     class="cal-type-btn active" onclick="App.cal.setType('club')">Club</button>
@@ -549,6 +580,6 @@
 <!-- Toast -->
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 </body>
 </html>

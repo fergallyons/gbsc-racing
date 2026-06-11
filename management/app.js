@@ -1,4 +1,13 @@
-const BUILD = '20260610.17';
+const BUILD = '20260610.18';
+
+const PORTAL_LINKS = [
+  { name: 'Corsizio',       desc: 'Training & courses',    icon: '🎓', color: '#27ae60', bg: 'rgba(39,174,96,.12)',    url: 'https://app.corsizio.com'     },
+  { name: 'Irish Sailing',  desc: 'National authority',    icon: '⛵', color: '#4287f5', bg: 'rgba(66,135,245,.12)',   url: 'https://www.irishsailing.ie'  },
+  { name: 'Stripe',         desc: 'Payments & finance',    icon: '💳', color: '#6772e5', bg: 'rgba(103,114,229,.12)', url: 'https://dashboard.stripe.com' },
+  { name: 'ClubMin',        desc: 'Membership',            icon: '👥', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://app.clubmin.ie'       },
+  { name: 'racing.gbsc.ie', desc: 'Racing website',        icon: '🏆', color: '#e8c900', bg: 'rgba(232,201,0,.1)',    url: 'https://racing.gbsc.ie'       },
+  { name: 'Checklist',      desc: 'Checklists & forms',    icon: '✅', color: '#f4a261', bg: 'rgba(244,162,97,.12)',   url: 'https://checklist.com'        },
+];
 
 // ── Club Config (set by /club-config.js edge function) ────────
 const _C = window.CLUB || {};
@@ -137,7 +146,7 @@ function logout() {
 
 // ── State ──────────────────────────────────────────────────────
 const State = {
-  view: 'calendar',
+  view: 'portal',
   cal:  { year: new Date().getFullYear(), month: new Date().getMonth(), selectedDay: null, calType: 'club',
           filters: new Set(['cruisers','dinghys','regattas','social','external','other']) },
   maint: { tab: 'equipment', current: null },
@@ -157,19 +166,64 @@ const App = {
     App.maint.renderEquipment();
     App.maint._updateIssuesTabBadge();
     App.sops.render();
+    App.navigate('portal');
     const bid = document.getElementById('buildId');
     if (bid) bid.textContent = 'build ' + BUILD;
   },
 
   navigate(view) {
-    const viewMap = { calendar:'calendarView', events:'eventsView', maintenance:'maintenanceView', sops:'sopsView' };
-    const addMap  = { calendar:'hAddCal', events:'hAddCal', maintenance:'hAddMaint', sops:'hAddSops' };
+    const isPortal = view === 'portal';
+    const viewMap  = { portal:'portalView', calendar:'calendarView', events:'eventsView', maintenance:'maintenanceView', sops:'sopsView' };
+    const addMap   = { calendar:'hAddCal', events:'hAddCal', maintenance:'hAddMaint', sops:'hAddSops' };
+    const titleMap = { calendar:'Calendar', events:'Events', maintenance:'Maintenance', sops:'SOPs' };
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(viewMap[view])?.classList.add('active');
-    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    document.getElementById('headerBreadcrumb').classList.toggle('hidden', isPortal);
+    if (!isPortal) document.getElementById('headerSectionTitle').textContent = titleMap[view] || view;
     document.querySelectorAll('.h-add-group').forEach(g => g.classList.add('hidden'));
-    document.getElementById(addMap[view])?.classList.remove('hidden');
+    if (!isPortal) document.getElementById(addMap[view])?.classList.remove('hidden');
     State.view = view;
+    if (isPortal) App.renderPortal();
+  },
+
+  renderPortal() {
+    const today      = fmtDate(new Date());
+    const yr         = State.cal.year, mo = State.cal.month;
+    const monthStart = `${yr}-${String(mo+1).padStart(2,'0')}-01`;
+    const monthEnd   = `${yr}-${String(mo+1).padStart(2,'0')}-${String(new Date(yr,mo+1,0).getDate()).padStart(2,'0')}`;
+    const evMonth    = App.cal.data.filter(ev => { const d = ev.start_date?.slice(0,10)||''; return d >= monthStart && d <= monthEnd; }).length;
+    const openIssues = App.maint.issues.filter(i => i.status !== 'resolved').length;
+    const overdue    = App.maint.records.filter(r => r.next_due_date && r.next_due_date < today).length;
+    const upcoming   = App.cal.data.filter(ev => (ev.start_date?.slice(0,10)||'') >= today).length;
+    const months     = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+    document.getElementById('portalSummary').innerHTML = `
+      <div class="pstat-card" onclick="App.navigate('calendar')">
+        <div class="pstat-val">${evMonth}</div>
+        <div class="pstat-label">Events in ${months[mo]}</div>
+      </div>
+      <div class="pstat-card${openIssues ? ' pstat-alert' : ''}" onclick="App.navigate('maintenance');App.maint.showTab('issues',document.getElementById('issuesTabBtn'))">
+        <div class="pstat-val">${openIssues}</div>
+        <div class="pstat-label">Open issues</div>
+      </div>
+      <div class="pstat-card${overdue ? ' pstat-warn' : ''}" onclick="App.navigate('maintenance');App.maint.showTab('upcoming',document.querySelectorAll('#maintenanceView .tab-btn')[2])">
+        <div class="pstat-val">${overdue}</div>
+        <div class="pstat-label">Maintenance overdue</div>
+      </div>`;
+
+    document.getElementById('pstat-calendar').textContent    = `${evMonth} event${evMonth!==1?'s':''} this month`;
+    document.getElementById('pstat-events').textContent      = `${upcoming} upcoming`;
+    document.getElementById('pstat-maintenance').textContent = openIssues ? `${openIssues} open issue${openIssues!==1?'s':''}` : 'No open issues';
+    document.getElementById('pstat-sops').textContent        = `${App.sops.data.length} document${App.sops.data.length!==1?'s':''}`;
+
+    document.getElementById('portalLinksGrid').innerHTML = PORTAL_LINKS.map(l =>
+      `<a class="portal-link-tile" href="${esc(l.url)}" target="_blank" rel="noopener">
+        <div class="portal-link-icon" style="background:${l.bg};color:${l.color}">${l.icon}</div>
+        <div class="portal-link-name">${esc(l.name)}</div>
+        <div class="portal-link-desc">${esc(l.desc)}</div>
+        <div class="portal-link-ext">↗</div>
+      </a>`
+    ).join('');
   },
 
   // ── Calendar ─────────────────────────────────────────────────

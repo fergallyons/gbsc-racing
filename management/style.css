@@ -76,19 +76,170 @@ body {
   z-index: 10;
 }
 
-.header-nav {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
+/* nav replaced by portal */
 
 .header-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+.header-breadcrumb {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.header-section-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ── Portal ──────────────────────────────────────────────────── */
+.portal-scroll { padding-bottom: 40px; }
+
+.portal-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.pstat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  text-align: center;
+}
+.pstat-card:hover { background: var(--navy-lt); border-color: rgba(0,174,239,.35); }
+.pstat-card.pstat-alert { border-color: rgba(230,57,70,.4); }
+.pstat-card.pstat-warn  { border-color: rgba(244,162,97,.4); }
+.pstat-val {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.pstat-card.pstat-alert .pstat-val { color: var(--danger); }
+.pstat-card.pstat-warn  .pstat-val { color: var(--warn);   }
+.pstat-label {
+  font-size: .72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 600;
+}
+
+.portal-section-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.portal-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.portal-tile {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+  text-align: center;
+}
+.portal-tile:hover { background: var(--navy-lt); border-color: rgba(0,174,239,.3); transform: translateY(-2px); }
+.portal-tile-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  font-size: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.portal-tile-name {
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--white);
+}
+.portal-tile-stat {
+  font-size: .72rem;
+  color: var(--muted);
+}
+
+.portal-links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.portal-link-tile {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+  text-align: center;
+  position: relative;
+}
+.portal-link-tile:hover { background: var(--navy-lt); transform: translateY(-2px); }
+.portal-link-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.portal-link-name {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--white);
+}
+.portal-link-desc {
+  font-size: .65rem;
+  color: var(--muted);
+}
+.portal-link-ext {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: .65rem;
+  color: var(--muted);
+  opacity: .5;
+}
+
+@media (max-width: 600px) {
+  .portal-tools-grid { grid-template-columns: repeat(2, 1fr); }
+  .portal-summary    { grid-template-columns: repeat(3, 1fr); }
 }
 
 .header-brand {
