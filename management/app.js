@@ -1,4 +1,4 @@
-const BUILD = '20260610.18';
+const BUILD = '20260610.19';
 
 const PORTAL_LINKS = [
   { name: 'Corsizio',       desc: 'Training & courses',    icon: '🎓', color: '#27ae60', bg: 'rgba(39,174,96,.12)',    url: 'https://manager.corsizio.com/dashboard'     },

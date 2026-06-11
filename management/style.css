@@ -1,21 +1,21 @@
 /* ── GBSC Club Management — Design System ───────────────────── */
 :root {
-  --navy:       #0f1f3d;
-  --navy-mid:   #1a3260;
-  --navy-lt:    #243d73;
-  --navy-input: #0d1b35;
+  --navy:       #eef3f9;
+  --navy-mid:   #dce6f5;
+  --navy-lt:    #c9d9f0;
+  --navy-input: #f4f7fb;
   --navy-dark:  #081529;
-  --teal:       #00aeef;
-  --teal-dk:    #0680c1;
+  --teal:       #0090c8;
+  --teal-dk:    #006fa0;
   --gold:       #fee01e;
   --gold-dk:    #e8c900;
-  --white:      #e8f2ff;
-  --muted:      #7da4cc;
-  --danger:     #e63946;
-  --success:    #27ae60;
-  --warn:       #f4a261;
-  --card:       #1a3260;
-  --border:     rgba(0,174,239,.18);
+  --white:      #1a2f5a;
+  --muted:      #4e6a8a;
+  --danger:     #d02f3a;
+  --success:    #1e7d3a;
+  --warn:       #c85500;
+  --card:       #ffffff;
+  --border:     rgba(26,50,96,.13);
   --radius:     12px;
   --radius-sm:  8px;
 
@@ -50,8 +50,8 @@ body {
   min-height: 100vh;
   overscroll-behavior: none;
   background-image:
-    radial-gradient(ellipse at 15% 0%, rgba(27,62,147,.35) 0%, transparent 55%),
-    radial-gradient(ellipse at 85% 100%, rgba(0,174,239,.08) 0%, transparent 50%);
+    radial-gradient(ellipse at 15% 0%, rgba(0,144,200,.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 85% 100%, rgba(26,50,96,.04) 0%, transparent 50%);
 }
 
 /* ── App Shell ──────────────────────────────────────────────── */
@@ -65,8 +65,8 @@ body {
 /* ── Header ─────────────────────────────────────────────────── */
 #appHeader {
   height: var(--header-h);
-  background: var(--navy-lt);
-  border-bottom: 1px solid var(--border);
+  background: #ffffff;
+  border-bottom: 1px solid rgba(26,50,96,.13);
   display: flex;
   align-items: center;
   padding: 0 14px;
@@ -74,6 +74,7 @@ body {
   flex-shrink: 0;
   position: relative;
   z-index: 10;
+  box-shadow: 0 1px 4px rgba(26,50,96,.07);
 }
 
 /* nav replaced by portal */
@@ -425,8 +426,8 @@ body {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 1px;
-  background: rgba(255,255,255,.1);
-  border: 1px solid rgba(255,255,255,.1);
+  background: rgba(26,50,96,.09);
+  border: 1px solid rgba(26,50,96,.1);
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 10px;
@@ -1145,6 +1146,17 @@ body {
 
 /* ── Login Screen ────────────────────────────────────────────── */
 #loginScreen {
+  /* Restore dark-theme variables so login always looks dark */
+  --navy:       #0f1f3d;
+  --navy-mid:   #1a3260;
+  --navy-lt:    #243d73;
+  --navy-input: #0d1b35;
+  --white:      #e8f2ff;
+  --muted:      #7da4cc;
+  --warn:       #f4a261;
+  --border:     rgba(0,174,239,.18);
+  --card:       #1a3260;
+
   position: fixed;
   inset: 0;
   background: var(--navy-dark);
@@ -1364,7 +1376,7 @@ body {
   gap: 5px;
   padding: 4px 10px 4px 7px;
   border-radius: 20px;
-  border: 1px solid rgba(255,255,255,.1);
+  border: 1px solid rgba(26,50,96,.12);
   background: transparent;
   color: var(--muted);
   font-family: 'Barlow', sans-serif;
@@ -1426,7 +1438,7 @@ body {
   transition: background .12s, border-color .12s;
   user-select: none;
 }
-.resource-check-item:hover { background: rgba(255,255,255,.06); }
+.resource-check-item:hover { background: rgba(26,50,96,.05); }
 
 /* Custom checkbox */
 .resource-check-item input[type="checkbox"] {
