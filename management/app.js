@@ -1,4 +1,4 @@
-const BUILD = '20260611.31';
+const BUILD = '20260611.32';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -157,16 +157,17 @@ async function _refreshToken() {
 
 async function _checkMembership() {
   const email = _session?.user?.email;
-  if (!email) return null;
+  if (!email) { console.warn('Auth: no email in session user', _session); return null; }
   try {
     const r = await fetch(
       `${SB_URL}/rest/v1/hub_members?email=eq.${encodeURIComponent(email)}&select=id,name,role`,
       { headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY, 'Authorization': 'Bearer ' + _session.access_token } }
     );
-    if (!r.ok) return null;
+    if (!r.ok) { console.warn('Auth: hub_members fetch failed', r.status, await r.text()); return null; }
     const rows = await r.json();
+    console.info('Auth: membership rows for', email, rows);
     return rows[0] || null;
-  } catch { return null; }
+  } catch (e) { console.warn('Auth: _checkMembership error', e); return null; }
 }
 
 async function _completeLogin(data) {
@@ -242,6 +243,13 @@ async function logout() {
   if (errEl)   errEl.classList.add('hidden');
 }
 
+function _jwtPayload(token) {
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(atob(b64 + '='.repeat((4 - b64.length % 4) % 4)));
+  } catch { return null; }
+}
+
 async function _initAuth() {
   // Handle Google OAuth redirect (tokens arrive in URL hash)
   const hash = window.location.hash;
@@ -254,12 +262,9 @@ async function _initAuth() {
       expires_in:    parseInt(params.get('expires_in') || '3600'),
       token_type:    params.get('token_type'),
     };
-    try {
-      const ur = await fetch(`${SB_URL}/auth/v1/user`, {
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + data.access_token }
-      });
-      if (ur.ok) data.user = await ur.json();
-    } catch {}
+    // Extract user directly from the JWT — no extra API call needed
+    data.user = _jwtPayload(data.access_token);
+    console.info('Auth: OAuth callback, user email:', data.user?.email);
     return _completeLogin(data);
   }
 
@@ -273,14 +278,9 @@ async function _initAuth() {
     if (!ok) return false;
   }
 
-  // Fetch user object if not stored (session predates this field)
+  // Ensure user email is available (parse from JWT if missing)
   if (!_session.user?.email) {
-    try {
-      const ur = await fetch(`${SB_URL}/auth/v1/user`, {
-        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + _session.access_token }
-      });
-      if (ur.ok) { _session = { ..._session, user: await ur.json() }; }
-    } catch {}
+    _session = { ..._session, user: _jwtPayload(_session.access_token) };
   }
 
   const member = await _checkMembership();
