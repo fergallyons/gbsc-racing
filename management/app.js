@@ -1,4 +1,4 @@
-const BUILD = '20260611.32';
+const BUILD = '20260611.33';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -157,17 +157,16 @@ async function _refreshToken() {
 
 async function _checkMembership() {
   const email = _session?.user?.email;
-  if (!email) { console.warn('Auth: no email in session user', _session); return null; }
+  if (!email) return null;
   try {
     const r = await fetch(
       `${SB_URL}/rest/v1/hub_members?email=eq.${encodeURIComponent(email)}&select=id,name,role`,
       { headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY, 'Authorization': 'Bearer ' + _session.access_token } }
     );
-    if (!r.ok) { console.warn('Auth: hub_members fetch failed', r.status, await r.text()); return null; }
+    if (!r.ok) return null;
     const rows = await r.json();
-    console.info('Auth: membership rows for', email, rows);
     return rows[0] || null;
-  } catch (e) { console.warn('Auth: _checkMembership error', e); return null; }
+  } catch { return null; }
 }
 
 async function _completeLogin(data) {
@@ -262,9 +261,7 @@ async function _initAuth() {
       expires_in:    parseInt(params.get('expires_in') || '3600'),
       token_type:    params.get('token_type'),
     };
-    // Extract user directly from the JWT — no extra API call needed
     data.user = _jwtPayload(data.access_token);
-    console.info('Auth: OAuth callback, user email:', data.user?.email);
     return _completeLogin(data);
   }
 
