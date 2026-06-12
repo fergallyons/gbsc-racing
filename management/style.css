@@ -838,6 +838,33 @@ body {
   word-break: break-word;
 }
 
+/* SOP doc link */
+.sop-doc-badge {
+  background: rgba(66,135,245,.15);
+  color: #4287f5;
+}
+.sop-doc-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(66,135,245,.12);
+  color: #4287f5;
+  border: 1px solid rgba(66,135,245,.3);
+  border-radius: var(--radius-sm);
+  font-size: .85rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .2s;
+}
+.sop-doc-link-btn:hover { background: rgba(66,135,245,.22); }
+
+.form-label-hint {
+  font-weight: 400;
+  font-size: .75rem;
+  opacity: .6;
+}
+
 /* ── Equipment Detail ────────────────────────────────────────── */
 .equip-detail-info {
   background: var(--navy-input);

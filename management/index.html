@@ -14,7 +14,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=34">
+  <link rel="stylesheet" href="style.css?v=35">
   <script src="/club-config.js"></script>
 </head>
 <body>
@@ -473,8 +473,12 @@
         </select>
       </div>
       <div class="form-group">
-        <label>Content *</label>
-        <textarea id="sopContent" rows="12" placeholder="Write the procedure here. Use numbered steps, blank lines between sections."></textarea>
+        <label>Document Link <span class="form-label-hint">(Google Drive, etc.)</span></label>
+        <input type="url" id="sopDocLink" placeholder="https://docs.google.com/...">
+      </div>
+      <div class="form-group">
+        <label>Content <span class="form-label-hint">(required if no document link)</span></label>
+        <textarea id="sopContent" rows="10" placeholder="Write the procedure here. Use numbered steps, blank lines between sections."></textarea>
       </div>
       <div id="sopError" class="form-error hidden"></div>
     </div>
@@ -495,6 +499,9 @@
     </div>
     <div class="modal-body">
       <div id="sopViewMeta" class="sop-meta"></div>
+      <div id="sopViewDocLink" class="hidden" style="margin:12px 0 4px">
+        <a id="sopViewDocAnchor" href="#" target="_blank" rel="noopener" class="sop-doc-link-btn">&#128196; Open Document &#8599;</a>
+      </div>
       <div id="sopViewContent" class="sop-content"></div>
     </div>
     <div class="modal-footer">
@@ -600,6 +607,6 @@
 <!-- Toast -->
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=34"></script>
+<script src="app.js?v=35"></script>
 </body>
 </html>

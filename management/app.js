@@ -1,4 +1,4 @@
-const BUILD = '20260611.34';
+const BUILD = '20260611.35';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -1297,7 +1297,10 @@ const App = {
                   <div class="item-card-title">${esc(sop.title)}</div>
                   ${eqName ? `<div class="item-card-meta">${esc(eqName)}</div>` : ''}
                 </div>
-                <span class="sop-cat-badge">${esc(catLabel(sop.category))}</span>
+                <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
+                  ${sop.doc_link ? `<span class="sop-cat-badge sop-doc-badge">&#128196; Doc</span>` : ''}
+                  <span class="sop-cat-badge">${esc(catLabel(sop.category))}</span>
+                </div>
               </div>
               <div class="item-card-meta" style="margin-top:4px">v${esc(sop.version||'1.0')} &bull; ${fmtDateShort(sop.updated_at||sop.created_at)}</div>
             </div>`;
@@ -1315,7 +1318,16 @@ const App = {
         `<span class="sop-cat-badge">${esc(catLabel(sop.category))}</span>` +
         (eqName ? `<span>${esc(eqName)}</span>` : '') +
         `<span>v${esc(sop.version||'1.0')}</span><span>Updated ${fmtDateShort(sop.updated_at||sop.created_at)}</span>`;
-      document.getElementById('sopViewContent').textContent = sop.content;
+      const docLinkEl = document.getElementById('sopViewDocLink');
+      if (sop.doc_link) {
+        document.getElementById('sopViewDocAnchor').href = sop.doc_link;
+        docLinkEl.classList.remove('hidden');
+      } else {
+        docLinkEl.classList.add('hidden');
+      }
+      const contentEl = document.getElementById('sopViewContent');
+      contentEl.textContent = sop.content || '';
+      contentEl.classList.toggle('hidden', !sop.content);
       openModal('sopViewModal');
     },
 
@@ -1329,6 +1341,7 @@ const App = {
       document.getElementById('sopCategory').value  = sop?.category || 'general';
       document.getElementById('sopVersion').value   = sop?.version || '1.0';
       document.getElementById('sopEquipment').value = sop?.equipment_id || '';
+      document.getElementById('sopDocLink').value   = sop?.doc_link || '';
       document.getElementById('sopContent').value   = sop?.content || '';
       document.getElementById('sopDeleteBtn').classList.toggle('hidden', !sop);
       document.getElementById('sopError').classList.add('hidden');
@@ -1339,17 +1352,19 @@ const App = {
       const id      = document.getElementById('sopId').value;
       const title   = document.getElementById('sopTitle').value.trim();
       const content = document.getElementById('sopContent').value.trim();
+      const docLink = document.getElementById('sopDocLink').value.trim();
       const errEl   = document.getElementById('sopError');
-      if (!title)   { showFormError(errEl, 'Title is required');   return; }
-      if (!content) { showFormError(errEl, 'Content is required'); return; }
+      if (!title)              { showFormError(errEl, 'Title is required');                  return; }
+      if (!content && !docLink){ showFormError(errEl, 'Add content or a document link');     return; }
       const now = new Date().toISOString();
       const payload = {
         title,
         category:     document.getElementById('sopCategory').value,
         version:      document.getElementById('sopVersion').value.trim() || '1.0',
         equipment_id: document.getElementById('sopEquipment').value || null,
-        content,
-        updated_at: now,
+        doc_link:     docLink || null,
+        content:      content || null,
+        updated_at:   now,
       };
       const result = id
         ? await sbPatch('hub_sop_documents','id=eq.'+id, payload)
