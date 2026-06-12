@@ -1,4 +1,4 @@
-const BUILD = '20260611.28';
+const BUILD = '20260611.29';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -15,15 +15,24 @@ const PORTAL_LINKS = [
 // Strip the class name prefix Halsail prepends to every race name.
 // e.g. "Cru E McSwiggans R1" → "McSwiggans R1", "Fireball Race 1" → "Race 1"
 function halRaceLabel(r) {
-  const base = r.Race.replace(/_/g, ' ').trim();
   if (r.Notes && r.Notes.trim()) return r.Notes.trim();
-  if (r.Class) {
-    const cls = r.Class.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
-    const re  = new RegExp('^' + cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i');
+  const base   = (r.Race   || '').replace(/_/g, ' ').trim();
+  const series = (r.Series || '').trim();
+  const cls    = (r.Class  || '').replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // Strip class prefix from race name if present (e.g. "Fireball Race 1" → "Race 1")
+  let racePart = base;
+  if (cls) {
+    const re = new RegExp('^' + cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+', 'i');
     const stripped = base.replace(re, '').trim();
-    if (stripped) return stripped;
+    if (stripped) racePart = stripped;
   }
-  return base;
+
+  // Use series name as primary label, appending race part when it adds info
+  if (series && racePart && series.toLowerCase() !== racePart.toLowerCase()) {
+    return series + ' – ' + racePart;
+  }
+  return series || racePart || base;
 }
 
 function halEventType(r) {
