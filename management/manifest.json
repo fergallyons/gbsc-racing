@@ -8,7 +8,7 @@
   "background_color": "#10213f",
   "theme_color": "#234d8c",
   "icons": [
-    { "src": "/logos/gbsc.jpg", "sizes": "any", "type": "image/jpeg" }
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ],
   "categories": ["sports", "utilities"]
 }
