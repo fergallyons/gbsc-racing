@@ -1,4 +1,4 @@
-const BUILD = '20260611.30';
+const BUILD = '20260611.31';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -1370,101 +1370,6 @@ const App = {
       showToast('SOP deleted','success');
     },
   },
-
-  // ── Post Update ───────────────────────────────────────────────
-  post: {
-    // All platforms use deep links / clipboard — no API credentials required.
-    // Blog posts are stored in hub_posts; social platforms open in a new tab.
-
-    openCompose() {
-      document.getElementById('postContent').value    = '';
-      document.getElementById('postImageUrl').value   = '';
-      document.getElementById('postImagePreview').classList.add('hidden');
-      document.getElementById('postImagePreview').innerHTML = '';
-      document.getElementById('postError').classList.add('hidden');
-      document.getElementById('postPlatformHint').textContent = '';
-      // Reset checkboxes — blog on by default
-      document.querySelectorAll('.postPlatformCheck').forEach(cb => {
-        cb.checked = cb.value === 'blog';
-      });
-      this._updatePlatformHints();
-      openModal('postModal');
-    },
-
-    _updatePlatformHints() {
-      const selected = [...document.querySelectorAll('.postPlatformCheck:checked')].map(cb => cb.value);
-      const hint     = document.getElementById('postPlatformHint');
-      const parts    = [];
-      if (selected.includes('facebook'))  parts.push('Facebook will open — message copied to clipboard.');
-      if (selected.includes('instagram')) parts.push('Instagram will open — message copied to clipboard.');
-      if (selected.includes('whatsapp'))  parts.push('WhatsApp will open with the message pre-filled.');
-      hint.textContent = parts.join(' ');
-    },
-
-    _previewImage() {
-      const url = document.getElementById('postImageUrl').value.trim();
-      const el  = document.getElementById('postImagePreview');
-      if (url) {
-        el.innerHTML = `<img src="${esc(url)}" alt="Preview" onerror="this.parentElement.classList.add('hidden')">`;
-        el.classList.remove('hidden');
-      } else {
-        el.classList.add('hidden');
-        el.innerHTML = '';
-      }
-    },
-
-    async _save(status) {
-      const content   = document.getElementById('postContent').value.trim();
-      const imageUrl  = document.getElementById('postImageUrl').value.trim() || null;
-      const platforms = [...document.querySelectorAll('.postPlatformCheck:checked')].map(cb => cb.value);
-      const errEl     = document.getElementById('postError');
-
-      errEl.classList.add('hidden');
-      if (!content)          { showFormError(errEl, 'Post content is required.'); return null; }
-      if (!platforms.length) { showFormError(errEl, 'Select at least one platform.'); return null; }
-
-      const rec = {
-        content,
-        image_url:  imageUrl,
-        platforms:  JSON.stringify(platforms),
-        status,
-        created_at: new Date().toISOString(),
-      };
-      const result = await sbPost('hub_posts', rec);
-      if (result?._err) { showFormError(errEl, result._err); return null; }
-      return { record: result, platforms };
-    },
-
-    async saveDraft() {
-      const saved = await this._save('draft');
-      if (!saved) return;
-      closeModal('postModal');
-      showToast('Draft saved', 'success');
-    },
-
-    async submit() {
-      const content  = document.getElementById('postContent').value.trim();
-      const saved    = await this._save('published');
-      if (!saved) return;
-      const { platforms } = saved;
-      closeModal('postModal');
-
-      const needsClipboard = platforms.includes('facebook') || platforms.includes('instagram');
-      if (needsClipboard) {
-        try { await navigator.clipboard.writeText(content); } catch {}
-      }
-      if (platforms.includes('facebook'))  window.open('https://www.facebook.com/', '_blank');
-      if (platforms.includes('instagram')) window.open('https://www.instagram.com/', '_blank');
-      if (platforms.includes('whatsapp'))  window.open('https://wa.me/?text=' + encodeURIComponent(content), '_blank');
-
-      const opened = ['facebook','instagram','whatsapp'].filter(p => platforms.includes(p))
-        .map(p => ({ facebook:'Facebook', instagram:'Instagram', whatsapp:'WhatsApp' }[p]));
-      const toastMsg = opened.length
-        ? (needsClipboard ? 'Message copied — ' : '') + opened.join(' & ') + ' opened ✓'
-        : 'Post saved ✓';
-      showToast(toastMsg, 'success');
-    },
-  },
 };
 
 // ── Modal helpers ──────────────────────────────────────────────
@@ -1617,13 +1522,6 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW reg failed', e));
 }
 
-// ── Post modal listeners ───────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('postImageUrl')
-    ?.addEventListener('input', () => App.post._previewImage());
-  document.querySelectorAll('.postPlatformCheck')
-    .forEach(cb => cb.addEventListener('change', () => App.post._updatePlatformHints()));
-});
 
 // ── Boot ───────────────────────────────────────────────────────
 App.init();
