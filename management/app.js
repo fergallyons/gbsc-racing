@@ -1,4 +1,4 @@
-const BUILD = '20260611.29';
+const BUILD = '20260611.30';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -80,12 +80,22 @@ if (!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have
 // ── Supabase (raw fetch — same pattern as gbsc.racing) ────────
 const SB_URL = _C.sbUrl || '';
 const SB_KEY = _C.sbKey || '';
-const SBH = { 'Content-Type': 'application/json', 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY };
+let _session = null;   // { access_token, refresh_token, expires_at, user }
+let _member  = null;   // { id, name, role } from hub_members
+const _SKEY  = 'gbsc_hub_session';
+
+function SBH() {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SB_KEY,
+    'Authorization': 'Bearer ' + (_session?.access_token || SB_KEY),
+  };
+}
 
 async function sb(path, opts = {}) {
   if (!SB_URL || !SB_KEY) return { _err: 'Supabase not configured' };
   try {
-    const r = await fetch(SB_URL + path, { headers: { ...SBH }, ...opts });
+    const r = await fetch(SB_URL + path, { headers: { ...SBH() }, ...opts });
     if (!r.ok) {
       const e = await r.text();
       // Table not found (PGRST205) or permission denied (42501) → treat as empty
@@ -108,14 +118,14 @@ async function sbGet(table, query) {
 async function sbPost(table, body) {
   return sb('/rest/v1/' + table, {
     method: 'POST',
-    headers: { ...SBH, 'Prefer': 'return=representation' },
+    headers: { ...SBH(), 'Prefer': 'return=representation' },
     body: JSON.stringify(body),
   });
 }
 async function sbPatch(table, query, body) {
   return sb('/rest/v1/' + table + '?' + query, {
     method: 'PATCH',
-    headers: { ...SBH, 'Prefer': 'return=minimal' },
+    headers: { ...SBH(), 'Prefer': 'return=minimal' },
     body: JSON.stringify(body),
   });
 }
@@ -123,59 +133,161 @@ async function sbDelete(table, query) {
   return sb('/rest/v1/' + table + '?' + query, { method: 'DELETE' });
 }
 
-// ── Auth ───────────────────────────────────────────────────────
-// Session-scoped: PIN unlocks for the browser session only.
-// On tab close / refresh the user must re-enter — intentional for a
-// committee-only tool that may be used on shared devices.
+// ── Auth (Supabase Auth + Google OAuth, whitelist via hub_members) ─
 
-let _pinEntry = '';
+function _saveSession(data) {
+  _session = { ...data, expires_at: Date.now() + (data.expires_in || 3600) * 1000 };
+  localStorage.setItem(_SKEY, JSON.stringify(_session));
+}
+function _clearSession() { _session = null; localStorage.removeItem(_SKEY); }
 
-function loginPinKey(k) {
-  if (k === 'C') { _pinEntry = ''; }
-  else if (k === 'DEL') { _pinEntry = _pinEntry.slice(0, -1); }
-  else if (_pinEntry.length < 4) { _pinEntry += k; }
-  updateLoginPinDisplay();
-  if (_pinEntry.length === 4) setTimeout(checkLoginPin, 120);
+async function _refreshToken() {
+  if (!_session?.refresh_token) return false;
+  try {
+    const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+      body: JSON.stringify({ refresh_token: _session.refresh_token }),
+    });
+    if (!r.ok) { _clearSession(); return false; }
+    _saveSession(await r.json());
+    return true;
+  } catch { return false; }
 }
 
-function updateLoginPinDisplay() {
-  for (let i = 0; i < 4; i++) {
-    document.getElementById('lpd' + i)?.classList.toggle('filled', i < _pinEntry.length);
-  }
+async function _checkMembership() {
+  const email = _session?.user?.email;
+  if (!email) return null;
+  try {
+    const r = await fetch(
+      `${SB_URL}/rest/v1/hub_members?email=eq.${encodeURIComponent(email)}&select=id,name,role`,
+      { headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY, 'Authorization': 'Bearer ' + _session.access_token } }
+    );
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return rows[0] || null;
+  } catch { return null; }
 }
 
-function checkLoginPin() {
-  const pin   = String(_C.adminPin || _C.managementPin || _C.hubPin || _C.roPin || '');
-  const errEl = document.getElementById('loginPinError');
-
-  if (!pin) {
-    errEl.textContent = 'No PIN configured — set adminPin in HUB_CONFIG env var';
-    errEl.classList.remove('hidden');
-    _pinEntry = ''; updateLoginPinDisplay();
-    return;
+async function _completeLogin(data) {
+  _saveSession(data);
+  const member = await _checkMembership();
+  if (!member) {
+    _clearSession();
+    _showLoginError('Your account is not authorised. Contact the club administrator.');
+    return false;
   }
-
-  if (_pinEntry === pin) {
-    sessionStorage.setItem('mgmt_auth', '1');
-    showApp();
-  } else {
-    errEl.classList.remove('hidden');
-    _pinEntry = ''; updateLoginPinDisplay();
-  }
+  _member = member;
+  showApp();
+  return true;
 }
 
 function showApp() {
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
 }
+function _showLoginError(msg) {
+  const el = document.getElementById('loginError');
+  if (el) { el.textContent = msg; el.classList.remove('hidden'); }
+}
 
-function logout() {
-  if (!confirm('Lock the app?')) return;
-  sessionStorage.removeItem('mgmt_auth');
+function signInWithGoogle() {
+  const redirectTo = window.location.origin + window.location.pathname;
+  window.location.href = `${SB_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectTo)}`;
+}
+
+async function doEmailSignIn() {
+  const email    = (document.getElementById('loginEmail')?.value || '').trim();
+  const password = document.getElementById('loginPassword')?.value || '';
+  const btn      = document.getElementById('loginBtn');
+  const errEl    = document.getElementById('loginError');
+  if (errEl) errEl.classList.add('hidden');
+  if (!email || !password) { _showLoginError('Email and password are required.'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+  try {
+    const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error_description || data.msg || 'Sign in failed');
+    await _completeLogin(data);
+  } catch (e) {
+    _showLoginError(e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+  }
+}
+
+async function logout() {
+  if (!confirm('Sign out?')) return;
+  try {
+    if (_session?.access_token) {
+      await fetch(`${SB_URL}/auth/v1/logout`, {
+        method: 'POST',
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + _session.access_token },
+      });
+    }
+  } catch {}
+  _clearSession();
+  _member = null;
   document.getElementById('loginScreen').classList.remove('hidden');
   document.getElementById('app').classList.add('hidden');
-  _pinEntry = ''; updateLoginPinDisplay();
-  document.getElementById('loginPinError').classList.add('hidden');
+  const emailEl = document.getElementById('loginEmail');
+  const passEl  = document.getElementById('loginPassword');
+  const errEl   = document.getElementById('loginError');
+  if (emailEl) emailEl.value = '';
+  if (passEl)  passEl.value  = '';
+  if (errEl)   errEl.classList.add('hidden');
+}
+
+async function _initAuth() {
+  // Handle Google OAuth redirect (tokens arrive in URL hash)
+  const hash = window.location.hash;
+  if (hash.includes('access_token=')) {
+    const params = new URLSearchParams(hash.slice(1));
+    window.history.replaceState(null, '', window.location.pathname);
+    const data = {
+      access_token:  params.get('access_token'),
+      refresh_token: params.get('refresh_token'),
+      expires_in:    parseInt(params.get('expires_in') || '3600'),
+      token_type:    params.get('token_type'),
+    };
+    try {
+      const ur = await fetch(`${SB_URL}/auth/v1/user`, {
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + data.access_token }
+      });
+      if (ur.ok) data.user = await ur.json();
+    } catch {}
+    return _completeLogin(data);
+  }
+
+  // Load existing session from localStorage
+  try { _session = JSON.parse(localStorage.getItem(_SKEY)); } catch { _session = null; }
+  if (!_session?.access_token) return false;
+
+  // Refresh token if expiring within 5 minutes
+  if ((_session.expires_at || 0) < Date.now() + 300_000) {
+    const ok = await _refreshToken();
+    if (!ok) return false;
+  }
+
+  // Fetch user object if not stored (session predates this field)
+  if (!_session.user?.email) {
+    try {
+      const ur = await fetch(`${SB_URL}/auth/v1/user`, {
+        headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + _session.access_token }
+      });
+      if (ur.ok) { _session = { ..._session, user: await ur.json() }; }
+    } catch {}
+  }
+
+  const member = await _checkMembership();
+  if (!member) { _clearSession(); return false; }
+  _member = member;
+  showApp();
+  return true;
 }
 
 // ── State ──────────────────────────────────────────────────────
@@ -191,7 +303,8 @@ const State = {
 const App = {
 
   async init() {
-    if (sessionStorage.getItem('mgmt_auth') === '1') showApp();
+    const authed = await _initAuth();
+    if (!authed) return;
 
     await Promise.all([App.cal.load(), App.maint.load(), App.sops.load()]);
 
@@ -325,7 +438,7 @@ const App = {
 
         const result = await sb('/rest/v1/hub_events?on_conflict=halsail_race_id', {
           method:  'POST',
-          headers: { ...SBH, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+          headers: { ...SBH(), 'Prefer': 'resolution=merge-duplicates,return=minimal' },
           body:    JSON.stringify(events),
         });
         if (result?._err) throw new Error(result._err);

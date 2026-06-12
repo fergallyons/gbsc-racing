@@ -1217,62 +1217,86 @@ body {
   margin-bottom: 28px;
 }
 
-/* ── PIN display ─────────────────────────────────────────────── */
-.pin-display {
+/* ── Auth form ───────────────────────────────────────────────── */
+.auth-form {
+  width: 100%;
   display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-bottom: 12px;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
 }
-
-.pin-dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid var(--muted);
-  transition: background .15s, border-color .15s;
+.auth-form input[type="email"],
+.auth-form input[type="password"] {
+  width: 100%;
+  padding: 11px 14px;
+  background: var(--navy-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  font-size: .95rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s;
+  box-sizing: border-box;
 }
-.pin-dot.filled {
-  background: var(--teal);
-  border-color: var(--teal);
-  box-shadow: 0 0 8px rgba(0,174,239,.5);
-}
-
-.pin-error {
-  text-align: center;
+.auth-form input:focus { border-color: var(--teal); }
+.auth-form input::placeholder { color: var(--muted); }
+.login-error {
   color: var(--danger);
   font-size: .82rem;
   font-weight: 600;
-  margin-bottom: 10px;
-  min-height: 1.2em;
+  text-align: center;
+  padding: 2px 0;
 }
-.pin-error.hidden { visibility: hidden; }
-
-/* ── Numpad ──────────────────────────────────────────────────── */
-.numpad {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+.login-error.hidden { display: none; }
+.btn-signin {
   width: 100%;
-}
-
-.numpad-btn {
-  aspect-ratio: 1;
-  background: var(--navy-lt);
-  border: 1px solid var(--border);
-  color: var(--white);
+  padding: 11px;
+  background: var(--teal);
+  color: #fff;
+  border: none;
   border-radius: var(--radius-sm);
-  font-size: 1.3rem;
-  font-weight: 600;
+  font-size: .95rem;
+  font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
-  transition: background .15s, transform .08s;
-  -webkit-tap-highlight-color: transparent;
-  width: 100%;
+  transition: opacity .15s;
 }
-.numpad-btn:hover { background: var(--navy-mid); }
-.numpad-btn:active { background: var(--navy-mid); transform: scale(.95); }
-.numpad-clear { font-size: .8rem; letter-spacing: .05em; color: var(--warn); }
-.numpad-del { font-size: 1.2rem; color: var(--muted); }
+.btn-signin:hover { opacity: .88; }
+.btn-signin:disabled { opacity: .5; cursor: not-allowed; }
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: .75rem;
+}
+.auth-divider::before,
+.auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.btn-google {
+  width: 100%;
+  padding: 10px 14px;
+  background: #fff;
+  color: #3c4043;
+  border: 1px solid #dadce0;
+  border-radius: var(--radius-sm);
+  font-size: .9rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background .15s;
+}
+.btn-google:hover { background: #f8f9fa; }
+.login-help {
+  margin-top: 20px;
+  font-size: .72rem;
+  color: var(--muted);
+  text-align: center;
+}
 
 /* ── Toast ───────────────────────────────────────────────────── */
 .toast {
