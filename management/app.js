@@ -1,4 +1,4 @@
-const BUILD = '20260611.33';
+const BUILD = '20260611.34';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -315,7 +315,7 @@ const App = {
     if (bid) bid.textContent = 'build ' + BUILD;
   },
 
-  navigate(view) {
+  navigate(view, _noHistory = false) {
     const isPortal = view === 'portal';
     const viewMap  = { portal:'portalView', calendar:'calendarView', events:'eventsView', maintenance:'maintenanceView', sops:'sopsView' };
     const addMap   = { calendar:'hAddCal', events:'hAddCal', maintenance:'hAddMaint', sops:'hAddSops' };
@@ -326,6 +326,10 @@ const App = {
     if (!isPortal) document.getElementById('headerSectionTitle').textContent = titleMap[view] || view;
     document.querySelectorAll('.h-add-group').forEach(g => g.classList.add('hidden'));
     if (!isPortal) document.getElementById(addMap[view])?.classList.remove('hidden');
+    if (!_noHistory) {
+      if (isPortal) window.history.replaceState({ view: 'portal' }, '', window.location.pathname);
+      else          window.history.pushState({ view }, '', '#' + view);
+    }
     State.view = view;
     if (isPortal) App.renderPortal();
   },
@@ -653,7 +657,6 @@ const App = {
     },
 
     async _loadResourceList(startDate, endDate, currentEventId) {
-      await this._loadCorsizioBookings();
       const container = document.getElementById('evtResourceList');
       const bookable = (App.maint.equipment || []).filter(eq => ['rib','safety_boat','dinghy'].includes(eq.type));
       if (!bookable.length) {
@@ -1519,6 +1522,11 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW reg failed', e));
 }
 
+
+// ── Back-button navigation ─────────────────────────────────────
+window.addEventListener('popstate', e => {
+  App.navigate(e.state?.view || 'portal', true);
+});
 
 // ── Boot ───────────────────────────────────────────────────────
 App.init();
