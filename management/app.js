@@ -1,4 +1,4 @@
-const BUILD = '20260611.27';
+const BUILD = '20260611.28';
 
 const PORTAL_LINKS = [
   { name: 'gbsc.ie',        desc: 'Club website',          icon: '⚓', color: '#00aeef', bg: 'rgba(0,174,239,.12)',    url: 'https://www.gbsc.ie'                        },
@@ -289,6 +289,7 @@ const App = {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const raw = await r.json();
         if (!Array.isArray(raw)) throw new Error(raw.error || 'Unexpected response from Halsail');
+        if (raw.length) console.info('Halsail sample:', JSON.stringify(raw[0]));
 
         // One event per RaceID — Halsail returns duplicate entries per scoring class
         const seen = new Set();
