@@ -150,12 +150,13 @@ async function sbLoadRaceRecords(key){
   const r=await sbFetch('/rest/v1/race_records?race_key=eq.'+encodeURIComponent(key)+'&order=submitted_at.asc');
   return Array.isArray(r)?r:[];
 }
-// Auto-save race record when all selected crew have paid — replaces manual Submit
+// Save race record whenever payment state changes — keeps total_paid accurate
+// even when payments are partially collected or reversed
 function autoSaveRaceRecord(){
   const race=selectedRace||nextRace;
   if(!race||!currentBoat) return;
   const s=roster.filter(p=>p.selected);
-  if(!s.length||!s.every(p=>p.paid)) return;
+  if(!s.length) return;
   const tot=s.reduce((a,p)=>a+fee(p),0);
   const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
   const byMethod={};
@@ -2024,7 +2025,7 @@ function toggleSel(id){
     }
   }
 }
-function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid){p.paid=false;p.payMethod='';p.payNote='';renderCrew();toast(p.first+' marked unpaid');}else openPNSheet(id);}
+function togglePaid(id){const p=roster.find(r=>r.id===id);if(!p)return;if(p.paid){p.paid=false;p.payMethod='';p.payNote='';renderCrew();autoSaveRaceRecord();toast(p.first+' marked unpaid');}else openPNSheet(id);}
 
 // add crew
 function onCrewTypeChange(){const t=document.getElementById('cf-type').value;document.getElementById('cf-joinGrp').style.display=t==='crew'?'flex':'none';document.getElementById('cf-outGrp').style.display=t==='visitor'?'flex':'none';}
