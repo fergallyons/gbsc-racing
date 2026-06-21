@@ -3918,7 +3918,7 @@ async function spPickBoat(boatId){
   if(titleEl) titleEl.textContent='👤 Who Are You?';
   if(body) body.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem">Loading crew…</div>`;
   const crewList=await sbLoadCrew(boatId);
-  selfPayState.loadedCrew=crewList||[];
+  selfPayState.loadedCrew=(crewList||[]).sort((a,b)=>((a.last||'')+' '+(a.first||'')).localeCompare((b.last||'')+' '+(b.first||''),'en'));
   // Guard: user may have navigated away
   if(selfPayState.step===1&&document.getElementById('selfPayPanel')?.classList.contains('open')){
     if(body) body.innerHTML=spStep1();
