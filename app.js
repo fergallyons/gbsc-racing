@@ -735,10 +735,11 @@ function getNextRace(){
   // Priority 4: last race of season (off-season fallback)
   if(!allRaces.length) return null;
   const now=new Date();
-  const WINDOW_MS=48*3600*1000;
-  const upcoming=allRaces.find(r=>r.date>now&&r.date-now<=WINDOW_MS);
+  const UPCOMING_MS=48*3600*1000; // show upcoming race up to 48h before start
+  const LINGER_MS=24*3600*1000;   // stay on past race for 24h after start
+  const upcoming=allRaces.find(r=>r.date>now&&r.date-now<=UPCOMING_MS);
   if(upcoming) return upcoming;
-  const recent=[...allRaces].reverse().find(r=>r.date<=now&&now-r.date<=WINDOW_MS);
+  const recent=[...allRaces].reverse().find(r=>r.date<=now&&now-r.date<=LINGER_MS);
   if(recent) return recent;
   const next=allRaces.find(r=>r.date>now);
   if(next) return next;
@@ -1940,7 +1941,7 @@ function renderCrew(){
   const sel=roster.filter(p=>p.selected);
   document.getElementById('crewCount').textContent=sel.length+' selected';
   if(!roster.length){list.innerHTML='<div class="empty-state"><div class="icon">👥</div>No crew yet — add people below</div>';updateTotals();return;}
-  roster.forEach(p=>{
+  [...roster].sort((a,b)=>((a.last||'')+' '+(a.first||'')).localeCompare((b.last||'')+' '+(b.first||''),'en')).forEach(p=>{
     const warn=over(p)||vmax(p)||vnr(p);
     const c=document.createElement('div');
     c.className='crew-card'+(p.selected?' selected':'')+(warn?' warn-flag':'');
@@ -2820,7 +2821,7 @@ async function openRaceFeesPanel(){
 
 function renderRaceFeesPanel(){
   const body=document.getElementById('raceFeesBody'); if(!body)return;
-  const sel=roster.filter(p=>p.selected);
+  const sel=roster.filter(p=>p.selected).sort((a,b)=>((a.last||'')+' '+(a.first||'')).localeCompare((b.last||'')+' '+(b.first||''),'en'));
   const unpaid=sel.filter(p=>!p.paid);
   const outstanding=unpaid.reduce((a,p)=>a+fee(p),0);
   const race=(selectedRace||nextRace)?.label||'Race';
@@ -3417,6 +3418,14 @@ function openWeatherPanel(){
   loadRaceWeather();
 }
 
+// Hard timeout on fetch() so weather panel can't hang indefinitely when a
+// server is slow or unreachable.
+function fetchWithTimeout(url,ms=10000,opts={}){
+  const ctrl=new AbortController();
+  const id=setTimeout(()=>ctrl.abort(),ms);
+  return fetch(url,{...opts,signal:ctrl.signal}).finally(()=>clearTimeout(id));
+}
+
 async function loadRaceWeather(){
   const body=document.getElementById('weatherBody'); if(!body) return;
 
@@ -3446,17 +3455,17 @@ async function loadRaceWeather(){
     const cacheCoversRace=c&&c.wx&&c.wx.hourly&&c.wx.hourly.time&&
       c.wx.hourly.time[c.wx.hourly.time.length-1]>=raceTs;
     // Only use cache if tides were successfully fetched; re-fetch if tides is null
-    if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.tides!=null){ renderWeather(c.wx,c.tides); return; }
+    if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.tides!=null){ try{renderWeather(c.wx,c.tides);}catch(e){console.warn('renderWeather(cache):',e);renderWeather(null,null);} return; }
     if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.wx){
       // wx is cached, fresh, and covers race date — only re-fetch tides
       const tides=await fetchTideData();
       try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:c.ts,wx:c.wx,tides})); }catch(e){}
-      renderWeather(c.wx,tides); return;
+      try{renderWeather(c.wx,tides);}catch(e){console.warn('renderWeather(cache+tides):',e);renderWeather(null,null);} return;
     }
   }catch(e){}
   const [wx,tides]=await Promise.all([fetchOpenMeteo(),fetchTideData()]);
   try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
-  renderWeather(wx,tides);
+  try{renderWeather(wx,tides);}catch(e){console.warn('renderWeather:',e);renderWeather(null,null);}
 }
 
 async function fetchOpenMeteo(){
@@ -3477,7 +3486,7 @@ async function fetchOpenMeteo(){
   // Only use if race is within 2 days; otherwise go straight to the longer-range model
   if(forecastDays<=2){
     try{
-      const r=await fetch(base+'&models=meteofrance_arome_france&forecast_days=2');
+      const r=await fetchWithTimeout(base+'&models=meteofrance_arome_france&forecast_days=2',10000);
       if(r.ok){
         const data=await r.json();
         if(data.hourly&&data.hourly.time&&data.hourly.time.length){
@@ -3490,12 +3499,12 @@ async function fetchOpenMeteo(){
   }
   // Open-Meteo default best-match model — ICON-EU for Ireland, covers up to 7 days
   try{
-    const r=await fetch(base+'&forecast_days='+forecastDays); if(!r.ok) return null;
+    const r=await fetchWithTimeout(base+'&forecast_days='+forecastDays,10000); if(!r.ok) return null;
     const data=await r.json();
     data._model='ICON-EU (DWD, 7 km)';
     data._fetchedAt=Date.now();
     return data;
-  }catch(e){ return null; }
+  }catch(e){ console.warn('fetchOpenMeteo:',e); return null; }
 }
 
 async function fetchTideData(){
@@ -3509,15 +3518,16 @@ async function fetchTideData(){
     try{
       const url='https://www.worldtides.info/api/v3?extremes&lat='+(_C.startLat||GBSC_LAT)+'&lon='+(_C.startLng||GBSC_LNG)
         +'&key='+encodeURIComponent(key)+'&days=3&stationDistance=50';
-      const r=await fetch(url); if(!r.ok) throw new Error(r.status);
+      const r=await fetchWithTimeout(url,10000); if(!r.ok) throw new Error(r.status);
       const data=await r.json();
       try{ localStorage.setItem('__race_tides__',JSON.stringify({ts:Date.now(),src:'wt',data})); }catch(e){}
       return data;
-    }catch(e){ /* fall through to Open-Meteo */ }
+    }catch(e){ /* fall through to IMI ERDDAP */ }
   }
   // Irish Marine Institute ERDDAP (free, no key, authoritative Irish state predictions)
   // Dataset: IMI_TidePrediction_HighLow — station and datum offset are club-configurable
   // Heights in metres above OD Malin Head; add tideOdmOffset to get Chart Datum (LAT) heights
+  // Routed through a Netlify proxy to avoid CORS restrictions on erddap.marine.ie
   try{
     const c=JSON.parse(localStorage.getItem('__race_tides__')||'null');
     if(c&&c.src==='imi'&&Date.now()-c.ts<43200000) return c.data;
@@ -3530,15 +3540,13 @@ async function fetchTideData(){
     const toStr=to.toISOString().split('.')[0]+'Z';
     const tideStation=_C.tideStation||_C.short||'Local';
     const odmOffset=_C.tideOdmOffset!==undefined?_C.tideOdmOffset:2.95;
-    const url='https://erddap.marine.ie/erddap/tabledap/IMI_TidePrediction_HighLow.json'
-      +'?stationID,time,tide_time_category,Water_Level_ODMalin'
-      +'&stationID=%22'+encodeURIComponent(tideStation)+'%22'
-      +'&time%3E='+fromStr
-      +'&time%3C'+toStr
-      +'&orderBy(%22time%22)';
-    const r=await fetch(url); if(!r.ok) return null;
+    const proxyUrl='/.netlify/functions/tides'
+      +'?from='+encodeURIComponent(fromStr)
+      +'&to='+encodeURIComponent(toStr)
+      +'&station='+encodeURIComponent(tideStation);
+    const r=await fetchWithTimeout(proxyUrl,12000); if(!r.ok) return null;
     const json=await r.json();
-    if(!json.table||!json.table.rows) return null;
+    if(!json.table||!json.table.rows||!json.table.rows.length) return null;
     const cols=json.table.columnNames;
     const ti=cols.indexOf('time'), ci=cols.indexOf('tide_time_category'), hi=cols.indexOf('Water_Level_ODMalin');
     const extremes=json.table.rows.map(row=>({
@@ -3625,13 +3633,15 @@ function renderWeather(wx,tides){
   const cond=wxCondition(code);
   const bfCol=wxBfColour(bf.f);
   const trendStr=wxPressureTrend(wx.hourly.surface_pressure,idx);
-  // Sunset: find daily entry matching race date
+  // Sunset: find daily entry matching race date.
+  // Open-Meteo daily.time with timezone=Europe/Dublin is midnight local time;
+  // toISOString() gives UTC which is the previous day during BST. Use local
+  // date methods instead to match the correct day.
   let sunsetStr='—';
   if(wx.daily&&wx.daily.sunset){
-    const raceDayStr=raceDate.toISOString().split('T')[0];
-    const di=(wx.daily.time||[]).findIndex(t=>{
-      return new Date(t*1000).toISOString().split('T')[0]===raceDayStr;
-    });
+    const localDateStr=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const raceDayStr=localDateStr(raceDate);
+    const di=(wx.daily.time||[]).findIndex(t=>localDateStr(new Date(t*1000))===raceDayStr);
     if(di>=0&&wx.daily.sunset[di]){
       sunsetStr=new Date(wx.daily.sunset[di]*1000).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
     }
@@ -3908,7 +3918,7 @@ async function spPickBoat(boatId){
   if(titleEl) titleEl.textContent='👤 Who Are You?';
   if(body) body.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem">Loading crew…</div>`;
   const crewList=await sbLoadCrew(boatId);
-  selfPayState.loadedCrew=crewList||[];
+  selfPayState.loadedCrew=(crewList||[]).sort((a,b)=>((a.last||'')+' '+(a.first||'')).localeCompare((b.last||'')+' '+(b.first||''),'en'));
   // Guard: user may have navigated away
   if(selfPayState.step===1&&document.getElementById('selfPayPanel')?.classList.contains('open')){
     if(body) body.innerHTML=spStep1();
