@@ -1941,7 +1941,7 @@ function renderCrew(){
   const sel=roster.filter(p=>p.selected);
   document.getElementById('crewCount').textContent=sel.length+' selected';
   if(!roster.length){list.innerHTML='<div class="empty-state"><div class="icon">👥</div>No crew yet — add people below</div>';updateTotals();return;}
-  roster.forEach(p=>{
+  [...roster].sort((a,b)=>(a.first+' '+a.last).localeCompare(b.first+' '+b.last)).forEach(p=>{
     const warn=over(p)||vmax(p)||vnr(p);
     const c=document.createElement('div');
     c.className='crew-card'+(p.selected?' selected':'')+(warn?' warn-flag':'');
@@ -2821,7 +2821,7 @@ async function openRaceFeesPanel(){
 
 function renderRaceFeesPanel(){
   const body=document.getElementById('raceFeesBody'); if(!body)return;
-  const sel=roster.filter(p=>p.selected);
+  const sel=roster.filter(p=>p.selected).sort((a,b)=>(a.first+' '+a.last).localeCompare(b.first+' '+b.last));
   const unpaid=sel.filter(p=>!p.paid);
   const outstanding=unpaid.reduce((a,p)=>a+fee(p),0);
   const race=(selectedRace||nextRace)?.label||'Race';
