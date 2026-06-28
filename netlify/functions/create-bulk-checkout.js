@@ -44,9 +44,9 @@ exports.handler = async (event) => {
   }
   for (const it of items) {
     if (!it || typeof it.name !== 'string' || !it.name ||
-        !Number.isInteger(it.amount_cents) || it.amount_cents <= 0 ||
+        !Number.isInteger(it.amount_cents) || it.amount_cents < 0 ||
         !Number.isInteger(it.quantity) || it.quantity <= 0) {
-      return json(400, { error: 'each item needs name, amount_cents (int>0), quantity (int>0)' });
+      return json(400, { error: 'each item needs name, amount_cents (int>=0), quantity (int>0)' });
     }
   }
   if (typeof returnUrl !== 'string' || !/^https?:\/\//.test(returnUrl)) {
