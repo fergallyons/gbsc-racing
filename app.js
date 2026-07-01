@@ -695,16 +695,13 @@ async function patchRaceTimesFromHalsail(){
   // Rebuild nextRace and refresh public view
   const prevNextRace=nextRace;
   nextRace=getNextRace();
-  const el=document.getElementById('guestDashRaceName');
-  const mel=document.getElementById('guestDashMeta');
-  const tel=document.getElementById('guestDashTime');
-  if(el&&nextRace) el.textContent=nextRace.label;
-  if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
-  if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-  const guestEyebrow=document.getElementById('guestRaceEyebrow');
-  if(guestEyebrow&&nextRace) guestEyebrow.textContent=getRaceEyebrow(nextRace);
-  const raceEl=document.getElementById('loginRaceLabel');
-  if(raceEl&&nextRace) raceEl.textContent=getRaceEyebrow(nextRace)+': '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  // Don't stomp an active cancellation banner with the normal race display —
+  // updateGuestDashCancellation() already renders the correct state either way.
+  updateGuestDashCancellation();
+  if(!cancelledTodayRace){
+    const raceEl=document.getElementById('loginRaceLabel');
+    if(raceEl&&nextRace) raceEl.textContent=getRaceEyebrow(nextRace)+': '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  }
 
   // If the patch changed which race is "current", re-render the registration list —
   // buildBoatGrid() may have already run with the pre-patch nextRace (e.g. Saturday)
