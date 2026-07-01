@@ -1,9 +1,15 @@
-// Netlify function: lists files from the GBSC public Google Drive folder
+// Netlify function: lists files from a club's public Google Drive folder.
+// Club is resolved from the request hostname via HOSTNAME_MAP (see _club.js),
+// then its folder is read from DRIVE_FOLDER_ID_<SLUG>, falling back to the
+// bare DRIVE_FOLDER_ID var (GBSC's folder, kept as the default for
+// backwards compatibility).
 // Caches for 5 minutes at the CDN layer to avoid hammering the Drive API
 
-const FOLDER_ID = '1yA-fKQ_FBswOEMXdeOFIiZ7Oys_jRJ5Q';
+const { clubEnv } = require('./_club');
 
-exports.handler = async () => {
+const DEFAULT_FOLDER_ID = '1yA-fKQ_FBswOEMXdeOFIiZ7Oys_jRJ5Q'; // GBSC
+
+exports.handler = async (event) => {
   const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
   if (!apiKey) {
     return {
@@ -11,6 +17,7 @@ exports.handler = async () => {
       body: JSON.stringify({ error: 'GOOGLE_DRIVE_API_KEY not configured' })
     };
   }
+  const FOLDER_ID = clubEnv(event, 'DRIVE_FOLDER_ID') || DEFAULT_FOLDER_ID;
 
   try {
     const url =

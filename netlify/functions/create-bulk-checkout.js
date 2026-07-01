@@ -3,8 +3,11 @@
 //
 // Setup:
 //   Netlify → Site configuration → Environment variables → Add variable:
-//   Key:   STRIPE_SECRET_KEY
+//   Key:   STRIPE_SECRET_KEY               (default/GBSC)
+//          STRIPE_SECRET_KEY_<SLUG>         (per-club override, e.g. STRIPE_SECRET_KEY_RCYC)
 //   Value: sk_live_…  (grab from https://dashboard.stripe.com/apikeys)
+//   Club is resolved from the request hostname via HOSTNAME_MAP, same as club-config.js —
+//   see netlify/functions/_club.js.
 //
 // Request (POST, JSON):
 //   {
@@ -23,11 +26,13 @@
 //   500 { error: "stripe error" }
 //   503 { error: "STRIPE_SECRET_KEY not configured" }
 
+const { clubEnv } = require('./_club');
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return json(405, { error: 'POST only' });
   }
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key = clubEnv(event, 'STRIPE_SECRET_KEY');
   if (!key) {
     return json(503, { error: 'STRIPE_SECRET_KEY not configured' });
   }
