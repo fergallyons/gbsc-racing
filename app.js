@@ -30,6 +30,10 @@ if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have 
   if(sl) sl.textContent = short + ' Racing';
   const fn = document.getElementById('clubFullName');
   if(fn) fn.textContent = name;
+  const nsTitle = document.getElementById('newSailorsPanelTitle');
+  if(nsTitle) nsTitle.textContent = '⛵ New to ' + short + ' Racing';
+  const nsCta = document.getElementById('newSailorCtaTitle');
+  if(nsCta) nsCta.textContent = '⛵ New to ' + short + ' Racing?';
   // Optional club colour theme — overrides --teal CSS variable
   if(_C.primaryColor){
     document.documentElement.style.setProperty('--teal', _C.primaryColor);
@@ -480,6 +484,7 @@ const FEAT_TILE_MAP={
   results:        ['tile-pub-results'],
   crewWanted:     ['tile-sk-crewWanted','tile-pub-crewWanted'],
   crewAvailable:  ['tile-sk-crewAvailable','tile-pub-crewAvailable'],
+  newSailors:     ['tile-pub-newSailors'],
   // Additive-only tiles (hidden by default, DB turns them on)
   courseCard:     ['roCourseCardTile'],
 };
@@ -494,7 +499,7 @@ const FEAT_DEFAULTS={
   courseCard:false,
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
-  crewWanted:true, crewAvailable:true,
+  crewWanted:true, crewAvailable:true, newSailors:true,
 };
 // Feature catalog for the admin panel UI (rendered by renderFeaturesPanel).
 const FEAT_CATALOG=[
@@ -526,6 +531,7 @@ const FEAT_CATALOG=[
   {key:'results',    label:'Results',     type:'bool', group:'Public Tiles'},
   {key:'crewWanted',    label:'Crew Wanted',    type:'bool', group:'Public Tiles'},
   {key:'crewAvailable', label:'Available Crew',  type:'bool', group:'Public Tiles'},
+  {key:'newSailors',    label:'New Sailors CTA', type:'bool', group:'Public Tiles'},
 ];
 function liftVeil(){
   const v=document.getElementById('appVeil');
@@ -1875,9 +1881,10 @@ function renderNewSailorsPanel(){
   const fRace=FEES.crew||4;
   const fStu=FEES.student||5;
   const fKid=FEES.kid||0;
+  const short=_C.short||'GBSC';
   el.innerHTML=`
     <div style="margin-bottom:20px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;font-weight:700;color:var(--white);margin-bottom:6px">New to GBSC Racing? ⛵</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;font-weight:700;color:var(--white);margin-bottom:6px">New to ${short} Racing? ⛵</div>
       <div style="font-size:.85rem;color:var(--muted);line-height:1.55">Anyone can race with the club. Here's the journey from your first outing to full membership.</div>
     </div>
 

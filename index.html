@@ -334,7 +334,7 @@
 <div class="panel-overlay" id="newSailorsPanel" style="display:none">
   <div class="panel-header">
     <button class="panel-back" onclick="closePanel('newSailorsPanel')">‹</button>
-    <span class="panel-title">⛵ New to GBSC Racing</span>
+    <span class="panel-title" id="newSailorsPanelTitle">⛵ New to GBSC Racing</span>
   </div>
   <div class="panel-body" id="newSailersPanelBody"></div>
 </div>
@@ -533,8 +533,8 @@
     <div style="font-size:.78rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em;flex-shrink:0">Visit →</div>
   </a>
   <!-- New sailors CTA -->
-  <button class="new-sailor-cta" onclick="openPanel('newSailorsPanel')">
-    <span>⛵ New to GBSC Racing?</span>
+  <button class="new-sailor-cta" id="tile-pub-newSailors" onclick="openPanel('newSailorsPanel')">
+    <span id="newSailorCtaTitle">⛵ New to GBSC Racing?</span>
     <span class="new-sailor-cta-sub">Find out how to join →</span>
   </button>
   <!-- 2-column tile grid -->
