@@ -7145,8 +7145,8 @@ function buildMarksMgrList(){
       `</div>`+
       `<div style="display:flex;align-items:center;gap:5px">`+
         `<button onclick="toggleMarkActive('${m.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
-        (m.active?'border:1px solid var(--border);background:transparent;color:var(--muted)':'border:1px solid var(--teal);background:transparent;color:var(--teal)')+`">`+
-        (m.active?'Off':'On')+`</button>`+
+        (m.active?'border:1px solid var(--teal);background:transparent;color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)')+`">`+
+        (m.active?'On':'Off')+`</button>`+
         `<button onclick="openEditMark('${m.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
         `<button onclick="deleteMark('${m.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
       `</div>`;
@@ -7285,8 +7285,8 @@ function buildLinesMgrList(){
       `</div>`+
       `<div style="display:flex;align-items:center;gap:5px">`+
         `<button onclick="toggleLineActive('${l.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
-        (!inactive?'border:1px solid var(--border);background:transparent;color:var(--muted)':'border:1px solid var(--teal);background:transparent;color:var(--teal)')+`">`+
-        (!inactive?'Off':'On')+`</button>`+
+        (!inactive?'border:1px solid var(--teal);background:transparent;color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)')+`">`+
+        (!inactive?'On':'Off')+`</button>`+
         `<button onclick="openEditLine('${l.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
         `<button onclick="deleteLine('${l.id}')" ${l.isDefault?'disabled':''} style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer;${l.isDefault?'opacity:.35;cursor:not-allowed':''}">🗑</button>`+
       `</div>`;
