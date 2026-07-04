@@ -31,6 +31,7 @@
   --ro:#fee01e;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
+html{color-scheme:dark;}
 body{font-family:'Barlow',sans-serif;background:var(--navy);color:var(--white);min-height:100vh;
   background-image:
     radial-gradient(ellipse at 15% 0%,rgba(27,62,147,.35) 0%,transparent 55%),
