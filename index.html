@@ -54,16 +54,16 @@
 <div class="overlay" id="loginSheet">
   <div class="sheet" style="max-height:85vh;overflow-y:auto">
     <div class="sheet-handle"></div>
-    <div class="sheet-title" style="margin-bottom:4px">⛵ Boat Login</div>
+    <div class="sheet-title-row">
+      <div class="sheet-title" style="margin-bottom:0">⛵ Boat Login</div>
+      <div class="ro-btn" onclick="openPinOverlay('ro')">
+        <div class="ro-btn-icon">🎌</div>
+        <div class="ro-btn-text">Race Officer</div>
+      </div>
+    </div>
     <div id="loginRaceLabel" style="font-size:.8rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;margin-bottom:10px;text-align:center;min-height:14px"></div>
     <div class="login-label">Select your boat</div>
     <div class="boat-grid" id="boatGrid"></div>
-    <div style="margin-top:8px">
-      <div class="ro-btn" onclick="openPinOverlay('ro')">
-        <div class="ro-btn-icon">🎌</div>
-        <div class="ro-btn-text">Race Officer Login</div>
-      </div>
-    </div>
     <button class="btn btn-ghost" style="width:100%;padding:12px;margin-top:12px" onclick="closeSheet('loginSheet')">Close</button>
   </div>
 </div>
