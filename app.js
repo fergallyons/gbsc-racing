@@ -6373,7 +6373,7 @@ function roShowForceRegForm(){
   // Populate with boats not yet registered
   const unregistered=boats.filter(b=>!registeredBoatIds.has(b.id));
   if(!unregistered.length){toast('All boats are already registered');return;}
-  sel.innerHTML=unregistered.map(b=>`<option value="${b.id}">${b.icon} ${b.name}</option>`).join('');
+  sel.innerHTML=unregistered.map(b=>`<option value="${b.id}" style="background:var(--navy-input);color:var(--white)">${b.icon} ${b.name}</option>`).join('');
   btn.style.display='none';
   form.style.display='block';
 }
