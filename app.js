@@ -7951,21 +7951,61 @@ function _ensureStartSeqAudio(){
   }catch(e){}
 }
 
+// Synthesized air-horn — three detuned sawtooth layers (fundamental, a close
+// detune, and a fifth up) give it the buzzy/brassy beating of a real air horn,
+// a fast pitch "spin-up" mimics the horn building pressure, a slow tremolo LFO
+// adds the characteristic warble, and a compressor glues the layers together
+// without harsh clipping. No external audio file — can't fail to load mid-race.
 function playStartHorn(isStart){
   try{
     _ensureStartSeqAudio();
     const ctx=_startSeqAudioCtx;
-    const dur=isStart?1.1:0.6;
-    const osc=ctx.createOscillator();
-    const gain=ctx.createGain();
-    osc.type='square';
-    osc.frequency.value=isStart?880:660;
-    gain.gain.setValueAtTime(0,ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.25,ctx.currentTime+0.02);
-    gain.gain.setValueAtTime(0.25,ctx.currentTime+dur-0.05);
-    gain.gain.linearRampToValueAtTime(0,ctx.currentTime+dur);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(); osc.stop(ctx.currentTime+dur);
+    const now=ctx.currentTime;
+    const dur=isStart?1.4:0.9;
+    const baseFreq=isStart?233:196;
+
+    const master=ctx.createGain();
+    master.gain.setValueAtTime(0,now);
+    master.connect(ctx.destination);
+
+    const comp=ctx.createDynamicsCompressor();
+    comp.threshold.value=-18; comp.knee.value=12; comp.ratio.value=8;
+    comp.attack.value=0.003; comp.release.value=0.15;
+    comp.connect(master);
+
+    // Amplitude tremolo — the buzzy "beat" of an air horn
+    const tremolo=ctx.createGain();
+    tremolo.gain.value=1;
+    const lfo=ctx.createOscillator();
+    lfo.frequency.value=9;
+    const lfoGain=ctx.createGain();
+    lfoGain.gain.value=0.18;
+    lfo.connect(lfoGain); lfoGain.connect(tremolo.gain);
+    tremolo.connect(comp);
+
+    // Gentle lowpass to warm the raw sawtooth edge
+    const filter=ctx.createBiquadFilter();
+    filter.type='lowpass';
+    filter.frequency.value=2200;
+    filter.Q.value=0.7;
+    filter.connect(tremolo);
+
+    [1,1.006,1.5].forEach((mult,i)=>{
+      const osc=ctx.createOscillator();
+      osc.type='sawtooth';
+      const freq=baseFreq*mult;
+      osc.frequency.setValueAtTime(freq*0.85,now);
+      osc.frequency.exponentialRampToValueAtTime(freq,now+0.08);
+      const oscGain=ctx.createGain();
+      oscGain.gain.value=i===2?0.35:0.55;
+      osc.connect(oscGain); oscGain.connect(filter);
+      osc.start(now); osc.stop(now+dur+0.05);
+    });
+    lfo.start(now); lfo.stop(now+dur+0.05);
+
+    master.gain.linearRampToValueAtTime(0.35,now+0.04);
+    master.gain.setValueAtTime(0.35,now+dur-0.08);
+    master.gain.linearRampToValueAtTime(0,now+dur);
   }catch(e){}
 }
 
