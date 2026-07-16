@@ -34,6 +34,10 @@ if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have 
   if(nsTitle) nsTitle.textContent = '⛵ New to ' + short + ' Racing';
   const nsCta = document.getElementById('newSailorCtaTitle');
   if(nsCta) nsCta.textContent = '⛵ New to ' + short + ' Racing?';
+  const hcTile = document.getElementById('handicapsTileLabel');
+  if(hcTile) hcTile.textContent = short + ' Handicaps';
+  const hcTitle = document.getElementById('handicapsPanelTitle');
+  if(hcTitle) hcTitle.textContent = '📐 ' + short + ' Handicaps';
   // Optional club colour theme — overrides --teal CSS variable
   if(_C.primaryColor){
     document.documentElement.style.setProperty('--teal', _C.primaryColor);
@@ -485,6 +489,7 @@ const FEAT_TILE_MAP={
   crewWanted:     ['tile-sk-crewWanted','tile-pub-crewWanted'],
   crewAvailable:  ['tile-sk-crewAvailable','tile-pub-crewAvailable'],
   newSailors:     ['tile-pub-newSailors'],
+  handicaps:      ['tile-pub-handicaps'],
   // Additive-only tiles (hidden by default, DB turns them on)
   courseCard:     ['roCourseCardTile'],
 };
@@ -499,7 +504,7 @@ const FEAT_DEFAULTS={
   courseCard:false,
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
-  crewWanted:true, crewAvailable:true, newSailors:true,
+  crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
 };
 // Feature catalog for the admin panel UI (rendered by renderFeaturesPanel).
 const FEAT_CATALOG=[
@@ -532,6 +537,7 @@ const FEAT_CATALOG=[
   {key:'crewWanted',    label:'Crew Wanted',    type:'bool', group:'Public Tiles'},
   {key:'crewAvailable', label:'Available Crew',  type:'bool', group:'Public Tiles'},
   {key:'newSailors',    label:'New Sailors CTA', type:'bool', group:'Public Tiles'},
+  {key:'handicaps',     label:'Handicaps (ECHO/IRC)', type:'bool', group:'Public Tiles'},
 ];
 function liftVeil(){
   const v=document.getElementById('appVeil');
@@ -5180,6 +5186,85 @@ async function generatePaymentReport(){
 //   "Notice of Race…"       → NOR, shown under its own section
 //   Anything else           → shown as a general document
 
+// ═══════════════════════════════════════════════════════════════
+// HANDICAPS — ECHO/IRC ratings from Irish Sailing, cross-referenced
+// against the club's own boats to flag any with no current rating.
+// ═══════════════════════════════════════════════════════════════
+let _handicapsLoaded=false;
+function normBoatName(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+
+async function loadHandicaps(){
+  const body=document.getElementById('handicapsBody');
+  if(!body||_handicapsLoaded) return;
+  body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading ratings from Irish Sailing…</div></div>';
+  try{
+    const clubName=_C.name||'Galway Bay Sailing Club';
+    const res=await fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName));
+    const data=await res.json();
+    if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
+    _handicapsLoaded=true;
+    renderHandicaps(data.boats||[],data.fetchedAt);
+  }catch(e){
+    body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⚠</div><div>Could not load ratings — '+escHtml(String(e.message||e)).slice(0,80)+'</div></div>';
+  }
+}
+
+function renderHandicaps(nationalBoats,fetchedAt){
+  const body=document.getElementById('handicapsBody');
+  if(!body) return;
+  const byNorm={};
+  nationalBoats.forEach(b=>{ byNorm[normBoatName(b.boatName)]=b; });
+
+  const rows=boats.map(b=>{
+    const match=byNorm[normBoatName(b.name)];
+    return {boat:b, match, found:!!match};
+  }).sort((a,b)=>a.boat.name.localeCompare(b.boat.name));
+  const missing=rows.filter(r=>!r.found);
+
+  const summaryHtml=`<div style="display:flex;gap:10px;margin-bottom:16px">
+    <div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--white)">${rows.length}</div>
+      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Boats</div>
+    </div>
+    <div style="flex:1;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">${rows.length-missing.length}</div>
+      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Rated</div>
+    </div>
+    ${missing.length?`<div style="flex:1;background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.3);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">${missing.length}</div>
+      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">No Rating</div>
+    </div>`:''}
+  </div>`;
+
+  const rowsHtml=rows.length?rows.map(r=>{
+    const echo=r.match&&r.match.echo?r.match.echo:'';
+    const irc=r.match&&r.match.ircTCC?r.match.ircTCC:'';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);${!r.found?'background:rgba(230,57,70,.05);margin:0 -4px;padding-left:4px;padding-right:4px;border-radius:6px':''}">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.88rem;font-weight:700;color:${r.found?'var(--white)':'var(--danger)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.boat.name)}</div>
+        ${r.match?`<div style="font-size:.72rem;color:var(--muted)">${escHtml(r.match.model||'')}${r.match.sailNo?' · '+escHtml(r.match.sailNo):''}</div>`:''}
+      </div>
+      ${r.found?`
+        <div style="text-align:right;flex-shrink:0;min-width:52px">
+          <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">ECHO</div>
+          <div style="font-size:.85rem;font-weight:700;color:${echo?'var(--white)':'var(--muted)'}">${echo||'—'}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;min-width:52px">
+          <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">IRC</div>
+          <div style="font-size:.85rem;font-weight:700;color:${irc?'var(--white)':'var(--muted)'}">${irc||'—'}</div>
+        </div>`
+      :`<div style="text-align:right;flex-shrink:0">
+          <div style="font-size:.78rem;font-weight:700;color:var(--danger)">⚠ No rating found</div>
+        </div>`}
+    </div>`;
+  }).join(''):'<div style="text-align:center;padding:24px 0;color:var(--muted);font-size:.85rem">No boats registered yet.</div>';
+
+  body.innerHTML=summaryHtml+
+    `<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Boats (${rows.length})</div>`+
+    rowsHtml+
+    `<div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing's list automatically — a mismatch here may just mean a naming difference, not a missing certificate.<br>Source: Irish Sailing ECHO/IRC Ratings${fetchedAt?' · Updated '+new Date(fetchedAt).toLocaleDateString('en-IE'):''}</div>`;
+}
+
 async function loadAndRenderDocs(){
   const el=document.getElementById('docsList'); if(!el) return;
   const noticeboardUrl=(_C.noticeboardUrl||'').trim();
@@ -7688,10 +7773,10 @@ async function printProtest(protestId){
   <div class="section">
     <div class="section-head">${PRINT_META.incidentHead}</div>
     <div class="section-body">
-      <div class="two-col" style="margin-bottom:12px">
+      ${(PROTEST_TYPE_META[type]||PROTEST_TYPE_META.protest).showWhereWhen?`<div class="two-col" style="margin-bottom:12px">
         <div class="field"><div class="field-label">Where did the incident occur?</div><div class="field-value">${p.incident_where}</div></div>
         <div class="field"><div class="field-label">Approximate time</div><div class="field-value">${p.incident_time}</div></div>
-      </div>
+      </div>`:''}
       <div class="field"><div class="field-label">Description</div>
         <div class="field-value" style="background:#f5f8ff;border:1px solid #dde4f0;border-radius:4px;padding:10px;white-space:pre-wrap;line-height:1.6">${p.description}</div>
       </div>
@@ -7775,6 +7860,7 @@ const PROTEST_TYPE_META={
     protesteeLabel:'Boat being protested',
     showProtestee:true,
     protesteeRequired:true,
+    showWhereWhen:true,
     descLabel:'Description of incident',
     showFlagHail:true,
     rulesSection:'rules',
@@ -7788,6 +7874,7 @@ const PROTEST_TYPE_META={
     protesteeLabel:'Boat / committee concerned (optional)',
     showProtestee:true,
     protesteeRequired:false,
+    showWhereWhen:true,
     descLabel:'Description of what happened',
     showFlagHail:false,
     rulesSection:'redress',
@@ -7801,6 +7888,7 @@ const PROTEST_TYPE_META={
     protesteeLabel:'Boat concerned',
     showProtestee:false,
     protesteeRequired:false,
+    showWhereWhen:false,
     descLabel:'Describe the scoring issue',
     showFlagHail:false,
     rulesSection:'none',
@@ -7820,6 +7908,7 @@ function setProtestType(type){
   document.getElementById('pr-sheet-sub').textContent=meta.sub;
   document.getElementById('pr-protestee-group').style.display=meta.showProtestee?'block':'none';
   document.getElementById('pr-protestee-label').textContent=meta.protesteeLabel;
+  document.getElementById('pr-where-when-row').style.display=meta.showWhereWhen?'grid':'none';
   document.getElementById('pr-description-label').textContent=meta.descLabel;
   document.getElementById('pr-flag-hail-row').style.display=meta.showFlagHail?'grid':'none';
   document.getElementById('pr-rules-section').style.display=meta.rulesSection==='rules'?'block':'none';
@@ -7879,15 +7968,15 @@ function toggleRule(btn,rule){
 async function submitProtest(){
   const meta=PROTEST_TYPE_META[prType];
   const protesteeId=meta.showProtestee?document.getElementById('pr-protestee').value:'';
-  const where=document.getElementById('pr-where').value.trim();
-  const time=document.getElementById('pr-time').value;
+  const where=meta.showWhereWhen?document.getElementById('pr-where').value.trim():'';
+  const time=meta.showWhereWhen?document.getElementById('pr-time').value:'';
   const description=document.getElementById('pr-description').value.trim();
   const flagDisplayed=meta.showFlagHail&&document.getElementById('pr-flag').dataset.active==='1';
   const protestHailed=meta.showFlagHail&&document.getElementById('pr-hail').dataset.active==='1';
   const rulesBroken=Array.from(document.querySelectorAll('.pr-rule-btn.active')).map(b=>b.dataset.rule||b.textContent.trim());
 
   if(meta.protesteeRequired&&!protesteeId){toast('Select the boat you are protesting');return;}
-  if(!where){toast('Enter where the incident occurred');return;}
+  if(meta.showWhereWhen&&!where){toast('Enter where the incident occurred');return;}
   if(!description){toast('Describe what happened');return;}
   if(meta.rulesRequired&&rulesBroken.length===0){toast(prType==='redress'?'Select at least one ground for redress':'Select at least one rule');return;}
 
@@ -7961,8 +8050,8 @@ async function loadProtests(){
         </div>
       </div>
       ${isRO?`<div style="font-size:.75rem;color:var(--teal);font-weight:700;margin-bottom:6px">${p.race_name} · ${filedDate}</div>`:''}
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">📍 ${p.incident_where} · ⏱ ${p.incident_time} · Filed ${filedAt}</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${p.flag_displayed?'🚩 Flag displayed':'⚠ No flag'} · ${p.protest_hailed?'📣 Hailed':'⚠ Not hailed'}</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${(PROTEST_TYPE_META[type]||PROTEST_TYPE_META.protest).showWhereWhen?`📍 ${p.incident_where} · ⏱ ${p.incident_time} · `:''}Filed ${filedAt}</div>
+      ${(PROTEST_TYPE_META[type]||PROTEST_TYPE_META.protest).showFlagHail?`<div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${p.flag_displayed?'🚩 Flag displayed':'⚠ No flag'} · ${p.protest_hailed?'📣 Hailed':'⚠ Not hailed'}</div>`:''}
       <div style="font-size:.78rem;color:var(--teal);margin-bottom:8px">${rules}</div>
       <div style="font-size:.82rem;color:var(--white);margin-bottom:12px;line-height:1.4">${p.description}</div>
       <div style="border-top:1px solid var(--border);padding-top:10px">

@@ -488,6 +488,17 @@
   </div>
 </div><!-- /docsPanel -->
 
+<!-- ═══ PANEL: HANDICAPS (ECHO / IRC ratings) ═══ -->
+<div class="panel-overlay" id="handicapsPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('handicapsPanel')">‹</button>
+    <span class="panel-title" id="handicapsPanelTitle">📐 GBSC Handicaps</span>
+  </div>
+  <div class="panel-body" id="handicapsBody">
+    <div class="empty-state"><div class="icon">📐</div><div>Loading ratings…</div></div>
+  </div>
+</div><!-- /handicapsPanel -->
+
 <!-- ═══ TAB: REGISTERED BOATS (Guest Dashboard) ═══ -->
 <div class="tab-wrap" id="registeredTab">
   <div class="view-title view-title--crew">Crew</div>
@@ -568,6 +579,11 @@
       <div class="dash-card-icon">📄</div>
       <div class="dash-card-label">Documents</div>
       <div class="dash-card-sub">Sailing instructions</div>
+    </div>
+    <div id="tile-pub-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
+      <div class="dash-card-icon">📐</div>
+      <div class="dash-card-label" id="handicapsTileLabel">GBSC Handicaps</div>
+      <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
     </div>
     <div id="tile-pub-crewWanted" class="dash-card" onclick="openCrewWantedPanel()">
       <div class="dash-card-icon">🔍</div>
@@ -1633,7 +1649,7 @@
       </select>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+    <div id="pr-where-when-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
       <div class="form-group">
         <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Where</label>
         <input type="text" id="pr-where" placeholder="e.g. Rounding Black Rock" style="margin-top:6px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;outline:none;box-sizing:border-box;">
