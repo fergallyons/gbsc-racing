@@ -610,30 +610,35 @@
 </div><!-- /registeredTab -->
 
 <!-- Start Sequence — full-screen flag/countdown display, readable from a distance -->
-<div id="startSeqOverlay" style="display:none;position:fixed;inset:0;background:var(--navy-dark);z-index:1000;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;">
-  <button onclick="closeStartSeq()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--white);border-radius:8px;padding:8px 16px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;">✕ Close</button>
+<div id="startSeqOverlay" style="display:none;position:fixed;inset:0;background:var(--navy-dark);z-index:1000;flex-direction:column;">
+  <button onclick="closeStartSeq()" style="position:absolute;top:16px;right:16px;z-index:2;background:rgba(255,255,255,.1);border:1px solid var(--border);color:var(--white);border-radius:8px;padding:8px 16px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;">✕ Close</button>
 
-  <div id="startSeqEmpty" style="display:none;color:var(--muted)">
+  <div id="startSeqEmpty" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted)">
     <div style="font-size:3rem;margin-bottom:14px">🚦</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;color:var(--white)">No start sequence armed</div>
     <div style="font-size:.9rem;margin-top:8px">Ask the Race Officer to set the start time</div>
   </div>
 
-  <div id="startSeqBody" style="display:none">
-    <div id="startSeqPhaseLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:12px"></div>
-    <div id="startSeqClock" style="font-family:'Barlow Condensed',sans-serif;font-size:5.5rem;font-weight:800;color:var(--white);line-height:1;letter-spacing:.02em;font-variant-numeric:tabular-nums"></div>
-    <div id="startSeqClockLabel" style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:6px;margin-bottom:32px"></div>
-    <div style="display:flex;gap:28px;justify-content:center;align-items:flex-end;min-height:96px">
-      <div id="startSeqPrepFlagWrap" style="display:none;text-align:center">
-        <div id="startSeqPrepFlag" style="width:90px;height:60px;border-radius:4px;margin:0 auto 8px;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
-        <div id="startSeqPrepLabel" style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700"></div>
+  <div id="startSeqBody" style="display:none;flex-direction:column;height:100%">
+    <!-- Top third — phase + countdown -->
+    <div style="flex:0 0 36%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;border-bottom:1px solid var(--border);flex-shrink:0">
+      <div id="startSeqPhaseLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:8px"></div>
+      <div id="startSeqClock" style="font-family:'Barlow Condensed',sans-serif;font-size:5.2rem;font-weight:800;color:var(--white);line-height:1;letter-spacing:.02em;font-variant-numeric:tabular-nums"></div>
+      <div id="startSeqClockLabel" style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:6px"></div>
+    </div>
+    <!-- Bottom two-thirds — flag columns -->
+    <div style="flex:1;display:flex;min-height:0">
+      <div id="startSeqFlagsEmpty" style="flex:1;display:none;align-items:center;justify-content:center;color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:.04em"></div>
+      <div id="startSeqPrepFlagWrap" style="flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;padding:16px;border-right:1px solid var(--border)">
+        <div id="startSeqPrepFlag" style="width:100%;max-width:220px;aspect-ratio:3/2;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.5);position:relative;overflow:hidden"></div>
+        <div id="startSeqPrepLabel" style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:14px"></div>
       </div>
-      <div id="startSeqClassFlagWrap" style="display:none;text-align:center">
-        <div id="startSeqClassFlag" style="width:90px;height:60px;border-radius:4px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:2.1rem;font-weight:800;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
-        <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700">Class Flag</div>
+      <div id="startSeqClassFlagWrap" style="flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;padding:16px">
+        <div id="startSeqClassFlag" style="width:100%;max-width:220px;aspect-ratio:3/2;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.5);position:relative;overflow:hidden"></div>
+        <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:14px">Class Flag</div>
       </div>
     </div>
-    <div id="startSeqNote" style="margin-top:28px;font-size:.8rem;color:var(--warn);max-width:340px;line-height:1.5"></div>
+    <div id="startSeqNote" style="font-size:.8rem;color:var(--warn);text-align:center;padding:14px 24px;line-height:1.5;flex-shrink:0"></div>
   </div>
 </div>
 

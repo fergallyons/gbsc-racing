@@ -7855,10 +7855,10 @@ function tickStartSeq(){
   const empty=document.getElementById('startSeqEmpty');
   const body=document.getElementById('startSeqBody');
   if(!_startSeqActive){
-    empty.style.display='block'; body.style.display='none';
+    empty.style.display='flex'; body.style.display='none';
     return;
   }
-  empty.style.display='none'; body.style.display='block';
+  empty.style.display='none'; body.style.display='flex';
 
   const secsToStart=(new Date(_startSeqActive.start_time).getTime()-Date.now())/1000;
   const phase=getStartPhase(secsToStart);
@@ -7879,40 +7879,68 @@ function tickStartSeq(){
 
   const classWrap=document.getElementById('startSeqClassFlagWrap');
   if(phase.showClass){
-    classWrap.style.display='block';
-    const el=document.getElementById('startSeqClassFlag');
-    el.style.background=CLASS_FLAG_COLOURS[_startSeqActive.class_flag]||'#00aeef';
-    el.textContent=_startSeqActive.class_flag;
+    classWrap.style.display='flex';
+    renderClassFlagGraphic(_startSeqActive.class_flag);
   } else {
     classWrap.style.display='none';
   }
 
   const prepWrap=document.getElementById('startSeqPrepFlagWrap');
   if(phase.showPrep){
-    prepWrap.style.display='block';
+    prepWrap.style.display='flex';
     renderPrepFlagGraphic(_startSeqActive.flag_system);
     document.getElementById('startSeqPrepLabel').textContent=_startSeqActive.flag_system+' Flag';
   } else {
     prepWrap.style.display='none';
   }
 
+  const flagsEmpty=document.getElementById('startSeqFlagsEmpty');
+  if(!phase.showClass&&!phase.showPrep){
+    flagsEmpty.style.display='flex';
+    flagsEmpty.textContent=phase.phase==='waiting'?'Flags will appear at the Warning Signal':'🏁 Racing';
+  } else {
+    flagsEmpty.style.display='none';
+  }
+
   document.getElementById('startSeqNote').textContent=
     (phase.phase==='prep'||phase.phase==='onemin')?(START_FLAG_NOTES[_startSeqActive.flag_system]||''):'';
 }
+
+// International code flag colours (approximate standard maritime signal shades)
+const FLAG_BLUE='#0033a0', FLAG_RED='#c8102e';
 
 function renderPrepFlagGraphic(system){
   const el=document.getElementById('startSeqPrepFlag');
   el.style.border='';
   if(system==='P'){
-    el.style.background='#0033a0';
-    el.innerHTML='<div style="width:54%;height:54%;background:#fff;margin:23% auto"></div>';
+    // Blue Peter — blue field, white rectangle inset (not touching the edges)
+    el.style.background=FLAG_BLUE;
+    el.innerHTML='<div style="position:absolute;inset:20% 30%;background:#fff"></div>';
   } else if(system==='U'){
-    el.style.background='#e63946';
-    el.innerHTML='<div style="width:44%;height:44%;background:#fff;margin:28% auto"></div>';
+    // Uniform — red field, white square inset
+    el.style.background=FLAG_RED;
+    el.innerHTML='<div style="position:absolute;inset:22% 34%;background:#fff"></div>';
   } else {
     el.style.background='#0a0a0a';
     el.style.border='2px solid rgba(255,255,255,.35)';
     el.innerHTML='';
+  }
+}
+
+function renderClassFlagGraphic(classFlag){
+  const el=document.getElementById('startSeqClassFlag');
+  el.style.border='';
+  if(classFlag==='E'){
+    // International Code Flag "Echo" — blue over red, split horizontally
+    el.style.background='';
+    el.innerHTML=
+      '<div style="position:absolute;inset:0 0 50% 0;background:'+FLAG_BLUE+'"></div>'+
+      '<div style="position:absolute;inset:50% 0 0 0;background:'+FLAG_RED+'"></div>';
+  } else {
+    // Numeral class flags aren't standardised the same way — solid colour + bold number
+    el.style.background=CLASS_FLAG_COLOURS[classFlag]||FLAG_BLUE;
+    el.innerHTML='<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;'
+      +'font-family:\'Barlow Condensed\',sans-serif;font-weight:800;color:#fff;font-size:min(9vw,3.4rem)">'+escHtml(classFlag)+'</div>';
   }
 }
 
