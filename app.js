@@ -2496,28 +2496,30 @@ async function openROClubSettings(){
   // not potentially stale in-memory state
   const fresh=await sbLoadClubSettings();
   if(fresh) { clubSettings=fresh; try{localStorage.setItem('__club_settings__',JSON.stringify(fresh));}catch(e){} }
-  document.getElementById('ro-stripe-member').value=clubSettings.stripe_link_member||'';
-  document.getElementById('ro-stripe-student').value=clubSettings.stripe_link_student||'';
-  document.getElementById('ro-stripe-visitor').value=clubSettings.stripe_link_visitor||'';
-  document.getElementById('ro-pre-race-window').value=clubSettings.pre_race_window_hours||12;
-  document.getElementById('ro-estella-url').value=clubSettings.estella_url||'';
-  document.getElementById('ro-results-url').value=clubSettings.results_url||'';
-  document.getElementById('ro-worldtides-key').value=clubSettings.worldtides_key||'';
-  document.getElementById('ro-revolut-user').value=clubSettings.ro_revolut_user||'';
+  const setVal=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
+  setVal('ro-stripe-member',clubSettings.stripe_link_member||'');
+  setVal('ro-stripe-student',clubSettings.stripe_link_student||'');
+  setVal('ro-stripe-visitor',clubSettings.stripe_link_visitor||'');
+  setVal('ro-pre-race-window',clubSettings.pre_race_window_hours||12);
+  setVal('ro-estella-url',clubSettings.estella_url||'');
+  setVal('ro-results-url',clubSettings.results_url||'');
+  setVal('ro-worldtides-key',clubSettings.worldtides_key||'');
+  setVal('ro-revolut-user',clubSettings.ro_revolut_user||'');
   document.getElementById('roClubSettingsSheet').classList.add('open');
 }
 function saveROClubSettings(){
-  const windowHours=parseInt(document.getElementById('ro-pre-race-window').value)||12;
+  const getVal=(id)=>(document.getElementById(id)?.value||'').trim();
+  const windowHours=parseInt(getVal('ro-pre-race-window'))||12;
 
   // For each stripe link: use the typed value if non-empty,
   // otherwise keep the existing saved value — never overwrite with blank
-  const memberVal =document.getElementById('ro-stripe-member').value.trim();
-  const studentVal=document.getElementById('ro-stripe-student').value.trim();
-  const visitorVal=document.getElementById('ro-stripe-visitor').value.trim();
-  const estellaVal=document.getElementById('ro-estella-url').value.trim();
-  const resultsUrlVal=document.getElementById('ro-results-url').value.trim();
-  const tidesKeyVal=document.getElementById('ro-worldtides-key').value.trim();
-  const roRevolutVal=document.getElementById('ro-revolut-user').value.trim().replace(/^@/,'');
+  const memberVal =getVal('ro-stripe-member');
+  const studentVal=getVal('ro-stripe-student');
+  const visitorVal=getVal('ro-stripe-visitor');
+  const estellaVal=getVal('ro-estella-url');
+  const resultsUrlVal=getVal('ro-results-url');
+  const tidesKeyVal=getVal('ro-worldtides-key');
+  const roRevolutVal=getVal('ro-revolut-user').replace(/^@/,'');
 
   saveClubStripeLinks({
     stripe_link_member:   memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'',
