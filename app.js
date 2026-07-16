@@ -2501,6 +2501,7 @@ async function openROClubSettings(){
   document.getElementById('ro-stripe-visitor').value=clubSettings.stripe_link_visitor||'';
   document.getElementById('ro-pre-race-window').value=clubSettings.pre_race_window_hours||12;
   document.getElementById('ro-estella-url').value=clubSettings.estella_url||'';
+  document.getElementById('ro-results-url').value=clubSettings.results_url||'';
   document.getElementById('ro-worldtides-key').value=clubSettings.worldtides_key||'';
   document.getElementById('ro-revolut-user').value=clubSettings.ro_revolut_user||'';
   document.getElementById('roClubSettingsSheet').classList.add('open');
@@ -2514,6 +2515,7 @@ function saveROClubSettings(){
   const studentVal=document.getElementById('ro-stripe-student').value.trim();
   const visitorVal=document.getElementById('ro-stripe-visitor').value.trim();
   const estellaVal=document.getElementById('ro-estella-url').value.trim();
+  const resultsUrlVal=document.getElementById('ro-results-url').value.trim();
   const tidesKeyVal=document.getElementById('ro-worldtides-key').value.trim();
   const roRevolutVal=document.getElementById('ro-revolut-user').value.trim().replace(/^@/,'');
 
@@ -2523,13 +2525,16 @@ function saveROClubSettings(){
     stripe_link_visitor:  visitorVal !==''?visitorVal :clubSettings.stripe_link_visitor||'',
     pre_race_window_hours: windowHours,
     estella_url: estellaVal,
+    results_url: resultsUrlVal,
     worldtides_key: tidesKeyVal,
     ro_revolut_user: roRevolutVal,
   });
   clubSettings.pre_race_window_hours=windowHours;
   clubSettings.estella_url=estellaVal;
+  clubSettings.results_url=resultsUrlVal;
   clubSettings.worldtides_key=tidesKeyVal;
   clubSettings.ro_revolut_user=roRevolutVal;
+  _C.resultsUrl=resultsUrlVal;
   updateEstellaLink();
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
