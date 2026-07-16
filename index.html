@@ -1617,11 +1617,17 @@
 <div class="overlay" id="protestSheet">
   <div class="sheet" style="max-height:90vh;overflow-y:auto">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🚩 File a Protest</div>
-    <div style="font-size:.75rem;color:var(--muted);margin-bottom:14px">Under RRS Rule 61.2 — must be submitted within 2 hours of the last boat finishing.</div>
+    <div class="sheet-title" id="pr-sheet-title">🚩 File a Protest</div>
+
+    <div style="display:flex;gap:6px;margin-bottom:12px">
+      <button class="pr-type-btn active" id="pr-type-protest" onclick="setProtestType('protest')">🚩 Protest</button>
+      <button class="pr-type-btn" id="pr-type-redress" onclick="setProtestType('redress')">⚖ Redress</button>
+      <button class="pr-type-btn" id="pr-type-scoring_enquiry" onclick="setProtestType('scoring_enquiry')">📊 Scoring Enquiry</button>
+    </div>
+    <div style="font-size:.75rem;color:var(--muted);margin-bottom:14px" id="pr-sheet-sub">Under RRS Rule 61.2 — must be submitted within 2 hours of the last boat finishing.</div>
 
     <div class="form-group" style="margin-bottom:12px">
-      <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Boat being protested</label>
+      <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase" id="pr-protestee-label">Boat being protested</label>
       <select id="pr-protestee" style="margin-top:6px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;outline:none;">
         <option value="">Select boat…</option>
       </select>
@@ -1638,7 +1644,7 @@
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+    <div id="pr-flag-hail-row" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div onclick="toggleProtest('pr-flag')" id="pr-flag"
         style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;
         border:1px solid var(--border);background:var(--navy);cursor:pointer;transition:all .15s">
@@ -1653,21 +1659,34 @@
       </div>
     </div>
 
-    <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Rules alleged broken</div>
-    <div id="pr-rules" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
-      <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 10 — Port/Starboard')">Rule 10 Port/Stbd</button>
-      <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 11 — Windward/Leeward')">Rule 11 W/L</button>
-      <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 12 — Clear Astern/Ahead')">Rule 12 Astern</button>
-      <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 13 — Tacking')">Rule 13 Tacking</button>
-      <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 15 — Acquiring ROW')">Rule 15 ROW</button>
-      <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 16 — Changing Course')">Rule 16 Course</button>
-      <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 18 — Mark Room')">Rule 18 Mark Room</button>
-      <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 31 — Touching a Mark')">Rule 31 Mark</button>
-      <button class="pr-rule-btn" onclick="toggleRule(this,'Other')">Other</button>
+    <div id="pr-rules-section">
+      <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Rules alleged broken</div>
+      <div id="pr-rules" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 10 — Port/Starboard')">Rule 10 Port/Stbd</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 11 — Windward/Leeward')">Rule 11 W/L</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 12 — Clear Astern/Ahead')">Rule 12 Astern</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 13 — Tacking')">Rule 13 Tacking</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 15 — Acquiring ROW')">Rule 15 ROW</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 16 — Changing Course')">Rule 16 Course</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 18 — Mark Room')">Rule 18 Mark Room</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Rule 31 — Touching a Mark')">Rule 31 Mark</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Other')">Other</button>
+      </div>
+    </div>
+
+    <div id="pr-redress-section" style="display:none">
+      <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Grounds for redress (RRS 62.1)</div>
+      <div id="pr-redress-grounds" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+        <button class="pr-rule-btn" onclick="toggleRule(this,'62.1(a) — Improper action or omission by the race committee, protest committee or organizing authority')">62.1(a) RC/organizer error</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'62.1(b) — Physical damage or injury caused by another boat breaking a rule, or a vessel not racing')">62.1(b) Damage / injury</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'62.1(c) — Gave help required by Rule 1.1')">62.1(c) Gave help</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'62.1(d) — Improper action by a boat that was penalized or exonerated for breaking a rule')">62.1(d) Other boat's penalty</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'Other')">Other</button>
+      </div>
     </div>
 
     <div class="form-group" style="margin-bottom:16px">
-      <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Description of incident</label>
+      <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase" id="pr-description-label">Description of incident</label>
       <textarea id="pr-description" rows="4" placeholder="Describe what happened — include positions, courses, speeds and any contact…"
         style="margin-top:6px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;
@@ -1675,7 +1694,7 @@
     </div>
 
     <div style="display:flex;gap:8px">
-      <button class="btn btn-danger" style="flex:1;padding:12px" onclick="submitProtest()">🚩 File Protest</button>
+      <button class="btn btn-danger" id="pr-submit-btn" style="flex:1;padding:12px" onclick="submitProtest()">🚩 File Protest</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('protestSheet')">Cancel</button>
     </div>
   </div>
@@ -1923,16 +1942,17 @@
     <!-- ── Protests ───────────────────────────────── -->
     <div class="help-section" style="border-bottom:none">
       <div class="help-hd" onclick="toggleHelpSection('hs-protest')">
-        <span>🚩 Protests</span>
+        <span>🚩 Protests, Redress &amp; Scoring Enquiries</span>
         <span class="help-chevron" id="hs-protest-chev">›</span>
       </div>
       <div class="help-body" id="hs-protest">
-        <p>Protests are filed under RRS Rule 61 and must be lodged promptly after the race.</p>
-        <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Tap <strong>File Protest</strong> on your Skipper dashboard</div></div>
-        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Enter the boat being protested and the rule infringed</div></div>
-        <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">The RO will see the protest under the Protests tile and will arrange a hearing</div></div>
+        <p>Tap <strong>File Protest</strong> on your Skipper dashboard, then choose the type at the top of the sheet:</p>
+        <div class="help-step"><div class="help-step-num">🚩</div><div class="help-step-text"><strong>Protest</strong> (RRS 61) — another boat broke a rule. Requires the flag/hail declaration and must be lodged promptly after the race.</div></div>
+        <div class="help-step"><div class="help-step-num">⚖</div><div class="help-step-text"><strong>Redress</strong> (RRS 62) — you were unfairly disadvantaged by a race committee error, damage, injury, or another boat's penalty. Naming a boat is optional.</div></div>
+        <div class="help-step"><div class="help-step-num">📊</div><div class="help-step-text"><strong>Scoring Enquiry</strong> — you think your results or points are wrong. No rule reference needed, just describe the issue.</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text">The RO sees all of these under the Protests tile and records a decision</div></div>
         <div class="help-tip">
-          <p>Only the Race Officer can delete a protest. Contact the RO if a protest was filed in error.</p>
+          <p>Only the Race Officer can delete an entry. Contact the RO if one was filed in error.</p>
         </div>
       </div>
     </div>

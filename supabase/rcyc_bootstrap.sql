@@ -648,6 +648,19 @@ CREATE POLICY "anon update news" ON news_items FOR UPDATE USING (true);
 CREATE POLICY "anon delete news" ON news_items FOR DELETE USING (true);
 GRANT SELECT, INSERT, UPDATE, DELETE ON news_items TO anon;
 
+-- 027 — protest types: Redress and Scoring Enquiry alongside Protest
+ALTER TABLE protests
+  ADD COLUMN IF NOT EXISTS type text NOT NULL DEFAULT 'protest'
+    CHECK (type IN ('protest','redress','scoring_enquiry'));
+ALTER TABLE protests ALTER COLUMN protestee_id DROP NOT NULL;
+DROP POLICY IF EXISTS "protests_insert" ON protests;
+CREATE POLICY "protests_insert" ON protests FOR INSERT WITH CHECK (
+  protestor_id IS NOT NULL
+  AND (protestee_id IS NULL OR protestor_id <> protestee_id)
+  AND (protestee_id IS NOT NULL OR type <> 'protest')
+  AND description <> ''
+);
+
 
 -- ============================================================
 -- SECTION 3 — RCYC-specific fix: geographic bounds on marks

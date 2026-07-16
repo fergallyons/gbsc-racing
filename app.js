@@ -7566,14 +7566,59 @@ async function printProtest(protestId){
     p=rows&&rows[0];
   }
   if(!p){toast('Protest not found');return;}
+  const type=p.type||'protest';
   const protestor=boats.find(b=>b.id===p.protestor_id);
-  const protestee=boats.find(b=>b.id===p.protestee_id);
+  const protestee=p.protestee_id?boats.find(b=>b.id===p.protestee_id):null;
+  const protesteeName=p.protestee_id?(protestee?protestee.name:'Unknown'):'Race Committee';
   const filedAt=new Date(p.filed_at).toLocaleString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const rules=(p.rules_broken||[]);
   const ruleRows=rules.map(r=>{
-    const desc=RRS_RULES[r]||'';
+    const m=r.match(/^(Rule \d+)/);
+    const desc=m?(RRS_RULES[m[1]]||''):'';
     return `<tr><td style="font-weight:700;white-space:nowrap;padding:5px 10px 5px 0;vertical-align:top;color:#1B3E93">${r}</td><td style="padding:5px 0 5px 10px;color:#333;line-height:1.5">${desc}</td></tr>`;
   }).join('');
+
+  const PRINT_META={
+    protest:{
+      formTitle:'Protest Form',
+      partiesHead:'Parties to the Protest',
+      protestorLabel:'Protestor (Boat Filing Protest)',
+      protesteeLabel:'Protestee (Boat Protested Against)',
+      incidentHead:'Incident Details (RRS Rule 61.2)',
+      showRequirements:true,
+      rulesHead:'Rules Alleged to Have Been Broken',
+      rulesEmpty:'No rules specified',
+      rulesFootnote:'Racing Rules of Sailing 2025–2028, World Sailing. The hearing committee will determine which rules, if any, were broken (RRS Rule 64).',
+      sigLabel:'Protestor Signature',
+      docLabel:'Protest',
+    },
+    redress:{
+      formTitle:'Request for Redress',
+      partiesHead:'Parties',
+      protestorLabel:'Requesting Boat',
+      protesteeLabel:'Boat / Committee Concerned',
+      incidentHead:'Details of the Incident (RRS Rule 62.2)',
+      showRequirements:false,
+      rulesHead:'Grounds for Redress (RRS Rule 62.1)',
+      rulesEmpty:'No grounds specified',
+      rulesFootnote:'Racing Rules of Sailing 2025–2028, World Sailing. RRS Rule 62.1: a request for redress shall identify one of the grounds listed above.',
+      sigLabel:'Requesting Boat Signature',
+      docLabel:'Redress Request',
+    },
+    scoring_enquiry:{
+      formTitle:'Scoring Enquiry',
+      partiesHead:'Parties',
+      protestorLabel:'Enquiring Boat',
+      protesteeLabel:'Boat Concerned',
+      incidentHead:'Details of the Enquiry',
+      showRequirements:false,
+      rulesHead:'',
+      rulesEmpty:'',
+      rulesFootnote:'',
+      sigLabel:'Enquiring Boat Signature',
+      docLabel:'Scoring Enquiry',
+    },
+  }[type];
 
   const statusColour={
     'Pending':'#c0392b','Hearing Scheduled':'#e67e22',
@@ -7608,7 +7653,7 @@ async function printProtest(protestId){
 </head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
     <div>
-      <h1>Protest Form</h1>
+      <h1>${PRINT_META.formTitle}</h1>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;color:#555;margin-top:2px">
         Racing Rules of Sailing 2025–2028 · World Sailing
       </div>
@@ -7632,27 +7677,28 @@ async function printProtest(protestId){
 
   <!-- Parties -->
   <div class="section">
-    <div class="section-head">Parties to the Protest</div>
+    <div class="section-head">${PRINT_META.partiesHead}</div>
     <div class="section-body two-col">
-      <div class="field"><div class="field-label">Protestor (Boat Filing Protest)</div><div class="field-value" style="font-size:1.1rem;font-weight:700">${protestor?protestor.name:'Unknown'}</div></div>
-      <div class="field"><div class="field-label">Protestee (Boat Protested Against)</div><div class="field-value" style="font-size:1.1rem;font-weight:700;color:#c0392b">${protestee?protestee.name:'Unknown'}</div></div>
+      <div class="field"><div class="field-label">${PRINT_META.protestorLabel}</div><div class="field-value" style="font-size:1.1rem;font-weight:700">${protestor?protestor.name:'Unknown'}</div></div>
+      <div class="field"><div class="field-label">${PRINT_META.protesteeLabel}</div><div class="field-value" style="font-size:1.1rem;font-weight:700;color:#c0392b">${protesteeName}</div></div>
     </div>
   </div>
 
   <!-- Incident -->
   <div class="section">
-    <div class="section-head">Incident Details (RRS Rule 61.2)</div>
+    <div class="section-head">${PRINT_META.incidentHead}</div>
     <div class="section-body">
       <div class="two-col" style="margin-bottom:12px">
         <div class="field"><div class="field-label">Where did the incident occur?</div><div class="field-value">${p.incident_where}</div></div>
         <div class="field"><div class="field-label">Approximate time</div><div class="field-value">${p.incident_time}</div></div>
       </div>
-      <div class="field"><div class="field-label">Description of incident</div>
+      <div class="field"><div class="field-label">Description</div>
         <div class="field-value" style="background:#f5f8ff;border:1px solid #dde4f0;border-radius:4px;padding:10px;white-space:pre-wrap;line-height:1.6">${p.description}</div>
       </div>
     </div>
   </div>
 
+  ${PRINT_META.showRequirements?`
   <!-- Protest requirements -->
   <div class="section">
     <div class="section-head">Protest Requirements (RRS Rule 61.1)</div>
@@ -7667,16 +7713,17 @@ async function printProtest(protestId){
       </div>
     </div>
     <div class="rrs-ref">RRS Rule 61.1(a): A boat intending to protest shall hail "Protest" at the first reasonable opportunity and display a red flag at the first reasonable opportunity.</div>
-  </div>
+  </div>`:''}
 
-  <!-- Rules alleged broken -->
+  ${PRINT_META.rulesHead?`
+  <!-- Rules/Grounds -->
   <div class="section">
-    <div class="section-head">Rules Alleged to Have Been Broken</div>
+    <div class="section-head">${PRINT_META.rulesHead}</div>
     <div class="section-body">
-      ${rules.length?`<table style="width:100%;border-collapse:collapse">${ruleRows}</table>`:'<div style="color:#888;font-style:italic">No rules specified</div>'}
-      <div class="rrs-ref">Racing Rules of Sailing 2025–2028, World Sailing. The hearing committee will determine which rules, if any, were broken (RRS Rule 64).</div>
+      ${rules.length?`<table style="width:100%;border-collapse:collapse">${ruleRows}</table>`:`<div style="color:#888;font-style:italic">${PRINT_META.rulesEmpty}</div>`}
+      <div class="rrs-ref">${PRINT_META.rulesFootnote}</div>
     </div>
-  </div>
+  </div>`:''}
 
   ${p.ro_notes?`
   <!-- RO Decision -->
@@ -7694,7 +7741,7 @@ async function printProtest(protestId){
   <!-- Signature blocks -->
   <div class="sig-block">
     <div>
-      <div style="font-size:.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em">Protestor Signature</div>
+      <div style="font-size:.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em">${PRINT_META.sigLabel}</div>
       <div class="sig-line">${protestor?protestor.name:''}</div>
     </div>
     <div>
@@ -7704,7 +7751,7 @@ async function printProtest(protestId){
   </div>
 
   <div class="footer">
-    <span>GBSC Racing App · Protest #${p.id}</span>
+    <span>GBSC Racing App · ${PRINT_META.docLabel} #${p.id}</span>
     <span>Racing Rules of Sailing 2025–2028 · World Sailing</span>
   </div>
 </body></html>`;
@@ -7719,8 +7766,66 @@ async function printProtest(protestId){
   setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
 
+// ── Protest type — Protest (RRS 61) / Redress (RRS 62) / Scoring Enquiry ──
+let prType='protest';
+const PROTEST_TYPE_META={
+  protest:{
+    title:'🚩 File a Protest',
+    sub:'Under RRS Rule 61.2 — must be submitted within 2 hours of the last boat finishing.',
+    protesteeLabel:'Boat being protested',
+    protesteeRequired:true,
+    descLabel:'Description of incident',
+    showFlagHail:true,
+    rulesSection:'rules',
+    rulesRequired:true,
+    submitLabel:'🚩 File Protest',
+    filedToast:'🚩 Protest filed successfully',
+  },
+  redress:{
+    title:'⚖ Request Redress',
+    sub:'Under RRS Rule 62 — submit within the time limit set by the race committee, or 2 hours after finishing if none is set.',
+    protesteeLabel:'Boat / committee concerned (optional)',
+    protesteeRequired:false,
+    descLabel:'Description of what happened',
+    showFlagHail:false,
+    rulesSection:'redress',
+    rulesRequired:true,
+    submitLabel:'⚖ Request Redress',
+    filedToast:'⚖ Redress request filed',
+  },
+  scoring_enquiry:{
+    title:'📊 Scoring Enquiry',
+    sub:'Query a suspected results or scoring error — the RO may treat this as a request for redress if a scoring error is confirmed.',
+    protesteeLabel:'Boat concerned (optional)',
+    protesteeRequired:false,
+    descLabel:'Describe the scoring issue',
+    showFlagHail:false,
+    rulesSection:'none',
+    rulesRequired:false,
+    submitLabel:'📊 Submit Enquiry',
+    filedToast:'📊 Scoring enquiry filed',
+  },
+};
+
+function setProtestType(type){
+  prType=type;
+  const meta=PROTEST_TYPE_META[type];
+  document.querySelectorAll('.pr-type-btn').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('pr-type-'+type);
+  if(btn) btn.classList.add('active');
+  document.getElementById('pr-sheet-title').textContent=meta.title;
+  document.getElementById('pr-sheet-sub').textContent=meta.sub;
+  document.getElementById('pr-protestee-label').textContent=meta.protesteeLabel;
+  document.getElementById('pr-description-label').textContent=meta.descLabel;
+  document.getElementById('pr-flag-hail-row').style.display=meta.showFlagHail?'grid':'none';
+  document.getElementById('pr-rules-section').style.display=meta.rulesSection==='rules'?'block':'none';
+  document.getElementById('pr-redress-section').style.display=meta.rulesSection==='redress'?'block':'none';
+  document.getElementById('pr-submit-btn').textContent=meta.submitLabel;
+}
+
 function openProtestSheet(){
   if(!selectedRace){toast('Select a race first');return;}
+  setProtestType('protest');
   const sel=document.getElementById('pr-protestee');
   sel.innerHTML='<option value="">Select boat…</option>';
   boats.filter(b=>b.id!==currentBoat.id).forEach(b=>{
@@ -7731,7 +7836,7 @@ function openProtestSheet(){
   document.getElementById('pr-where').value='';
   document.getElementById('pr-time').value=new Date().toTimeString().slice(0,5);
   document.getElementById('pr-description').value='';
-  document.querySelectorAll('.pr-rule-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.pr-rule-btn').forEach(b=>{b.classList.remove('active'); delete b.dataset.rule;});
   ['pr-flag','pr-hail'].forEach(id=>{
     document.getElementById(id).style.borderColor='';
     document.getElementById(id).style.background='var(--navy)';
@@ -7763,28 +7868,31 @@ function toggleProtest(id){
 }
 
 function toggleRule(btn,rule){
-  btn.classList.toggle('active');
+  const active=btn.classList.toggle('active');
+  if(active) btn.dataset.rule=rule; else delete btn.dataset.rule;
 }
 
 async function submitProtest(){
+  const meta=PROTEST_TYPE_META[prType];
   const protesteeId=document.getElementById('pr-protestee').value;
   const where=document.getElementById('pr-where').value.trim();
   const time=document.getElementById('pr-time').value;
   const description=document.getElementById('pr-description').value.trim();
-  const flagDisplayed=document.getElementById('pr-flag').dataset.active==='1';
-  const protestHailed=document.getElementById('pr-hail').dataset.active==='1';
-  const rulesBroken=Array.from(document.querySelectorAll('.pr-rule-btn.active')).map(b=>b.textContent.trim());
+  const flagDisplayed=meta.showFlagHail&&document.getElementById('pr-flag').dataset.active==='1';
+  const protestHailed=meta.showFlagHail&&document.getElementById('pr-hail').dataset.active==='1';
+  const rulesBroken=Array.from(document.querySelectorAll('.pr-rule-btn.active')).map(b=>b.dataset.rule||b.textContent.trim());
 
-  if(!protesteeId){toast('Select the boat you are protesting');return;}
+  if(meta.protesteeRequired&&!protesteeId){toast('Select the boat you are protesting');return;}
   if(!where){toast('Enter where the incident occurred');return;}
   if(!description){toast('Describe what happened');return;}
-  if(rulesBroken.length===0){toast('Select at least one rule');return;}
+  if(meta.rulesRequired&&rulesBroken.length===0){toast(prType==='redress'?'Select at least one ground for redress':'Select at least one rule');return;}
 
   const result=await sbSaveProtest({
+    type:prType,
     race_name:selectedRace.label,
     race_date:selectedRace.date.toISOString().split('T')[0],
     protestor_id:currentBoat.id,
-    protestee_id:protesteeId,
+    protestee_id:protesteeId||null,
     incident_where:where,
     incident_time:time,
     flag_displayed:flagDisplayed,
@@ -7795,11 +7903,11 @@ async function submitProtest(){
   });
 
   if(result&&result._err){
-    toast('⚠ Could not file protest — '+result._err.slice(0,60));
+    toast('⚠ Could not file — '+result._err.slice(0,60));
     return;
   }
   closeSheet('protestSheet');
-  toast('🚩 Protest filed successfully');
+  toast(meta.filedToast);
 }
 
 async function loadProtests(){
@@ -7819,9 +7927,12 @@ async function loadProtests(){
   roDashProtestsCount=protests.length;
   updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
   _loadedProtests=protests;
+  const typeLabel={protest:'🚩 Protest',redress:'⚖ Redress',scoring_enquiry:'📊 Scoring Enquiry'};
   list.innerHTML=protests.map(p=>{
+    const type=p.type||'protest';
     const protestor=boats.find(b=>b.id===p.protestor_id);
-    const protestee=boats.find(b=>b.id===p.protestee_id);
+    const protestee=p.protestee_id?boats.find(b=>b.id===p.protestee_id):null;
+    const protesteeLabel=p.protestee_id?(protestee?protestee.name:'Unknown'):'Race Committee';
     const filedAt=new Date(p.filed_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
     const filedDate=new Date(p.filed_at).toLocaleDateString('en-IE',{day:'numeric',month:'short'});
     const rules=(p.rules_broken||[]).join(', ');
@@ -7830,9 +7941,10 @@ async function loadProtests(){
     return`<div class="protest-card status-${p.status.toLowerCase().replace(' ','-')}" data-protest-id="${p.id}">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div>
+          <span class="protest-type-badge" style="margin-right:6px">${typeLabel[type]||typeLabel.protest}</span>
           <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem">${protestor?protestor.name:'Unknown'}</span>
           <span style="color:var(--muted);font-size:.8rem"> → </span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem;color:var(--danger)">${protestee?protestee.name:'Unknown'}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem;color:var(--danger)">${protesteeLabel}</span>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span class="protest-status ${p.status}">${p.status}</span>
