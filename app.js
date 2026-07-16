@@ -5196,20 +5196,23 @@ function normBoatName(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 async function loadHandicaps(){
   const body=document.getElementById('handicapsBody');
   if(!body||_handicapsLoaded) return;
-  body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading ratings from Irish Sailing…</div></div>';
+  body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading ratings from Irish Sailing &amp; Halsail…</div></div>';
   try{
     const clubName=_C.name||'Galway Bay Sailing Club';
-    const res=await fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName));
+    const [res,halEcho]=await Promise.all([
+      fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName)),
+      loadHalsailCurrentEcho()
+    ]);
     const data=await res.json();
     if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
     _handicapsLoaded=true;
-    renderHandicaps(data.boats||[],data.fetchedAt);
+    renderHandicaps(data.boats||[],halEcho,data.fetchedAt);
   }catch(e){
     body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⚠</div><div>Could not load ratings — '+escHtml(String(e.message||e)).slice(0,80)+'</div></div>';
   }
 }
 
-function renderHandicaps(nationalBoats,fetchedAt){
+function renderHandicaps(nationalBoats,halEcho,fetchedAt){
   const body=document.getElementById('handicapsBody');
   if(!body) return;
   const byNorm={};
@@ -5237,32 +5240,34 @@ function renderHandicaps(nationalBoats,fetchedAt){
   </div>`;
 
   const rowsHtml=rows.length?rows.map(r=>{
-    const echo=r.match&&r.match.echo?r.match.echo:'';
+    const baseEcho=r.match&&r.match.echo?r.match.echo:'';
     const irc=r.match&&r.match.ircTCC?r.match.ircTCC:'';
-    return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);${!r.found?'background:rgba(230,57,70,.05);margin:0 -4px;padding-left:4px;padding-right:4px;border-radius:6px':''}">
+    const curEcho=halEcho[normBoatName(r.boat.name)];
+    return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);${!r.found?'background:rgba(230,57,70,.05);margin:0 -4px;padding-left:4px;padding-right:4px;border-radius:6px':''}">
       <div style="flex:1;min-width:0">
         <div style="font-size:.88rem;font-weight:700;color:${r.found?'var(--white)':'var(--danger)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.boat.name)}</div>
-        ${r.match?`<div style="font-size:.72rem;color:var(--muted)">${escHtml(r.match.model||'')}${r.match.sailNo?' · '+escHtml(r.match.sailNo):''}</div>`:''}
+        ${r.match?`<div style="font-size:.72rem;color:var(--muted)">${escHtml(r.match.model||'')}${r.match.sailNo?' · '+escHtml(r.match.sailNo):''}</div>`
+          :`<div style="font-size:.72rem;color:var(--danger)">⚠ No rating found</div>`}
       </div>
-      ${r.found?`
-        <div style="text-align:right;flex-shrink:0;min-width:52px">
-          <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">ECHO</div>
-          <div style="font-size:.85rem;font-weight:700;color:${echo?'var(--white)':'var(--muted)'}">${echo||'—'}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0;min-width:52px">
-          <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">IRC</div>
-          <div style="font-size:.85rem;font-weight:700;color:${irc?'var(--white)':'var(--muted)'}">${irc||'—'}</div>
-        </div>`
-      :`<div style="text-align:right;flex-shrink:0">
-          <div style="font-size:.78rem;font-weight:700;color:var(--danger)">⚠ No rating found</div>
-        </div>`}
+      <div style="text-align:right;flex-shrink:0;min-width:46px">
+        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Base ECHO</div>
+        <div style="font-size:.82rem;font-weight:700;color:${baseEcho?'var(--white)':'var(--muted)'}">${baseEcho||'—'}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;min-width:46px">
+        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Current</div>
+        <div style="font-size:.82rem;font-weight:700;color:${curEcho!=null?'var(--teal)':'var(--muted)'}">${curEcho!=null?curEcho:'—'}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;min-width:46px">
+        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">IRC</div>
+        <div style="font-size:.82rem;font-weight:700;color:${irc?'var(--white)':'var(--muted)'}">${irc||'—'}</div>
+      </div>
     </div>`;
   }).join(''):'<div style="text-align:center;padding:24px 0;color:var(--muted);font-size:.85rem">No boats registered yet.</div>';
 
   body.innerHTML=summaryHtml+
     `<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Boats (${rows.length})</div>`+
     rowsHtml+
-    `<div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing's list automatically — a mismatch here may just mean a naming difference, not a missing certificate.<br>Source: Irish Sailing ECHO/IRC Ratings${fetchedAt?' · Updated '+new Date(fetchedAt).toLocaleDateString('en-IE'):''}</div>`;
+    `<div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is blank for boats that haven't raced under Halsail scoring yet this season.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE')+')':''} · Halsail</div>`;
 }
 
 async function loadAndRenderDocs(){
@@ -6888,6 +6893,55 @@ function halCurrentTCC(handicaps, classId){
     .filter(({ms})=>ms<=now)
     .sort((a,b)=>b.ms-a.ms);
   return valid.length?valid[0].h.Handicap:null;
+}
+
+// Current (live-adjusted) ECHO ratings from Halsail, keyed by normalized boat name.
+// Halsail only exposes a boat's numeric BoatID through race results, not a standalone
+// fleet lookup, so this scans the most recent ECHO series' results to discover BoatIDs,
+// then reads each boat's current handicap via /GetBoat. Boats that haven't raced under
+// Halsail scoring this season simply won't appear — never throws, returns {} on failure.
+async function loadHalsailCurrentEcho(){
+  if(!HAL_CLUB) return {};
+  try{
+    let schedule=halSchedule;
+    if(!schedule){
+      schedule=await halFetch('/GetSchedule/'+HAL_CLUB);
+      if(!schedule||schedule._err||!Array.isArray(schedule)) return {};
+    }
+    const echoEntry=schedule.find(r=>isEchoClass(r.Class)&&r.ClassID);
+    if(!echoEntry) return {};
+    const echoClassId=echoEntry.ClassID;
+
+    const seriesMap={};
+    schedule.forEach(r=>{
+      if(!isEchoClass(r.Class)||!r.SeryID) return;
+      const d=new Date(r.Start);
+      if(!seriesMap[r.Series]||d<seriesMap[r.Series].firstStart) seriesMap[r.Series]={echoId:r.SeryID,firstStart:d};
+    });
+    const seriesList=Object.values(seriesMap).sort((a,b)=>b.firstStart-a.firstStart); // most recent first
+    if(!seriesList.length) return {};
+
+    // Scan the 2 most recent series' ECHO results to build BoatID coverage
+    const boatIds=new Set();
+    for(const s of seriesList.slice(0,2)){
+      const data=await halFetch('/GetSeriesResult/'+s.echoId);
+      if(data&&!data._err&&Array.isArray(data.ResultsOverall)){
+        data.ResultsOverall.forEach(r=>{ if(r.BoatID) boatIds.add(r.BoatID); });
+      }
+    }
+    if(!boatIds.size) return {};
+
+    const result={};
+    await Promise.all([...boatIds].map(async id=>{
+      const b=await halFetch('/GetBoat/'+id);
+      if(!b||b._err||!b.Name) return;
+      const rating=halCurrentTCC(b.Handicaps,echoClassId);
+      if(rating!=null) result[normBoatName(b.Name)]=rating;
+    }));
+    return result;
+  }catch(e){
+    return {};
+  }
 }
 function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handicapClassId){
   const resultBoats=data.ResultsOverall||[];
