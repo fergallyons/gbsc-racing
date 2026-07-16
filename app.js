@@ -7773,6 +7773,7 @@ const PROTEST_TYPE_META={
     title:'🚩 File a Protest',
     sub:'Under RRS Rule 61.2 — must be submitted within 2 hours of the last boat finishing.',
     protesteeLabel:'Boat being protested',
+    showProtestee:true,
     protesteeRequired:true,
     descLabel:'Description of incident',
     showFlagHail:true,
@@ -7785,6 +7786,7 @@ const PROTEST_TYPE_META={
     title:'⚖ Request Redress',
     sub:'Under RRS Rule 62 — submit within the time limit set by the race committee, or 2 hours after finishing if none is set.',
     protesteeLabel:'Boat / committee concerned (optional)',
+    showProtestee:true,
     protesteeRequired:false,
     descLabel:'Description of what happened',
     showFlagHail:false,
@@ -7796,7 +7798,8 @@ const PROTEST_TYPE_META={
   scoring_enquiry:{
     title:'📊 Scoring Enquiry',
     sub:'Query a suspected results or scoring error — the RO may treat this as a request for redress if a scoring error is confirmed.',
-    protesteeLabel:'Boat concerned (optional)',
+    protesteeLabel:'Boat concerned',
+    showProtestee:false,
     protesteeRequired:false,
     descLabel:'Describe the scoring issue',
     showFlagHail:false,
@@ -7815,6 +7818,7 @@ function setProtestType(type){
   if(btn) btn.classList.add('active');
   document.getElementById('pr-sheet-title').textContent=meta.title;
   document.getElementById('pr-sheet-sub').textContent=meta.sub;
+  document.getElementById('pr-protestee-group').style.display=meta.showProtestee?'block':'none';
   document.getElementById('pr-protestee-label').textContent=meta.protesteeLabel;
   document.getElementById('pr-description-label').textContent=meta.descLabel;
   document.getElementById('pr-flag-hail-row').style.display=meta.showFlagHail?'grid':'none';
@@ -7874,7 +7878,7 @@ function toggleRule(btn,rule){
 
 async function submitProtest(){
   const meta=PROTEST_TYPE_META[prType];
-  const protesteeId=document.getElementById('pr-protestee').value;
+  const protesteeId=meta.showProtestee?document.getElementById('pr-protestee').value:'';
   const where=document.getElementById('pr-where').value.trim();
   const time=document.getElementById('pr-time').value;
   const description=document.getElementById('pr-description').value.trim();
