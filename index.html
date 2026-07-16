@@ -611,7 +611,7 @@
 
 <!-- Start Sequence — full-screen flag/countdown display, readable from a distance -->
 <div id="startSeqOverlay" style="display:none;position:fixed;inset:0;background:var(--navy-dark);z-index:1000;flex-direction:column;">
-  <button onclick="closeStartSeq()" style="position:absolute;top:16px;right:16px;z-index:2;background:rgba(255,255,255,.1);border:1px solid var(--border);color:var(--white);border-radius:8px;padding:8px 16px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;">✕ Close</button>
+  <button onclick="closeStartSeq()" style="position:absolute;top:calc(env(safe-area-inset-top) + 16px);right:calc(env(safe-area-inset-right) + 16px);z-index:2;background:rgba(255,255,255,.1);border:1px solid var(--border);color:var(--white);border-radius:8px;padding:8px 16px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;">✕ Close</button>
 
   <div id="startSeqEmpty" style="display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted)">
     <div style="font-size:3rem;margin-bottom:14px">🚦</div>
@@ -621,7 +621,7 @@
 
   <div id="startSeqBody" style="display:none;flex-direction:column;height:100%">
     <!-- Compact header — phase + countdown, kept small so the flags below get max room -->
-    <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px 16px;border-bottom:1px solid var(--border)">
+    <div style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:calc(env(safe-area-inset-top) + 44px) 16px 10px;border-bottom:1px solid var(--border)">
       <div id="startSeqPhaseLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);margin-bottom:2px"></div>
       <div id="startSeqClock" style="font-family:'Barlow Condensed',sans-serif;font-size:3.1rem;font-weight:800;color:var(--white);line-height:1;letter-spacing:.02em;font-variant-numeric:tabular-nums"></div>
       <div id="startSeqClockLabel" style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:2px"></div>
