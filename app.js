@@ -1759,7 +1759,7 @@ async function refreshRoStartSeqTile(){
   const sub=document.getElementById('roStartSeqStatus');
   if(!sub) return;
   const active=await sbLoadActiveStart();
-  if(active&&new Date(active.start_time)>=new Date(Date.now()-3600000)){
+  if(active&&new Date(active.start_time)>=new Date(Date.now()-START_SEQ_STALE_MS)){
     sub.textContent='Armed · '+new Date(active.start_time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   } else {
     sub.textContent='Not armed';
@@ -7714,6 +7714,11 @@ async function sbLoadActiveStart(){
   return (r&&!r._err&&r.length)?r[0]:null;
 }
 
+// A start sequence has no further value once well past the gun — stop treating
+// it as "active" 15 minutes after start_time (used both for the live countdown
+// cutoff and for whether a row still counts as the current armed start).
+const START_SEQ_STALE_MS=15*60*1000;
+
 const START_FLAG_NOTES={
   P:     'Standard start — a boat that is OCS must return and restart; no extra penalty.',
   U:     'U Flag — a boat OCS in the last minute is disqualified without a hearing, but not scored as retired.',
@@ -7732,7 +7737,7 @@ async function openRoStartPanel(){
 async function refreshRoStartActiveCard(){
   const card=document.getElementById('roStartActiveCard');
   const active=await sbLoadActiveStart();
-  if(!active||new Date(active.start_time)<new Date(Date.now()-3600000)){
+  if(!active||new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS)){
     card.style.display='none';
     return;
   }
@@ -7814,11 +7819,17 @@ function closeStartSeq(){
 
 async function refreshStartSeqData(){
   const active=await sbLoadActiveStart();
-  const stale=active&&new Date(active.start_time)<new Date(Date.now()-3600000);
+  const stale=active&&new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
   _startSeqActive=(active&&!stale)?active:null;
   if(!_startSeqActive||_startSeqActive.id!==_startSeqActiveId){
     _startSeqLastPhase=null; // fresh/changed start — don't replay a sound for the initial phase
     _startSeqActiveId=_startSeqActive?_startSeqActive.id:null;
+  }
+  // tickStartSeq() stops the local timer once a start goes past the 15-minute
+  // cutoff — restart it here if a newly-armed start shows up while the
+  // overlay is still open and the tick loop had gone quiet.
+  if(_startSeqActive&&!_startSeqTimer&&document.getElementById('startSeqOverlay').style.display!=='none'){
+    _startSeqTimer=setInterval(tickStartSeq,250);
   }
   updatePubStartSeqSub();
 }
@@ -7858,9 +7869,20 @@ function tickStartSeq(){
     empty.style.display='flex'; body.style.display='none';
     return;
   }
+
+  const startMs=new Date(_startSeqActive.start_time).getTime();
+  const secsToStart=(startMs-Date.now())/1000;
+  if(Date.now()-startMs>START_SEQ_STALE_MS){
+    // Past the 15-minute cutoff — no value in an ever-growing elapsed clock.
+    // Stop the local timer immediately rather than waiting on the next poll.
+    _startSeqActive=null; _startSeqActiveId=null; _startSeqLastPhase=null;
+    if(_startSeqTimer){ clearInterval(_startSeqTimer); _startSeqTimer=null; }
+    empty.style.display='flex'; body.style.display='none';
+    updatePubStartSeqSub();
+    return;
+  }
   empty.style.display='none'; body.style.display='flex';
 
-  const secsToStart=(new Date(_startSeqActive.start_time).getTime()-Date.now())/1000;
   const phase=getStartPhase(secsToStart);
 
   if(_startSeqLastPhase!==null&&phase.phase!==_startSeqLastPhase){
