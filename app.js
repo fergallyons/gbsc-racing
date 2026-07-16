@@ -6915,9 +6915,6 @@ async function loadHalsailCurrentEcho(){
       schedule=await halFetch('/GetSchedule/'+HAL_CLUB);
       if(!schedule||schedule._err||!Array.isArray(schedule)) return {};
     }
-    const echoEntry=schedule.find(r=>isEchoClass(r.Class)&&r.ClassID);
-    if(!echoEntry) return {};
-    const echoClassId=echoEntry.ClassID;
 
     const seriesMap={};
     schedule.forEach(r=>{
@@ -6925,7 +6922,12 @@ async function loadHalsailCurrentEcho(){
       const d=new Date(r.Start);
       if(!seriesMap[r.Series]||d<seriesMap[r.Series].firstStart) seriesMap[r.Series]={echoId:r.SeryID,firstStart:d};
     });
-    const seriesList=Object.values(seriesMap).sort((a,b)=>b.firstStart-a.firstStart); // most recent first
+    // Only series that have actually started have any results — a future series sorts
+    // first by date but always has zero results, so filter to the past before sorting.
+    const now=new Date();
+    const seriesList=Object.values(seriesMap)
+      .filter(s=>s.firstStart<=now)
+      .sort((a,b)=>b.firstStart-a.firstStart); // most recently started first
     if(!seriesList.length) return {};
 
     // Scan the 2 most recent series' ECHO results to build BoatID coverage
@@ -6938,13 +6940,31 @@ async function loadHalsailCurrentEcho(){
     }
     if(!boatIds.size) return {};
 
-    const result={};
+    // Fetch full boat records (handicap history) before we can resolve ClassID
+    const boatData={};
     await Promise.all([...boatIds].map(async id=>{
       const b=await halFetch('/GetBoat/'+id);
-      if(!b||b._err||!b.Name) return;
+      if(b&&!b._err&&b.Name) boatData[id]=b;
+    }));
+
+    // GetSchedule doesn't reliably include ClassID (confirmed on GBSC's own club — it's
+    // simply absent from every entry), so discover it the same way the Results tab does:
+    // IRC and ECHO always have consecutive ClassIDs, so find the first such pair across
+    // the handicap entries of the boats we just fetched.
+    const classIds=new Set();
+    Object.values(boatData).forEach(b=>(b.Handicaps||[]).forEach(h=>{ if(h.ClassID) classIds.add(+h.ClassID); }));
+    const sorted=[...classIds].filter(n=>n>0).sort((a,b)=>a-b);
+    let echoClassId=null;
+    for(let i=0;i<sorted.length-1;i++){
+      if(sorted[i+1]===sorted[i]+1){ echoClassId=sorted[i+1]; break; }
+    }
+    if(echoClassId==null) return {};
+
+    const result={};
+    Object.values(boatData).forEach(b=>{
       const rating=halCurrentTCC(b.Handicaps,echoClassId);
       if(rating!=null) result[normBoatName(b.Name)]=rating;
-    }));
+    });
     return result;
   }catch(e){
     return {};
