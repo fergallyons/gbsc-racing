@@ -661,6 +661,28 @@ CREATE POLICY "protests_insert" ON protests FOR INSERT WITH CHECK (
   AND description <> ''
 );
 
+-- 028 — race_starts: start sequence simulator (flags/countdown, no RO on the line)
+CREATE TABLE IF NOT EXISTS race_starts (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  start_time  timestamptz NOT NULL,
+  flag_system text NOT NULL DEFAULT 'P' CHECK (flag_system IN ('P','U','Black')),
+  class_flag  text NOT NULL DEFAULT 'E' CHECK (class_flag IN ('E','0','1','2')),
+  status      text NOT NULL DEFAULT 'armed' CHECK (status IN ('armed','cancelled')),
+  created_at  timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS race_starts_status_idx ON race_starts(status, start_time);
+ALTER TABLE race_starts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "race_starts_select" ON race_starts;
+DROP POLICY IF EXISTS "race_starts_insert" ON race_starts;
+DROP POLICY IF EXISTS "race_starts_update" ON race_starts;
+DROP POLICY IF EXISTS "race_starts_delete" ON race_starts;
+CREATE POLICY "race_starts_select" ON race_starts FOR SELECT USING (true);
+CREATE POLICY "race_starts_insert" ON race_starts FOR INSERT WITH CHECK (start_time IS NOT NULL);
+CREATE POLICY "race_starts_update" ON race_starts FOR UPDATE USING (true);
+CREATE POLICY "race_starts_delete" ON race_starts FOR DELETE USING (true);
+GRANT SELECT, INSERT, UPDATE, DELETE ON race_starts TO anon;
+GRANT USAGE, SELECT ON SEQUENCE race_starts_id_seq TO anon;
+
 
 -- ============================================================
 -- SECTION 3 — RCYC-specific fix: geographic bounds on marks

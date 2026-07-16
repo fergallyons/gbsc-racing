@@ -474,6 +474,7 @@ const FEAT_TILE_MAP={
   boatMgmt:       ['tile-ro-boatMgmt'],
   clubSettings:   ['tile-ro-clubSettings'],
   raceSchedule:   ['tile-ro-raceSchedule'],
+  startSequence:  ['tile-ro-startSequence','tile-pub-startSequence'],
   // Skipper tiles
   crew:           ['tile-sk-crew'],
   fees:           ['tile-sk-fees'],
@@ -500,7 +501,7 @@ const FEAT_DEFAULTS={
   startTimer:true, halsail:true, paymentReport:true, marksManager:true,
   publishResults:true, usageStats:true, feeStatements:true, viewCourse:true,
   registrations:true, protests:true, boatMgmt:true, clubSettings:true,
-  raceSchedule:true,
+  raceSchedule:true, startSequence:true,
   courseCard:false,
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
@@ -524,6 +525,7 @@ const FEAT_CATALOG=[
   {key:'feeStatements',  label:'Fee Statements',        type:'bool', group:'RO Tiles'},
   {key:'paymentReport',  label:'Payment Report',        type:'bool', group:'RO Tiles'},
   {key:'marksManager',   label:'Marks Manager',         type:'bool', group:'RO Tiles'},
+  {key:'startSequence',  label:'Start Sequence',        type:'bool', group:'RO Tiles'},
   {key:'crew',         label:'Crew Roster',   type:'bool', group:'Skipper Tiles'},
   {key:'fees',         label:'Fees',          type:'bool', group:'Skipper Tiles'},
   {key:'protest',      label:'Protest',       type:'bool', group:'Skipper Tiles'},
@@ -1751,6 +1753,17 @@ function updateRODash(){
   if(nameEl&&r){ nameEl.textContent=r.label; }
   if(metaEl&&r){ metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'}); }
   updateROResultsStatus();
+  refreshRoStartSeqTile();
+}
+async function refreshRoStartSeqTile(){
+  const sub=document.getElementById('roStartSeqStatus');
+  if(!sub) return;
+  const active=await sbLoadActiveStart();
+  if(active&&new Date(active.start_time)>=new Date(Date.now()-3600000)){
+    sub.textContent='Armed · '+new Date(active.start_time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  } else {
+    sub.textContent='Not armed';
+  }
 }
 function updateROChips(regsCount,protestsCount,coursePublished){
   const chips=document.getElementById('roDashChips');
@@ -7685,6 +7698,249 @@ async function sbUpdateProtest(id,fields){
     body:JSON.stringify(fields)});
 }
 
+// ── Start sequence ──────────────────────────────────────────────
+async function sbArmStart(fields){
+  return sbFetch('/rest/v1/race_starts',{method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify(fields)});
+}
+async function sbCancelAllArmedStarts(){
+  return sbFetch('/rest/v1/race_starts?status=eq.armed',{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({status:'cancelled'})});
+}
+async function sbLoadActiveStart(){
+  const r=await sbFetch('/rest/v1/race_starts?status=eq.armed&order=start_time.desc&limit=1');
+  return (r&&!r._err&&r.length)?r[0]:null;
+}
+
+const START_FLAG_NOTES={
+  P:     'Standard start — a boat that is OCS must return and restart; no extra penalty.',
+  U:     'U Flag — a boat OCS in the last minute is disqualified without a hearing, but not scored as retired.',
+  Black: 'Black Flag — a boat OCS in the last minute, or in the triangle formed by the line and first mark, is disqualified without a hearing. No general recall.',
+};
+let _roStartFlagSystem='P', _roStartClassFlag='E';
+
+async function openRoStartPanel(){
+  openPanel('roStartPanel');
+  roSelectFlagSystem('P');
+  roSelectClassFlag('E');
+  roSetStartOffset(5);
+  await refreshRoStartActiveCard();
+}
+
+async function refreshRoStartActiveCard(){
+  const card=document.getElementById('roStartActiveCard');
+  const active=await sbLoadActiveStart();
+  if(!active||new Date(active.start_time)<new Date(Date.now()-3600000)){
+    card.style.display='none';
+    return;
+  }
+  card.style.display='block';
+  const t=new Date(active.start_time);
+  document.getElementById('roStartActiveDetail').textContent=
+    t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+active.flag_system+' flag · Class '+active.class_flag;
+  document.getElementById('roStartActiveSub').textContent=
+    t>new Date()?'Counting down…':'Started';
+}
+
+function roSetStartOffset(mins){
+  const t=new Date(Date.now()+mins*60000);
+  const hh=String(t.getHours()).padStart(2,'0'), mm=String(t.getMinutes()).padStart(2,'0');
+  document.getElementById('ro-start-time').value=hh+':'+mm;
+}
+
+function roSelectFlagSystem(val){
+  _roStartFlagSystem=val;
+  document.querySelectorAll('#roStartFlagSystemBtns .pr-type-btn').forEach(b=>b.classList.toggle('active',b.dataset.val===val));
+  document.getElementById('roStartFlagNote').textContent=START_FLAG_NOTES[val]||'';
+}
+function roSelectClassFlag(val){
+  _roStartClassFlag=val;
+  document.querySelectorAll('#roStartClassFlagBtns .pr-type-btn').forEach(b=>b.classList.toggle('active',b.dataset.val===val));
+}
+
+async function roArmStart(){
+  const timeVal=document.getElementById('ro-start-time').value;
+  if(!timeVal){toast('Set a start time');return;}
+  const [hh,mm]=timeVal.split(':').map(Number);
+  const startTime=new Date();
+  startTime.setHours(hh,mm,0,0);
+  if(startTime.getTime()<Date.now()-300000){toast('That time has already passed');return;}
+
+  await sbCancelAllArmedStarts();
+  const r=await sbArmStart({
+    start_time:startTime.toISOString(),
+    flag_system:_roStartFlagSystem,
+    class_flag:_roStartClassFlag,
+    status:'armed'
+  });
+  if(r&&r._err){toast('⚠ Could not arm start — '+r._err.slice(0,60));return;}
+  toast('🚦 Start sequence armed for '+startTime.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}));
+  document.getElementById('roStartSeqStatus').textContent='Armed · '+startTime.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  await refreshRoStartActiveCard();
+}
+
+async function roCancelStart(){
+  if(!confirm('Cancel the active start sequence?'))return;
+  await sbCancelAllArmedStarts();
+  document.getElementById('roStartSeqStatus').textContent='Not armed';
+  toast('Start sequence cancelled');
+  await refreshRoStartActiveCard();
+}
+
+// ── Public start sequence viewer — full-screen, readable from a distance ──
+let _startSeqTimer=null, _startSeqPollTimer=null;
+let _startSeqActive=null, _startSeqActiveId=null, _startSeqLastPhase=null;
+let _startSeqAudioCtx=null;
+const CLASS_FLAG_COLOURS={E:'#00aeef','0':'#e63946','1':'#fee01e','2':'#2dc653'};
+
+async function openStartSeq(){
+  document.getElementById('startSeqOverlay').style.display='flex';
+  _ensureStartSeqAudio(); // unlock AudioContext on this user gesture
+  await refreshStartSeqData();
+  if(_startSeqTimer) clearInterval(_startSeqTimer);
+  if(_startSeqPollTimer) clearInterval(_startSeqPollTimer);
+  _startSeqTimer=setInterval(tickStartSeq,250);
+  _startSeqPollTimer=setInterval(refreshStartSeqData,15000);
+  tickStartSeq();
+}
+
+function closeStartSeq(){
+  document.getElementById('startSeqOverlay').style.display='none';
+  if(_startSeqTimer){ clearInterval(_startSeqTimer); _startSeqTimer=null; }
+  if(_startSeqPollTimer){ clearInterval(_startSeqPollTimer); _startSeqPollTimer=null; }
+}
+
+async function refreshStartSeqData(){
+  const active=await sbLoadActiveStart();
+  const stale=active&&new Date(active.start_time)<new Date(Date.now()-3600000);
+  _startSeqActive=(active&&!stale)?active:null;
+  if(!_startSeqActive||_startSeqActive.id!==_startSeqActiveId){
+    _startSeqLastPhase=null; // fresh/changed start — don't replay a sound for the initial phase
+    _startSeqActiveId=_startSeqActive?_startSeqActive.id:null;
+  }
+  updatePubStartSeqSub();
+}
+
+function updatePubStartSeqSub(){
+  const sub=document.getElementById('pubStartSeqSub');
+  if(!sub) return;
+  if(_startSeqActive){
+    const t=new Date(_startSeqActive.start_time);
+    sub.textContent=(t>new Date()?'Armed for ':'Started ')+t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  } else {
+    sub.textContent='Flags & countdown';
+  }
+}
+
+function getStartPhase(secsToStart){
+  if(secsToStart>300) return {phase:'waiting', label:'Waiting for Warning Signal', showClass:false, showPrep:false};
+  if(secsToStart>240) return {phase:'warning', label:'Warning Signal', showClass:true,  showPrep:false};
+  if(secsToStart>60)  return {phase:'prep',    label:'Preparatory Signal', showClass:true, showPrep:true};
+  if(secsToStart>0)   return {phase:'onemin',  label:'One Minute', showClass:true, showPrep:false};
+  if(secsToStart>-60) return {phase:'started', label:'Starting Signal — Go', showClass:false, showPrep:false};
+  return {phase:'racing', label:'Racing', showClass:false, showPrep:false};
+}
+
+function formatStartCountdown(secs){
+  const sign=secs<0?'+':'';
+  const abs=Math.abs(Math.round(secs));
+  const h=Math.floor(abs/3600), m=Math.floor((abs%3600)/60), s=abs%60;
+  const mm=String(m).padStart(2,'0'), ss=String(s).padStart(2,'0');
+  return sign+(h>0?h+':'+mm+':'+ss:mm+':'+ss);
+}
+
+function tickStartSeq(){
+  const empty=document.getElementById('startSeqEmpty');
+  const body=document.getElementById('startSeqBody');
+  if(!_startSeqActive){
+    empty.style.display='block'; body.style.display='none';
+    return;
+  }
+  empty.style.display='none'; body.style.display='block';
+
+  const secsToStart=(new Date(_startSeqActive.start_time).getTime()-Date.now())/1000;
+  const phase=getStartPhase(secsToStart);
+
+  if(_startSeqLastPhase!==null&&phase.phase!==_startSeqLastPhase){
+    if(phase.phase==='warning'||phase.phase==='prep'||phase.phase==='onemin'||phase.phase==='started'){
+      playStartHorn(phase.phase==='started');
+    }
+  }
+  _startSeqLastPhase=phase.phase;
+
+  document.getElementById('startSeqPhaseLabel').textContent=phase.label;
+  const clockEl=document.getElementById('startSeqClock');
+  clockEl.textContent=formatStartCountdown(secsToStart);
+  clockEl.style.color=(phase.phase==='onemin'||phase.phase==='started')?'var(--danger)':'var(--white)';
+  document.getElementById('startSeqClockLabel').textContent=
+    secsToStart>0?'Time to start':(phase.phase==='started'?'GO!':'Elapsed since start');
+
+  const classWrap=document.getElementById('startSeqClassFlagWrap');
+  if(phase.showClass){
+    classWrap.style.display='block';
+    const el=document.getElementById('startSeqClassFlag');
+    el.style.background=CLASS_FLAG_COLOURS[_startSeqActive.class_flag]||'#00aeef';
+    el.textContent=_startSeqActive.class_flag;
+  } else {
+    classWrap.style.display='none';
+  }
+
+  const prepWrap=document.getElementById('startSeqPrepFlagWrap');
+  if(phase.showPrep){
+    prepWrap.style.display='block';
+    renderPrepFlagGraphic(_startSeqActive.flag_system);
+    document.getElementById('startSeqPrepLabel').textContent=_startSeqActive.flag_system+' Flag';
+  } else {
+    prepWrap.style.display='none';
+  }
+
+  document.getElementById('startSeqNote').textContent=
+    (phase.phase==='prep'||phase.phase==='onemin')?(START_FLAG_NOTES[_startSeqActive.flag_system]||''):'';
+}
+
+function renderPrepFlagGraphic(system){
+  const el=document.getElementById('startSeqPrepFlag');
+  el.style.border='';
+  if(system==='P'){
+    el.style.background='#0033a0';
+    el.innerHTML='<div style="width:54%;height:54%;background:#fff;margin:23% auto"></div>';
+  } else if(system==='U'){
+    el.style.background='#e63946';
+    el.innerHTML='<div style="width:44%;height:44%;background:#fff;margin:28% auto"></div>';
+  } else {
+    el.style.background='#0a0a0a';
+    el.style.border='2px solid rgba(255,255,255,.35)';
+    el.innerHTML='';
+  }
+}
+
+function _ensureStartSeqAudio(){
+  try{
+    if(!_startSeqAudioCtx) _startSeqAudioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(_startSeqAudioCtx.state==='suspended') _startSeqAudioCtx.resume();
+  }catch(e){}
+}
+
+function playStartHorn(isStart){
+  try{
+    _ensureStartSeqAudio();
+    const ctx=_startSeqAudioCtx;
+    const dur=isStart?1.1:0.6;
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    osc.type='square';
+    osc.frequency.value=isStart?880:660;
+    gain.gain.setValueAtTime(0,ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.25,ctx.currentTime+0.02);
+    gain.gain.setValueAtTime(0.25,ctx.currentTime+dur-0.05);
+    gain.gain.linearRampToValueAtTime(0,ctx.currentTime+dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime+dur);
+  }catch(e){}
+}
+
 // ── Session logging ──────────────────────────────────────────────
 async function sbStartSession(type, boatId, boatName){
   const r=await sbFetch('/rest/v1/session_logs',{method:'POST',
@@ -8393,6 +8649,7 @@ function updateHomeChips(){
   if(state==='live')  courseChip='<span class="dash-chip course-ok" style="cursor:pointer" onclick="openPanel(\'coursePanel\')">🟢 Course live</span>';
   else if(state==='pending') courseChip='<span class="dash-chip course-no">🕐 Course pending</span>';
   chips.innerHTML=regChip+courseChip;
+  refreshStartSeqData();
 }
 
 let _countdownInterval=null;

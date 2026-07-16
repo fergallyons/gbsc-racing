@@ -580,6 +580,11 @@
       <div class="dash-card-label">Documents</div>
       <div class="dash-card-sub">Sailing instructions</div>
     </div>
+    <div id="tile-pub-startSequence" class="dash-card" onclick="openStartSeq()">
+      <div class="dash-card-icon">🚦</div>
+      <div class="dash-card-label">Start Sequence</div>
+      <div class="dash-card-sub" id="pubStartSeqSub">Flags &amp; countdown</div>
+    </div>
     <div id="tile-pub-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
       <div class="dash-card-icon">📐</div>
       <div class="dash-card-label" id="handicapsTileLabel">GBSC Handicaps</div>
@@ -603,6 +608,34 @@
     <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px;opacity:0.55" onclick="openHelpSheet()">❓ Help &amp; Setup</button>
   </div>
 </div><!-- /registeredTab -->
+
+<!-- Start Sequence — full-screen flag/countdown display, readable from a distance -->
+<div id="startSeqOverlay" style="display:none;position:fixed;inset:0;background:var(--navy-dark);z-index:1000;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;">
+  <button onclick="closeStartSeq()" style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--white);border-radius:8px;padding:8px 16px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;">✕ Close</button>
+
+  <div id="startSeqEmpty" style="display:none;color:var(--muted)">
+    <div style="font-size:3rem;margin-bottom:14px">🚦</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;color:var(--white)">No start sequence armed</div>
+    <div style="font-size:.9rem;margin-top:8px">Ask the Race Officer to set the start time</div>
+  </div>
+
+  <div id="startSeqBody" style="display:none">
+    <div id="startSeqPhaseLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:12px"></div>
+    <div id="startSeqClock" style="font-family:'Barlow Condensed',sans-serif;font-size:5.5rem;font-weight:800;color:var(--white);line-height:1;letter-spacing:.02em;font-variant-numeric:tabular-nums"></div>
+    <div id="startSeqClockLabel" style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-top:6px;margin-bottom:32px"></div>
+    <div style="display:flex;gap:28px;justify-content:center;align-items:flex-end;min-height:96px">
+      <div id="startSeqPrepFlagWrap" style="display:none;text-align:center">
+        <div id="startSeqPrepFlag" style="width:90px;height:60px;border-radius:4px;margin:0 auto 8px;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
+        <div id="startSeqPrepLabel" style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700"></div>
+      </div>
+      <div id="startSeqClassFlagWrap" style="display:none;text-align:center">
+        <div id="startSeqClassFlag" style="width:90px;height:60px;border-radius:4px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-size:2.1rem;font-weight:800;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
+        <div style="font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700">Class Flag</div>
+      </div>
+    </div>
+    <div id="startSeqNote" style="margin-top:28px;font-size:.8rem;color:var(--warn);max-width:340px;line-height:1.5"></div>
+  </div>
+</div>
 
 <!-- PDF Viewer Overlay -->
 <div id="pdfOverlay" style="display:none;position:fixed;inset:0;background:var(--navy-dark);z-index:1000;flex-direction:column;">
@@ -648,6 +681,11 @@
       <div class="dash-card-icon">⛵</div>
       <div class="dash-card-label">Registrations</div>
       <div class="dash-card-sub" id="roRegsStatus">No registrations yet</div>
+    </div>
+    <div id="tile-ro-startSequence" class="dash-card ro-card" onclick="openRoStartPanel()">
+      <div class="dash-card-icon">🚦</div>
+      <div class="dash-card-label">Start Sequence</div>
+      <div class="dash-card-sub" id="roStartSeqStatus">Not armed</div>
     </div>
     <div id="tile-ro-marksManager" class="dash-card ro-card" onclick="openPanel('roMarksPanel')">
       <div class="dash-card-icon">📍</div>
@@ -954,6 +992,56 @@
         </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- roStartPanel — Start Sequence (arm/cancel) -->
+<div class="panel-overlay" id="roStartPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roStartPanel')">‹</button>
+    <span class="panel-title">🚦 Start Sequence</span>
+  </div>
+  <div class="panel-body">
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px;line-height:1.5">Arms a self-running flag &amp; countdown sequence that any crew member can view from the boat — for when there's no RO on the line. Standard timing: warning at 5 min, preparatory at 4 min, one-minute at 1 min, start at 0.</div>
+
+    <div id="roStartActiveCard" style="display:none;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:12px;padding:14px;margin-bottom:20px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--success);margin-bottom:6px">Active Start</div>
+      <div id="roStartActiveDetail" style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px"></div>
+      <div id="roStartActiveSub" style="font-size:.78rem;color:var(--muted);margin-bottom:12px"></div>
+      <button class="btn btn-ghost" style="width:100%;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStart()">✕ Cancel Start</button>
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Start Time</label>
+      <div style="display:flex;gap:6px;margin-top:8px;margin-bottom:8px">
+        <button class="btn btn-ghost" style="flex:1;padding:9px;font-size:.85rem" onclick="roSetStartOffset(3)">+3 min</button>
+        <button class="btn btn-ghost" style="flex:1;padding:9px;font-size:.85rem" onclick="roSetStartOffset(5)">+5 min</button>
+        <button class="btn btn-ghost" style="flex:1;padding:9px;font-size:.85rem" onclick="roSetStartOffset(10)">+10 min</button>
+      </div>
+      <input type="time" id="ro-start-time" style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:10px 12px;outline:none;box-sizing:border-box;">
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Preparatory Flag</label>
+      <div style="display:flex;gap:6px;margin-top:8px" id="roStartFlagSystemBtns">
+        <button class="pr-type-btn active" data-val="P" onclick="roSelectFlagSystem('P')">P</button>
+        <button class="pr-type-btn" data-val="U" onclick="roSelectFlagSystem('U')">U</button>
+        <button class="pr-type-btn" data-val="Black" onclick="roSelectFlagSystem('Black')">Black</button>
+      </div>
+      <div id="roStartFlagNote" style="font-size:.75rem;color:var(--muted);margin-top:8px;line-height:1.4"></div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Class Flag</label>
+      <div style="display:flex;gap:6px;margin-top:8px" id="roStartClassFlagBtns">
+        <button class="pr-type-btn active" data-val="E" onclick="roSelectClassFlag('E')">E</button>
+        <button class="pr-type-btn" data-val="0" onclick="roSelectClassFlag('0')">0</button>
+        <button class="pr-type-btn" data-val="1" onclick="roSelectClassFlag('1')">1</button>
+        <button class="pr-type-btn" data-val="2" onclick="roSelectClassFlag('2')">2</button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;padding:13px" onclick="roArmStart()">🚦 Arm Start Sequence</button>
   </div>
 </div>
 
