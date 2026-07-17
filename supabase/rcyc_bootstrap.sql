@@ -136,7 +136,9 @@ CREATE TABLE IF NOT EXISTS published_courses (
   wind_dir     text,
   race_name    text DEFAULT '',
   notes        text DEFAULT '',
-  published_at timestamptz DEFAULT now()
+  published_at timestamptz DEFAULT now(),
+  course_type  text CHECK (course_type IN ('windward_leeward','triangle','olympic')),
+  laps         int
 );
 
 ALTER TABLE published_courses ENABLE ROW LEVEL SECURITY;

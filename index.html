@@ -857,11 +857,30 @@
     <span class="panel-title">🗺 Course Builder</span>
   </div>
   <div class="panel-body">
-    <div class="login-label" style="margin-bottom:12px">Tap a mark to add it to the sequence — tap again to add it a second time</div>
-    <div class="marks-grid" id="marksGrid"></div>
-    <div class="selected-marks-order" id="selectedMarksOrder" style="display:none">
-      <div class="smo-title">Course order — tap to remove</div>
-      <div class="smo-list" id="smoList"></div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button type="button" class="pr-type-btn active" id="courseModeMarksBtn" onclick="setCourseMode('marks')" style="flex:1">📍 Marks-Based</button>
+      <button type="button" class="pr-type-btn" id="courseModeLaidBtn" onclick="setCourseMode('laid')" style="flex:1">🌊 Laid Course</button>
+    </div>
+    <div id="courseMarksSection">
+      <div class="login-label" style="margin-bottom:12px">Tap a mark to add it to the sequence — tap again to add it a second time</div>
+      <div class="marks-grid" id="marksGrid"></div>
+      <div class="selected-marks-order" id="selectedMarksOrder" style="display:none">
+        <div class="smo-title">Course order — tap to remove</div>
+        <div class="smo-list" id="smoList"></div>
+      </div>
+    </div>
+    <div id="courseLaidSection" style="display:none">
+      <div class="login-label" style="margin-bottom:12px">Pick a course shape — marks are laid on the day, no fixed positions needed</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+        <button type="button" class="pr-type-btn" id="laidTypeBtn-windward_leeward" onclick="setLaidCourseType('windward_leeward')">⬆⬇ Windward-Leeward</button>
+        <button type="button" class="pr-type-btn" id="laidTypeBtn-triangle" onclick="setLaidCourseType('triangle')">🔺 Triangle</button>
+        <button type="button" class="pr-type-btn" id="laidTypeBtn-olympic" onclick="setLaidCourseType('olympic')">🏅 Olympic</button>
+      </div>
+      <div class="ro-row">
+        <label>Laps</label>
+        <input type="number" id="laidLaps" min="1" max="10" value="1" oninput="updateLaidLaps(this.value)"
+          style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+      </div>
     </div>
     <!-- Live course preview — updates as marks are added -->
     <div id="roCoursePreview" style="margin:14px 0 4px">

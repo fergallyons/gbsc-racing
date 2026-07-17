@@ -263,7 +263,10 @@ async function sbSaveCourse(course){
     finish_line_id: course.finishLineId||'club',
     // Course card fields (RCYC) — null for traditional mark-builder courses
     course_number: course.courseNumber||null,
-    rounds: course.rounds||null
+    rounds: course.rounds||null,
+    // Laid Course fields — null for mark-builder / course-card courses
+    course_type: course.courseType||null,
+    laps: course.laps||null
   };
   try{
     const r=await fetch(SB_URL+'/rest/v1/published_courses',{
@@ -305,7 +308,9 @@ async function sbLoadCourse(){
     startLineId: row.start_line_id||'club',
     finishLineId: row.finish_line_id||'club',
     courseNumber: row.course_number||null,
-    rounds
+    rounds,
+    courseType: row.course_type||null,
+    laps: row.laps||null
   };
 }
 
@@ -585,6 +590,12 @@ let courseMarks=[];
 let publishedCourse=null;
 let selectedStartLineId='club';   // id from LINES[]
 let selectedFinishLineId='club';  // can differ for destination-finish races
+// Laid Course — RO picks a course SHAPE instead of fixed marks, for races
+// where marks are laid on the day with no known coordinates.
+let _laidCourseMode=false;
+let _laidCourseType=null;   // 'windward_leeward' | 'triangle' | 'olympic'
+let _laidCourseLaps=1;
+const LAID_COURSE_LABELS={windward_leeward:'Windward-Leeward',triangle:'Triangle',olympic:'Olympic'};
 let registeredBoatIds=new Set(); // boat IDs registered for the next race
 let lookingForCrew=false;        // whether currentBoat is looking for crew for nextRace
 let roDashRegsCount=0, roDashProtestsCount=0, roDashCoursePublished=false;
@@ -5568,7 +5579,8 @@ function getCourseState(){
   if(!publishedCourse) return 'none';
   const hasMarks=publishedCourse.marks&&publishedCourse.marks.length;
   const hasCourseCard=publishedCourse.courseNumber&&Array.isArray(publishedCourse.rounds)&&publishedCourse.rounds.length;
-  if(!hasMarks&&!hasCourseCard) return 'none';
+  const hasLaidCourse=!!publishedCourse.courseType;
+  if(!hasMarks&&!hasCourseCard&&!hasLaidCourse) return 'none';
   const now=new Date();
   const windowMs=(clubSettings.pre_race_window_hours||12)*3600000;
   const hoursToRace=nextRace?(nextRace.date-now):Infinity;
@@ -5586,9 +5598,11 @@ function getCourseState(){
 function downloadCourseGpx(source){
   let markEntries;
   if(source==='builder'){
+    if(_laidCourseMode){toast('Laid courses have no fixed marks — no GPX to export');return;}
     if(!courseMarks.length){toast('Add at least one mark first');return;}
     markEntries=courseMarks;
   } else {
+    if(publishedCourse&&publishedCourse.courseType){toast('Laid courses have no fixed marks — no GPX to export');return;}
     if(!publishedCourse||!publishedCourse.marks||!publishedCourse.marks.length){
       toast(publishedCourse&&publishedCourse.courseNumber?'Course card courses have no GPX — marks not plotted':'No course published yet');
       return;
@@ -5871,12 +5885,133 @@ function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
 function renderRoCoursePreview(){
   const wrap=document.getElementById('roCoursePreview');
   if(!wrap) return;
+  if(_laidCourseMode){
+    if(!_laidCourseType){
+      wrap.innerHTML='<div class="ro-preview-empty">Pick a course shape above to preview</div>';
+      return;
+    }
+    wrap.innerHTML=buildLaidCourseSvg(_laidCourseType, windDeg, _laidCourseLaps);
+    return;
+  }
   if(!courseMarks.length){
     wrap.innerHTML='<div class="ro-preview-empty">Tap marks above to preview the course</div>';
     return;
   }
   wrap.innerHTML=buildCourseSvg(courseMarks, windDeg,
     getLineById(selectedStartLineId), getLineById(selectedFinishLineId));
+}
+
+// ── Course mode toggle (Marks-Based vs Laid Course) ───────────────────────
+function setCourseMode(mode){
+  _laidCourseMode=(mode==='laid');
+  const marksBtn=document.getElementById('courseModeMarksBtn');
+  const laidBtn=document.getElementById('courseModeLaidBtn');
+  const marksSec=document.getElementById('courseMarksSection');
+  const laidSec=document.getElementById('courseLaidSection');
+  if(marksBtn) marksBtn.classList.toggle('active',!_laidCourseMode);
+  if(laidBtn) laidBtn.classList.toggle('active',_laidCourseMode);
+  if(marksSec) marksSec.style.display=_laidCourseMode?'none':'';
+  if(laidSec) laidSec.style.display=_laidCourseMode?'':'none';
+  renderRoCoursePreview();
+}
+function setLaidCourseType(type){
+  _laidCourseType=type;
+  ['windward_leeward','triangle','olympic'].forEach(t=>{
+    const btn=document.getElementById('laidTypeBtn-'+t);
+    if(btn) btn.classList.toggle('active',t===type);
+  });
+  renderRoCoursePreview();
+}
+function updateLaidLaps(v){
+  _laidCourseLaps=Math.max(1,Math.min(10,parseInt(v)||1));
+  renderRoCoursePreview();
+}
+
+// ── Laid Course conceptual diagram ─────────────────────────────────────────
+// No fixed mark coordinates exist for a laid course — this draws a stylised,
+// schematic view of the course SHAPE (dashed legs = "not to exact bearing"),
+// reusing the same visual language (colours, wind/north arrows) as
+// buildCourseSvg so it feels consistent with the real mark-based diagram.
+function buildLaidCourseSvg(courseType, wDeg, laps){
+  const SVG_W=320, SVG_H=300;
+  const cx=SVG_W/2, startY=SVG_H-40, windY=46;
+  const RED='#e63946', YEL='#fee01e', GRN='#2dc653', TEAL='#00b4d8';
+  const sf={x:cx,y:startY};
+  let pts=[]; // [{x,y,label,colour}]
+  let legs=[]; // ordered points incl. sf at start/end
+  if(courseType==='triangle'){
+    const p1={x:cx,y:windY,label:'1 · Windward',colour:RED};
+    const p2={x:cx+68,y:180,label:'2 · Wing',colour:YEL};
+    const p3={x:cx-68,y:180,label:'3 · Wing',colour:GRN};
+    pts=[p1,p2,p3];
+    legs=[sf,p1,p2,p3,sf];
+  } else if(courseType==='olympic'){
+    const p1={x:cx,y:windY,label:'Windward',colour:RED};
+    const wing={x:cx+64,y:126,label:'Wing',colour:YEL};
+    const lee={x:cx,y:206,label:'Leeward',colour:GRN};
+    pts=[p1,wing,lee];
+    legs=[sf,p1,wing,lee,p1,sf];
+  } else { // windward_leeward
+    const p1={x:cx,y:windY,label:'Windward',colour:RED};
+    const lee={x:cx,y:206,label:'Leeward',colour:GRN};
+    pts=[p1,lee];
+    legs=[sf,p1,lee,p1,sf];
+  }
+
+  let svgParts=[];
+  svgParts.push(`<defs>
+    <marker id="lca" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
+      <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(0,180,216,0.7)"/>
+    </marker>
+  </defs>`);
+
+  // Dashed course legs (dashed = conceptual, not a real bearing)
+  for(let i=0;i<legs.length-1;i++){
+    const p1=legs[i],p2=legs[i+1];
+    const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1;
+    const sx=(p1.x+dx/len*8).toFixed(1),sy=(p1.y+dy/len*8).toFixed(1);
+    const ex=(p2.x-dx/len*10).toFixed(1),ey=(p2.y-dy/len*10).toFixed(1);
+    svgParts.push(`<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="rgba(0,180,216,0.55)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#lca)"/>`);
+  }
+
+  // Start/Finish line
+  svgParts.push(`<line x1="${(sf.x-26).toFixed(1)}" y1="${sf.y}" x2="${(sf.x+26).toFixed(1)}" y2="${sf.y}" stroke="${TEAL}" stroke-width="3.5" stroke-linecap="round" opacity="0.85"/>`);
+  svgParts.push(`<circle cx="${(sf.x-26).toFixed(1)}" cy="${sf.y}" r="3" fill="${TEAL}"/>`);
+  svgParts.push(`<circle cx="${(sf.x+26).toFixed(1)}" cy="${sf.y}" r="3" fill="${TEAL}"/>`);
+  svgParts.push(`<text x="${sf.x}" y="${sf.y+18}" text-anchor="middle" fill="${TEAL}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="800">START/FINISH</text>`);
+
+  // Marks
+  pts.forEach(p=>{
+    svgParts.push(`<circle cx="${p.x}" cy="${p.y}" r="7" fill="${p.colour}33" stroke="${p.colour}" stroke-width="1.8"/>`);
+    svgParts.push(`<circle cx="${p.x}" cy="${p.y}" r="2" fill="${p.colour}"/>`);
+    const labelLeft=p.x>cx;
+    const lx=labelLeft?p.x+12:p.x-12;
+    svgParts.push(`<text x="${lx}" y="${p.y+3}" text-anchor="${labelLeft?'start':'end'}" fill="${p.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${p.label}</text>`);
+  });
+
+  // North arrow (top-right)
+  {
+    const nx=SVG_W-18,ny=32,nh=14;
+    svgParts.push(`<line x1="${nx}" y1="${ny+nh/2}" x2="${nx}" y2="${ny-nh/2}" stroke="rgba(180,200,220,0.55)" stroke-width="1.5" marker-end="url(#lca)"/>`);
+    svgParts.push(`<text x="${nx}" y="${ny+nh/2+10}" text-anchor="middle" fill="rgba(122,143,166,0.65)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">N</text>`);
+  }
+
+  // Wind arrow (top-left)
+  if(wDeg!=null){
+    const wCX=20,wCY=24,wLen=13;
+    const wRad=(wDeg+180)*Math.PI/180;
+    const arrowX=(wCX+Math.sin(wRad)*wLen).toFixed(1);
+    const arrowY=(wCY-Math.cos(wRad)*wLen).toFixed(1);
+    svgParts.push(`<line x1="${wCX}" y1="${wCY}" x2="${arrowX}" y2="${arrowY}" stroke="rgba(255,170,0,0.75)" stroke-width="2" marker-end="url(#lca)"/>`);
+    svgParts.push(`<text x="${wCX}" y="${wCY+13}" text-anchor="middle" fill="rgba(255,170,0,0.75)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${wDeg}°</text>`);
+  }
+
+  // Laps badge
+  if(laps>1){
+    svgParts.push(`<text x="${cx}" y="${SVG_H-8}" text-anchor="middle" fill="rgba(255,224,30,0.8)" font-family="Barlow Condensed,sans-serif" font-size="10" font-weight="800">× ${laps} LAPS</text>`);
+  }
+
+  return `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block">${svgParts.join('\n')}</svg>`;
 }
 
 function renderCourseDiagram(targetId){
@@ -5950,6 +6085,46 @@ function renderCourseDiagram(targetId){
           `).join('')}
         </div>
         ${gwNote}
+      </div>
+    `;
+    return;
+  }
+
+  // ── Laid Course rendering path — course shape, no fixed marks ────────────
+  if(c.courseType){
+    const dirs3=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    const windDegDisp3=c.windDeg!=null?c.windDeg+'° '+dirs3[Math.round(c.windDeg/22.5)%16]:'—';
+    const laps=c.laps||1;
+    const legText={
+      windward_leeward:'Start/Finish – Windward – Leeward'+(laps>1?' (× '+laps+')':'')+' – Windward – Finish',
+      triangle:'Start/Finish – Mark 1 (Windward) – Mark 2 (Wing) – Mark 3 (Wing)'+(laps>1?' (× '+laps+')':'')+' – Finish',
+      olympic:'Start/Finish – Windward – Wing – Leeward – Windward'+(laps>1?' (× '+laps+')':'')+' – Finish'
+    }[c.courseType]||'';
+    wrap.innerHTML=`
+      <div class="course-diagram-wrap">
+        ${isStale?`
+        <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.35);border-radius:10px;margin-bottom:12px">
+          <span>⚠️</span><div>
+            <div style="font-size:.75rem;font-weight:700;color:var(--gold);text-transform:uppercase">Previous Course — For Reference Only</div>
+            <div style="font-size:.78rem;color:var(--muted)">Today's course has not been published yet.</div>
+          </div>
+        </div>`:''}
+        <div class="course-header">
+          <div>
+            <div class="course-title-label">${isStale?'Last Published Course':'Course'}</div>
+            <div class="course-name-text">${c.name||LAID_COURSE_LABELS[c.courseType]||'Laid Course'}</div>
+            <div style="font-size:.78rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
+              ${c.published_at?'Set '+new Date(c.published_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}
+            </div>
+          </div>
+          <div class="wind-badge"><span class="wind-badge-arrow">💨</span><span class="wind-badge-label">${windDegDisp3}</span></div>
+        </div>
+        <div style="margin-top:8px;padding:8px 12px;background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);border-radius:8px;font-size:.78rem;color:var(--teal)">
+          🌊 Laid course — marks are set on the day; positions below are conceptual, not exact bearings.
+        </div>
+        ${c.notes?`<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.82rem;color:var(--gold)">📋 ${c.notes}</div>`:''}
+        <div style="margin-top:14px;${isStale?'opacity:0.6':''}">${buildLaidCourseSvg(c.courseType,c.windDeg,laps)}</div>
+        <div style="margin-top:10px;font-size:.85rem;color:var(--white);line-height:1.5;text-align:center">${legText}</div>
       </div>
     `;
     return;
@@ -6176,8 +6351,25 @@ function updateFinishLine(id){
 function _buildCoursePayload(id){
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   const dir=dirs[Math.round(windDeg/22.5)%16];
-  const name='S/F – '+courseMarks.map(x=>{const m=MARKS.find(mk=>mk.id===x.id);return m?m.name:x.id;}).join(' – ')+' – Finish';
   const notes=(document.getElementById('courseNotes')||{}).value||'';
+  if(_laidCourseMode){
+    const label=LAID_COURSE_LABELS[_laidCourseType]||'Laid Course';
+    return{
+      id,
+      name:label+' × '+_laidCourseLaps,
+      marks:[],
+      windDeg,
+      windDir:dir,
+      race_name:selectedRace?selectedRace.label:'',
+      notes:notes.trim(),
+      published_at:new Date().toISOString(),
+      startLineId:selectedStartLineId,
+      finishLineId:selectedFinishLineId,
+      courseType:_laidCourseType,
+      laps:_laidCourseLaps
+    };
+  }
+  const name='S/F – '+courseMarks.map(x=>{const m=MARKS.find(mk=>mk.id===x.id);return m?m.name:x.id;}).join(' – ')+' – Finish';
   return{
     id,
     name,
@@ -6193,7 +6385,9 @@ function _buildCoursePayload(id){
 }
 
 async function saveDraft(){
-  if(!courseMarks.length){toast('Add at least one mark first');return;}
+  if(_laidCourseMode){
+    if(!_laidCourseType){toast('Pick a course shape first');return;}
+  } else if(!courseMarks.length){toast('Add at least one mark first');return;}
   setSyncStatus('syncing');
   const ok=await sbSaveCourse(_buildCoursePayload('draft'));
   if(ok){
@@ -6216,10 +6410,29 @@ async function loadDraftIfExists(){
   }
   if(!r||!r.length) return;
   const row=r[0];
+  if(row.course_type){
+    // Laid course — restore into laid-course mode
+    setCourseMode('laid');
+    setLaidCourseType(row.course_type);
+    _laidCourseLaps=row.laps||1;
+    const lapsInput=document.getElementById('laidLaps');
+    if(lapsInput) lapsInput.value=_laidCourseLaps;
+    windDeg=row.wind_deg||0;
+    if(row.notes){const n=document.getElementById('courseNotes');if(n)n.value=row.notes;}
+    if(row.start_line_id) selectedStartLineId=row.start_line_id;
+    if(row.finish_line_id) selectedFinishLineId=row.finish_line_id;
+    populateLineSelects();
+    renderRoCoursePreview();
+    const bar=document.getElementById('draftStatusBar');
+    if(isDraft){ if(bar) bar.style.display=''; toast('📝 Draft course loaded'); }
+    else { if(bar) bar.style.display='none'; toast('📋 Active course loaded into builder'); }
+    return;
+  }
   let marks=row.marks||[];
   if(typeof marks==='string'){try{marks=JSON.parse(marks);}catch(e){marks=[];}}
   if(!marks.length) return;
   // Restore into builder
+  setCourseMode('marks');
   courseMarks=marks;
   windDeg=row.wind_deg||0;
   if(row.notes){const n=document.getElementById('courseNotes');if(n)n.value=row.notes;}
@@ -6244,7 +6457,9 @@ async function loadDraftIfExists(){
 }
 
 async function publishCourse(){
-  if(!courseMarks.length){toast('Select at least one mark');return;}
+  if(_laidCourseMode){
+    if(!_laidCourseType){toast('Pick a course shape first');return;}
+  } else if(!courseMarks.length){toast('Select at least one mark');return;}
   setSyncStatus('syncing');
   const course=_buildCoursePayload('current');
   const ok=await sbSaveCourse(course);
@@ -6381,6 +6596,14 @@ function clearCourse(){
   courseMarks=[];
   selectedStartLineId='club';
   selectedFinishLineId='club';
+  _laidCourseType=null;
+  _laidCourseLaps=1;
+  const lapsInput=document.getElementById('laidLaps');
+  if(lapsInput) lapsInput.value=1;
+  ['windward_leeward','triangle','olympic'].forEach(t=>{
+    const btn=document.getElementById('laidTypeBtn-'+t);
+    if(btn) btn.classList.remove('active');
+  });
   populateLineSelects();
   document.querySelectorAll('.mark-toggle').forEach(el=>el.classList.remove('selected'));
   document.getElementById('courseNotes').value='';

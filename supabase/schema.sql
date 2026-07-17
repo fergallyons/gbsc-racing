@@ -140,7 +140,10 @@ CREATE TABLE IF NOT EXISTS published_courses (
   wind_dir     text,
   race_name    text DEFAULT '',
   notes        text DEFAULT '',
-  published_at timestamptz DEFAULT now()
+  published_at timestamptz DEFAULT now(),
+  -- Laid Course fields — course shape instead of fixed marks (see migration 032)
+  course_type  text CHECK (course_type IN ('windward_leeward','triangle','olympic')),
+  laps         int
 );
 
 ALTER TABLE published_courses ENABLE ROW LEVEL SECURITY;
@@ -173,10 +176,11 @@ CREATE TABLE IF NOT EXISTS marks (
 ALTER TABLE marks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "marks_select" ON marks FOR SELECT USING (true);
 CREATE POLICY "marks_insert" ON marks FOR INSERT WITH CHECK (
-  -- id must be a slug, lat/lng must be plausible (Galway Bay bounds)
+  -- id must be a slug, lat/lng must be plausible (all-Ireland bounds —
+  -- covers every club's home waters, not just Galway Bay)
   id ~ '^[a-z0-9_-]{1,60}$'
-  AND lat BETWEEN 52.0 AND 54.0
-  AND lng BETWEEN -10.5 AND -8.0
+  AND lat BETWEEN 51.0 AND 55.5
+  AND lng BETWEEN -11.0 AND -5.5
 );
 CREATE POLICY "marks_update" ON marks FOR UPDATE USING (true);
 CREATE POLICY "marks_delete" ON marks FOR DELETE USING (true);
