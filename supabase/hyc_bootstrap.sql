@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS settings (
   stripe_link_student   text DEFAULT '',
   stripe_link_visitor   text DEFAULT '',
   pre_race_window_hours int  DEFAULT 12,
+  estella_url           text DEFAULT '',
   worldtides_key        text DEFAULT '',
   ro_revolut_user            text DEFAULT '',
   results_published_race_key text DEFAULT '',
@@ -192,13 +193,15 @@ CREATE TABLE IF NOT EXISTS race_records (
   boat_id            text NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
   race_name          text NOT NULL,
   race_date          date NOT NULL,
+  race_key           text NOT NULL DEFAULT '',
   crew_snapshot      jsonb NOT NULL DEFAULT '[]',
   total_due          int NOT NULL DEFAULT 0,
   total_paid         int NOT NULL DEFAULT 0,
   payment_methods    jsonb DEFAULT '{}',
   settlement_methods jsonb DEFAULT '[]',
   settlement_note    text,
-  submitted_at       timestamptz DEFAULT now()
+  submitted_at       timestamptz DEFAULT now(),
+  CONSTRAINT race_records_boat_race_unique UNIQUE (boat_id, race_key)
 );
 
 CREATE INDEX IF NOT EXISTS race_records_race_name_idx ON race_records(race_name);
@@ -206,10 +209,12 @@ CREATE INDEX IF NOT EXISTS race_records_race_name_idx ON race_records(race_name)
 ALTER TABLE race_records ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "race_records_select" ON race_records;
 DROP POLICY IF EXISTS "race_records_insert" ON race_records;
+DROP POLICY IF EXISTS "race_records_update" ON race_records;
 CREATE POLICY "race_records_select" ON race_records FOR SELECT USING (true);
 CREATE POLICY "race_records_insert" ON race_records FOR INSERT WITH CHECK (
   boat_id IS NOT NULL AND race_name IS NOT NULL AND race_date IS NOT NULL
 );
+CREATE POLICY "race_records_update" ON race_records FOR UPDATE USING (true);
 GRANT SELECT, INSERT, UPDATE ON race_records TO anon;
 
 
