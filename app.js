@@ -7721,6 +7721,8 @@ const START_SEQ_STALE_MS=15*60*1000;
 
 const START_FLAG_NOTES={
   P:     'Standard start — a boat that is OCS must return and restart; no extra penalty.',
+  I:     'I Flag (Round-the-Ends Rule) — a boat on the course side in the last minute must sail around either end of the line before starting (RRS 30.1).',
+  Z:     'Z Flag — a boat OCS and identified in the last minute gets a 20% scoring penalty, without a hearing (RRS 30.2).',
   U:     'U Flag — a boat OCS in the last minute is disqualified without a hearing, but not scored as retired.',
   Black: 'Black Flag — a boat OCS in the last minute, or in the triangle formed by the line and first mark, is disqualified without a hearing. No general recall.',
 };
@@ -7942,6 +7944,18 @@ function renderPrepFlagGraphic(system){
     // Uniform — red field, white square inset
     el.style.background=FLAG_RED;
     el.innerHTML='<div style="position:absolute;inset:22% 34%;background:#fff"></div>';
+  } else if(system==='I'){
+    // India — yellow field, black disc
+    el.style.background='#ffd100';
+    el.innerHTML='<div style="position:absolute;inset:22%;border-radius:50%;background:#111"></div>';
+  } else if(system==='Z'){
+    // Zulu — quartered yellow (top) / red (fly) / black (bottom) / blue (hoist)
+    el.style.background='';
+    el.innerHTML=
+      '<div style="position:absolute;inset:0;clip-path:polygon(0 0,100% 0,50% 50%);background:#ffd100"></div>'
+      +'<div style="position:absolute;inset:0;clip-path:polygon(100% 0,100% 100%,50% 50%);background:'+FLAG_RED+'"></div>'
+      +'<div style="position:absolute;inset:0;clip-path:polygon(100% 100%,0 100%,50% 50%);background:#111"></div>'
+      +'<div style="position:absolute;inset:0;clip-path:polygon(0 100%,0 0,50% 50%);background:'+FLAG_BLUE+'"></div>';
   } else {
     el.style.background='#0a0a0a';
     el.style.border='2px solid rgba(255,255,255,.35)';

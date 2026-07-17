@@ -665,7 +665,7 @@ CREATE POLICY "protests_insert" ON protests FOR INSERT WITH CHECK (
 CREATE TABLE IF NOT EXISTS race_starts (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   start_time  timestamptz NOT NULL,
-  flag_system text NOT NULL DEFAULT 'P' CHECK (flag_system IN ('P','U','Black')),
+  flag_system text NOT NULL DEFAULT 'P' CHECK (flag_system IN ('P','U','Black','I','Z')),
   class_flag  text NOT NULL DEFAULT 'E' CHECK (class_flag IN ('E','0','1','2')),
   status      text NOT NULL DEFAULT 'armed' CHECK (status IN ('armed','cancelled')),
   created_at  timestamptz DEFAULT now()
