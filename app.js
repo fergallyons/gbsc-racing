@@ -7999,10 +7999,13 @@ function renderPostponedState(){
 }
 
 function renderApPennantGraphic(container){
+  // Real AP design: 5 equal VERTICAL bands, red/white/red/white/red
+  // (confirmed against museum-catalogued examples — not horizontal stripes)
+  const stripes='linear-gradient(90deg,'+FLAG_RED+' 0% 20%,#fff 20% 40%,'+FLAG_RED+' 40% 60%,#fff 60% 80%,'+FLAG_RED+' 80% 100%)';
   container.innerHTML=
     '<div style="text-align:center">'
     +'<div style="width:min(88vw,50vh,420px);aspect-ratio:3/2;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.5);margin:0 auto;'
-    +'background:repeating-linear-gradient(180deg,'+FLAG_RED+' 0,'+FLAG_RED+' 16.6%,#fff 16.6%,#fff 33.3%);'
+    +'background:'+stripes+';'
     +'clip-path:polygon(0 0,100% 50%,0 100%)"></div>'
     +'<div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:10px">AP — Answering Pennant</div>'
     +'</div>';
@@ -8024,9 +8027,13 @@ function renderPrepFlagGraphic(system){
     el.style.background=FLAG_BLUE;
     el.innerHTML='<div style="position:absolute;inset:20% 30%;background:#fff"></div>';
   } else if(system==='U'){
-    // Uniform — red field, white square inset
-    el.style.background=FLAG_RED;
-    el.innerHTML='<div style="position:absolute;inset:22% 34%;background:#fff"></div>';
+    // Uniform — quartered red/white checkerboard (red top-left & bottom-right)
+    el.style.background='';
+    el.innerHTML=
+      '<div style="position:absolute;inset:0 50% 50% 0;background:'+FLAG_RED+'"></div>'
+      +'<div style="position:absolute;inset:0 0 50% 50%;background:#fff"></div>'
+      +'<div style="position:absolute;inset:50% 50% 0 0;background:#fff"></div>'
+      +'<div style="position:absolute;inset:50% 0 0 50%;background:'+FLAG_RED+'"></div>';
   } else if(system==='I'){
     // India — yellow field, black disc
     el.style.background='#ffd100';
