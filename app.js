@@ -44,10 +44,42 @@ if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have 
     document.documentElement.style.setProperty('--border', _C.primaryColor.replace(/^#/, '') ? 'rgba('+hexToRgb(_C.primaryColor)+',0.18)' : '');
   }
   if(_C.roColor) document.documentElement.style.setProperty('--ro', _C.roColor);
+  if(_C.bgHue!=null) applyBgHue(_C.bgHue);
 })();
 function hexToRgb(hex){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
   return r+','+g+','+b;
+}
+// Re-hues the whole navy background family (page/cards/inputs/overlays) from a
+// single 0-359 hue, keeping GBSC's original saturation/lightness at each step
+// so contrast against white text stays identical across every club — only the
+// hue changes. Each club sets CLUB_CONFIG.bgHue (e.g. 352 for wine red,
+// 232 for indigo blue); omit it to keep GBSC's default navy (hue 219).
+function _hslToHex(h,s,l){
+  s/=100; l/=100;
+  const k=n=>(n+h/30)%12;
+  const a=s*Math.min(l,1-l);
+  const f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
+  const toHex=x=>Math.round(255*x).toString(16).padStart(2,'0');
+  return '#'+toHex(f(0))+toHex(f(8))+toHex(f(4));
+}
+function applyBgHue(hue){
+  const navy      =_hslToHex(hue,61,15);
+  const navyMid   =_hslToHex(hue,57,24);
+  const navyLt    =_hslToHex(hue,52,30);
+  const navyInput =_hslToHex(hue,61,13);
+  const navyDark  =_hslToHex(hue,67,10);
+  const root=document.documentElement.style;
+  root.setProperty('--navy', navy);
+  root.setProperty('--navy-mid', navyMid);
+  root.setProperty('--navy-lt', navyLt);
+  root.setProperty('--navy-input', navyInput);
+  root.setProperty('--navy-dark', navyDark);
+  root.setProperty('--card', navyMid);
+  const themeColor=document.querySelector('meta[name="theme-color"]');
+  if(themeColor) themeColor.content=navy;
+  const veil=document.getElementById('appVeil');
+  if(veil) veil.style.background=navyDark;
 }
 
 // ── Supabase ──────────────────────────────────────────────────

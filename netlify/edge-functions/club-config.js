@@ -34,6 +34,13 @@
  *      "fees":          {"full":4,"crew":4,"visitor":10,"student":5,"kid":0},
  *      "visitorMax":    6,
  *      "crewMaxYrs":    2,
+ *      "primaryColor":  "#00aeef",   // optional — overrides --teal accent (buttons, badges, wind arrow)
+ *      "roColor":       "#fee01e",   // optional — overrides --ro accent (RO-mode header/buttons)
+ *      "bgHue":         219,         // optional 0-359 — re-hues the whole navy background family
+ *                                    //   (page/cards/inputs/overlays) at GBSC's original saturation/
+ *                                    //   lightness, so contrast stays identical across clubs — only
+ *                                    //   the hue shifts. Omit to keep GBSC's default navy (hue 219).
+ *                                    //   e.g. 352 = wine red (HYC), 232 = indigo blue (RCYC)
  *      "sponsors": [
  *        {"match":"galway.?maritime","name":"Galway Maritime","tagline":"Marine Chandlery",
  *         "logo":"https://...","url":"https://galwaymaritime.com"},
