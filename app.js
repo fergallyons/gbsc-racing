@@ -8109,7 +8109,10 @@ let _startSeqAudioCtx=null;
 const CLASS_FLAG_COLOURS={E:'#00aeef','0':'#e63946','1':'#fee01e','2':'#2dc653'};
 
 async function openStartSeq(){
-  document.getElementById('startSeqOverlay').style.display='flex';
+  // Use the standard panel-overlay open path (class-toggle, not raw style.display)
+  // so this participates in the back-button history stack like every other
+  // panel-overlay in the app (see the MutationObserver near BACK BUTTON below).
+  openPanel('startSeqOverlay');
   _ensureStartSeqAudio(); // unlock AudioContext on this user gesture
   await refreshStartSeqData();
   if(_startSeqTimer) clearInterval(_startSeqTimer);
@@ -8120,7 +8123,7 @@ async function openStartSeq(){
 }
 
 function closeStartSeq(){
-  document.getElementById('startSeqOverlay').style.display='none';
+  closePanel('startSeqOverlay');
   if(_startSeqTimer){ clearInterval(_startSeqTimer); _startSeqTimer=null; }
   if(_startSeqPollTimer){ clearInterval(_startSeqPollTimer); _startSeqPollTimer=null; }
 }
