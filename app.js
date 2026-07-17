@@ -7730,9 +7730,9 @@ const START_SEQ_STALE_MS=15*60*1000;
 const START_FLAG_NOTES={
   P:     'Standard start — a boat that is OCS must return and restart; no extra penalty.',
   I:     'I Flag (Round-the-Ends Rule) — a boat on the course side in the last minute must sail around either end of the line before starting (RRS 30.1).',
-  Z:     'Z Flag — a boat OCS and identified in the last minute gets a 20% scoring penalty, without a hearing (RRS 30.2).',
-  U:     'U Flag — a boat OCS in the last minute is disqualified without a hearing, but not scored as retired.',
-  Black: 'Black Flag — a boat OCS in the last minute, or in the triangle formed by the line and first mark, is disqualified without a hearing. No general recall.',
+  Z:     'Z Flag — a boat in the triangle formed by the line and first mark in the last minute gets a 20% scoring penalty, without a hearing (RRS 30.2).',
+  U:     'U Flag — a boat OCS in the last minute is disqualified without a hearing, but not if the race is restarted or resailed (RRS 30.3).',
+  Black: 'Black Flag — a boat OCS in the last minute, or in the triangle formed by the line and first mark, is disqualified without a hearing — even if the race is restarted or resailed (RRS 30.4).',
 };
 let _roStartFlagSystem='P', _roStartClassFlag='E';
 
@@ -7937,7 +7937,8 @@ function tickStartSeq(){
 
   if(_startSeqLastPhase!==null&&phase.phase!==_startSeqLastPhase){
     if(phase.phase==='warning'||phase.phase==='prep'||phase.phase==='onemin'||phase.phase==='started'){
-      playStartHorn(phase.phase==='started');
+      // RRS 26: the one-minute signal is "one long sound" — the others are just "one"
+      playStartHorn(phase.phase==='onemin');
     }
   }
   _startSeqLastPhase=phase.phase;
@@ -8082,13 +8083,16 @@ function _ensureStartSeqAudio(){
 // a fast pitch "spin-up" mimics the horn building pressure, a slow tremolo LFO
 // adds the characteristic warble, and a compressor glues the layers together
 // without harsh clipping. No external audio file — can't fail to load mid-race.
-function playStartHorn(isStart){
+// isLong should be true only for the one-minute signal — per RRS 26 that's
+// the one specified as "one long sound"; warning/preparatory/starting are
+// each just "one" (short) sound.
+function playStartHorn(isLong){
   try{
     _ensureStartSeqAudio();
     const ctx=_startSeqAudioCtx;
     const now=ctx.currentTime;
-    const dur=isStart?1.4:0.9;
-    const baseFreq=isStart?233:196;
+    const dur=isLong?1.4:0.9;
+    const baseFreq=isLong?233:196;
 
     const master=ctx.createGain();
     master.gain.setValueAtTime(0,now);
