@@ -1010,10 +1010,13 @@
     <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px;line-height:1.5">Arms a self-running flag &amp; countdown sequence that any crew member can view from the boat — for when there's no RO on the line. Standard timing: warning at 5 min, preparatory at 4 min, one-minute at 1 min, start at 0.</div>
 
     <div id="roStartActiveCard" style="display:none;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:12px;padding:14px;margin-bottom:20px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--success);margin-bottom:6px">Active Start</div>
+      <div id="roStartActiveLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--success);margin-bottom:6px">Active Start</div>
       <div id="roStartActiveDetail" style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px"></div>
       <div id="roStartActiveSub" style="font-size:.78rem;color:var(--muted);margin-bottom:12px"></div>
-      <button class="btn btn-ghost" style="width:100%;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStart()">✕ Cancel Start</button>
+      <div style="display:flex;gap:8px">
+        <button id="roStartPostponeBtn" class="btn btn-ghost" style="flex:1;padding:10px;color:var(--warn);border-color:rgba(244,162,97,.4)" onclick="roPostponeStart()">⏸ Postpone (AP)</button>
+        <button class="btn btn-ghost" style="flex:1;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStart()">✕ Cancel</button>
+      </div>
     </div>
 
     <div class="form-group" style="margin-bottom:14px">

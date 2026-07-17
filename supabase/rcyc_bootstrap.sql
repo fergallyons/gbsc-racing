@@ -667,7 +667,7 @@ CREATE TABLE IF NOT EXISTS race_starts (
   start_time  timestamptz NOT NULL,
   flag_system text NOT NULL DEFAULT 'P' CHECK (flag_system IN ('P','U','Black','I','Z')),
   class_flag  text NOT NULL DEFAULT 'E' CHECK (class_flag IN ('E','0','1','2')),
-  status      text NOT NULL DEFAULT 'armed' CHECK (status IN ('armed','cancelled')),
+  status      text NOT NULL DEFAULT 'armed' CHECK (status IN ('armed','cancelled','postponed')),
   created_at  timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS race_starts_status_idx ON race_starts(status, start_time);

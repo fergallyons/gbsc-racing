@@ -1759,10 +1759,13 @@ async function refreshRoStartSeqTile(){
   const sub=document.getElementById('roStartSeqStatus');
   if(!sub) return;
   const active=await sbLoadActiveStart();
-  if(active&&new Date(active.start_time)>=new Date(Date.now()-START_SEQ_STALE_MS)){
-    sub.textContent='Armed · '+new Date(active.start_time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-  } else {
+  const stale=active&&active.status==='armed'&&new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
+  if(!active||stale){
     sub.textContent='Not armed';
+  } else if(active.status==='postponed'){
+    sub.textContent='Postponed (AP)';
+  } else {
+    sub.textContent='Armed · '+new Date(active.start_time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   }
 }
 function updateROChips(regsCount,protestsCount,coursePublished){
@@ -7705,12 +7708,17 @@ async function sbArmStart(fields){
     body:JSON.stringify(fields)});
 }
 async function sbCancelAllArmedStarts(){
-  return sbFetch('/rest/v1/race_starts?status=eq.armed',{method:'PATCH',
+  return sbFetch('/rest/v1/race_starts?status=in.(armed,postponed)',{method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify({status:'cancelled'})});
 }
+async function sbPostponeActiveStart(){
+  return sbFetch('/rest/v1/race_starts?status=eq.armed',{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({status:'postponed'})});
+}
 async function sbLoadActiveStart(){
-  const r=await sbFetch('/rest/v1/race_starts?status=eq.armed&order=start_time.desc&limit=1');
+  const r=await sbFetch('/rest/v1/race_starts?status=in.(armed,postponed)&order=start_time.desc&limit=1');
   return (r&&!r._err&&r.length)?r[0]:null;
 }
 
@@ -7739,16 +7747,42 @@ async function openRoStartPanel(){
 async function refreshRoStartActiveCard(){
   const card=document.getElementById('roStartActiveCard');
   const active=await sbLoadActiveStart();
-  if(!active||new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS)){
+  const stale=active&&active.status==='armed'&&new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
+  if(!active||stale){
     card.style.display='none';
     return;
   }
   card.style.display='block';
+  const label=document.getElementById('roStartActiveLabel');
+  const postponeBtn=document.getElementById('roStartPostponeBtn');
   const t=new Date(active.start_time);
-  document.getElementById('roStartActiveDetail').textContent=
-    t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+active.flag_system+' flag · Class '+active.class_flag;
-  document.getElementById('roStartActiveSub').textContent=
-    t>new Date()?'Counting down…':'Started';
+  if(active.status==='postponed'){
+    card.style.background='rgba(244,162,97,.1)';
+    card.style.borderColor='rgba(244,162,97,.35)';
+    label.style.color='var(--warn)';
+    label.textContent='Postponed (AP)';
+    document.getElementById('roStartActiveDetail').textContent='AP flying — no time set';
+    document.getElementById('roStartActiveSub').textContent='Set a new time below to resume, or cancel';
+    postponeBtn.style.display='none';
+  } else {
+    card.style.background='rgba(45,198,83,.08)';
+    card.style.borderColor='rgba(45,198,83,.3)';
+    label.style.color='var(--success)';
+    label.textContent='Active Start';
+    document.getElementById('roStartActiveDetail').textContent=
+      t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+active.flag_system+' flag · Class '+active.class_flag;
+    document.getElementById('roStartActiveSub').textContent=
+      t>new Date()?'Counting down…':'Started';
+    postponeBtn.style.display='';
+  }
+}
+
+async function roPostponeStart(){
+  if(!confirm('Postpone the start? AP will fly until you set a new time or cancel.'))return;
+  await sbPostponeActiveStart();
+  toast('⏸ AP — start postponed');
+  document.getElementById('roStartSeqStatus').textContent='Postponed (AP)';
+  await refreshRoStartActiveCard();
 }
 
 function roSetStartOffset(mins){
@@ -7798,7 +7832,7 @@ async function roCancelStart(){
 
 // ── Public start sequence viewer — full-screen, readable from a distance ──
 let _startSeqTimer=null, _startSeqPollTimer=null;
-let _startSeqActive=null, _startSeqActiveId=null, _startSeqLastPhase=null;
+let _startSeqActive=null, _startSeqActiveId=null, _startSeqLastPhase=null, _startSeqLastStatus=null;
 let _startSeqAudioCtx=null;
 const CLASS_FLAG_COLOURS={E:'#00aeef','0':'#e63946','1':'#fee01e','2':'#2dc653'};
 
@@ -7821,12 +7855,18 @@ function closeStartSeq(){
 
 async function refreshStartSeqData(){
   const active=await sbLoadActiveStart();
-  const stale=active&&new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
+  // Staleness only applies to a live countdown — a postponement has no fixed
+  // time to measure "15 minutes past" from, and should persist until the RO
+  // explicitly resolves it.
+  const stale=active&&active.status==='armed'&&new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
   _startSeqActive=(active&&!stale)?active:null;
   if(!_startSeqActive||_startSeqActive.id!==_startSeqActiveId){
     _startSeqLastPhase=null; // fresh/changed start — don't replay a sound for the initial phase
     _startSeqActiveId=_startSeqActive?_startSeqActive.id:null;
   }
+  const newStatus=_startSeqActive?_startSeqActive.status:null;
+  if(newStatus==='postponed'&&_startSeqLastStatus!=='postponed') playPostponeHorn();
+  _startSeqLastStatus=newStatus;
   // tickStartSeq() stops the local timer once a start goes past the 15-minute
   // cutoff — restart it here if a newly-armed start shows up while the
   // overlay is still open and the tick loop had gone quiet.
@@ -7869,6 +7909,14 @@ function tickStartSeq(){
   const body=document.getElementById('startSeqBody');
   if(!_startSeqActive){
     empty.style.display='flex'; body.style.display='none';
+    return;
+  }
+
+  if(_startSeqActive.status==='postponed'){
+    // Nothing to count down to — render once and stop the fast local timer;
+    // the background poll picks up when the RO resumes or cancels.
+    renderPostponedState();
+    if(_startSeqTimer){ clearInterval(_startSeqTimer); _startSeqTimer=null; }
     return;
   }
 
@@ -7928,6 +7976,41 @@ function tickStartSeq(){
 
   document.getElementById('startSeqNote').textContent=
     (phase.phase==='prep'||phase.phase==='onemin')?(START_FLAG_NOTES[_startSeqActive.flag_system]||''):'';
+}
+
+function renderPostponedState(){
+  document.getElementById('startSeqEmpty').style.display='none';
+  document.getElementById('startSeqBody').style.display='flex';
+
+  document.getElementById('startSeqPhaseLabel').textContent='Postponed';
+  const clockEl=document.getElementById('startSeqClock');
+  clockEl.textContent='AP';
+  clockEl.style.color='var(--warn)';
+  document.getElementById('startSeqClockLabel').textContent='Wait for further signals';
+
+  document.getElementById('startSeqPrepFlagWrap').style.display='none';
+  document.getElementById('startSeqClassFlagWrap').style.display='none';
+  const flagsEmpty=document.getElementById('startSeqFlagsEmpty');
+  flagsEmpty.style.display='flex';
+  renderApPennantGraphic(flagsEmpty);
+
+  document.getElementById('startSeqNote').textContent=
+    'AP — Answering Pennant. All races postponed; not yet started. The RO will set a new time or signal further postponement.';
+}
+
+function renderApPennantGraphic(container){
+  container.innerHTML=
+    '<div style="text-align:center">'
+    +'<div style="width:min(88vw,50vh,420px);aspect-ratio:3/2;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.5);margin:0 auto;'
+    +'background:repeating-linear-gradient(180deg,'+FLAG_RED+' 0,'+FLAG_RED+' 16.6%,#fff 16.6%,#fff 33.3%);'
+    +'clip-path:polygon(0 0,100% 50%,0 100%)"></div>'
+    +'<div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:10px">AP — Answering Pennant</div>'
+    +'</div>';
+}
+
+function playPostponeHorn(){
+  playStartHorn(false);
+  setTimeout(()=>playStartHorn(false),550);
 }
 
 // International code flag colours (approximate standard maritime signal shades)
