@@ -1638,7 +1638,12 @@ function updateCpDots(){ for(let i=0;i<4;i++) document.getElementById('cpd'+i).c
 async function confirmChangePin(){
   if(cpEntry.length!==4){ document.getElementById('cpError').textContent='Enter 4 digits'; return; }
   if(cpTargetId==='ro'){
-    setRoPin(cpEntry);
+    const ok=await setRoPin(cpEntry);
+    if(!ok){
+      document.getElementById('cpError').textContent='Could not save — check connection';
+      cpEntry=''; updateCpDots();
+      return;
+    }
     closeChangePinOverlay();
     toast('✅ RO PIN updated');
     return;
@@ -2345,8 +2350,20 @@ function getBoatPin(id){
   if(currentBoat&&currentBoat.id===id) return boatConfig.pin||'0000';
   try{ const c=localStorage.getItem('cfg_'+id); return c?JSON.parse(c).pin||'0000':'0000'; }catch(e){ return'0000'; }
 }
-function getRoPin(){ try{return localStorage.getItem('pin_ro')||RO_PIN;}catch(e){return RO_PIN;} }
-function setRoPin(pin){ try{localStorage.setItem('pin_ro',pin);}catch(e){} }
+// RO_PIN is loaded from settings.ro_pin (DB) at startup — see loadClubSettings().
+// getRoPin() trusts it directly rather than a local cache, so every device stays
+// in sync with whatever was last saved, instead of silently diverging per-device.
+function getRoPin(){ return RO_PIN; }
+async function setRoPin(pin){
+  // Persist to DB first — only update in-memory state on success, matching setBoatPin().
+  const result=await sbSaveClubSettings({ro_pin:pin});
+  if(!result||result._err) return false;
+  RO_PIN=pin;
+  // Clean up the old per-device override key from before this was DB-backed —
+  // a stale value here used to permanently shadow the real DB PIN on this device.
+  try{localStorage.removeItem('pin_ro');}catch(e){}
+  return true;
+}
 
 async function setBoatPin(id,pin){
   // Persist to DB first — only update local cache on success
