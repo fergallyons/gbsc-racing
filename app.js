@@ -8970,6 +8970,17 @@ async function deleteProtest(id){
     if(currentBoat||isRO) showLogoutConfirm();
     // Guest: silently swallowed — re-push above keeps the app alive
   });
+
+  // Mobile browsers can restore the whole page from the back-forward cache
+  // (bfcache) on a back/forward navigation — a frozen DOM/JS snapshot, with
+  // no script re-execution. If a feature flag, RO PIN, or course changed
+  // server-side while this tab was backgrounded, the restored snapshot
+  // shows the old state (e.g. a tile that was toggled on afterward stays
+  // hidden). pageshow with event.persisted=true fires specifically for a
+  // bfcache restore — re-pull settings so the DOM reflects current reality.
+  window.addEventListener('pageshow', (e) => {
+    if(e.persisted) loadClubSettings();
+  });
 })();
 
 function showLogoutConfirm(){
