@@ -558,6 +558,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON settings           TO anon;
 ALTER TABLE boats
   ADD COLUMN IF NOT EXISTS stripe_link text NOT NULL DEFAULT '';
 
+-- 033 — boats.sail_number (for HalSail finish-recording CSV export)
+ALTER TABLE boats
+  ADD COLUMN IF NOT EXISTS sail_number text NOT NULL DEFAULT '';
+
 -- 020 — settings: per-club config columns
 ALTER TABLE settings
   ADD COLUMN IF NOT EXISTS logo_url          text NOT NULL DEFAULT '',

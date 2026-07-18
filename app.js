@@ -512,6 +512,7 @@ const FEAT_TILE_MAP={
   clubSettings:   ['tile-ro-clubSettings'],
   raceSchedule:   ['tile-ro-raceSchedule'],
   startSequence:  ['tile-ro-startSequence','tile-pub-startSequence'],
+  finishRecording:['tile-ro-finishRecording'],
   // Skipper tiles
   crew:           ['tile-sk-crew'],
   fees:           ['tile-sk-fees'],
@@ -538,7 +539,7 @@ const FEAT_DEFAULTS={
   startTimer:true, halsail:true, paymentReport:true, marksManager:true,
   publishResults:true, usageStats:true, feeStatements:true, viewCourse:true,
   registrations:true, protests:true, boatMgmt:true, clubSettings:true,
-  raceSchedule:true, startSequence:true,
+  raceSchedule:true, startSequence:true, finishRecording:true,
   courseCard:false,
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
@@ -563,6 +564,7 @@ const FEAT_CATALOG=[
   {key:'paymentReport',  label:'Payment Report',        type:'bool', group:'RO Tiles'},
   {key:'marksManager',   label:'Marks Manager',         type:'bool', group:'RO Tiles'},
   {key:'startSequence',  label:'Start Sequence',        type:'bool', group:'RO Tiles'},
+  {key:'finishRecording',label:'Finish Recording',      type:'bool', group:'RO Tiles'},
   {key:'crew',         label:'Crew Roster',   type:'bool', group:'Skipper Tiles'},
   {key:'fees',         label:'Fees',          type:'bool', group:'Skipper Tiles'},
   {key:'protest',      label:'Protest',       type:'bool', group:'Skipper Tiles'},
@@ -855,7 +857,7 @@ async function buildBoatGrid(){
   // Load all boats from Supabase
   const sbBoats=await sbFetch('/rest/v1/boats?order=name.asc');
   if(sbBoats&&sbBoats.length){
-    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵'}));
+    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||''}));
   } else {
     // Offline — fall back to localStorage cache
     boats=loadCustom();
@@ -5307,6 +5309,20 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
   }).sort((a,b)=>a.boat.name.localeCompare(b.boat.name));
   const missing=rows.filter(r=>!r.found);
 
+  // Opportunistically fill in sail numbers from the Irish Sailing match —
+  // needed for the Finish Recording CSV export, and this is the one place
+  // we already have national-register sail numbers matched to local boats.
+  // RO-only: this writes to the DB, and only an RO session should trigger that.
+  if(isRO){
+    rows.forEach(r=>{
+      const sailNo=r.match&&r.match.sailNo?r.match.sailNo:'';
+      if(sailNo&&r.boat.sailNumber!==sailNo){
+        r.boat.sailNumber=sailNo; // update in-memory copy immediately
+        sbSaveBoatConfig(r.boat.id,{sail_number:sailNo}).catch(()=>{});
+      }
+    });
+  }
+
   const summaryHtml=`<div style="display:flex;gap:10px;margin-bottom:16px">
     <div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--white)">${rows.length}</div>
@@ -6549,6 +6565,9 @@ async function buildPinMgmtList(){
         '<span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem">'+b.name+'</span>'+
       '</div>'+
       '<div style="display:flex;align-items:center;gap:6px">'+
+        '<input type="text" value="'+escHtml(b.sailNumber||'')+'" placeholder="Sail No" title="Sail number — used for HalSail finish exports" '+
+          'onchange="updateBoatSailNumber(\''+b.id+'\',this.value)" '+
+          'style="width:64px;background:var(--navy-input);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:Barlow Condensed,sans-serif;font-size:.8rem;padding:3px 6px;text-align:center">'+
         '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.15em">'+pin+'</span>'+
         '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">PIN</button>'+
         '<button onclick="deleteBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">Delete</button>'+
@@ -6566,6 +6585,19 @@ async function buildPinMgmtList(){
       '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(254,224,30,.4);background:transparent;color:var(--ro);cursor:pointer">PIN</button>'+
     '</div>';
   list.appendChild(roRow);
+}
+
+async function updateBoatSailNumber(id,value){
+  const sailNumber=(value||'').trim();
+  const b=boats.find(x=>x.id===id); if(!b) return;
+  const prev=b.sailNumber||'';
+  b.sailNumber=sailNumber; // optimistic
+  const result=await sbSaveBoatConfig(id,{sail_number:sailNumber});
+  if(!result||result._err){
+    b.sailNumber=prev;
+    toast('⚠ Could not save sail number — check connection');
+    buildPinMgmtList();
+  }
 }
 
 function openIconPicker(boatId){
@@ -8105,8 +8137,35 @@ async function roCancelStart(){
 // ── Public start sequence viewer — full-screen, readable from a distance ──
 let _startSeqTimer=null, _startSeqPollTimer=null;
 let _startSeqActive=null, _startSeqActiveId=null, _startSeqLastPhase=null, _startSeqLastStatus=null;
+let _startSeqLastTickAt=null;
 let _startSeqAudioCtx=null;
+let _startSeqWakeLock=null;
 const CLASS_FLAG_COLOURS={E:'#00aeef','0':'#e63946','1':'#fee01e','2':'#2dc653'};
+
+// Keeps the screen from sleeping while the countdown is on-screen — a crew
+// member propping the phone up to watch the flags shouldn't have it lock
+// mid-sequence. Unsupported browsers (or a denied/unavailable request, e.g.
+// low battery mode) just fail silently; the countdown itself still works.
+async function _acquireStartSeqWakeLock(){
+  if(!('wakeLock' in navigator)) return;
+  try{
+    _startSeqWakeLock=await navigator.wakeLock.request('screen');
+    _startSeqWakeLock.addEventListener('release',()=>{ _startSeqWakeLock=null; });
+  }catch(e){
+    _startSeqWakeLock=null;
+  }
+}
+function _releaseStartSeqWakeLock(){
+  if(_startSeqWakeLock){ _startSeqWakeLock.release().catch(()=>{}); _startSeqWakeLock=null; }
+}
+// The OS/browser force-releases the wake lock whenever the tab is hidden
+// (switching apps, screen lock) — it does not come back on its own once the
+// tab is visible again, so re-request it here if the countdown is still open.
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState!=='visible') return;
+  const overlay=document.getElementById('startSeqOverlay');
+  if(overlay&&overlay.classList.contains('open')) _acquireStartSeqWakeLock();
+});
 
 async function openStartSeq(){
   // Use the standard panel-overlay open path (class-toggle, not raw style.display)
@@ -8114,6 +8173,7 @@ async function openStartSeq(){
   // panel-overlay in the app (see the MutationObserver near BACK BUTTON below).
   openPanel('startSeqOverlay');
   _ensureStartSeqAudio(); // unlock AudioContext on this user gesture
+  _acquireStartSeqWakeLock();
   await refreshStartSeqData();
   if(_startSeqTimer) clearInterval(_startSeqTimer);
   if(_startSeqPollTimer) clearInterval(_startSeqPollTimer);
@@ -8124,6 +8184,7 @@ async function openStartSeq(){
 
 function closeStartSeq(){
   closePanel('startSeqOverlay');
+  _releaseStartSeqWakeLock();
   if(_startSeqTimer){ clearInterval(_startSeqTimer); _startSeqTimer=null; }
   if(_startSeqPollTimer){ clearInterval(_startSeqPollTimer); _startSeqPollTimer=null; }
 }
@@ -8180,6 +8241,16 @@ function formatStartCountdown(secs){
 }
 
 function tickStartSeq(){
+  // Detect a large gap since the last tick — a locked screen or backgrounded
+  // tab pauses/throttles this 250ms interval, so on resume the phase can have
+  // silently jumped past one or more signals. Playing a horn at that point
+  // would be for a transition that actually happened whenever the phone was
+  // inactive, not "now" — confusing rather than useful. Skip the sound (but
+  // still catch the display up immediately) whenever that's happened.
+  const now=Date.now();
+  const resumedFromBackground=_startSeqLastTickAt!=null&&(now-_startSeqLastTickAt)>2000;
+  _startSeqLastTickAt=now;
+
   const empty=document.getElementById('startSeqEmpty');
   const body=document.getElementById('startSeqBody');
   if(!_startSeqActive){
@@ -8210,7 +8281,7 @@ function tickStartSeq(){
 
   const phase=getStartPhase(secsToStart);
 
-  if(_startSeqLastPhase!==null&&phase.phase!==_startSeqLastPhase){
+  if(_startSeqLastPhase!==null&&phase.phase!==_startSeqLastPhase&&!resumedFromBackground){
     if(phase.phase==='warning'||phase.phase==='prep'||phase.phase==='onemin'||phase.phase==='started'){
       // RRS 26: the one-minute signal is "one long sound" — the others are just "one"
       playStartHorn(phase.phase==='onemin');
@@ -8367,7 +8438,7 @@ function playStartHorn(isLong){
     const ctx=_startSeqAudioCtx;
     const now=ctx.currentTime;
     const dur=isLong?1.4:0.9;
-    const baseFreq=isLong?233:196;
+    const baseFreq=isLong?349:294;
 
     const master=ctx.createGain();
     master.gain.setValueAtTime(0,now);
@@ -8388,10 +8459,11 @@ function playStartHorn(isLong){
     lfo.connect(lfoGain); lfoGain.connect(tremolo.gain);
     tremolo.connect(comp);
 
-    // Gentle lowpass to warm the raw sawtooth edge
+    // Gentle lowpass to warm the raw sawtooth edge — raised from 2200 to let
+    // more of the brighter harmonics through (was landing too bassy/dull)
     const filter=ctx.createBiquadFilter();
     filter.type='lowpass';
-    filter.frequency.value=2200;
+    filter.frequency.value=3800;
     filter.Q.value=0.7;
     filter.connect(tremolo);
 
@@ -9034,6 +9106,155 @@ function openStartTimer(){
 
   // Desktop / unknown — open the website
   window.open('https://starttimerapp.com', '_blank');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FINISH RECORDING — offline-first finish capture, exports CSV for HalSail
+// ═══════════════════════════════════════════════════════════════
+// HalSail's own phone UI requires a live connection and a long-press per
+// boat — unusable with no signal at the finish line, and easy to fat-finger.
+// This records locally (survives reload/offline) and exports a CSV matching
+// HalSail's documented import format (Sail No / Finish / Status / Notes,
+// title row, stops at the first blank Sail No) for upload once back in range.
+let _finishRecordRace=null;
+let _finishRecordBoats=[];
+let _finishRecords={}; // boatId -> {sailNumber, name, time:'HH:MM:SS'|null, status:''}
+const FINISH_STATUSES=['OCS','RET','DNF','DSQ','DNS'];
+
+function _finishRecordKey(race){
+  // Namespaced by club slug — localStorage is shared across ?club= variants
+  // on this one origin, and finish data must never leak between clubs.
+  return 'finishRecord_'+(_C.slug||'club')+'_'+raceKey(race);
+}
+function _loadFinishRecords(race){
+  try{
+    const raw=localStorage.getItem(_finishRecordKey(race));
+    return raw?JSON.parse(raw):{};
+  }catch(e){ return {}; }
+}
+function _saveFinishRecords(){
+  if(!_finishRecordRace) return;
+  try{ localStorage.setItem(_finishRecordKey(_finishRecordRace),JSON.stringify(_finishRecords)); }catch(e){}
+  updateFinishRecordTile();
+}
+
+async function openFinishRecordPanel(){
+  _finishRecordRace=selectedRace||nextRace;
+  openPanel('roFinishPanel');
+  const nameEl=document.getElementById('finishRecordRaceName');
+  if(nameEl) nameEl.textContent=_finishRecordRace?_finishRecordRace.label:'No upcoming race';
+  if(!_finishRecordRace){
+    document.getElementById('finishRecordList').innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🏁</div><div>No race scheduled</div></div>';
+    return;
+  }
+  _finishRecords=_loadFinishRecords(_finishRecordRace);
+  const list=document.getElementById('finishRecordList');
+  list.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted);font-size:.85rem">Loading registered boats…</div>';
+  const regs=await sbLoadRegistrations(_finishRecordRace);
+  const regIds=new Set((regs||[]).map(r=>r.boat_id));
+  _finishRecordBoats=boats.filter(b=>regIds.has(b.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  _finishRecordBoats.forEach(b=>{
+    if(!_finishRecords[b.id]) _finishRecords[b.id]={sailNumber:b.sailNumber||'',name:b.name,time:null,status:''};
+  });
+  renderFinishRecordList();
+}
+
+function renderFinishRecordList(){
+  const list=document.getElementById('finishRecordList'); if(!list) return;
+  if(!_finishRecordBoats.length){
+    list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">⛵</div><div>No boats registered for this race yet</div></div>';
+    return;
+  }
+  const rowHtml=(b)=>{
+    const rec=_finishRecords[b.id]||{time:null,status:''};
+    const done=!!(rec.time||rec.status);
+    const statusBtns=FINISH_STATUSES.map(s=>
+      `<button onclick="setFinishStatus('${b.id}','${s}')" style="flex:1;padding:5px 0;border-radius:6px;border:1px solid ${rec.status===s?'var(--danger)':'var(--border)'};background:${rec.status===s?'rgba(230,57,70,.18)':'transparent'};color:${rec.status===s?'#e63946':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer">${s}</button>`
+    ).join('');
+    return `<div style="background:var(--card);border:1px solid ${done?'var(--success)':'var(--border)'};border-radius:12px;padding:10px 12px;margin-bottom:8px">
+      <div onclick="recordFinish('${b.id}')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0">
+        <div style="min-width:0">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.95rem;color:var(--white)">${escHtml(b.name)}</div>
+          <div style="font-size:.72rem;color:var(--muted)">${escHtml(b.sailNumber||'No sail number set')}</div>
+        </div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:${rec.time?'var(--success)':'var(--muted)'};flex-shrink:0">
+          ${rec.time?('✓ '+rec.time):(rec.status?'—':'Tap to finish')}
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;margin-top:8px">${statusBtns}</div>
+    </div>`;
+  };
+  const finished=_finishRecordBoats.filter(b=>_finishRecords[b.id]&&_finishRecords[b.id].time);
+  const nonFinishers=_finishRecordBoats.filter(b=>_finishRecords[b.id]&&_finishRecords[b.id].status);
+  const remaining=_finishRecordBoats.filter(b=>!(_finishRecords[b.id]&&(_finishRecords[b.id].time||_finishRecords[b.id].status)));
+  let html='';
+  if(remaining.length) html+=remaining.map(rowHtml).join('');
+  if(finished.length) html+=`<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:14px 0 8px">Finished (${finished.length})</div>`+finished.map(rowHtml).join('');
+  if(nonFinishers.length) html+=`<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:14px 0 8px">Not Finishing (${nonFinishers.length})</div>`+nonFinishers.map(rowHtml).join('');
+  list.innerHTML=html;
+  updateFinishRecordTile();
+}
+
+function recordFinish(boatId){
+  const rec=_finishRecords[boatId]; if(!rec) return;
+  if(rec.time){
+    rec.time=null; // tap again to undo
+  } else {
+    rec.time=new Date().toTimeString().slice(0,8); // device clock, HH:MM:SS — matches HalSail's expected format directly
+    rec.status=''; // a recorded finish supersedes any status
+  }
+  _saveFinishRecords();
+  renderFinishRecordList();
+}
+
+function setFinishStatus(boatId,status){
+  const rec=_finishRecords[boatId]; if(!rec) return;
+  rec.status=(rec.status===status)?'':status; // tap the active status again to clear it
+  if(rec.status) rec.time=null; // status supersedes a recorded time
+  _saveFinishRecords();
+  renderFinishRecordList();
+}
+
+function clearFinishRecords(){
+  if(!_finishRecordRace) return;
+  if(!confirm('Clear all recorded finishes for this race? This cannot be undone.')) return;
+  _finishRecordBoats.forEach(b=>{ _finishRecords[b.id]={sailNumber:b.sailNumber||'',name:b.name,time:null,status:''}; });
+  _saveFinishRecords();
+  renderFinishRecordList();
+}
+
+function _csvField(v){
+  v=String(v==null?'':v);
+  return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+}
+function exportFinishRecordCsv(){
+  if(!_finishRecordRace){ toast('No race selected'); return; }
+  const rows=_finishRecordBoats
+    .map(b=>_finishRecords[b.id])
+    .filter(rec=>rec&&(rec.time||rec.status));
+  if(!rows.length){ toast('No finishes recorded yet'); return; }
+  const lines=['Sail No,Finish,Status,Notes'];
+  rows.forEach(rec=>{
+    lines.push([_csvField(rec.sailNumber),_csvField(rec.time||''),_csvField(rec.status||''),''].join(','));
+  });
+  const csv=lines.join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='finishes_'+raceKey(_finishRecordRace)+'.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast('⬇ CSV downloaded — upload it in HalSail\'s results import');
+}
+
+function updateFinishRecordTile(){
+  const sub=document.getElementById('finishRecordStatus'); if(!sub) return;
+  const recorded=Object.values(_finishRecords).filter(r=>r&&(r.time||r.status)).length;
+  const total=_finishRecordBoats.length;
+  sub.textContent=total?(recorded+' of '+total+' recorded'):'No finishes recorded';
 }
 
 // ── Halsail integration ───────────────────────────────────────────────────

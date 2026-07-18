@@ -702,6 +702,11 @@
       <div class="dash-card-label">Protests</div>
       <div class="dash-card-sub" id="roProtestsStatus">None filed</div>
     </div>
+    <div id="tile-ro-finishRecording" class="dash-card ro-card" onclick="openFinishRecordPanel()">
+      <div class="dash-card-icon">🏁</div>
+      <div class="dash-card-label">Finish Recording</div>
+      <div class="dash-card-sub" id="finishRecordStatus">No finishes recorded</div>
+    </div>
     <!-- Fees & admin -->
     <div id="tile-ro-paymentReport" class="dash-card ro-card" onclick="openPanel('roPaymentReportPanel')">
       <div class="dash-card-icon">💰</div>
@@ -1082,6 +1087,31 @@
   <div class="panel-body">
     <div id="protestList">
       <div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- roFinishPanel — Finish Recording (offline-first, exports CSV for HalSail) -->
+<div class="panel-overlay" id="roFinishPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roFinishPanel')">‹</button>
+    <span class="panel-title">🏁 Finish Recording</span>
+  </div>
+  <div class="panel-body">
+    <div class="race-bar" style="margin-bottom:14px">
+      <div class="race-bar-icon">🏁</div>
+      <div class="race-bar-text">
+        <div class="race-bar-label">Recording finishes for</div>
+        <div id="finishRecordRaceName" style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;color:var(--white)">—</div>
+      </div>
+    </div>
+    <div style="font-size:.78rem;color:var(--muted);line-height:1.5;margin-bottom:14px">
+      Tap a boat as it crosses the line to record its finish time — tap again to undo. Use the status buttons for anything that isn't a normal finish. Works fully offline; export to CSV once you're back in range.
+    </div>
+    <div id="finishRecordList"></div>
+    <div class="publish-bar" style="margin-top:16px">
+      <button class="btn btn-ro" style="flex:1;padding:12px" onclick="exportFinishRecordCsv()">⬇ Export CSV for HalSail</button>
+      <button class="btn btn-ghost" style="padding:12px 14px" onclick="clearFinishRecords()">Clear</button>
     </div>
   </div>
 </div>

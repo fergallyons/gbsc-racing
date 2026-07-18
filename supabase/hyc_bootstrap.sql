@@ -595,7 +595,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON settings TO anon;
 
 -- ── boats: remaining columns ─────────────────────────────────
 ALTER TABLE boats
-  ADD COLUMN IF NOT EXISTS stripe_link text NOT NULL DEFAULT '';
+  ADD COLUMN IF NOT EXISTS stripe_link text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS sail_number text NOT NULL DEFAULT '';
 
 
 -- ── registrations: remaining columns ────────────────────────
