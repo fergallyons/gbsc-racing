@@ -9227,7 +9227,7 @@ function _csvField(v){
   v=String(v==null?'':v);
   return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
 }
-function exportFinishRecordCsv(){
+async function exportFinishRecordCsv(){
   if(!_finishRecordRace){ toast('No race selected'); return; }
   const rows=_finishRecordBoats
     .map(b=>_finishRecords[b.id])
@@ -9238,11 +9238,28 @@ function exportFinishRecordCsv(){
     lines.push([_csvField(rec.sailNumber),_csvField(rec.time||''),_csvField(rec.status||''),''].join(','));
   });
   const csv=lines.join('\r\n');
+  const filename='finishes_'+raceKey(_finishRecordRace)+'.csv';
+
+  // Prefer native sharing — gets the file off the phone in one tap (AirDrop,
+  // email, WhatsApp, Drive, whatever's already set up) instead of leaving it
+  // sitting in a Downloads folder nobody checks on a phone. Falls back to a
+  // plain download on browsers/desktops without file-sharing support.
+  try{
+    const file=new File([csv],filename,{type:'text/csv'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:filename,text:'Finish times for '+_finishRecordRace.label});
+      return;
+    }
+  }catch(e){
+    if(e&&e.name==='AbortError') return; // user cancelled the share sheet — don't also force a download
+    // any other failure falls through to the download below
+  }
+
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;
-  a.download='finishes_'+raceKey(_finishRecordRace)+'.csv';
+  a.download=filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
