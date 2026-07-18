@@ -9169,19 +9169,19 @@ function renderFinishRecordList(){
     const rec=_finishRecords[b.id]||{time:null,status:''};
     const done=!!(rec.time||rec.status);
     const statusBtns=FINISH_STATUSES.map(s=>
-      `<button onclick="setFinishStatus('${b.id}','${s}')" style="flex:1;padding:5px 0;border-radius:6px;border:1px solid ${rec.status===s?'var(--danger)':'var(--border)'};background:${rec.status===s?'rgba(230,57,70,.18)':'transparent'};color:${rec.status===s?'#e63946':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.7rem;font-weight:700;cursor:pointer">${s}</button>`
+      `<button onclick="setFinishStatus('${b.id}','${s}')" style="flex:1;padding:9px 0;border-radius:7px;border:1px solid ${rec.status===s?'var(--danger)':'var(--border)'};background:${rec.status===s?'rgba(230,57,70,.18)':'transparent'};color:${rec.status===s?'#e63946':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;cursor:pointer">${s}</button>`
     ).join('');
-    return `<div style="background:var(--card);border:1px solid ${done?'var(--success)':'var(--border)'};border-radius:12px;padding:10px 12px;margin-bottom:8px">
-      <div onclick="recordFinish('${b.id}')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0">
+    return `<div style="background:var(--card);border:1px solid ${done?'var(--success)':'var(--border)'};border-radius:12px;padding:12px 14px;margin-bottom:10px">
+      <div onclick="recordFinish('${b.id}')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;gap:10px">
         <div style="min-width:0">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.95rem;color:var(--white)">${escHtml(b.name)}</div>
-          <div style="font-size:.72rem;color:var(--muted)">${escHtml(b.sailNumber||'No sail number set')}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.2rem;color:var(--white)">${escHtml(b.name)}</div>
+          <div style="font-size:.95rem;color:var(--muted)">${escHtml(b.sailNumber||'No sail number set')}</div>
         </div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:${rec.time?'var(--success)':'var(--muted)'};flex-shrink:0">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;color:${rec.time?'var(--success)':'var(--muted)'};flex-shrink:0;text-align:right">
           ${rec.time?('✓ '+rec.time):(rec.status?'—':'Tap to finish')}
         </div>
       </div>
-      <div style="display:flex;gap:4px;margin-top:8px">${statusBtns}</div>
+      <div style="display:flex;gap:6px;margin-top:10px">${statusBtns}</div>
     </div>`;
   };
   const finished=_finishRecordBoats.filter(b=>_finishRecords[b.id]&&_finishRecords[b.id].time);
@@ -9189,8 +9189,8 @@ function renderFinishRecordList(){
   const remaining=_finishRecordBoats.filter(b=>!(_finishRecords[b.id]&&(_finishRecords[b.id].time||_finishRecords[b.id].status)));
   let html='';
   if(remaining.length) html+=remaining.map(rowHtml).join('');
-  if(finished.length) html+=`<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:14px 0 8px">Finished (${finished.length})</div>`+finished.map(rowHtml).join('');
-  if(nonFinishers.length) html+=`<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:14px 0 8px">Not Finishing (${nonFinishers.length})</div>`+nonFinishers.map(rowHtml).join('');
+  if(finished.length) html+=`<div style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:16px 0 10px">Finished (${finished.length})</div>`+finished.map(rowHtml).join('');
+  if(nonFinishers.length) html+=`<div style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:16px 0 10px">Not Finishing (${nonFinishers.length})</div>`+nonFinishers.map(rowHtml).join('');
   list.innerHTML=html;
   updateFinishRecordTile();
 }
