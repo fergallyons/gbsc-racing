@@ -9175,7 +9175,7 @@ function renderFinishRecordList(){
       <div onclick="recordFinish('${b.id}')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;gap:10px">
         <div style="min-width:0">
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.2rem;color:var(--white)">${escHtml(b.name)}</div>
-          <div style="font-size:.95rem;color:var(--muted)">${escHtml(b.sailNumber||'No sail number set')}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.2rem;color:${b.sailNumber?'var(--gold)':'var(--muted)'}">${escHtml(b.sailNumber||'No sail number set')}</div>
         </div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;color:${rec.time?'var(--success)':'var(--muted)'};flex-shrink:0;text-align:right">
           ${rec.time?('✓ '+rec.time):(rec.status?'—':'Tap to finish')}
