@@ -8368,7 +8368,10 @@ function _scheduleStartSeqHorns(){
     _startSeqHornTimers.push(id);
   });
 }
-const CLASS_FLAG_COLOURS={E:'#00aeef','0':'#e63946','1':'#fee01e','2':'#2dc653'};
+// Real ICS numeral pennants taper from full height at the hoist to half
+// height at the fly (a truncated point, not a full swallow-point) — traced
+// from the official ICS Pennant Zero/One/Two SVGs (Wikimedia Commons).
+const NUMERAL_PENNANT_CLIP='polygon(0% 0%,100% 25%,100% 75%,0% 100%)';
 
 // Keeps the screen from sleeping while the countdown is on-screen — a crew
 // member propping the phone up to watch the flags shouldn't have it lock
@@ -8619,15 +8622,32 @@ function renderClassFlagGraphic(classFlag){
   el.style.border='';
   if(classFlag==='E'){
     // International Code Flag "Echo" — blue over red, split horizontally
+    el.style.aspectRatio='3/2';
+    el.style.clipPath='';
     el.style.background='';
     el.innerHTML=
       '<div style="position:absolute;inset:0 0 50% 0;background:'+FLAG_BLUE+'"></div>'+
       '<div style="position:absolute;inset:50% 0 0 0;background:'+FLAG_RED+'"></div>';
   } else {
-    // Numeral class flags aren't standardised the same way — solid colour + bold number
-    el.style.background=CLASS_FLAG_COLOURS[classFlag]||FLAG_BLUE;
-    el.innerHTML='<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;'
-      +'font-family:\'Barlow Condensed\',sans-serif;font-weight:800;color:#fff;font-size:min(9vw,3.4rem)">'+escHtml(classFlag)+'</div>';
+    // Numeral pennants — standard ICS designs, not free-form colour + digit.
+    // 0: yellow with a red vertical band. 1: white with a red hoist disc.
+    // 2: blue with a white hoist disc. (Only 0/1/2 are used as class flags here.)
+    el.style.aspectRatio='9/5'; // real ICS pennant hoist:fly proportion (5:9)
+    el.style.clipPath=NUMERAL_PENNANT_CLIP;
+    const disc=(colour)=>'<div style="position:absolute;left:27.8%;top:50%;width:27.9%;aspect-ratio:1;'
+      +'transform:translate(-50%,-50%);border-radius:50%;background:'+colour+'"></div>';
+    if(classFlag==='0'){
+      el.style.background='#ffd100';
+      el.innerHTML='<div style="position:absolute;inset:0;'
+        +'clip-path:polygon(32.9% 8.7%,67.1% 17.3%,67.1% 82.7%,32.9% 91.3%);background:'+FLAG_RED+'"></div>';
+    } else if(classFlag==='2'){
+      el.style.background=FLAG_BLUE;
+      el.innerHTML=disc('#fff');
+    } else {
+      // '1' (and any other numeral, since only 0/1/2 are wired up as class flags)
+      el.style.background='#fff';
+      el.innerHTML=disc(FLAG_RED);
+    }
   }
 }
 
