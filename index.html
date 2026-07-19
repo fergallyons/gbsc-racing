@@ -668,9 +668,12 @@
       <span class="dash-chip course-no">Course not set</span>
     </div>
   </div>
-  <!-- 2-column tile grid -->
-  <div class="dash-grid">
-    <!-- Race operations -->
+  <!-- ── Race Day ── (expanded by default — everything used live during a race) -->
+  <div class="ro-sec-head" onclick="toggleRoSection('raceday')">
+    <span class="ro-sec-title">🏁 Race day</span>
+    <span class="ro-sec-chev" id="roSecChev-raceday">▾</span>
+  </div>
+  <div class="dash-grid" id="roSecBody-raceday">
     <div class="dash-card ro-card" onclick="openPanel('roCoursePanel')">
       <div class="dash-card-icon">🗺</div>
       <div class="dash-card-label">Course Builder</div>
@@ -712,38 +715,6 @@
       <div class="dash-card-label">Finish Recording</div>
       <div class="dash-card-sub" id="finishRecordStatus">No finishes recorded</div>
     </div>
-    <!-- Fees & admin -->
-    <div id="tile-ro-paymentReport" class="dash-card ro-card" onclick="openPanel('roPaymentReportPanel')">
-      <div class="dash-card-icon">💰</div>
-      <div class="dash-card-label">Payment Report</div>
-      <div class="dash-card-sub">Generate PDF</div>
-    </div>
-    <div id="tile-ro-boatMgmt" class="dash-card ro-card" onclick="openPanel('roBoatsPanel')">
-      <div class="dash-card-icon">🔑</div>
-      <div class="dash-card-label">Boat Management</div>
-      <div class="dash-card-sub">Manage boats &amp; PINs</div>
-    </div>
-    <!-- Settings -->
-    <div id="tile-ro-clubSettings" class="dash-card ro-card" onclick="openROClubSettings()">
-      <div class="dash-card-icon">⚙</div>
-      <div class="dash-card-label">Club Settings</div>
-      <div class="dash-card-sub">Payment links</div>
-    </div>
-    <div id="tile-ro-raceSchedule" class="dash-card ro-card" onclick="openRaceSchedulePanel()">
-      <div class="dash-card-icon">📅</div>
-      <div class="dash-card-label">Race Schedule</div>
-      <div class="dash-card-sub" id="roRaceScheduleSub">Manage races</div>
-    </div>
-    <div id="tile-ro-usageStats" class="dash-card ro-card" onclick="loadUsageStats()">
-      <div class="dash-card-icon">📊</div>
-      <div class="dash-card-label">Usage Stats</div>
-      <div class="dash-card-sub">Sessions &amp; logins</div>
-    </div>
-    <div id="tile-ro-startTimer" class="dash-card ro-card" onclick="openStartTimer()">
-      <div class="dash-card-icon">🔔</div>
-      <div class="dash-card-label">Start Timer</div>
-      <div class="dash-card-sub" id="startTimerSub">Voice Sail Start Timer</div>
-    </div>
     <div id="tile-ro-halsail" class="dash-card ro-card" onclick="openHalsail()">
       <div class="dash-card-icon">🏁</div>
       <div class="dash-card-label">Halsail</div>
@@ -759,6 +730,19 @@
       <div class="dash-card-label">Publish Results</div>
       <div class="dash-card-sub" id="roResultsStatus">—</div>
     </div>
+  </div>
+
+  <!-- ── Payments ── -->
+  <div class="ro-sec-head" onclick="toggleRoSection('payments')">
+    <span class="ro-sec-title">💰 Payments</span>
+    <span class="ro-sec-chev" id="roSecChev-payments">▸</span>
+  </div>
+  <div class="dash-grid" id="roSecBody-payments" style="display:none">
+    <div id="tile-ro-paymentReport" class="dash-card ro-card" onclick="openPanel('roPaymentReportPanel')">
+      <div class="dash-card-icon">💰</div>
+      <div class="dash-card-label">Payment Report</div>
+      <div class="dash-card-sub">Generate PDF</div>
+    </div>
     <div id="tile-ro-outstanding" class="dash-card ro-card" onclick="openOutstandingReport()">
       <div class="dash-card-icon">🔴</div>
       <div class="dash-card-label">Outstanding</div>
@@ -769,15 +753,56 @@
       <div class="dash-card-label">Fee Statements</div>
       <div class="dash-card-sub">Per-boat payment history</div>
     </div>
-    <div id="tile-ro-features" class="dash-card ro-card" onclick="openRoFeaturesPanel()">
-      <div class="dash-card-icon">🧩</div>
-      <div class="dash-card-label">Features</div>
-      <div class="dash-card-sub">Club feature toggles</div>
+  </div>
+
+  <!-- ── Club Admin ── (season setup, touched occasionally) -->
+  <div class="ro-sec-head" onclick="toggleRoSection('admin')">
+    <span class="ro-sec-title">🔑 Club admin</span>
+    <span class="ro-sec-chev" id="roSecChev-admin">▸</span>
+  </div>
+  <div class="dash-grid" id="roSecBody-admin" style="display:none">
+    <div id="tile-ro-boatMgmt" class="dash-card ro-card" onclick="openPanel('roBoatsPanel')">
+      <div class="dash-card-icon">🔑</div>
+      <div class="dash-card-label">Boat Management</div>
+      <div class="dash-card-sub">Manage boats &amp; PINs</div>
+    </div>
+    <div id="tile-ro-raceSchedule" class="dash-card ro-card" onclick="openRaceSchedulePanel()">
+      <div class="dash-card-icon">📅</div>
+      <div class="dash-card-label">Race Schedule</div>
+      <div class="dash-card-sub" id="roRaceScheduleSub">Manage races</div>
     </div>
     <div id="tile-ro-news" class="dash-card ro-card" onclick="openPanel('roNewsPanel')">
       <div class="dash-card-icon">📰</div>
       <div class="dash-card-label">News Feed</div>
       <div class="dash-card-sub" id="roNewsSub">Manage news items</div>
+    </div>
+  </div>
+
+  <!-- ── Advanced ── -->
+  <div class="ro-sec-head" onclick="toggleRoSection('advanced')">
+    <span class="ro-sec-title">⚙ Advanced</span>
+    <span class="ro-sec-chev" id="roSecChev-advanced">▸</span>
+  </div>
+  <div class="dash-grid" id="roSecBody-advanced" style="display:none">
+    <div id="tile-ro-clubSettings" class="dash-card ro-card" onclick="openROClubSettings()">
+      <div class="dash-card-icon">⚙</div>
+      <div class="dash-card-label">Club Settings</div>
+      <div class="dash-card-sub">Payment links</div>
+    </div>
+    <div id="tile-ro-usageStats" class="dash-card ro-card" onclick="loadUsageStats()">
+      <div class="dash-card-icon">📊</div>
+      <div class="dash-card-label">Usage Stats</div>
+      <div class="dash-card-sub">Sessions &amp; logins</div>
+    </div>
+    <div id="tile-ro-startTimer" class="dash-card ro-card" onclick="openStartTimer()">
+      <div class="dash-card-icon">🔔</div>
+      <div class="dash-card-label">Start Timer</div>
+      <div class="dash-card-sub" id="startTimerSub">Voice Sail Start Timer</div>
+    </div>
+    <div id="tile-ro-features" class="dash-card ro-card" onclick="openRoFeaturesPanel()">
+      <div class="dash-card-icon">🧩</div>
+      <div class="dash-card-label">Features</div>
+      <div class="dash-card-sub">Club feature toggles</div>
     </div>
   </div>
 </div><!-- /roTab -->

@@ -1706,6 +1706,18 @@ function closePanel(id){
   setTimeout(()=>{p.style.display='none';},300);
 }
 
+// RO dashboard — collapsible tile sections (Race day / Payments / Club admin / Advanced).
+// Race day starts expanded (everything used live during a race); the rest
+// start collapsed so the dashboard opens on ~10 tiles instead of all 21.
+function toggleRoSection(name){
+  const body=document.getElementById('roSecBody-'+name);
+  const chev=document.getElementById('roSecChev-'+name);
+  if(!body||!chev) return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'grid';
+  chev.textContent=open?'▸':'▾';
+}
+
 // ── Skipper dashboard update ─────────────────────────────────
 function updateSkipperDash(){
   const r=selectedRace||nextRace;

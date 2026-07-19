@@ -188,6 +188,13 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
 .crew-count{background:var(--navy-lt);color:var(--teal);font-family:'Barlow Condensed',sans-serif;
   font-weight:700;font-size:.8rem;padding:2px 10px;border-radius:12px;}
+/* Collapsible RO dashboard sections */
+.ro-sec-head{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 2px;margin-top:8px;cursor:pointer;border-bottom:1px solid var(--border);
+  -webkit-tap-highlight-color:transparent;}
+.ro-sec-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--teal);}
+.ro-sec-chev{color:var(--muted);font-size:.8rem;transition:transform .15s;}
 .race-bar{background:var(--card);border:1px solid var(--border);border-radius:12px;
   padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:20px;}
 .race-bar-icon{font-size:1.4rem;flex-shrink:0;}
