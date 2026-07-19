@@ -218,6 +218,11 @@
       <div class="dash-card-label">Course</div>
       <div class="dash-card-sub">Today's course</div>
     </div>
+    <div id="tile-sk-startSequence" class="dash-card" onclick="openStartSeq()">
+      <div class="dash-card-icon">🚦</div>
+      <div class="dash-card-label">Start Sequence</div>
+      <div class="dash-card-sub" id="skStartSeqSub">Flags &amp; countdown</div>
+    </div>
     <div class="dash-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
       <div class="dash-card-icon">🏆</div>
       <div class="dash-card-label">Results</div>
@@ -262,11 +267,6 @@
       <div class="dash-card-icon">📐</div>
       <div class="dash-card-label" id="skHandicapsTileLabel">GBSC Handicaps</div>
       <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
-    </div>
-    <div id="tile-sk-startSequence" class="dash-card" onclick="openStartSeq()">
-      <div class="dash-card-icon">🚦</div>
-      <div class="dash-card-label">Start Sequence</div>
-      <div class="dash-card-sub" id="skStartSeqSub">Flags &amp; countdown</div>
     </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">
@@ -565,6 +565,11 @@
       <div class="dash-card-label">Course</div>
       <div class="dash-card-sub">Today's course</div>
     </div>
+    <div id="tile-pub-startSequence" class="dash-card" onclick="openStartSeq()">
+      <div class="dash-card-icon">🚦</div>
+      <div class="dash-card-label">Start Sequence</div>
+      <div class="dash-card-sub" id="pubStartSeqSub">Flags &amp; countdown</div>
+    </div>
     <div id="tile-pub-results" class="dash-card" onclick="openPanel('resultsPanel');loadResultsIfNeeded()">
       <div class="dash-card-icon">🏆</div>
       <div class="dash-card-label">Results</div>
@@ -589,11 +594,6 @@
       <div class="dash-card-icon">📄</div>
       <div class="dash-card-label">Documents</div>
       <div class="dash-card-sub">Sailing instructions</div>
-    </div>
-    <div id="tile-pub-startSequence" class="dash-card" onclick="openStartSeq()">
-      <div class="dash-card-icon">🚦</div>
-      <div class="dash-card-label">Start Sequence</div>
-      <div class="dash-card-sub" id="pubStartSeqSub">Flags &amp; countdown</div>
     </div>
     <div id="tile-pub-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
       <div class="dash-card-icon">📐</div>
