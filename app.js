@@ -1718,6 +1718,15 @@ function toggleRoSection(name){
   chev.textContent=open?'▸':'▾';
 }
 
+function toggleDashSection(prefix,name){
+  const body=document.getElementById(prefix+'SecBody-'+name);
+  const chev=document.getElementById(prefix+'SecChev-'+name);
+  if(!body||!chev) return;
+  const open=body.style.display!=='none';
+  body.style.display=open?'none':'grid';
+  chev.textContent=open?'▸':'▾';
+}
+
 // ── Skipper dashboard update ─────────────────────────────────
 function updateSkipperDash(){
   const r=selectedRace||nextRace;

@@ -211,8 +211,12 @@
       🔍 Looking for crew?
     </button>
   </div>
-  <!-- 2-column tile grid -->
-  <div class="dash-grid">
+  <!-- ── Race Day ── (expanded by default — everything used live during a race) -->
+  <div class="ro-sec-head" onclick="toggleDashSection('sk','raceday')">
+    <span class="ro-sec-title">🏁 Race day</span>
+    <span class="ro-sec-chev" id="skSecChev-raceday">▾</span>
+  </div>
+  <div class="dash-grid" id="skSecBody-raceday">
     <div class="dash-card" onclick="openPanel('coursePanel')">
       <div class="dash-card-icon">🗺</div>
       <div class="dash-card-label">Course</div>
@@ -228,30 +232,46 @@
       <div class="dash-card-label">Results</div>
       <div class="dash-card-sub">Series standings</div>
     </div>
-    <div id="tile-sk-crew" class="dash-card" onclick="openPanel('crewPanel')">
-      <div class="dash-card-icon">👥</div>
-      <div class="dash-card-label">Crew Roster</div>
-      <div class="dash-card-sub" id="dc-crew-badge">0 selected</div>
-    </div>
-    <div id="tile-sk-fees" class="dash-card" onclick="openFeePanel()">
-      <div class="dash-card-icon">💳</div>
-      <div class="dash-card-label" id="dc-fees-label">Race Fees</div>
-      <div class="dash-card-sub" id="dc-fees-badge">Collect &amp; submit</div>
-    </div>
     <div id="tile-sk-protest" class="dash-card" onclick="openProtestSheet()">
       <div class="dash-card-icon">🚩</div>
       <div class="dash-card-label">File Protest</div>
       <div class="dash-card-sub">Under RRS Rule 61</div>
+    </div>
+    <div id="tile-sk-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
+      <div class="dash-card-icon">📐</div>
+      <div class="dash-card-label" id="skHandicapsTileLabel">GBSC Handicaps</div>
+      <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
+    </div>
+  </div>
+
+  <!-- ── Payments ── -->
+  <div class="ro-sec-head" onclick="toggleDashSection('sk','payments')">
+    <span class="ro-sec-title">💰 Payments</span>
+    <span class="ro-sec-chev" id="skSecChev-payments">▸</span>
+  </div>
+  <div class="dash-grid" id="skSecBody-payments" style="display:none">
+    <div id="tile-sk-fees" class="dash-card" onclick="openFeePanel()">
+      <div class="dash-card-icon">💳</div>
+      <div class="dash-card-label" id="dc-fees-label">Race Fees</div>
+      <div class="dash-card-sub" id="dc-fees-badge">Collect &amp; submit</div>
     </div>
     <div id="tile-sk-feeHistory" class="dash-card" onclick="openFeeStatement()">
       <div class="dash-card-icon">📋</div>
       <div class="dash-card-label">Fee History</div>
       <div class="dash-card-sub">My payment record</div>
     </div>
-    <div id="tile-sk-settings" class="dash-card" onclick="openSettingsSheet()">
-      <div class="dash-card-icon">⚙</div>
-      <div class="dash-card-label">Settings</div>
-      <div class="dash-card-sub">Revolut username</div>
+  </div>
+
+  <!-- ── Crew ── -->
+  <div class="ro-sec-head" onclick="toggleDashSection('sk','crew')">
+    <span class="ro-sec-title">👥 Crew</span>
+    <span class="ro-sec-chev" id="skSecChev-crew">▸</span>
+  </div>
+  <div class="dash-grid" id="skSecBody-crew" style="display:none">
+    <div id="tile-sk-crew" class="dash-card" onclick="openPanel('crewPanel')">
+      <div class="dash-card-icon">👥</div>
+      <div class="dash-card-label">Crew Roster</div>
+      <div class="dash-card-sub" id="dc-crew-badge">0 selected</div>
     </div>
     <div id="tile-sk-crewWanted" class="dash-card" onclick="openCrewWantedPanel()">
       <div class="dash-card-icon">🔍</div>
@@ -263,10 +283,18 @@
       <div class="dash-card-label">Available Crew</div>
       <div class="dash-card-sub" id="sk-crew-available-sub">Sailors looking to crew</div>
     </div>
-    <div id="tile-sk-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
-      <div class="dash-card-icon">📐</div>
-      <div class="dash-card-label" id="skHandicapsTileLabel">GBSC Handicaps</div>
-      <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
+  </div>
+
+  <!-- ── Advanced ── -->
+  <div class="ro-sec-head" onclick="toggleDashSection('sk','advanced')">
+    <span class="ro-sec-title">⚙ Advanced</span>
+    <span class="ro-sec-chev" id="skSecChev-advanced">▸</span>
+  </div>
+  <div class="dash-grid" id="skSecBody-advanced" style="display:none">
+    <div id="tile-sk-settings" class="dash-card" onclick="openSettingsSheet()">
+      <div class="dash-card-icon">⚙</div>
+      <div class="dash-card-label">Settings</div>
+      <div class="dash-card-sub">Revolut username</div>
     </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">
@@ -558,8 +586,12 @@
     <span id="newSailorCtaTitle">⛵ New to GBSC Racing?</span>
     <span class="new-sailor-cta-sub">Find out how to join →</span>
   </button>
-  <!-- 2-column tile grid -->
-  <div class="dash-grid">
+  <!-- ── Race Day ── (expanded by default — everything used live during a race) -->
+  <div class="ro-sec-head" onclick="toggleDashSection('crew','raceday')">
+    <span class="ro-sec-title">🏁 Race day</span>
+    <span class="ro-sec-chev" id="crewSecChev-raceday">▾</span>
+  </div>
+  <div class="dash-grid" id="crewSecBody-raceday">
     <div class="dash-card" onclick="openPanel('coursePanel')">
       <div class="dash-card-icon">🗺</div>
       <div class="dash-card-label">Course</div>
@@ -575,16 +607,37 @@
       <div class="dash-card-label">Results</div>
       <div class="dash-card-sub">Series standings</div>
     </div>
-    <div id="tile-pub-selfPay" class="dash-card" onclick="openSelfPayPanel()">
-      <div class="dash-card-icon">💰</div>
-      <div class="dash-card-label">Pay Race Fees</div>
-      <div class="dash-card-sub">Crew Fees</div>
-    </div>
     <div id="tile-pub-weather" class="dash-card" onclick="openWeatherPanel()">
       <div class="dash-card-icon">🌬️</div>
       <div class="dash-card-label">Race Weather</div>
       <div class="dash-card-sub" id="wx-tile-sub">Wind, tide &amp; forecast</div>
     </div>
+    <div id="tile-pub-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
+      <div class="dash-card-icon">📐</div>
+      <div class="dash-card-label" id="handicapsTileLabel">GBSC Handicaps</div>
+      <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
+    </div>
+  </div>
+
+  <!-- ── Payments ── -->
+  <div class="ro-sec-head" onclick="toggleDashSection('crew','payments')">
+    <span class="ro-sec-title">💰 Payments</span>
+    <span class="ro-sec-chev" id="crewSecChev-payments">▸</span>
+  </div>
+  <div class="dash-grid" id="crewSecBody-payments" style="display:none">
+    <div id="tile-pub-selfPay" class="dash-card" onclick="openSelfPayPanel()">
+      <div class="dash-card-icon">💰</div>
+      <div class="dash-card-label">Pay Race Fees</div>
+      <div class="dash-card-sub">Crew Fees</div>
+    </div>
+  </div>
+
+  <!-- ── Club Info ── -->
+  <div class="ro-sec-head" onclick="toggleDashSection('crew','clubinfo')">
+    <span class="ro-sec-title">📄 Club info</span>
+    <span class="ro-sec-chev" id="crewSecChev-clubinfo">▸</span>
+  </div>
+  <div class="dash-grid" id="crewSecBody-clubinfo" style="display:none">
     <div id="tile-pub-calendar" class="dash-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
       <div class="dash-card-icon">📅</div>
       <div class="dash-card-label">Calendar</div>
@@ -595,11 +648,14 @@
       <div class="dash-card-label">Documents</div>
       <div class="dash-card-sub">Sailing instructions</div>
     </div>
-    <div id="tile-pub-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
-      <div class="dash-card-icon">📐</div>
-      <div class="dash-card-label" id="handicapsTileLabel">GBSC Handicaps</div>
-      <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
-    </div>
+  </div>
+
+  <!-- ── Crew ── -->
+  <div class="ro-sec-head" onclick="toggleDashSection('crew','crew')">
+    <span class="ro-sec-title">👥 Crew</span>
+    <span class="ro-sec-chev" id="crewSecChev-crew">▸</span>
+  </div>
+  <div class="dash-grid" id="crewSecBody-crew" style="display:none">
     <div id="tile-pub-crewWanted" class="dash-card" onclick="openCrewWantedPanel()">
       <div class="dash-card-icon">🔍</div>
       <div class="dash-card-label">Crew Wanted</div>
