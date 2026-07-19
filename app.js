@@ -4629,6 +4629,9 @@ async function spConfirm(method){
     amount:FEES[p.type]||0
   };
   await sbSaveSelfPayment(record);   // duplicate = already recorded, that's fine
+  // Self-paying implies you were on the boat — mark attendance too (ignore-duplicates, so re-confirming is harmless)
+  sbUpsertRaceAttendee(b.id,record.race_key,record.race_name,record.race_date,p.id)
+    .then(r=>{if(r?._err) console.error('race_attendees upsert failed',r._err);});
   selfPayState.confirmedMethod=method;
   selfPayState.step=3;
   renderSelfPayPanel();
