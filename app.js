@@ -634,7 +634,8 @@ let _laidCourseMode=false;
 let _laidCourseType=null;   // 'windward_leeward' | 'triangle' | 'olympic'
 let _laidCourseLaps=1;
 const LAID_COURSE_LABELS={windward_leeward:'Windward-Leeward',triangle:'Triangle',olympic:'Olympic'};
-let registeredBoatIds=new Set(); // boat IDs registered for the next race
+let registeredBoatIds=new Set(); // boat IDs registered for the next race — used by the pre-login boat picker grid, always nextRace-scoped
+let mySelectedRaceRegistered=false; // is currentBoat registered for `selectedRace` specifically — the skipper dashboard's own race dropdown can point at a different (often past) race than nextRace
 let lookingForCrew=false;        // whether currentBoat is looking for crew for nextRace
 let roDashRegsCount=0, roDashProtestsCount=0, roDashCoursePublished=false;
 
@@ -904,7 +905,9 @@ function renderBoatGrid(){
 }
 async function registerForRace(){
   if(!currentBoat||!selectedRace)return;
-  const isReg=registeredBoatIds.has(currentBoat.id);
+  if(selectedRace.date<new Date())return; // registration is a pre-race action — button is hidden past the race, but guard the click too
+  const isReg=mySelectedRaceRegistered;
+  const isNextRace=raceKey(selectedRace)===raceKey(nextRace);
   const btn=document.getElementById('registerBtn');
   if(isReg){
     // Unregister
@@ -912,7 +915,8 @@ async function registerForRace(){
     btn.textContent='⏳ Updating…'; btn.disabled=true;
     const ok=await sbUnregisterBoat(currentBoat.id,selectedRace);
     if(ok!==null){
-      registeredBoatIds.delete(currentBoat.id);
+      mySelectedRaceRegistered=false;
+      if(isNextRace) registeredBoatIds.delete(currentBoat.id);
       toast('Registration withdrawn');
     } else { toast('⚠ Could not update — try again'); }
   } else {
@@ -920,7 +924,8 @@ async function registerForRace(){
     btn.textContent='⏳ Registering…'; btn.disabled=true;
     const ok=await sbRegisterBoat(currentBoat.id,selectedRace);
     if(ok){
-      registeredBoatIds.add(currentBoat.id);
+      mySelectedRaceRegistered=true;
+      if(isNextRace) registeredBoatIds.add(currentBoat.id);
       toast('✅ '+currentBoat.name+' registered for '+selectedRace.label+'!');
     } else { toast('⚠ Could not register — try again'); }
   }
@@ -928,7 +933,19 @@ async function registerForRace(){
 }
 function updateRegisterButton(){
   const btn=document.getElementById('registerBtn'); if(!btn)return;
-  const isReg=registeredBoatIds.has(currentBoat?.id);
+  const isPast=selectedRace&&selectedRace.date<new Date();
+  if(isPast){
+    // Registration is a pre-race action — nothing to do once the race has happened
+    btn.style.display='none';
+    const crewRow=document.getElementById('lookingForCrewRow');
+    if(crewRow) crewRow.style.display='none';
+    renderBoatGrid();
+    updateHomeChips();
+    if(!isRO&&!isGuest) updateSkipperDash();
+    return;
+  }
+  btn.style.display='';
+  const isReg=mySelectedRaceRegistered;
   btn.disabled=false;
   btn.className='btn '+(isReg?'btn-ghost':'btn-primary');
   btn.style.width='100%'; btn.style.padding='12px';
@@ -1761,10 +1778,16 @@ function updateSkipperDash(){
     if(metaEl) metaEl.textContent='';
     if(crewRaceName) crewRaceName.textContent='—';
   }
-  const isReg=registeredBoatIds.has(currentBoat?.id);
-  if(regEl) regEl.innerHTML=isReg
-    ?'<span class="dash-reg-pill registered">✓ Registered</span>'
-    :'<span class="dash-reg-pill unregistered">Not registered</span>';
+  const isPast=r&&r.date<new Date();
+  if(regEl){
+    if(isPast&&!mySelectedRaceRegistered){
+      regEl.innerHTML='<span class="dash-reg-pill unregistered">Race concluded</span>';
+    } else {
+      regEl.innerHTML=mySelectedRaceRegistered
+        ?'<span class="dash-reg-pill registered">✓ Registered</span>'
+        :'<span class="dash-reg-pill unregistered">Not registered</span>';
+    }
+  }
 }
 
 function updateGuestDashCancellation(){
@@ -1929,7 +1952,10 @@ async function onRaceSelect(el,silent){
   const i=parseInt(el.value);if(isNaN(i))return;
   selectedRace=allRaces[i];
   document.getElementById('raceBadge').textContent=selectedRace.date.toLocaleDateString('en-IE',{day:'numeric',month:'short'});
-  if(!isRO&&!isGuest) updateSkipperDash();
+  if(!isRO&&!isGuest){
+    updateSkipperDash();
+    refreshMyRaceRegistration(); // registration status is per-race — re-check for whichever race is now selected
+  }
   if(!silent){
     toast('Race set ✓');
     if(!isRO&&!isGuest){
@@ -1937,6 +1963,22 @@ async function onRaceSelect(el,silent){
       await loadAndApplyPayments(selectedRace);
     }
   }
+}
+
+// Checks whether currentBoat is registered for `selectedRace` specifically.
+// Kept separate from registeredBoatIds (which the pre-login boat picker grid
+// needs to stay nextRace-scoped) since the skipper's own race dropdown can
+// point at a different — often past — race.
+async function refreshMyRaceRegistration(){
+  if(!currentBoat||!selectedRace){ mySelectedRaceRegistered=false; return; }
+  if(nextRace&&raceKey(selectedRace)===raceKey(nextRace)){
+    // Already-loaded nextRace data — show it immediately, no flash, while the fetch below confirms it
+    mySelectedRaceRegistered=registeredBoatIds.has(currentBoat.id);
+    updateRegisterButton();
+  }
+  const regs=await sbLoadRegistrations(selectedRace);
+  mySelectedRaceRegistered=(regs||[]).some(r=>r.boat_id===currentBoat.id);
+  updateRegisterButton();
 }
 
 // ═══════════════════════════════════════════════════════════════
