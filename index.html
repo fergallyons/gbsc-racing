@@ -258,6 +258,11 @@
       <div class="dash-card-label">Available Crew</div>
       <div class="dash-card-sub" id="sk-crew-available-sub">Sailors looking to crew</div>
     </div>
+    <div id="tile-sk-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
+      <div class="dash-card-icon">📐</div>
+      <div class="dash-card-label" id="skHandicapsTileLabel">GBSC Handicaps</div>
+      <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
+    </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">
     <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px;opacity:0.55" onclick="openHelpSheet()">❓ Help &amp; Setup</button>
@@ -743,6 +748,11 @@
       <div class="dash-card-icon">🏁</div>
       <div class="dash-card-label">Halsail</div>
       <div class="dash-card-sub">Record finishers</div>
+    </div>
+    <div id="tile-ro-handicaps" class="dash-card ro-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
+      <div class="dash-card-icon">📐</div>
+      <div class="dash-card-label" id="roHandicapsTileLabel">GBSC Handicaps</div>
+      <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
     </div>
     <div id="tile-ro-publishResults" class="dash-card ro-card" onclick="publishResults()">
       <div class="dash-card-icon">🏆</div>

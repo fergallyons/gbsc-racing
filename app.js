@@ -36,6 +36,10 @@ if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have 
   if(nsCta) nsCta.textContent = '⛵ New to ' + short + ' Racing?';
   const hcTile = document.getElementById('handicapsTileLabel');
   if(hcTile) hcTile.textContent = short + ' Handicaps';
+  const hcTileSk = document.getElementById('skHandicapsTileLabel');
+  if(hcTileSk) hcTileSk.textContent = short + ' Handicaps';
+  const hcTileRo = document.getElementById('roHandicapsTileLabel');
+  if(hcTileRo) hcTileRo.textContent = short + ' Handicaps';
   const hcTitle = document.getElementById('handicapsPanelTitle');
   if(hcTitle) hcTitle.textContent = '📐 ' + short + ' Handicaps';
   // Optional club colour theme — overrides --teal CSS variable
@@ -528,7 +532,7 @@ const FEAT_TILE_MAP={
   crewWanted:     ['tile-sk-crewWanted','tile-pub-crewWanted'],
   crewAvailable:  ['tile-sk-crewAvailable','tile-pub-crewAvailable'],
   newSailors:     ['tile-pub-newSailors'],
-  handicaps:      ['tile-pub-handicaps'],
+  handicaps:      ['tile-pub-handicaps','tile-sk-handicaps','tile-ro-handicaps'],
   // Additive-only tiles (hidden by default, DB turns them on)
   courseCard:     ['roCourseCardTile'],
 };
