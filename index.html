@@ -612,11 +612,6 @@
       <div class="dash-card-label">Race Weather</div>
       <div class="dash-card-sub" id="wx-tile-sub">Wind, tide &amp; forecast</div>
     </div>
-    <div id="tile-pub-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
-      <div class="dash-card-icon">📐</div>
-      <div class="dash-card-label" id="handicapsTileLabel">GBSC Handicaps</div>
-      <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
-    </div>
   </div>
 
   <!-- ── Payments ── -->
@@ -638,6 +633,11 @@
     <span class="ro-sec-chev" id="crewSecChev-clubinfo">▸</span>
   </div>
   <div class="dash-grid" id="crewSecBody-clubinfo" style="display:none">
+    <div id="tile-pub-handicaps" class="dash-card" onclick="openPanel('handicapsPanel');loadHandicaps()">
+      <div class="dash-card-icon">📐</div>
+      <div class="dash-card-label" id="handicapsTileLabel">GBSC Handicaps</div>
+      <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
+    </div>
     <div id="tile-pub-calendar" class="dash-card" onclick="openPanel('calendarPanel');loadCalendarIfNeeded()">
       <div class="dash-card-icon">📅</div>
       <div class="dash-card-label">Calendar</div>
