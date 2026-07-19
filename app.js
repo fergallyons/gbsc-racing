@@ -3346,7 +3346,7 @@ function rfUnpay(id){
 function rfGuestMarkPaid(id,method){
   const p=raceFeesGuests.find(r=>r.id===id); if(!p)return;
   p.paid=true; p.payMethod=method;
-  renderRaceFeesPanel();
+  renderCrew(); renderRaceFeesPanel(); // renderCrew() refreshes the dashboard total/owed strip + fees badge, which fold in guest amounts too
   toast(p.first+' — '+method+' ✓');
   const race=selectedRace||nextRace;
   if(race&&currentBoat){
@@ -3361,7 +3361,7 @@ function rfGuestMarkPaid(id,method){
 function rfGuestUnpay(id){
   const p=raceFeesGuests.find(r=>r.id===id); if(!p)return;
   p.paid=false; p.payMethod='';
-  renderRaceFeesPanel();
+  renderCrew(); renderRaceFeesPanel();
   const race=selectedRace||nextRace;
   if(race){ sbDeleteRacePayment(id,raceKey(race)); }
 }
