@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS crew (
   first       text NOT NULL,
   last        text NOT NULL DEFAULT '',
   type        text NOT NULL DEFAULT 'full'
-                   CHECK (type IN ('full','crew','student','visitor','kid')),
+                   CHECK (type IN ('full','crew','student','visitor','kid','guest')),
   join_year   int,
   outings     int DEFAULT 0,
   phone       text,

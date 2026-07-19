@@ -483,7 +483,7 @@ function buildSatTiles(refLat,refLng,cosLat,scale,ox,oy,W,H){
 // ═══════════════════════════════════════════════════════════════
 // Fees/limits/PIN start with env-var or hard-coded defaults; overwritten from DB
 // after settings load (see loadClubSettings below).
-let FEES=Object.assign({full:4,crew:4,visitor:10,student:5,kid:0}, _C.fees||{});
+let FEES=Object.assign({full:4,crew:4,visitor:10,student:5,kid:0,guest:10}, _C.fees||{});
 let VISITOR_MAX=_C.visitorMax||6;
 let CREW_MAX_YRS=_C.crewMaxYrs||2;
 const CY=new Date().getFullYear();
@@ -1022,7 +1022,8 @@ async function enterApp(b,ro){
   // Load crew
   const sbCrew=await sbLoadCrew(b.id);
   if(sbCrew!==null){
-    roster=sbCrew; // selected state comes from DB — no need to restore from localStorage
+    // Guests are one-off crew, recorded via the Pay Race Fees flow — not part of the regular roster
+    roster=sbCrew.filter(p=>p.type!=='guest'); // selected state comes from DB — no need to restore from localStorage
     cacheRosterLocally(b.id, roster);
     saveCrewSelection(b.id); // keep localStorage in sync for offline fallback
     setSyncStatus('ok');
@@ -1964,7 +1965,7 @@ async function applyRaceAttendance(race){
 // CREW RENDER
 // ═══════════════════════════════════════════════════════════════
 const fee=p=>FEES[p.type]||0;
-const ini=p=>(p.first[0]+p.last[0]).toUpperCase();
+const ini=p=>((p.first[0]||'')+(p.last[0]||'')).toUpperCase();
 const over=p=>p.type==='crew'&&p.joinYear&&(CY-p.joinYear)>=CREW_MAX_YRS;
 const vmax=p=>p.type==='visitor'&&p.outings>=VISITOR_MAX;
 const vnr=p=>p.type==='visitor'&&p.outings===VISITOR_MAX-1;
@@ -2411,7 +2412,7 @@ function getRevolutUser(){
 }
 function getStripeLink(type){
   if(type==='student') return clubSettings.stripe_link_student||'';
-  if(type==='visitor') return clubSettings.stripe_link_visitor||'';
+  if(type==='visitor'||type==='guest') return clubSettings.stripe_link_visitor||'';
   return clubSettings.stripe_link_member||''; // full, crew, kid (kid is free anyway)
 }
 function hasAnyStripeLink(){
@@ -3090,7 +3091,7 @@ async function openRaceFeesPanel(){
     if(fresh!==null){
       // Preserve in-memory selected state where possible, then update roster
       const selSet=new Set(roster.filter(p=>p.selected).map(p=>p.id));
-      roster=fresh.map(p=>({...p,selected:selSet.has(p.id),paid:false}));
+      roster=fresh.filter(p=>p.type!=='guest').map(p=>({...p,selected:selSet.has(p.id),paid:false}));
       cacheRosterLocally(currentBoat.id,roster);
       renderCrew(); // keep crew tab in sync
     }
@@ -4129,6 +4130,7 @@ function selfPayBack(){
     return;
   }
   if(selfPayState.step<=0){closePanel('selfPayPanel');return;}
+  if(selfPayState.step==='guest'){selfPayState.step=1;renderSelfPayPanel();return;}
   if(selfPayState.step===2){selfPayState.step='history';renderSelfPayPanel();return;}
   if(selfPayState.step==='history'){selfPayState.step=1;selfPayState.crewId=null;selfPayState.person=null;selfPayState.history=null;renderSelfPayPanel();return;}
   selfPayState.step--;
@@ -4140,10 +4142,11 @@ function renderSelfPayPanel(){
   const body=document.getElementById('selfPayBody');
   const titleEl=document.getElementById('selfPayTitle');
   if(!body) return;
-  const titles={0:'💰 Pay My Fee',1:'👤 Who Are You?','history':'📋 My Race Record',2:'💳 Pay Your Fee',3:'✅ Recorded!'};
+  const titles={0:'💰 Pay My Fee',1:'👤 Who Are You?','guest':'🙋 Add Guest','history':'📋 My Race Record',2:'💳 Pay Your Fee',3:'✅ Recorded!'};
   if(titleEl) titleEl.textContent=titles[selfPayState.step]||'💰 Pay My Fee';
   if(selfPayState.step===0) body.innerHTML=spStep0();
   else if(selfPayState.step===1) body.innerHTML=spStep1();
+  else if(selfPayState.step==='guest') body.innerHTML=spGuestForm();
   else if(selfPayState.step==='history') renderSpHistory(body);
   else if(selfPayState.step===2) body.innerHTML=spStep2();
   else if(selfPayState.step===3) body.innerHTML=spStep3();
@@ -4193,7 +4196,8 @@ async function spPickBoat(boatId){
   if(titleEl) titleEl.textContent='👤 Who Are You?';
   if(body) body.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted);font-size:.9rem">Loading crew…</div>`;
   const crewList=await sbLoadCrew(boatId);
-  selfPayState.loadedCrew=crewList||[];
+  // Guests are one-off — don't show past guests in the picker, only the +Guest button
+  selfPayState.loadedCrew=(crewList||[]).filter(p=>p.type!=='guest');
   // Guard: user may have navigated away
   if(selfPayState.step===1&&document.getElementById('selfPayPanel')?.classList.contains('open')){
     if(body) body.innerHTML=spStep1();
@@ -4204,15 +4208,17 @@ async function spPickBoat(boatId){
 function spStep1(){
   const b=selfPayState.boat;
   const crewList=selfPayState.loadedCrew;
+  let html;
   if(!crewList.length){
-    return `<div style="text-align:center;padding:40px 20px;color:var(--muted)">
-      No crew registered for <strong>${b.name}</strong> yet.<br><br>
-      Ask the skipper to add you to the crew roster first.
+    html=`<div style="text-align:center;padding:20px 20px 32px;color:var(--muted)">
+      No crew registered for <strong style="color:var(--white)">${b.name}</strong> yet.<br><br>
+      Ask the skipper to add you to the crew roster, or add yourself as a guest below.
     </div>`;
-  }
-  let html=`<div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
+  } else {
+    html=`<div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
     Tap your name on the <strong style="color:var(--white)">${b.name}</strong> crew list
   </div>`;
+  }
   crewList.forEach(p=>{
     const amt=FEES[p.type]||0;
     const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
@@ -4230,7 +4236,49 @@ function spStep1(){
         :`<span style="font-size:.78rem;color:var(--success);font-weight:600">Free</span>`}
     </button>`;
   });
+  html+=`<button onclick="spShowGuestForm()"
+    style="width:100%;display:flex;align-items:center;gap:12px;padding:13px;
+    border-radius:12px;background:transparent;border:1px dashed var(--border);
+    cursor:pointer;margin-top:4px;text-align:left;color:var(--muted)">
+    <div style="width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;
+      align-items:center;justify-content:center;font-size:1.1rem;background:rgba(255,255,255,.04)">🙋</div>
+    <div style="flex:1;font-weight:700;font-size:.95rem">Not listed? Add as guest</div>
+  </button>`;
   return html;
+}
+
+// ── Guest: name-only, one-off crew row not shown on the regular roster ──
+function spShowGuestForm(){
+  selfPayState.step='guest';
+  renderSelfPayPanel();
+  setTimeout(()=>document.getElementById('sp-guest-name')?.focus(),50);
+}
+function spGuestForm(){
+  const b=selfPayState.boat;
+  return `<div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
+    Recording a guest crew on <strong style="color:var(--white)">${b.name}</strong> — not added to the regular roster
+  </div>
+  <input id="sp-guest-name" type="text" placeholder="Guest's name" autocomplete="off"
+    style="width:100%;box-sizing:border-box;background:var(--card);border:1px solid var(--border);
+    border-radius:10px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+    font-weight:700;padding:13px;margin-bottom:14px;outline:none"
+    onkeydown="if(event.key==='Enter')spSubmitGuest()">
+  <button class="btn btn-primary" style="width:100%;padding:13px" onclick="spSubmitGuest()">Continue →</button>`;
+}
+async function spSubmitGuest(){
+  const input=document.getElementById('sp-guest-name');
+  const name=(input?.value||'').trim();
+  if(!name){toast('Enter a name');return;}
+  const parts=name.split(/\s+/);
+  const first=parts[0], last=parts.slice(1).join(' ');
+  const guest={id:newCrewId(),first,last,type:'guest',joinYear:null,outings:0,phone:'',selected:false};
+  const result=await sbUpsertCrew(selfPayState.boatId,guest);
+  if(result===null||(result&&result._err)){
+    toast('⚠ Could not save guest — check connection');
+    return;
+  }
+  selfPayState.loadedCrew.push(guest);
+  spPickCrew(guest.id);
 }
 
 async function spPickCrew(crewId){
@@ -4262,7 +4310,7 @@ function renderSpHistory(body){
   const h=selfPayState.history;
 
   // Header — person summary card
-  const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+  const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':p.type==='guest'?'Guest':'Junior';
   const headerHtml=`<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;
     background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:12px;margin-bottom:16px">
     <div class="cc-avatar" style="width:40px;height:40px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
@@ -4419,7 +4467,7 @@ function spStep2(){
   const p=selfPayState.person;
   const b=selfPayState.boat;
   const amt=FEES[p.type]||0;
-  const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+  const typeLabel=p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':p.type==='guest'?'Guest':'Junior';
   const race=selfPayState.race||getNextRace();
   const raceLabel=race?race.label:'next race';
 
