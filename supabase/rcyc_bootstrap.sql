@@ -79,11 +79,12 @@ CREATE TABLE IF NOT EXISTS crew (
   first       text NOT NULL,
   last        text NOT NULL DEFAULT '',
   type        text NOT NULL DEFAULT 'full'
-                   CHECK (type IN ('full','crew','student','visitor','kid','guest')),
+                   CHECK (type IN ('full','crew','student','visitor','kid')),
   join_year   int,
   outings     int DEFAULT 0,
   phone       text,
   selected    boolean DEFAULT false,
+  is_guest    boolean NOT NULL DEFAULT false,
   created_at  timestamptz DEFAULT now()
 );
 
