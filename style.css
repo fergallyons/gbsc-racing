@@ -634,7 +634,9 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .dash-chip.course-no{background:rgba(122,164,204,.08);color:var(--muted);border:1px solid var(--border);}
 
 .dash-fee-strip{display:flex;align-items:stretch;background:var(--card);border:1px solid var(--border);
-  border-radius:12px;padding:14px 20px;margin-bottom:16px;}
+  border-radius:12px;padding:14px 20px;margin-bottom:16px;
+  cursor:pointer;transition:border-color .15s,background .15s;-webkit-tap-highlight-color:transparent;}
+.dash-fee-strip:hover{border-color:var(--teal);background:rgba(0,174,239,.07);}
 .dfs-item{flex:1;text-align:center;}
 .dfs-val{font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--white);}
 .dfs-val.owed{color:var(--danger);}
