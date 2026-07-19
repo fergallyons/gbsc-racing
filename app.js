@@ -515,7 +515,7 @@ const FEAT_TILE_MAP={
   boatMgmt:       ['tile-ro-boatMgmt'],
   clubSettings:   ['tile-ro-clubSettings'],
   raceSchedule:   ['tile-ro-raceSchedule'],
-  startSequence:  ['tile-ro-startSequence','tile-pub-startSequence'],
+  startSequence:  ['tile-ro-startSequence','tile-pub-startSequence','tile-sk-startSequence'],
   finishRecording:['tile-ro-finishRecording'],
   // Skipper tiles
   crew:           ['tile-sk-crew'],
@@ -8105,8 +8105,15 @@ async function roPostponeStart(){
   await refreshRoStartActiveCard();
 }
 
+// Used only to prefill a sensible default when the panel opens — the RO
+// always reviews/adjusts the actual time field before arming. Rounds UP to
+// the next full minute (a <input type="time"> field has no seconds, so
+// rounding down here would silently shave up to 59s off the requested
+// offset — the RO clicking "+5 min" got a countdown already most of a
+// minute short of 5 by the time crew saw it).
 function roSetStartOffset(mins){
   const t=new Date(Date.now()+mins*60000);
+  if(t.getSeconds()>0) t.setMinutes(t.getMinutes()+1);
   const hh=String(t.getHours()).padStart(2,'0'), mm=String(t.getMinutes()).padStart(2,'0');
   document.getElementById('ro-start-time').value=hh+':'+mm;
 }
@@ -8229,14 +8236,16 @@ async function refreshStartSeqData(){
 }
 
 function updatePubStartSeqSub(){
-  const sub=document.getElementById('pubStartSeqSub');
-  if(!sub) return;
+  const subs=['pubStartSeqSub','skStartSeqSub'].map(id=>document.getElementById(id)).filter(Boolean);
+  if(!subs.length) return;
+  let text;
   if(_startSeqActive){
     const t=new Date(_startSeqActive.start_time);
-    sub.textContent=(t>new Date()?'Armed for ':'Started ')+t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    text=(t>new Date()?'Armed for ':'Started ')+t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   } else {
-    sub.textContent='Flags & countdown';
+    text='Flags & countdown';
   }
+  subs.forEach(sub=>{ sub.textContent=text; });
 }
 
 function getStartPhase(secsToStart){

@@ -263,6 +263,11 @@
       <div class="dash-card-label" id="skHandicapsTileLabel">GBSC Handicaps</div>
       <div class="dash-card-sub">ECHO &amp; IRC ratings</div>
     </div>
+    <div id="tile-sk-startSequence" class="dash-card" onclick="openStartSeq()">
+      <div class="dash-card-icon">🚦</div>
+      <div class="dash-card-label">Start Sequence</div>
+      <div class="dash-card-sub" id="skStartSeqSub">Flags &amp; countdown</div>
+    </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">
     <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px;opacity:0.55" onclick="openHelpSheet()">❓ Help &amp; Setup</button>
@@ -1080,11 +1085,7 @@
 
     <div class="form-group" style="margin-bottom:14px">
       <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Start Time</label>
-      <div style="display:flex;gap:6px;margin-top:8px;margin-bottom:8px">
-        <button class="btn btn-ghost" style="flex:1;padding:9px;font-size:.85rem" onclick="roSetStartOffset(5)">+5 min</button>
-        <button class="btn btn-ghost" style="flex:1;padding:9px;font-size:.85rem" onclick="roSetStartOffset(10)">+10 min</button>
-      </div>
-      <input type="time" id="ro-start-time" style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:10px 12px;outline:none;box-sizing:border-box;">
+      <input type="time" id="ro-start-time" style="width:100%;margin-top:8px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:10px 12px;outline:none;box-sizing:border-box;">
     </div>
 
     <div class="form-group" style="margin-bottom:14px">
