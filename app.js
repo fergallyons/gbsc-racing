@@ -2078,12 +2078,16 @@ function renderCrew(){
 }
 function updateTotals(){
   const s=roster.filter(p=>p.selected);
+  const g=raceFeesGuests||[]; // guests aren't on the roster, but do count toward the boat's fee totals
   const m=s.filter(p=>p.type==='full'||p.type==='crew').length;
   const v=s.filter(p=>p.type==='visitor').length;
   const st=s.filter(p=>p.type==='student').length;
   const k=s.filter(p=>p.type==='kid').length;
   const tot=s.reduce((a,p)=>a+fee(p),0);
   const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
+  // Boat-wide totals (dashboard strip, fees badge) also include guests
+  const allTot=tot+g.reduce((a,p)=>a+fee(p),0);
+  const allPaid=paid+g.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
   document.getElementById('s-mem').textContent=m?m+'×€4=€'+(m*4):'—';
   document.getElementById('s-vis').textContent=v?v+'×€10=€'+(v*10):'—';
   document.getElementById('s-stu').textContent=st?st+'×€5=€'+(st*5):'—';
@@ -2097,14 +2101,14 @@ function updateTotals(){
   const dOwed=document.getElementById('dash-owed');
   const dBadge=document.getElementById('dc-crew-badge');
   if(dCrew) dCrew.textContent=s.length;
-  if(dTotal) dTotal.textContent='€'+tot;
-  if(dOwed) dOwed.textContent='€'+(tot-paid);
+  if(dTotal) dTotal.textContent='€'+allTot;
+  if(dOwed) dOwed.textContent='€'+(allTot-allPaid);
   if(dBadge) dBadge.textContent=s.length+' selected';
   // Fees tile badge
   const fBadge=document.getElementById('dc-fees-badge');
   if(fBadge){
-    const unpaid=s.filter(p=>!p.paid);
-    fBadge.textContent=s.length===0?'Collect & submit':unpaid.length===0?'All paid ✓':'€'+(tot-paid)+' outstanding';
+    const unpaidCount=s.filter(p=>!p.paid).length+g.filter(p=>!p.paid).length;
+    fBadge.textContent=(s.length+g.length)===0?'Collect & submit':unpaidCount===0?'All paid ✓':'€'+(allTot-allPaid)+' outstanding';
   }
 }
 function toggleSel(id){
@@ -8327,10 +8331,43 @@ async function roCancelStart(){
 
 // ── Public start sequence viewer — full-screen, readable from a distance ──
 let _startSeqTimer=null, _startSeqPollTimer=null;
-let _startSeqActive=null, _startSeqActiveId=null, _startSeqLastPhase=null, _startSeqLastStatus=null;
-let _startSeqLastTickAt=null;
+let _startSeqActive=null, _startSeqLastStatus=null;
 let _startSeqAudioCtx=null;
 let _startSeqWakeLock=null;
+let _startSeqHornTimers=[];
+
+// Horns are scheduled with precise setTimeouts pinned to the exact signal
+// instant, rather than being detected by the 250ms display-tick polling loop
+// (that approach could lag the real moment by up to 250ms). Re-run whenever
+// the active start's data refreshes, so a re-arm/postpone/resume reschedules
+// cleanly and clock drift gets self-corrected every poll.
+function _clearStartSeqHornTimers(){
+  _startSeqHornTimers.forEach(id=>clearTimeout(id));
+  _startSeqHornTimers=[];
+}
+function _scheduleStartSeqHorns(){
+  _clearStartSeqHornTimers();
+  if(!_startSeqActive||_startSeqActive.status!=='armed') return;
+  const startMs=new Date(_startSeqActive.start_time).getTime();
+  const boundaries=[
+    {ms:startMs-300000, isLong:false}, // warning signal
+    {ms:startMs-240000, isLong:false}, // preparatory signal
+    {ms:startMs-60000,  isLong:true},  // one-minute — RRS 26: one LONG sound
+    {ms:startMs,         isLong:false} // starting signal
+  ];
+  const now=Date.now();
+  boundaries.forEach(b=>{
+    const delay=b.ms-now;
+    if(delay<0) return; // already passed — don't replay a signal that already happened
+    const id=setTimeout(()=>{
+      // If a backgrounded/throttled tab delayed this timer past its target,
+      // the moment has already passed — a horn now would be for a stale
+      // signal, not "now", so skip it (display still catches up via the tick loop).
+      if(Date.now()-b.ms<2000) playStartHorn(b.isLong);
+    },delay);
+    _startSeqHornTimers.push(id);
+  });
+}
 const CLASS_FLAG_COLOURS={E:'#00aeef','0':'#e63946','1':'#fee01e','2':'#2dc653'};
 
 // Keeps the screen from sleeping while the countdown is on-screen — a crew
@@ -8378,6 +8415,7 @@ function closeStartSeq(){
   _releaseStartSeqWakeLock();
   if(_startSeqTimer){ clearInterval(_startSeqTimer); _startSeqTimer=null; }
   if(_startSeqPollTimer){ clearInterval(_startSeqPollTimer); _startSeqPollTimer=null; }
+  _clearStartSeqHornTimers();
 }
 
 async function refreshStartSeqData(){
@@ -8387,10 +8425,6 @@ async function refreshStartSeqData(){
   // explicitly resolves it.
   const stale=active&&active.status==='armed'&&new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
   _startSeqActive=(active&&!stale)?active:null;
-  if(!_startSeqActive||_startSeqActive.id!==_startSeqActiveId){
-    _startSeqLastPhase=null; // fresh/changed start — don't replay a sound for the initial phase
-    _startSeqActiveId=_startSeqActive?_startSeqActive.id:null;
-  }
   const newStatus=_startSeqActive?_startSeqActive.status:null;
   if(newStatus==='postponed'&&_startSeqLastStatus!=='postponed') playPostponeHorn();
   _startSeqLastStatus=newStatus;
@@ -8400,6 +8434,7 @@ async function refreshStartSeqData(){
   if(_startSeqActive&&!_startSeqTimer&&document.getElementById('startSeqOverlay').style.display!=='none'){
     _startSeqTimer=setInterval(tickStartSeq,250);
   }
+  _scheduleStartSeqHorns(); // re-pin precise horn timers to the (possibly new) start time
   updatePubStartSeqSub();
 }
 
@@ -8434,16 +8469,9 @@ function formatStartCountdown(secs){
 }
 
 function tickStartSeq(){
-  // Detect a large gap since the last tick — a locked screen or backgrounded
-  // tab pauses/throttles this 250ms interval, so on resume the phase can have
-  // silently jumped past one or more signals. Playing a horn at that point
-  // would be for a transition that actually happened whenever the phone was
-  // inactive, not "now" — confusing rather than useful. Skip the sound (but
-  // still catch the display up immediately) whenever that's happened.
-  const now=Date.now();
-  const resumedFromBackground=_startSeqLastTickAt!=null&&(now-_startSeqLastTickAt)>2000;
-  _startSeqLastTickAt=now;
-
+  // Purely display/phase-label updates — horns fire from precise setTimeouts
+  // scheduled in _scheduleStartSeqHorns(), not from this 250ms polling loop,
+  // so they land on the exact signal instant instead of lagging by up to 250ms.
   const empty=document.getElementById('startSeqEmpty');
   const body=document.getElementById('startSeqBody');
   if(!_startSeqActive){
@@ -8464,8 +8492,9 @@ function tickStartSeq(){
   if(Date.now()-startMs>START_SEQ_STALE_MS){
     // Past the 15-minute cutoff — no value in an ever-growing elapsed clock.
     // Stop the local timer immediately rather than waiting on the next poll.
-    _startSeqActive=null; _startSeqActiveId=null; _startSeqLastPhase=null;
+    _startSeqActive=null;
     if(_startSeqTimer){ clearInterval(_startSeqTimer); _startSeqTimer=null; }
+    _clearStartSeqHornTimers();
     empty.style.display='flex'; body.style.display='none';
     updatePubStartSeqSub();
     return;
@@ -8473,14 +8502,6 @@ function tickStartSeq(){
   empty.style.display='none'; body.style.display='flex';
 
   const phase=getStartPhase(secsToStart);
-
-  if(_startSeqLastPhase!==null&&phase.phase!==_startSeqLastPhase&&!resumedFromBackground){
-    if(phase.phase==='warning'||phase.phase==='prep'||phase.phase==='onemin'||phase.phase==='started'){
-      // RRS 26: the one-minute signal is "one long sound" — the others are just "one"
-      playStartHorn(phase.phase==='onemin');
-    }
-  }
-  _startSeqLastPhase=phase.phase;
 
   document.getElementById('startSeqPhaseLabel').textContent=phase.label;
   const clockEl=document.getElementById('startSeqClock');
