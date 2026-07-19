@@ -3055,15 +3055,22 @@ async function downloadDatabaseBackup(){
   }
 }
 
+// Guests relevant to the race currently loaded into the Race Fees panel —
+// separate from `roster` since guests are deliberately excluded from it.
+let raceFeesGuests=[];
+
 // Loads self-payments + skipper-marked payments from DB for a race and
 // applies them to roster.paid. Calls renderCrew() so all summary elements
 // (dashboard strip, crew panel totals, fees badge) reflect the fresh state.
+// Also refreshes raceFeesGuests — guest crew who attended or paid for this race.
 async function loadAndApplyPayments(race){
   if(!race||!currentBoat)return;
   const key=raceKey(race);
-  const [selfPays,racePayments]=await Promise.all([
+  const [selfPays,racePayments,guestCrew,attendees]=await Promise.all([
     sbLoadSelfPayments(currentBoat.id,key),
-    sbLoadRacePayments(currentBoat.id,key)
+    sbLoadRacePayments(currentBoat.id,key),
+    sbFetch('/rest/v1/crew?boat_id=eq.'+currentBoat.id+'&is_guest=eq.true'),
+    sbLoadRaceAttendees(currentBoat.id,key)
   ]);
   roster.forEach(p=>{p.paid=false;p.payMethod='';});
   if(Array.isArray(selfPays)){
@@ -3078,6 +3085,18 @@ async function loadAndApplyPayments(race){
       if(p){p.paid=true;p.payMethod=rp.method;}
     });
   }
+  const relevantIds=new Set([
+    ...(Array.isArray(attendees)?attendees.map(a=>a.crew_id):[]),
+    ...(Array.isArray(selfPays)?selfPays.map(s=>s.crew_id):[]),
+    ...(Array.isArray(racePayments)?racePayments.map(r=>r.crew_id):[])
+  ]);
+  raceFeesGuests=(Array.isArray(guestCrew)?guestCrew:[])
+    .filter(g=>relevantIds.has(g.id))
+    .map(g=>{
+      const rp=Array.isArray(racePayments)?racePayments.find(r=>r.crew_id===g.id):null;
+      const sp=Array.isArray(selfPays)?selfPays.find(s=>s.crew_id===g.id):null;
+      return {id:g.id,first:g.first,last:g.last,type:g.type,paid:!!(rp||sp),payMethod:rp?rp.method:sp?(sp.method||'Paid')+' ✦ self-paid':''};
+    });
   renderCrew();
 }
 
@@ -3097,9 +3116,10 @@ async function openRaceFeesPanel(){
     }
   }
   const sel=roster.filter(p=>p.selected);
-  if(!sel.length){toast('Select crew in the Crew Roster first');return;}
   // Restore payment state from DB — self-payments (crew-initiated) + race_payments (skipper-marked)
+  // Also refreshes raceFeesGuests, so check for guests before bailing out below
   await loadAndApplyPayments(selectedRace||nextRace);
+  if(!sel.length&&!raceFeesGuests.length){toast('Select crew in the Crew Roster first');return;}
   renderRaceFeesPanel();
   openPanel('raceFeesPanel');
 }
@@ -3107,8 +3127,10 @@ async function openRaceFeesPanel(){
 function renderRaceFeesPanel(){
   const body=document.getElementById('raceFeesBody'); if(!body)return;
   const sel=roster.filter(p=>p.selected);
+  const guests=raceFeesGuests;
   const unpaid=sel.filter(p=>!p.paid);
-  const outstanding=unpaid.reduce((a,p)=>a+fee(p),0);
+  const unpaidGuests=guests.filter(p=>!p.paid);
+  const outstanding=unpaid.reduce((a,p)=>a+fee(p),0)+unpaidGuests.reduce((a,p)=>a+fee(p),0);
   const race=(selectedRace||nextRace)?.label||'Race';
   const revUser=getRevolutUser();
 
@@ -3116,10 +3138,10 @@ function renderRaceFeesPanel(){
   let summary;
   if(outstanding>0){
     summary=`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${outstanding} outstanding</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${unpaid.length} of ${sel.length} unpaid · ${race}</div>`;
+      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${unpaid.length+unpaidGuests.length} of ${sel.length+guests.length} unpaid · ${race}</div>`;
   } else {
-    const paid=sel.filter(p=>p.paid);
-    const cashAmt=paid.filter(p=>p.payMethod==='Cash').reduce((a,p)=>a+fee(p),0);
+    const paid=[...sel,...guests].filter(p=>p.paid);
+    const cashAmt=paid.filter(p=>p.payMethod&&p.payMethod.startsWith('Cash')).reduce((a,p)=>a+fee(p),0);
     const revAmt=paid.filter(p=>p.payMethod&&p.payMethod.startsWith('Revolut')).reduce((a,p)=>a+fee(p),0);
     const toSubmit=cashAmt+revAmt;
     const roRev=getRORevolutUser();
@@ -3145,7 +3167,7 @@ function renderRaceFeesPanel(){
         </div>`
       :`<div style="margin-top:10px;font-size:.78rem;color:var(--muted)">Card payments went directly to the club — nothing to submit.</div>`;
     summary=`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">All fees collected ✓</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${sel.length} crew · ${race}</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${sel.length+guests.length} crew · ${race}</div>
       ${submitCard}`;
   }
 
@@ -3214,8 +3236,55 @@ function renderRaceFeesPanel(){
     }
   });
 
+  // ── Guest rows — one-off crew not on the regular roster ───────
+  let guestRows='';
+  guests.forEach(p=>{
+    const amt=fee(p);
+    const typeLabel=(p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior')+' · Guest';
+    if(p.paid){
+      guestRows+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div class="cc-avatar" style="width:36px;height:36px;font-size:.8rem;flex-shrink:0">${ini(p)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.92rem;font-weight:700">${p.first} ${p.last}</div>
+          <div style="font-size:.78rem;color:var(--success);font-weight:600">✓ ${p.payMethod||'Paid'}</div>
+        </div>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:800;color:var(--success)">€${amt}</span>
+        <button onclick="rfGuestUnpay('${p.id}')"
+          style="font-size:.75rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+          padding:4px 10px;border-radius:6px;border:1px solid var(--border);
+          background:transparent;color:var(--muted);cursor:pointer">Undo</button>
+      </div>`;
+    } else {
+      const revBtn=revUser
+        ?rfBtn('💜 Revolut',`rfGuestPayRevolut('${p.id}')`,revStyle)
+        :rfBtn('💜 Revolut',`toast('Set your Revolut @username in Settings ⚙')`,offStyle);
+      const cashBtn=rfBtn('💵 Cash',`rfGuestMarkPaid('${p.id}','Cash')`,cashStyle);
+      const stripeLink=getStripeLink(p.type);
+      const cardBtn=stripeLink
+        ?rfBtn('💳 Card',`rfGuestPayCard('${p.id}')`,cardStyle)
+        :rfBtn('💳 Card',`toast('Card links not configured — see RO Club Settings')`,offStyle);
+      guestRows+=`<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="cc-avatar" style="width:36px;height:36px;font-size:.8rem;flex-shrink:0">${ini(p)}</div>
+          <div style="flex:1">
+            <div style="font-size:.95rem;font-weight:700">${p.first} ${p.last}</div>
+            <div style="font-size:.78rem;color:var(--muted)">${typeLabel}</div>
+          </div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${amt}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+          ${revBtn}${cashBtn}${cardBtn}
+        </div>
+      </div>`;
+    }
+  });
+  const guestSection=guests.length
+    ?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:800;
+        letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 4px">🙋 Guests</div>${guestRows}`
+    :'';
+
   // ── Footer ───────────────────────────────────────────────────
-  const allPaid=unpaid.length===0;
+  const allPaid=unpaid.length===0&&unpaidGuests.length===0;
   const footer=allPaid
     ?`<div style="padding:14px 0 4px;border-top:1px solid var(--border);margin-top:4px;
         text-align:center;color:var(--success);font-family:'Barlow Condensed',sans-serif;
@@ -3238,6 +3307,7 @@ function renderRaceFeesPanel(){
     `<div style="padding:4px 0 16px;border-bottom:1px solid var(--border);margin-bottom:16px">${summary}</div>`+
     sendBtn+
     `<div>${crewRows}</div>`+
+    guestSection+
     footer;
 }
 
@@ -3268,6 +3338,31 @@ function rfUnpay(id){
   const race=selectedRace||nextRace;
   if(race){ sbDeleteRacePayment(id,raceKey(race)); autoSaveRaceRecord(); }
 }
+// ── Guest equivalents — operate on raceFeesGuests, not roster ─
+function rfGuestMarkPaid(id,method){
+  const p=raceFeesGuests.find(r=>r.id===id); if(!p)return;
+  p.paid=true; p.payMethod=method;
+  renderRaceFeesPanel();
+  toast(p.first+' — '+method+' ✓');
+  const race=selectedRace||nextRace;
+  if(race&&currentBoat){
+    sbUpsertRacePayment({
+      boat_id:currentBoat.id, crew_id:id,
+      race_key:raceKey(race), race_name:race.label,
+      race_date:race.date.toISOString().split('T')[0],
+      method, amount:fee(p)
+    });
+  }
+}
+function rfGuestUnpay(id){
+  const p=raceFeesGuests.find(r=>r.id===id); if(!p)return;
+  p.paid=false; p.payMethod='';
+  renderRaceFeesPanel();
+  const race=selectedRace||nextRace;
+  if(race){ sbDeleteRacePayment(id,raceKey(race)); }
+}
+function rfGuestPayRevolut(id){ rfGuestMarkPaid(id,'Revolut'); }
+function rfGuestPayCard(id){ rfGuestMarkPaid(id,'Card'); }
 function rfMarkAllCash(){
   const unpaid=roster.filter(p=>p.selected&&!p.paid);
   if(!unpaid.length){toast('All already paid ✓');return;}
@@ -4208,16 +4303,24 @@ async function spPickBoat(boatId){
 function spStep1(){
   const b=selfPayState.boat;
   const crewList=selfPayState.loadedCrew;
+  const guestBtn=`<button onclick="spShowGuestForm()"
+    style="width:100%;display:flex;align-items:center;gap:12px;padding:13px;
+    border-radius:12px;background:transparent;border:1px dashed var(--border);
+    cursor:pointer;margin-bottom:${crewList.length?'12px':'8px'};text-align:left;color:var(--muted)">
+    <div style="width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;
+      align-items:center;justify-content:center;font-size:1.1rem;background:rgba(255,255,255,.04)">🙋</div>
+    <div style="flex:1;font-weight:700;font-size:.95rem">Not listed? Add as guest</div>
+  </button>`;
   let html;
   if(!crewList.length){
     html=`<div style="text-align:center;padding:20px 20px 32px;color:var(--muted)">
       No crew registered for <strong style="color:var(--white)">${b.name}</strong> yet.<br><br>
       Ask the skipper to add you to the crew roster, or add yourself as a guest below.
-    </div>`;
+    </div>`+guestBtn;
   } else {
     html=`<div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;text-align:center">
     Tap your name on the <strong style="color:var(--white)">${b.name}</strong> crew list
-  </div>`;
+  </div>`+guestBtn;
   }
   crewList.forEach(p=>{
     const amt=FEES[p.type]||0;
@@ -4236,14 +4339,6 @@ function spStep1(){
         :`<span style="font-size:.78rem;color:var(--success);font-weight:600">Free</span>`}
     </button>`;
   });
-  html+=`<button onclick="spShowGuestForm()"
-    style="width:100%;display:flex;align-items:center;gap:12px;padding:13px;
-    border-radius:12px;background:transparent;border:1px dashed var(--border);
-    cursor:pointer;margin-top:4px;text-align:left;color:var(--muted)">
-    <div style="width:38px;height:38px;border-radius:50%;flex-shrink:0;display:flex;
-      align-items:center;justify-content:center;font-size:1.1rem;background:rgba(255,255,255,.04)">🙋</div>
-    <div style="flex:1;font-weight:700;font-size:.95rem">Not listed? Add as guest</div>
-  </button>`;
   return html;
 }
 
