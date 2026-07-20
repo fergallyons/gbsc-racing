@@ -25,6 +25,27 @@
  * override case used for testing.
  */
 
+// Fallback for clubs (e.g. GBSC) whose logo/favicon is set on the DB
+// settings row rather than the CLUB_CONFIG_<SLUG> env var — the env var
+// config already carries sbUrl/sbKey, so this is a cheap direct REST call,
+// not a general DB integration. Only called when the env var has no
+// favicon/logo, so already-configured clubs pay no extra latency.
+async function dbFaviconFallback(club) {
+  if (!club.sbUrl || !club.sbKey) return '';
+  try {
+    const r = await fetch(
+      club.sbUrl + '/rest/v1/settings?id=eq.club&select=logo_url,favicon_url',
+      { headers: { apikey: club.sbKey, Authorization: 'Bearer ' + club.sbKey } }
+    );
+    if (!r.ok) return '';
+    const rows = await r.json();
+    const row = rows[0] || {};
+    return row.favicon_url || row.logo_url || '';
+  } catch (e) {
+    return '';
+  }
+}
+
 export default async function handler(request, context) {
   const response = await context.next();
   const ct = response.headers.get('content-type') || '';
@@ -51,7 +72,8 @@ export default async function handler(request, context) {
     try { club = JSON.parse(configJson); } catch (e) {}
   }
 
-  const faviconUrl = club.faviconUrl || club.faviconurl || club.logoUrl || club.logourl || club.logo_url || club.logo || '';
+  let faviconUrl = club.faviconUrl || club.faviconurl || club.logoUrl || club.logourl || club.logo_url || club.logo || '';
+  if (!faviconUrl) faviconUrl = await dbFaviconFallback(club);
 
   let html = await response.text();
 
@@ -70,9 +92,17 @@ export default async function handler(request, context) {
   // Favicon + apple-touch-icon — only rewrite if this club has a custom
   // one configured; otherwise leave the default favicon.svg reference as-is.
   if (faviconUrl) {
+    const ext = faviconUrl.split('.').pop().toLowerCase();
+    const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/svg+xml';
+    // <link rel="icon"> hardcodes type="image/svg+xml" in index.html — fix
+    // that too, since a mismatched declared type can make browsers reject
+    // a non-SVG favicon (e.g. GBSC's is a .jpg).
     html = html.replace(
-      /(<link[^>]+rel=["']icon["'][^>]*href=["'])([^"']+)(["'])/i,
-      (_, pre, href, quote) => pre + faviconUrl + quote
+      /<link([^>]+rel=["']icon["'][^>]*)>/i,
+      (full, attrs) => {
+        const withoutTypeHref = attrs.replace(/\s+type=["'][^"']*["']/i, '').replace(/\s+href=["'][^"']*["']/i, '');
+        return `<link${withoutTypeHref} type="${mime}" href="${faviconUrl}">`;
+      }
     );
     html = html.replace(
       /(<link[^>]+rel=["']apple-touch-icon["'][^>]*href=["'])([^"']+)(["'])/i,

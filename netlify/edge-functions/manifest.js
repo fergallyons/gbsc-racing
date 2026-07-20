@@ -9,6 +9,27 @@
  * this edge function intercepts the path in all Netlify deployments.
  */
 
+// Fallback for clubs (e.g. GBSC) whose logo/favicon is set on the DB
+// settings row rather than the CLUB_CONFIG_<SLUG> env var — the env var
+// config already carries sbUrl/sbKey, so this is a cheap direct REST call,
+// not a general DB integration. Only called when the env var has no
+// favicon/logo, so already-configured clubs pay no extra latency.
+async function dbFaviconFallback(club) {
+  if (!club.sbUrl || !club.sbKey) return '';
+  try {
+    const r = await fetch(
+      club.sbUrl + '/rest/v1/settings?id=eq.club&select=logo_url,favicon_url',
+      { headers: { apikey: club.sbKey, Authorization: 'Bearer ' + club.sbKey } }
+    );
+    if (!r.ok) return '';
+    const rows = await r.json();
+    const row = rows[0] || {};
+    return row.favicon_url || row.logo_url || '';
+  } catch (e) {
+    return '';
+  }
+}
+
 export default async function handler(request) {
   const host = (request.headers.get('host') || '').split(':')[0];
 
@@ -34,7 +55,8 @@ export default async function handler(request) {
     try { club = JSON.parse(configJson); } catch (e) {}
   }
 
-  const faviconUrl = club.faviconUrl || club.faviconurl || club.logoUrl || club.logourl || club.logo_url || club.logo || '';
+  let faviconUrl = club.faviconUrl || club.faviconurl || club.logoUrl || club.logourl || club.logo_url || club.logo || '';
+  if (!faviconUrl) faviconUrl = await dbFaviconFallback(club);
   const ext = faviconUrl ? faviconUrl.split('.').pop().toLowerCase() : '';
   const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/svg+xml';
 
