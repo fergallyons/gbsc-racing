@@ -5571,7 +5571,8 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
   const rowsHtml=rows.length?rows.map(r=>{
     const baseEcho=r.match&&r.match.echo?r.match.echo:'';
     const irc=r.match&&r.match.ircTCC?r.match.ircTCC:'';
-    const curEcho=halEcho[normBoatName(r.boat.name)];
+    const curEcho=halEcho.current[normBoatName(r.boat.name)];
+    const nextEcho=halEcho.next[normBoatName(r.boat.name)];
     return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);${!r.found?'background:rgba(230,57,70,.05);margin:0 -4px;padding-left:4px;padding-right:4px;border-radius:6px':''}">
       <div style="flex:1;min-width:0">
         <div style="font-size:.88rem;font-weight:700;color:${r.found?'var(--white)':'var(--danger)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.boat.name)}</div>
@@ -5587,6 +5588,10 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
         <div style="font-size:.82rem;font-weight:700;color:${curEcho!=null?'var(--teal)':'var(--muted)'}">${curEcho!=null?curEcho:'—'}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;min-width:46px">
+        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Next</div>
+        <div style="font-size:.82rem;font-weight:700;color:${nextEcho!=null?'var(--success)':'var(--muted)'}">${nextEcho!=null?nextEcho:'—'}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;min-width:46px">
         <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">IRC</div>
         <div style="font-size:.82rem;font-weight:700;color:${irc?'var(--white)':'var(--muted)'}">${irc||'—'}</div>
       </div>
@@ -5596,7 +5601,7 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
   body.innerHTML=summaryHtml+
     `<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Boats (${rows.length})</div>`+
     rowsHtml+
-    `<div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is the handicap used in each boat's most recent race — blank for boats that haven't raced under Halsail scoring yet this season. It can still run one race ahead of Halsail's own Boat Register until the RO next runs Results → Analyse Handicaps and saves.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE')+')':''} · Halsail</div>`;
+    `<div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is the handicap used in each boat's most recent race; Next is Halsail's own "Hcap for next race" figure from that race's ECHO analysis — the number that will actually apply next time out. Both are blank for boats that haven't raced under Halsail scoring yet this season.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE')+')':''} · Halsail</div>`;
 }
 
 async function loadAndRenderDocs(){
@@ -7268,6 +7273,39 @@ async function halFetch(path){
   }
 }
 
+// Fetches a public Halsail HTML report page (e.g. the ECHO race analysis page) via the
+// proxy — these live under /Result/ on halsail.com's root, not /HalApi, and unlike the
+// JSON API are CORS-blocked from a direct browser fetch, so always go via the proxy.
+async function halFetchHtml(path){
+  try{
+    const r=await fetch(HAL_PROXY+'?path='+encodeURIComponent(path),{cache:'no-store'});
+    if(!r.ok) return null;
+    return await r.text();
+  }catch(e){
+    return null;
+  }
+}
+
+// Parses the results table on Halsail's public ECHO race analysis page
+// (/Result/EchoAnalysisRace/{raceId}) into {normalizedBoatName: nextRaceHandicap}.
+// Column order confirmed live: Place, Sail No, Boat, Elapsed, Hcap used, Corrected,
+// Elapsed to win, Hcap achieved, Hcap for next race, Hcap change. This page computes
+// the analysis live from the race's results — it doesn't depend on the RO having run
+// or saved Halsail's own "Analyse handicaps" tool.
+function parseEchoAnalysisNextHcap(html){
+  const result={};
+  if(!html) return result;
+  const rows=[...html.matchAll(/<tr>[\s\S]*?<\/tr>/gi)];
+  rows.forEach(rowMatch=>{
+    const cells=[...rowMatch[0].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m=>m[1].replace(/<[^>]+>/g,'').trim());
+    if(cells.length<9) return; // header row (th, not td) or malformed
+    const boatName=cells[2];
+    const nextHcap=parseFloat(cells[8]);
+    if(boatName&&!isNaN(nextHcap)) result[normBoatName(boatName)]=nextHcap;
+  });
+  return result;
+}
+
 async function refreshResults(){
   // Manual refresh button — just delegate to the standard load (which always fetches fresh now)
   await loadResultsIfNeeded();
@@ -7452,27 +7490,30 @@ function halCurrentTCC(handicaps, classId){
   return valid.length?valid[0].h.Handicap:null;
 }
 
-// Current (live-adjusted) ECHO ratings from Halsail, keyed by normalized boat name.
+// Current + next-race ECHO ratings from Halsail, each keyed by normalized boat name.
 // Halsail only exposes a boat's numeric BoatID through race results, not a standalone
 // fleet lookup, so this scans the most recent ECHO series' results to discover BoatIDs,
 // then reads each boat's current handicap via /GetBoat. Boats that haven't raced under
-// Halsail scoring this season simply won't appear — never throws, returns {} on failure.
+// Halsail scoring this season simply won't appear — never throws, returns empty maps on
+// failure.
 //
 // Halsail's ECHO scheme recalculates a boat's handicap after every race, but that new
 // number only lands in the Boat Register (and so /GetBoat) once the RO manually runs
 // Results > Analyse Handicaps and clicks Save — confirmed against GBSC's own live data,
 // where /GetBoat's saved handicap was still the one used in a boat's *previous* race,
 // one full race behind what /GetSeriesResult showed had actually been raced under most
-// recently. So the freshest true number is the one baked into the boat's own last race
-// result, not the Boat Register's saved value — prefer that when available, and only
-// fall back to /GetBoat's history for a boat with no usable result found.
+// recently. So "current" is sourced from the boat's own last race result rather than
+// the Boat Register's saved value, falling back to /GetBoat's history only when no
+// result is found. "Next" comes from Halsail's public ECHO race analysis page
+// (/Result/EchoAnalysisRace/{raceId}) — this is computed live from the race results and
+// doesn't depend on that RO save step at all.
 async function loadHalsailCurrentEcho(){
-  if(!HAL_CLUB) return {};
+  if(!HAL_CLUB) return {current:{}, next:{}};
   try{
     let schedule=halSchedule;
     if(!schedule){
       schedule=await halFetch('/GetSchedule/'+HAL_CLUB);
-      if(!schedule||schedule._err||!Array.isArray(schedule)) return {};
+      if(!schedule||schedule._err||!Array.isArray(schedule)) return {current:{}, next:{}};
     }
 
     const seriesMap={};
@@ -7487,12 +7528,13 @@ async function loadHalsailCurrentEcho(){
     const seriesList=Object.values(seriesMap)
       .filter(s=>s.firstStart<=now)
       .sort((a,b)=>b.firstStart-a.firstStart); // most recently started first
-    if(!seriesList.length) return {};
+    if(!seriesList.length) return {current:{}, next:{}};
 
     // Scan the 2 most recent series' ECHO results — collects BoatID coverage, and (more
-    // importantly) the handicap actually used in each boat's most recent race.
+    // importantly) the handicap actually used in each boat's most recent race, and which
+    // RaceID that was (needed for the "next" lookup below).
     const boatIds=new Set();
-    const latestRaceHandicap={}; // BoatID -> {handicap, ms}
+    const latestRaceHandicap={}; // BoatID -> {handicap, ms, raceId}
     for(const s of seriesList.slice(0,2)){
       const data=await halFetch('/GetSeriesResult/'+s.echoId);
       if(data&&!data._err&&Array.isArray(data.ResultsOverall)){
@@ -7503,12 +7545,12 @@ async function loadHalsailCurrentEcho(){
             if(res.Handicap==null) return;
             const ms=parseInt((res.FinishTime||'').replace(/\/Date\((-?\d+)\)\//,'$1'))||0;
             const prev=latestRaceHandicap[b.BoatID];
-            if(!prev||ms>prev.ms) latestRaceHandicap[b.BoatID]={handicap:res.Handicap,ms};
+            if(!prev||ms>prev.ms) latestRaceHandicap[b.BoatID]={handicap:res.Handicap,ms,raceId:res.RaceID};
           });
         });
       }
     }
-    if(!boatIds.size) return {};
+    if(!boatIds.size) return {current:{}, next:{}};
 
     // Fetch full boat records — needed to resolve ClassID (below), and as a fallback
     // rating source for any boat with no usable race-result handicap found above.
@@ -7529,17 +7571,27 @@ async function loadHalsailCurrentEcho(){
     for(let i=0;i<sorted.length-1;i++){
       if(sorted[i+1]===sorted[i]+1){ echoClassId=sorted[i+1]; break; }
     }
-    if(echoClassId==null) return {};
+    if(echoClassId==null) return {current:{}, next:{}};
 
-    const result={};
+    const current={};
     Object.entries(boatData).forEach(([id,b])=>{
       const fresh=latestRaceHandicap[id];
       const rating=fresh?fresh.handicap:halCurrentTCC(b.Handicaps,echoClassId);
-      if(rating!=null) result[normBoatName(b.Name)]=rating;
+      if(rating!=null) current[normBoatName(b.Name)]=rating;
     });
-    return result;
+
+    // One analysis-page fetch per distinct most-recent RaceID (usually just one, shared
+    // by the whole fleet) rather than one per boat.
+    const raceIds=[...new Set(Object.values(latestRaceHandicap).map(v=>v.raceId).filter(Boolean))];
+    const next={};
+    await Promise.all(raceIds.map(async raceId=>{
+      const html=await halFetchHtml('/Result/EchoAnalysisRace/'+raceId);
+      Object.assign(next, parseEchoAnalysisNextHcap(html));
+    }));
+
+    return {current, next};
   }catch(e){
-    return {};
+    return {current:{}, next:{}};
   }
 }
 function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handicapClassId){
