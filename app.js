@@ -5738,14 +5738,14 @@ function renderBoatProfile(nationalBoats,halEcho){
 
   const photoUrl=currentBoat.photoUrl||'';
   const photoBox=photoUrl
-    ?`<div onclick="triggerBoatPhotoUpload()" style="width:130px;height:130px;border-radius:12px;overflow:hidden;
+    ?`<div onclick="triggerBoatPhotoUpload()" style="width:180px;height:180px;border-radius:12px;overflow:hidden;
         cursor:pointer;position:relative;margin:0 auto 16px">
         <img src="${escHtml(photoUrl)}" alt="${escHtml(currentBoat.name)}" style="width:100%;height:100%;object-fit:contain;background:rgba(255,255,255,.04);display:block">
         <div style="position:absolute;bottom:4px;right:4px;background:rgba(8,21,41,.75);border-radius:6px;
           padding:3px 7px;font-size:.62rem;font-weight:700;color:var(--white);font-family:'Barlow Condensed',sans-serif;
           letter-spacing:.03em">📷 Change</div>
       </div>`
-    :`<div onclick="triggerBoatPhotoUpload()" style="width:130px;height:130px;border-radius:12px;
+    :`<div onclick="triggerBoatPhotoUpload()" style="width:180px;height:180px;border-radius:12px;
         border:1px dashed var(--border);cursor:pointer;margin:0 auto 16px;
         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted)">
         <div style="font-size:1.5rem">📷</div>
