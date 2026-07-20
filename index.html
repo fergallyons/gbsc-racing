@@ -296,6 +296,11 @@
       <div class="dash-card-label">Settings</div>
       <div class="dash-card-sub">Revolut username</div>
     </div>
+    <div id="tile-sk-boatProfile" class="dash-card" onclick="openPanel('boatProfilePanel');loadBoatProfile()">
+      <div class="dash-card-icon">🛥️</div>
+      <div class="dash-card-label">Boat Profile</div>
+      <div class="dash-card-sub">Ratings &amp; details</div>
+    </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">
     <button class="btn btn-ghost" style="font-size:12px;padding:6px 14px;opacity:0.55" onclick="openHelpSheet()">❓ Help &amp; Setup</button>
@@ -536,6 +541,17 @@
     <div class="empty-state"><div class="icon">📐</div><div>Loading ratings…</div></div>
   </div>
 </div><!-- /handicapsPanel -->
+
+<!-- ═══ PANEL: BOAT PROFILE (Skipper) ═══ -->
+<div class="panel-overlay" id="boatProfilePanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('boatProfilePanel')">‹</button>
+    <span class="panel-title">🛥️ Boat Profile</span>
+  </div>
+  <div class="panel-body" id="boatProfileBody">
+    <div class="empty-state"><div class="icon">🛥️</div><div>Loading…</div></div>
+  </div>
+</div><!-- /boatProfilePanel -->
 
 <!-- ═══ TAB: REGISTERED BOATS (Guest Dashboard) ═══ -->
 <div class="tab-wrap" id="registeredTab">

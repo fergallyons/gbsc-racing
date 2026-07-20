@@ -5646,6 +5646,88 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
     `<div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is the handicap used in each boat's most recent race; Next is Halsail's own "Hcap for next race" figure from that race's ECHO analysis — the number that will actually apply next time out. Both are blank for boats that haven't raced under Halsail scoring yet this season.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE')+')':''} · Halsail</div>`;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// BOAT PROFILE (Skipper) — name, sail number, IRC + next ECHO for just
+// this one boat. Reuses the exact same national-register + Halsail
+// fetches as the Handicaps panel, just narrowed to the current boat.
+// ═══════════════════════════════════════════════════════════════
+async function loadBoatProfile(){
+  const body=document.getElementById('boatProfileBody');
+  if(!body||!currentBoat) return;
+  body.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading ratings…</div></div>';
+  try{
+    const clubName=_C.name||'Galway Bay Sailing Club';
+    const [res,halEcho]=await Promise.all([
+      fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName)),
+      loadHalsailCurrentEcho()
+    ]);
+    const data=await res.json();
+    if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
+    renderBoatProfile(data.boats||[],halEcho);
+  }catch(e){
+    body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⚠</div><div>Could not load ratings — '+escHtml(String(e.message||e)).slice(0,80)+'</div></div>';
+  }
+}
+
+function renderBoatProfile(nationalBoats,halEcho){
+  const body=document.getElementById('boatProfileBody');
+  if(!body||!currentBoat) return;
+
+  const byNorm={};
+  nationalBoats.forEach(b=>{ byNorm[normBoatName(b.boatName)]=b; });
+  const norm=normBoatName(currentBoat.name);
+  const match=byNorm[norm];
+  const irc=match&&match.ircTCC?match.ircTCC:'';
+  const nextEcho=halEcho&&halEcho.next?halEcho.next[norm]:null;
+  const currentEcho=halEcho&&halEcho.current?halEcho.current[norm]:null;
+
+  body.innerHTML=`
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:3rem;margin-bottom:8px">${escHtml(currentBoat.icon||'⛵')}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:var(--white)">${escHtml(currentBoat.name)}</div>
+      ${match&&match.model?`<div style="font-size:.8rem;color:var(--muted);margin-top:2px">${escHtml(match.model)}</div>`:''}
+    </div>
+
+    <div class="form-group" style="margin-bottom:18px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Sail Number</label>
+      <input type="text" id="bp-sail-number" value="${escHtml(currentBoat.sailNumber||'')}" placeholder="e.g. IRL 1234"
+        style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:10px 12px;
+        outline:none;width:100%;box-sizing:border-box" onchange="saveBoatProfileSailNumber()">
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:8px">
+      <div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:${irc?'var(--white)':'var(--muted)'}">${irc||'—'}</div>
+        <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">IRC TCC</div>
+      </div>
+      <div style="flex:1;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);border-radius:10px;padding:14px;text-align:center">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:${nextEcho!=null?'var(--success)':'var(--muted)'}">${nextEcho!=null?nextEcho:'—'}</div>
+        <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">Next ECHO</div>
+      </div>
+    </div>
+    ${currentEcho!=null?`<div style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:4px">Current ECHO: ${currentEcho}</div>`:''}
+    ${!match?`<div style="text-align:center;font-size:.78rem;color:var(--danger);margin-top:16px">⚠ No Irish Sailing rating found for this boat name — check it matches the national register spelling.</div>`:''}
+    <div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:20px;line-height:1.5">IRC TCC from Irish Sailing's national register; Next ECHO from Halsail's own race-by-race analysis (see the Handicaps tile for the full explanation).</div>
+  `;
+}
+
+async function saveBoatProfileSailNumber(){
+  if(!currentBoat) return;
+  const input=document.getElementById('bp-sail-number');
+  const sailNumber=(input?.value||'').trim();
+  const prev=currentBoat.sailNumber||'';
+  currentBoat.sailNumber=sailNumber; // optimistic — same object as the boats[] entry
+  const result=await sbSaveBoatConfig(currentBoat.id,{sail_number:sailNumber});
+  if(!result||result._err){
+    currentBoat.sailNumber=prev;
+    if(input) input.value=prev;
+    toast('⚠ Could not save sail number — check connection');
+    return;
+  }
+  toast('Sail number saved ✓');
+}
+
 async function loadAndRenderDocs(){
   const el=document.getElementById('docsList'); if(!el) return;
   const noticeboardUrl=(_C.noticeboardUrl||'').trim();
