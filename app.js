@@ -862,7 +862,7 @@ async function buildBoatGrid(){
   // Load all boats from Supabase
   const sbBoats=await sbFetch('/rest/v1/boats?order=name.asc');
   if(sbBoats&&sbBoats.length){
-    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||''}));
+    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||'',photoUrl:b.photo_url||''}));
   } else {
     // Offline — fall back to localStorage cache
     boats=loadCustom();
@@ -5651,6 +5651,8 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
 // this one boat. Reuses the exact same national-register + Halsail
 // fetches as the Handicaps panel, just narrowed to the current boat.
 // ═══════════════════════════════════════════════════════════════
+let _bpLastNational=[], _bpLastHalEcho={current:{},next:{}}; // cached so a photo upload can re-render without refetching
+
 async function loadBoatProfile(){
   const body=document.getElementById('boatProfileBody');
   if(!body||!currentBoat) return;
@@ -5663,7 +5665,8 @@ async function loadBoatProfile(){
     ]);
     const data=await res.json();
     if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
-    renderBoatProfile(data.boats||[],halEcho);
+    _bpLastNational=data.boats||[]; _bpLastHalEcho=halEcho;
+    renderBoatProfile(_bpLastNational,_bpLastHalEcho);
   }catch(e){
     body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⚠</div><div>Could not load ratings — '+escHtml(String(e.message||e)).slice(0,80)+'</div></div>';
   }
@@ -5681,7 +5684,25 @@ function renderBoatProfile(nationalBoats,halEcho){
   const nextEcho=halEcho&&halEcho.next?halEcho.next[norm]:null;
   const currentEcho=halEcho&&halEcho.current?halEcho.current[norm]:null;
 
+  const photoUrl=currentBoat.photoUrl||'';
+  const photoBox=photoUrl
+    ?`<div onclick="triggerBoatPhotoUpload()" style="width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;
+        cursor:pointer;position:relative;margin-bottom:14px">
+        <img src="${escHtml(photoUrl)}" alt="${escHtml(currentBoat.name)}" style="width:100%;height:100%;object-fit:cover;display:block">
+        <div style="position:absolute;bottom:8px;right:8px;background:rgba(8,21,41,.75);border-radius:8px;
+          padding:5px 10px;font-size:.72rem;font-weight:700;color:var(--white);font-family:'Barlow Condensed',sans-serif;
+          letter-spacing:.04em">📷 Change</div>
+      </div>`
+    :`<div onclick="triggerBoatPhotoUpload()" style="width:100%;aspect-ratio:16/9;border-radius:12px;
+        border:1px dashed var(--border);cursor:pointer;margin-bottom:14px;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted)">
+        <div style="font-size:1.8rem">📷</div>
+        <div style="font-size:.85rem;font-weight:700;font-family:'Barlow Condensed',sans-serif">Add a photo</div>
+      </div>`;
+
   body.innerHTML=`
+    <input type="file" id="bp-photo-input" accept="image/*" style="display:none" onchange="onBoatPhotoSelected(this)">
+    ${photoBox}
     <div style="text-align:center;margin-bottom:20px">
       <div style="font-size:3rem;margin-bottom:8px">${escHtml(currentBoat.icon||'⛵')}</div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:var(--white)">${escHtml(currentBoat.name)}</div>
@@ -5726,6 +5747,45 @@ async function saveBoatProfileSailNumber(){
     return;
   }
   toast('Sail number saved ✓');
+}
+
+function triggerBoatPhotoUpload(){
+  document.getElementById('bp-photo-input')?.click();
+}
+
+// Uploads directly to Supabase Storage's REST API (no SDK needed, same
+// anon key already used for everything else). Each upload gets a fresh
+// timestamped path rather than overwriting the boat's existing file, so
+// there's no stale-cache risk from browsers/CDNs caching the old image at
+// the same URL.
+async function onBoatPhotoSelected(input){
+  const file=input.files&&input.files[0];
+  if(!file||!currentBoat) return;
+  const maxBytes=5*1024*1024;
+  if(file.size>maxBytes){ toast('⚠ Photo too large — max 5MB'); input.value=''; return; }
+  if(!file.type.startsWith('image/')){ toast('⚠ Please choose an image file'); input.value=''; return; }
+
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'')||'jpg';
+  const path=currentBoat.id+'-'+Date.now()+'.'+ext;
+  toast('⏳ Uploading photo…');
+  try{
+    const r=await fetch(SB_URL+'/storage/v1/object/boat-photos/'+path,{
+      method:'POST',
+      headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':file.type},
+      body:file
+    });
+    if(!r.ok){ toast('⚠ Upload failed — HTTP '+r.status); return; }
+    const publicUrl=SB_URL+'/storage/v1/object/public/boat-photos/'+path;
+    const result=await sbSaveBoatConfig(currentBoat.id,{photo_url:publicUrl});
+    if(!result||result._err){ toast('⚠ Photo uploaded but could not save — try again'); return; }
+    currentBoat.photoUrl=publicUrl; // same object as the boats[] entry
+    toast('Photo updated ✓');
+    renderBoatProfile(_bpLastNational,_bpLastHalEcho);
+  }catch(e){
+    toast('⚠ Upload failed — check connection');
+  }finally{
+    input.value='';
+  }
 }
 
 async function loadAndRenderDocs(){

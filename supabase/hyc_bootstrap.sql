@@ -608,6 +608,22 @@ CREATE POLICY "anon_update_registrations" ON registrations FOR UPDATE USING (tru
 GRANT UPDATE (looking_for_crew) ON registrations TO anon;
 
 
+-- ── boat-photos storage bucket ──────────────────────────────
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('boat-photos', 'boat-photos', true)
+ON CONFLICT (id) DO NOTHING;
+DROP POLICY IF EXISTS "boat_photos_select" ON storage.objects;
+DROP POLICY IF EXISTS "boat_photos_insert" ON storage.objects;
+DROP POLICY IF EXISTS "boat_photos_update" ON storage.objects;
+CREATE POLICY "boat_photos_select" ON storage.objects FOR SELECT
+  USING (bucket_id = 'boat-photos');
+CREATE POLICY "boat_photos_insert" ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'boat-photos');
+CREATE POLICY "boat_photos_update" ON storage.objects FOR UPDATE
+  USING (bucket_id = 'boat-photos');
+ALTER TABLE boats ADD COLUMN IF NOT EXISTS photo_url text NOT NULL DEFAULT '';
+
+
 -- ============================================================
 -- SCHEMA MIGRATIONS TRACKING
 -- ============================================================
@@ -654,7 +670,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('032_laid_course.sql'),
   ('033_boats_sail_number.sql'),
   ('035_crew_is_guest_flag.sql'),
-  ('036_schema_migrations_tracking.sql')
+  ('036_schema_migrations_tracking.sql'),
+  ('037_boat_photos.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- the GBSC-only/RCYC-only seed migrations, which this bootstrap never runs.
