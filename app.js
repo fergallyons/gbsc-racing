@@ -2614,7 +2614,7 @@ async function savePushSub(sub){
   const r=await sbFetch('/rest/v1/push_subscriptions',{
     method:'POST',
     headers:{...SBH,'Prefer':'return=minimal'},
-    body:JSON.stringify({boat_id:currentBoat.id,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
+    body:JSON.stringify({boat_id:currentBoat.id,role:'skipper',endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
   });
   if(r===null) return 'Network error — check connection';
   if(r&&r._err){
@@ -2639,7 +2639,7 @@ async function savePushSubRO(sub){
   const r=await sbFetch('/rest/v1/push_subscriptions',{
     method:'POST',
     headers:{...SBH,'Prefer':'return=minimal'},
-    body:JSON.stringify({boat_id:null,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
+    body:JSON.stringify({boat_id:null,role:'ro',endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
   });
   if(r===null) return 'Network error — check connection';
   if(r&&r._err){
@@ -2714,6 +2714,118 @@ async function onRoNotifToggle(enabled){
     }catch(err){
       console.error('RO push unsubscribe error',err);
       toast('Could not unsubscribe');
+    }
+  }
+}
+
+// Crew-scoped push subscription — same "course published" topic the
+// skipper toggle already offers, but for the generic Crew/guest login
+// which isn't tied to a boat_id. Same same-device caveat as RO (see
+// savePushSubRO's comment).
+async function savePushSubCrew(sub){
+  const j=sub.toJSON();
+  if(!j.keys) return 'Subscription missing keys (browser compatibility issue)';
+  const r=await sbFetch('/rest/v1/push_subscriptions',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({boat_id:null,role:'crew',endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
+  });
+  if(r===null) return 'Network error — check connection';
+  if(r&&r._err){
+    if(r._err.includes('23505')||r._err.includes('unique')) return null;
+    return 'DB error: '+r._err;
+  }
+  return null;
+}
+
+async function openCrewNotifSheet(){
+  await refreshCrewNotifRow();
+  document.getElementById('crewNotifSheet').classList.add('open');
+}
+
+async function refreshCrewNotifRow(){
+  const hint=document.getElementById('crew-notif-hint');
+  const toggle=document.getElementById('crew-notif-toggle');
+  const supported=await checkNotifSupport();
+  if(!supported||!VAPID_PUBLIC_KEY){
+    if(toggle) toggle.disabled=true;
+    if(hint) hint.textContent=supported?'Not available yet — ask the RO to finish setting this up':'Notifications not supported on this browser';
+    return;
+  }
+  if(toggle) toggle.disabled=false;
+  const reg=await navigator.serviceWorker.ready;
+  const sub=await reg.pushManager.getSubscription();
+  const granted=Notification.permission==='granted';
+  const savedEndpoint=localStorage.getItem('_push_endpoint_crew');
+  const isEnabled=!!(sub&&granted&&savedEndpoint&&savedEndpoint===sub.endpoint);
+  if(toggle) toggle.checked=isEnabled;
+  if(hint){
+    if(Notification.permission==='denied')
+      hint.textContent='Notifications blocked in browser settings — enable them there first';
+    else if(isEnabled)
+      hint.textContent='You\'ll be notified when the RO publishes today\'s course';
+    else
+      hint.textContent='';
+  }
+}
+
+async function onCrewNotifToggle(enabled){
+  const hint=document.getElementById('crew-notif-hint');
+  const setHint=(msg,color)=>{if(hint){hint.textContent=msg;hint.style.color=color||'var(--muted)';}};
+  const uncheck=()=>{const t=document.getElementById('crew-notif-toggle'); if(t)t.checked=false;};
+
+  if(enabled){
+    if(!VAPID_PUBLIC_KEY){ uncheck(); setHint('Not available yet','var(--danger)'); return; }
+    if(Notification.permission==='denied'){
+      uncheck();
+      setHint('Notifications blocked — enable them in your browser/OS settings');
+      return;
+    }
+    let permission;
+    try{ permission=await Notification.requestPermission(); }
+    catch(e){ uncheck(); setHint('Notifications not supported on this browser'); return; }
+    if(permission!=='granted'){ uncheck(); setHint('Permission not granted'); return; }
+    try{
+      const reg=await navigator.serviceWorker.ready;
+      const sub=await reg.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+      const saveErr=await savePushSubCrew(sub);
+      if(!saveErr){
+        localStorage.setItem('_push_endpoint_crew', sub.endpoint);
+        toast('Notifications enabled ✓');
+        setHint('You\'ll be notified when the RO publishes today\'s course');
+      } else {
+        try{ await sub.unsubscribe(); }catch(e){}
+        localStorage.removeItem('_push_endpoint_crew');
+        uncheck();
+        setHint('Save failed: '+saveErr,'var(--danger)');
+        toast('⚠ '+saveErr.slice(0,60));
+      }
+    }catch(err){
+      console.error('Crew push subscribe error',err);
+      localStorage.removeItem('_push_endpoint_crew');
+      uncheck();
+      const msg=err.message||String(err);
+      setHint('Error: '+msg,'var(--danger)');
+      toast('⚠ '+msg.slice(0,60));
+    }
+  } else {
+    try{
+      const reg=await navigator.serviceWorker.ready;
+      const sub=await reg.pushManager.getSubscription();
+      if(sub){
+        await sbFetch('/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),
+          {method:'DELETE',headers:{...SBH}});
+        await sub.unsubscribe();
+      }
+      localStorage.removeItem('_push_endpoint_crew');
+      toast('Notifications disabled');
+      setHint('');
+    }catch(err){
+      console.error('Crew push unsubscribe error',err);
+      toast('Could not disable notifications');
     }
   }
 }

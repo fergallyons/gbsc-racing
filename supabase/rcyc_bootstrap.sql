@@ -251,6 +251,7 @@ CREATE POLICY "protests_delete" ON protests FOR DELETE USING (true);
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id         uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
   boat_id    text        REFERENCES boats(id) ON DELETE CASCADE,
+  role       text        NOT NULL DEFAULT 'skipper' CHECK (role IN ('skipper','crew','ro')),
   endpoint   text        NOT NULL UNIQUE,
   p256dh     text        NOT NULL,
   auth       text        NOT NULL,
@@ -1161,7 +1162,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('033_boats_sail_number.sql'),
   ('035_crew_is_guest_flag.sql'),
   ('036_schema_migrations_tracking.sql'),
-  ('037_boat_photos.sql')
+  ('037_boat_photos.sql'),
+  ('038_push_subscriptions_role.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- the GBSC-only/superseded files excluded from this bootstrap (below).
