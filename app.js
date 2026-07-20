@@ -7581,13 +7581,20 @@ async function loadHalsailCurrentEcho(){
     });
 
     // One analysis-page fetch per distinct most-recent RaceID (usually just one, shared
-    // by the whole fleet) rather than one per boat.
-    const raceIds=[...new Set(Object.values(latestRaceHandicap).map(v=>v.raceId).filter(Boolean))];
+    // by the whole fleet) rather than one per boat. Merge most-recent-race-first so a
+    // boat whose true latest race was in an older scanned series can't have its value
+    // clobbered by a less-recent race's analysis page that happens to also list them —
+    // Promise.all gives no ordering guarantee, so this can't rely on fetch completion order.
+    const raceIdMs={};
+    Object.values(latestRaceHandicap).forEach(v=>{ if(v.raceId) raceIdMs[v.raceId]=v.ms; });
+    const raceIds=Object.keys(raceIdMs).sort((a,b)=>raceIdMs[b]-raceIdMs[a]);
+    const pages=await Promise.all(raceIds.map(raceId=>halFetchHtml('/Result/EchoAnalysisRace/'+raceId)));
     const next={};
-    await Promise.all(raceIds.map(async raceId=>{
-      const html=await halFetchHtml('/Result/EchoAnalysisRace/'+raceId);
-      Object.assign(next, parseEchoAnalysisNextHcap(html));
-    }));
+    raceIds.forEach((raceId,i)=>{
+      Object.entries(parseEchoAnalysisNextHcap(pages[i])).forEach(([name,val])=>{
+        if(!(name in next)) next[name]=val;
+      });
+    });
 
     return {current, next};
   }catch(e){
