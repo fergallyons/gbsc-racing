@@ -5596,7 +5596,7 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
   body.innerHTML=summaryHtml+
     `<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Boats (${rows.length})</div>`+
     rowsHtml+
-    `<div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is blank for boats that haven't raced under Halsail scoring yet this season.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE')+')':''} · Halsail</div>`;
+    `<div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is the handicap used in each boat's most recent race — blank for boats that haven't raced under Halsail scoring yet this season. It can still run one race ahead of Halsail's own Boat Register until the RO next runs Results → Analyse Handicaps and saves.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE')+')':''} · Halsail</div>`;
 }
 
 async function loadAndRenderDocs(){
@@ -7457,6 +7457,15 @@ function halCurrentTCC(handicaps, classId){
 // fleet lookup, so this scans the most recent ECHO series' results to discover BoatIDs,
 // then reads each boat's current handicap via /GetBoat. Boats that haven't raced under
 // Halsail scoring this season simply won't appear — never throws, returns {} on failure.
+//
+// Halsail's ECHO scheme recalculates a boat's handicap after every race, but that new
+// number only lands in the Boat Register (and so /GetBoat) once the RO manually runs
+// Results > Analyse Handicaps and clicks Save — confirmed against GBSC's own live data,
+// where /GetBoat's saved handicap was still the one used in a boat's *previous* race,
+// one full race behind what /GetSeriesResult showed had actually been raced under most
+// recently. So the freshest true number is the one baked into the boat's own last race
+// result, not the Boat Register's saved value — prefer that when available, and only
+// fall back to /GetBoat's history for a boat with no usable result found.
 async function loadHalsailCurrentEcho(){
   if(!HAL_CLUB) return {};
   try{
@@ -7480,17 +7489,29 @@ async function loadHalsailCurrentEcho(){
       .sort((a,b)=>b.firstStart-a.firstStart); // most recently started first
     if(!seriesList.length) return {};
 
-    // Scan the 2 most recent series' ECHO results to build BoatID coverage
+    // Scan the 2 most recent series' ECHO results — collects BoatID coverage, and (more
+    // importantly) the handicap actually used in each boat's most recent race.
     const boatIds=new Set();
+    const latestRaceHandicap={}; // BoatID -> {handicap, ms}
     for(const s of seriesList.slice(0,2)){
       const data=await halFetch('/GetSeriesResult/'+s.echoId);
       if(data&&!data._err&&Array.isArray(data.ResultsOverall)){
-        data.ResultsOverall.forEach(r=>{ if(r.BoatID) boatIds.add(r.BoatID); });
+        data.ResultsOverall.forEach(b=>{
+          if(!b.BoatID) return;
+          boatIds.add(b.BoatID);
+          (b.Results||[]).forEach(res=>{
+            if(res.Handicap==null) return;
+            const ms=parseInt((res.FinishTime||'').replace(/\/Date\((-?\d+)\)\//,'$1'))||0;
+            const prev=latestRaceHandicap[b.BoatID];
+            if(!prev||ms>prev.ms) latestRaceHandicap[b.BoatID]={handicap:res.Handicap,ms};
+          });
+        });
       }
     }
     if(!boatIds.size) return {};
 
-    // Fetch full boat records (handicap history) before we can resolve ClassID
+    // Fetch full boat records — needed to resolve ClassID (below), and as a fallback
+    // rating source for any boat with no usable race-result handicap found above.
     const boatData={};
     await Promise.all([...boatIds].map(async id=>{
       const b=await halFetch('/GetBoat/'+id);
@@ -7511,8 +7532,9 @@ async function loadHalsailCurrentEcho(){
     if(echoClassId==null) return {};
 
     const result={};
-    Object.values(boatData).forEach(b=>{
-      const rating=halCurrentTCC(b.Handicaps,echoClassId);
+    Object.entries(boatData).forEach(([id,b])=>{
+      const fresh=latestRaceHandicap[id];
+      const rating=fresh?fresh.handicap:halCurrentTCC(b.Handicaps,echoClassId);
       if(rating!=null) result[normBoatName(b.Name)]=rating;
     });
     return result;
