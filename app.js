@@ -2655,10 +2655,33 @@ async function openROClubSettings(){
   setVal('ro-results-url',clubSettings.results_url||'');
   setVal('ro-worldtides-key',clubSettings.worldtides_key||'');
   setVal('ro-revolut-user',clubSettings.ro_revolut_user||'');
+  setVal('ro-hal-club',clubSettings.hal_club||'');
+  setVal('ro-fee-full',clubSettings.fee_full??'');
+  setVal('ro-fee-crew',clubSettings.fee_crew??'');
+  setVal('ro-fee-visitor',clubSettings.fee_visitor??'');
+  setVal('ro-fee-student',clubSettings.fee_student??'');
+  setVal('ro-fee-kid',clubSettings.fee_kid??'');
+  setVal('ro-visitor-max',clubSettings.visitor_max??'');
+  setVal('ro-crew-max-yrs',clubSettings.crew_max_yrs??'');
+  setVal('ro-start-lat',clubSettings.start_lat??'');
+  setVal('ro-start-lng',clubSettings.start_lng??'');
+  setVal('ro-wind-lat',clubSettings.wind_lat??'');
+  setVal('ro-wind-lng',clubSettings.wind_lng??'');
+  setVal('ro-tide-station',clubSettings.tide_station||'');
+  setVal('ro-tide-offset',clubSettings.tide_odm_offset??'');
+  setVal('ro-noticeboard-url',clubSettings.noticeboard_url||'');
   document.getElementById('roClubSettingsSheet').classList.add('open');
 }
 function saveROClubSettings(){
   const getVal=(id)=>(document.getElementById(id)?.value||'').trim();
+  // Numeric field left blank keeps its current DB value, rather than
+  // overwriting with 0/null — same "don't clobber with blank" rule as URLs below.
+  const numOrKeep=(id,existing)=>{
+    const v=getVal(id);
+    if(v==='') return existing;
+    const n=parseFloat(v);
+    return isNaN(n)?existing:n;
+  };
   const windowHours=parseInt(getVal('ro-pre-race-window'))||12;
 
   // For each stripe link: use the typed value if non-empty,
@@ -2670,6 +2693,9 @@ function saveROClubSettings(){
   const resultsUrlVal=getVal('ro-results-url');
   const tidesKeyVal=getVal('ro-worldtides-key');
   const roRevolutVal=getVal('ro-revolut-user').replace(/^@/,'');
+  const halClubVal=getVal('ro-hal-club');
+  const noticeboardVal=getVal('ro-noticeboard-url');
+  const tideStationVal=getVal('ro-tide-station');
 
   saveClubStripeLinks({
     stripe_link_member:   memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'',
@@ -2680,6 +2706,21 @@ function saveROClubSettings(){
     results_url: resultsUrlVal,
     worldtides_key: tidesKeyVal,
     ro_revolut_user: roRevolutVal,
+    hal_club: halClubVal!==''?(parseInt(halClubVal)||null):(clubSettings.hal_club||null),
+    fee_full:     numOrKeep('ro-fee-full',    clubSettings.fee_full),
+    fee_crew:     numOrKeep('ro-fee-crew',    clubSettings.fee_crew),
+    fee_visitor:  numOrKeep('ro-fee-visitor', clubSettings.fee_visitor),
+    fee_student:  numOrKeep('ro-fee-student', clubSettings.fee_student),
+    fee_kid:      numOrKeep('ro-fee-kid',     clubSettings.fee_kid),
+    visitor_max:  numOrKeep('ro-visitor-max',  clubSettings.visitor_max),
+    crew_max_yrs: numOrKeep('ro-crew-max-yrs', clubSettings.crew_max_yrs),
+    start_lat: numOrKeep('ro-start-lat', clubSettings.start_lat),
+    start_lng: numOrKeep('ro-start-lng', clubSettings.start_lng),
+    wind_lat:  numOrKeep('ro-wind-lat',  clubSettings.wind_lat),
+    wind_lng:  numOrKeep('ro-wind-lng',  clubSettings.wind_lng),
+    tide_station: tideStationVal!==''?tideStationVal:clubSettings.tide_station||'',
+    tide_odm_offset: numOrKeep('ro-tide-offset', clubSettings.tide_odm_offset),
+    noticeboard_url: noticeboardVal!==''?noticeboardVal:clubSettings.noticeboard_url||'',
   });
   clubSettings.pre_race_window_hours=windowHours;
   clubSettings.estella_url=estellaVal;
@@ -2687,6 +2728,7 @@ function saveROClubSettings(){
   clubSettings.worldtides_key=tidesKeyVal;
   clubSettings.ro_revolut_user=roRevolutVal;
   _C.resultsUrl=resultsUrlVal;
+  _applyDbClubConfig(clubSettings); // syncs HAL_CLUB, FEES, VISITOR_MAX, CREW_MAX_YRS, tide/wind/start into live runtime state
   updateEstellaLink();
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
