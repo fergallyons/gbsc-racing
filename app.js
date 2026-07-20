@@ -2625,6 +2625,99 @@ async function savePushSub(sub){
   return null;
 }
 
+// RO-scoped push subscription — boat_id NULL is how these are distinguished
+// from skipper subscriptions in the same table; no schema change needed.
+// Known limitation: a browser only holds one push subscription per origin,
+// so on a device already subscribed as a skipper, "subscribing" as RO hits
+// the endpoint UNIQUE constraint and is treated as a harmless no-op — the
+// existing boat-scoped row is left as-is, not converted to an RO one. Not
+// worth solving until real usage shows it matters (RO and skipper are
+// normally different people on different devices).
+async function savePushSubRO(sub){
+  const j=sub.toJSON();
+  if(!j.keys) return 'Subscription missing keys (browser compatibility issue)';
+  const r=await sbFetch('/rest/v1/push_subscriptions',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({boat_id:null,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
+  });
+  if(r===null) return 'Network error — check connection';
+  if(r&&r._err){
+    if(r._err.includes('23505')||r._err.includes('unique')) return null;
+    return 'DB error: '+r._err;
+  }
+  return null;
+}
+
+async function onRoNotifToggle(enabled){
+  const hint=document.getElementById('ro-notif-hint');
+  const setHint=(msg,color)=>{if(hint){hint.textContent=msg;hint.style.color=color||'var(--muted)';}};
+  const uncheck=()=>{const t=document.getElementById('ro-notif-toggle'); if(t)t.checked=false;};
+
+  if(enabled){
+    if(!VAPID_PUBLIC_KEY){
+      uncheck();
+      setHint('Set a VAPID public key above first','var(--danger)');
+      return;
+    }
+    if(Notification.permission==='denied'){
+      uncheck();
+      setHint('Notifications blocked — enable them in your browser/OS settings');
+      return;
+    }
+    let permission;
+    try{ permission=await Notification.requestPermission(); }
+    catch(e){ uncheck(); setHint('Notifications not supported on this browser'); return; }
+    if(permission!=='granted'){
+      uncheck();
+      setHint('Permission not granted');
+      return;
+    }
+    try{
+      const reg=await navigator.serviceWorker.ready;
+      const sub=await reg.pushManager.subscribe({
+        userVisibleOnly:true,
+        applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+      const saveErr=await savePushSubRO(sub);
+      if(!saveErr){
+        localStorage.setItem('_push_endpoint_ro', sub.endpoint);
+        toast('Subscribed ✓');
+        setHint('Subscribed — sending isn\'t wired up yet, so nothing will arrive until that\'s built');
+      } else {
+        try{ await sub.unsubscribe(); }catch(e){}
+        localStorage.removeItem('_push_endpoint_ro');
+        uncheck();
+        setHint('Save failed: '+saveErr,'var(--danger)');
+        toast('⚠ '+saveErr.slice(0,60));
+      }
+    }catch(err){
+      console.error('RO push subscribe error',err);
+      localStorage.removeItem('_push_endpoint_ro');
+      uncheck();
+      const msg=err.message||String(err);
+      setHint('Error: '+msg,'var(--danger)');
+      toast('⚠ '+msg.slice(0,60));
+    }
+  } else {
+    try{
+      const reg=await navigator.serviceWorker.ready;
+      const sub=await reg.pushManager.getSubscription();
+      if(sub){
+        await sbFetch('/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),
+          {method:'DELETE',headers:{...SBH}});
+        await sub.unsubscribe();
+      }
+      localStorage.removeItem('_push_endpoint_ro');
+      toast('Unsubscribed');
+      setHint('');
+    }catch(err){
+      console.error('RO push unsubscribe error',err);
+      toast('Could not unsubscribe');
+    }
+  }
+}
+
 // ── Help sheet ────────────────────────────────────────────────
 function openHelpSheet(){
   document.getElementById('helpSheet').classList.add('open');
@@ -2671,7 +2764,40 @@ async function openROClubSettings(){
   setVal('ro-tide-station',clubSettings.tide_station||'');
   setVal('ro-tide-offset',clubSettings.tide_odm_offset??'');
   setVal('ro-noticeboard-url',clubSettings.noticeboard_url||'');
+  setVal('ro-vapid-key',clubSettings.vapid_public_key||'');
+  await refreshRoNotifRow();
   document.getElementById('roClubSettingsSheet').classList.add('open');
+}
+
+// RO-facing "notify me when a boat registers" toggle — subscribe-only for
+// now (see savePushSubRO/onRoNotifToggle); no send function exists yet.
+// Row only shows once a VAPID public key is configured above and the
+// browser supports push at all.
+async function refreshRoNotifRow(){
+  const row=document.getElementById('ro-notif-row');
+  const hint=document.getElementById('ro-notif-hint');
+  if(!row) return;
+  const supported=await checkNotifSupport();
+  if(!supported||!VAPID_PUBLIC_KEY){
+    row.style.display='none';
+    return;
+  }
+  row.style.display='';
+  const reg=await navigator.serviceWorker.ready;
+  const sub=await reg.pushManager.getSubscription();
+  const granted=Notification.permission==='granted';
+  const savedEndpoint=localStorage.getItem('_push_endpoint_ro');
+  const isEnabled=!!(sub&&granted&&savedEndpoint&&savedEndpoint===sub.endpoint);
+  const toggle=document.getElementById('ro-notif-toggle');
+  if(toggle) toggle.checked=isEnabled;
+  if(hint){
+    if(Notification.permission==='denied')
+      hint.textContent='Notifications blocked in browser settings — enable them there first';
+    else if(isEnabled)
+      hint.textContent='Subscribed — sending isn\'t wired up yet, so nothing will arrive until that\'s built';
+    else
+      hint.textContent='';
+  }
 }
 function saveROClubSettings(){
   const getVal=(id)=>(document.getElementById(id)?.value||'').trim();
@@ -2697,6 +2823,7 @@ function saveROClubSettings(){
   const halClubVal=getVal('ro-hal-club');
   const noticeboardVal=getVal('ro-noticeboard-url');
   const tideStationVal=getVal('ro-tide-station');
+  const vapidKeyVal=getVal('ro-vapid-key');
 
   saveClubStripeLinks({
     stripe_link_member:   memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'',
@@ -2722,6 +2849,7 @@ function saveROClubSettings(){
     tide_station: tideStationVal!==''?tideStationVal:clubSettings.tide_station||'',
     tide_odm_offset: numOrKeep('ro-tide-offset', clubSettings.tide_odm_offset),
     noticeboard_url: noticeboardVal!==''?noticeboardVal:clubSettings.noticeboard_url||'',
+    vapid_public_key: vapidKeyVal!==''?vapidKeyVal:clubSettings.vapid_public_key||'',
   });
   clubSettings.pre_race_window_hours=windowHours;
   clubSettings.estella_url=estellaVal;
@@ -2731,6 +2859,7 @@ function saveROClubSettings(){
   _C.resultsUrl=resultsUrlVal;
   _applyDbClubConfig(clubSettings); // syncs HAL_CLUB, FEES, VISITOR_MAX, CREW_MAX_YRS, tide/wind/start into live runtime state
   updateEstellaLink();
+  refreshRoNotifRow(); // VAPID key may have just been set/changed
   closeSheet('roClubSettingsSheet');
   toast('Club settings saved ✓');
   renderCourseDiagram();

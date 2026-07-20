@@ -1816,6 +1816,29 @@
 
     <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
       <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        🔔 Registration Notifications
+      </label>
+      <input type="text" id="ro-vapid-key" placeholder="VAPID public key"
+        style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.8rem;padding:10px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
+        One-time setup, per club — ask your developer to generate a VAPID keypair and paste the <em>public</em> half here. Sending isn't wired up yet — this just enables subscribing for now.
+      </div>
+      <div id="ro-notif-row" style="margin-top:14px;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:.8rem;color:var(--muted);max-width:220px;line-height:1.4">Notify me when a boat registers for a race</div>
+          <label class="toggle-sw">
+            <input type="checkbox" id="ro-notif-toggle" onchange="onRoNotifToggle(this.checked)">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        </div>
+        <div id="ro-notif-hint" style="font-size:.8rem;color:var(--muted);margin-top:6px"></div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
         💜 RO Revolut Username
       </label>
       <input type="text" id="ro-revolut-user" placeholder="@username"
