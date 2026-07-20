@@ -184,6 +184,23 @@
       </select>
     </div>
   </div>
+  <!-- Boat summary strip -->
+  <div class="dash-fee-strip" onclick="openPanel('boatProfilePanel');loadBoatProfile()">
+    <div class="dfs-item">
+      <div class="dfs-val" id="dash-sailno">—</div>
+      <div class="dfs-label">Sail No</div>
+    </div>
+    <div class="dfs-sep"></div>
+    <div class="dfs-item">
+      <div class="dfs-val" id="dash-irc">—</div>
+      <div class="dfs-label">IRC TCC</div>
+    </div>
+    <div class="dfs-sep"></div>
+    <div class="dfs-item">
+      <div class="dfs-val" id="dash-nextecho">—</div>
+      <div class="dfs-label">Next ECHO</div>
+    </div>
+  </div>
   <!-- Fee summary strip -->
   <div class="dash-fee-strip" onclick="openFeePanel()">
     <div class="dfs-item">
@@ -295,11 +312,6 @@
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Settings</div>
       <div class="dash-card-sub">Revolut username</div>
-    </div>
-    <div id="tile-sk-boatProfile" class="dash-card" onclick="openPanel('boatProfilePanel');loadBoatProfile()">
-      <div class="dash-card-icon">🛥️</div>
-      <div class="dash-card-label">Boat Profile</div>
-      <div class="dash-card-sub">Ratings &amp; details</div>
     </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">

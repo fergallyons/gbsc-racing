@@ -1069,6 +1069,7 @@ async function enterApp(b,ro){
   loadAndDrawCourse();
   renderCrew();
   updateSkipperDash();
+  loadBoatSummaryStrip(); // sail no / IRC / next ECHO — boat-specific, not race-specific, so just once per login
   // Apply per-race attendance snapshot — overrides global crew.selected if records exist
   if(nextRace) await applyRaceAttendance(nextRace);
   // Load payment state so dashboard summary is correct from first render
@@ -5651,22 +5652,51 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
 // this one boat. Reuses the exact same national-register + Halsail
 // fetches as the Handicaps panel, just narrowed to the current boat.
 // ═══════════════════════════════════════════════════════════════
-let _bpLastNational=[], _bpLastHalEcho={current:{},next:{}}; // cached so a photo upload can re-render without refetching
+let _bpLastNational=[], _bpLastHalEcho={current:{},next:{}}; // cached so the dashboard strip and panel don't both fetch
+
+async function _fetchBoatRatingData(){
+  const clubName=_C.name||'Galway Bay Sailing Club';
+  const [res,halEcho]=await Promise.all([
+    fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName)),
+    loadHalsailCurrentEcho()
+  ]);
+  const data=await res.json();
+  if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
+  _bpLastNational=data.boats||[]; _bpLastHalEcho=halEcho;
+  return {national:_bpLastNational, halEcho:_bpLastHalEcho};
+}
+
+// Boat summary strip on the Skipper dashboard (Sail No / IRC / Next ECHO) —
+// boat-specific, not race-specific, so this only needs to run once per login,
+// not on every race change like updateSkipperDash().
+async function loadBoatSummaryStrip(){
+  if(!currentBoat) return;
+  const sailEl=document.getElementById('dash-sailno');
+  if(sailEl) sailEl.textContent=currentBoat.sailNumber||'—'; // known instantly, no need to wait on the fetch below
+  try{
+    const {national,halEcho}=await _fetchBoatRatingData();
+    const byNorm={};
+    national.forEach(b=>{ byNorm[normBoatName(b.boatName)]=b; });
+    const norm=normBoatName(currentBoat.name);
+    const match=byNorm[norm];
+    const irc=match&&match.ircTCC?match.ircTCC:'';
+    const nextEcho=halEcho&&halEcho.next?halEcho.next[norm]:null;
+    const ircEl=document.getElementById('dash-irc');
+    const echoEl=document.getElementById('dash-nextecho');
+    if(ircEl) ircEl.textContent=irc||'—';
+    if(echoEl) echoEl.textContent=nextEcho!=null?nextEcho:'—';
+  }catch(e){
+    // Silent — passive dashboard strip, not worth an error toast on every load
+  }
+}
 
 async function loadBoatProfile(){
   const body=document.getElementById('boatProfileBody');
   if(!body||!currentBoat) return;
   body.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading ratings…</div></div>';
   try{
-    const clubName=_C.name||'Galway Bay Sailing Club';
-    const [res,halEcho]=await Promise.all([
-      fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName)),
-      loadHalsailCurrentEcho()
-    ]);
-    const data=await res.json();
-    if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
-    _bpLastNational=data.boats||[]; _bpLastHalEcho=halEcho;
-    renderBoatProfile(_bpLastNational,_bpLastHalEcho);
+    const {national,halEcho}=await _fetchBoatRatingData();
+    renderBoatProfile(national,halEcho);
   }catch(e){
     body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⚠</div><div>Could not load ratings — '+escHtml(String(e.message||e)).slice(0,80)+'</div></div>';
   }
