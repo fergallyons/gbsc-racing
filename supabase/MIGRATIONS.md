@@ -40,10 +40,13 @@ ON CONFLICT (filename) DO NOTHING;
 ```
 
 If the change applies to every club (not a GBSC-only seed), also add the
-same `INSERT` line to `rcyc_bootstrap.sql` and `hyc_bootstrap.sql` (and any
-future `<slug>_bootstrap.sql`) alongside the actual DDL, so a brand-new
-club set up from bootstrap starts fully caught up with no separate catch-up
-step. `schema.sql` itself is never touched for new migrations — it's the
+same `INSERT` line — alongside the actual DDL — to:
+  - every existing `<slug>_bootstrap.sql` (`rcyc_bootstrap.sql`, `hyc_bootstrap.sql`, ...)
+  - `NEW_CLUB_TEMPLATE.sql`, so the next club onboarded (see
+    `NEW_CLUB_ONBOARDING.md`) starts fully caught up with no separate
+    catch-up step.
+
+`schema.sql` itself is never touched for new migrations — it's the
 original baseline only.
 
 ## Bringing an existing club up to date
