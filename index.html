@@ -184,38 +184,35 @@
       </select>
     </div>
   </div>
-  <!-- Boat summary strip -->
-  <div class="dash-fee-strip" onclick="openPanel('boatProfilePanel');loadBoatProfile()">
-    <div class="dfs-item">
-      <div class="dfs-val" id="dash-sailno">—</div>
-      <div class="dfs-label">Sail No</div>
+  <!-- Boat summary card — name, type, photo (small), sail no, handicaps -->
+  <div class="dash-race-card" style="cursor:pointer" onclick="openPanel('boatProfilePanel');loadBoatProfile()">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div id="dashBoatPhotoWrap" style="width:46px;height:46px;border-radius:8px;overflow:hidden;flex-shrink:0;
+        background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;font-size:1.4rem">
+        <span id="dashBoatIconFallback">⛵</span>
+        <img id="dashBoatPhotoImg" style="display:none;width:100%;height:100%;object-fit:cover" alt="">
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:800;color:var(--white);
+          white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="dashBoatName">Boat</div>
+        <div style="font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="dashBoatType">&nbsp;</div>
+      </div>
     </div>
-    <div class="dfs-sep"></div>
-    <div class="dfs-item">
-      <div class="dfs-val" id="dash-irc">—</div>
-      <div class="dfs-label">IRC TCC</div>
-    </div>
-    <div class="dfs-sep"></div>
-    <div class="dfs-item">
-      <div class="dfs-val" id="dash-nextecho">—</div>
-      <div class="dfs-label">Next ECHO</div>
-    </div>
-  </div>
-  <!-- Fee summary strip -->
-  <div class="dash-fee-strip" onclick="openFeePanel()">
-    <div class="dfs-item">
-      <div class="dfs-val" id="dash-crew">0</div>
-      <div class="dfs-label">Aboard</div>
-    </div>
-    <div class="dfs-sep"></div>
-    <div class="dfs-item">
-      <div class="dfs-val" id="dash-total">€0</div>
-      <div class="dfs-label">Total</div>
-    </div>
-    <div class="dfs-sep"></div>
-    <div class="dfs-item">
-      <div class="dfs-val owed" id="dash-owed">€0</div>
-      <div class="dfs-label">Owed</div>
+    <div style="display:flex">
+      <div class="dfs-item">
+        <div class="dfs-val" id="dash-sailno">—</div>
+        <div class="dfs-label">Sail No</div>
+      </div>
+      <div class="dfs-sep"></div>
+      <div class="dfs-item">
+        <div class="dfs-val" id="dash-irc">—</div>
+        <div class="dfs-label">IRC TCC</div>
+      </div>
+      <div class="dfs-sep"></div>
+      <div class="dfs-item">
+        <div class="dfs-val" id="dash-nextecho">—</div>
+        <div class="dfs-label">Next ECHO</div>
+      </div>
     </div>
   </div>
   <!-- Register CTA -->
@@ -267,6 +264,23 @@
     <span class="ro-sec-chev" id="skSecChev-payments">▸</span>
   </div>
   <div class="dash-grid" id="skSecBody-payments" style="display:none">
+    <!-- Fee summary strip — spans both columns -->
+    <div class="dash-fee-strip" style="grid-column:1/-1" onclick="openFeePanel()">
+      <div class="dfs-item">
+        <div class="dfs-val" id="dash-crew">0</div>
+        <div class="dfs-label">Aboard</div>
+      </div>
+      <div class="dfs-sep"></div>
+      <div class="dfs-item">
+        <div class="dfs-val" id="dash-total">€0</div>
+        <div class="dfs-label">Total</div>
+      </div>
+      <div class="dfs-sep"></div>
+      <div class="dfs-item">
+        <div class="dfs-val owed" id="dash-owed">€0</div>
+        <div class="dfs-label">Owed</div>
+      </div>
+    </div>
     <div id="tile-sk-fees" class="dash-card" onclick="openFeePanel()">
       <div class="dash-card-icon">💳</div>
       <div class="dash-card-label" id="dc-fees-label">Race Fees</div>

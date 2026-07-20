@@ -5666,11 +5666,31 @@ async function _fetchBoatRatingData(){
   return {national:_bpLastNational, halEcho:_bpLastHalEcho};
 }
 
-// Boat summary strip on the Skipper dashboard (Sail No / IRC / Next ECHO) —
-// boat-specific, not race-specific, so this only needs to run once per login,
-// not on every race change like updateSkipperDash().
+// Fills in the boat card's name/photo from already-known local data — no
+// fetch needed, so this can (and should) run before loadBoatSummaryStrip()'s
+// network calls resolve. Also called after a photo upload so the dashboard
+// thumbnail updates immediately, not just the Boat Profile panel.
+function updateDashBoatCard(){
+  if(!currentBoat) return;
+  const nameEl=document.getElementById('dashBoatName');
+  if(nameEl) nameEl.textContent=currentBoat.name;
+  const img=document.getElementById('dashBoatPhotoImg');
+  const fallback=document.getElementById('dashBoatIconFallback');
+  if(currentBoat.photoUrl){
+    if(img){ img.src=currentBoat.photoUrl; img.style.display=''; }
+    if(fallback) fallback.style.display='none';
+  } else {
+    if(img) img.style.display='none';
+    if(fallback){ fallback.textContent=currentBoat.icon||'⛵'; fallback.style.display=''; }
+  }
+}
+
+// Boat summary card on the Skipper dashboard (photo/name/type/Sail No/IRC/
+// Next ECHO) — boat-specific, not race-specific, so this only needs to run
+// once per login, not on every race change like updateSkipperDash().
 async function loadBoatSummaryStrip(){
   if(!currentBoat) return;
+  updateDashBoatCard();
   const sailEl=document.getElementById('dash-sailno');
   if(sailEl) sailEl.textContent=currentBoat.sailNumber||'—'; // known instantly, no need to wait on the fetch below
   try{
@@ -5683,10 +5703,12 @@ async function loadBoatSummaryStrip(){
     const nextEcho=halEcho&&halEcho.next?halEcho.next[norm]:null;
     const ircEl=document.getElementById('dash-irc');
     const echoEl=document.getElementById('dash-nextecho');
+    const typeEl=document.getElementById('dashBoatType');
     if(ircEl) ircEl.textContent=irc||'—';
     if(echoEl) echoEl.textContent=nextEcho!=null?nextEcho:'—';
+    if(typeEl) typeEl.textContent=(match&&match.model)?match.model:' ';
   }catch(e){
-    // Silent — passive dashboard strip, not worth an error toast on every load
+    // Silent — passive dashboard card, not worth an error toast on every load
   }
 }
 
@@ -5811,6 +5833,7 @@ async function onBoatPhotoSelected(input){
     currentBoat.photoUrl=publicUrl; // same object as the boats[] entry
     toast('Photo updated ✓');
     renderBoatProfile(_bpLastNational,_bpLastHalEcho);
+    updateDashBoatCard(); // refresh the dashboard thumbnail too, not just this panel
   }catch(e){
     toast('⚠ Upload failed — check connection');
   }finally{
