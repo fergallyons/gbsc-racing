@@ -2725,7 +2725,7 @@ async function onRoNotifToggle(enabled){
       if(!saveErr){
         localStorage.setItem('_push_endpoint_ro', sub.endpoint);
         toast('Subscribed ✓');
-        setHint('Subscribed — sending isn\'t wired up yet, so nothing will arrive until that\'s built');
+        setHint('Subscribed — you\'ll be notified when a boat registers');
       } else {
         try{ await sub.unsubscribe(); }catch(e){}
         localStorage.removeItem('_push_endpoint_ro');
@@ -2948,7 +2948,7 @@ async function refreshRoNotifRow(){
     if(Notification.permission==='denied')
       hint.textContent='Notifications blocked in browser settings — enable them there first';
     else if(isEnabled)
-      hint.textContent='Subscribed — sending isn\'t wired up yet, so nothing will arrive until that\'s built';
+      hint.textContent='Subscribed — you\'ll be notified when a boat registers';
     else
       hint.textContent='';
   }
