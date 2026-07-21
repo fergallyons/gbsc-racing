@@ -496,12 +496,6 @@ const FEAT={
   feeModel:    (_C.features&&_C.features.feeModel)||'per-race',  // 'per-race' | 'per-series'
   declaration: !!(_C.features&&_C.features.declaration),         // true = skipper declaration gate
   courseCard:  !!(_C.features&&_C.features.courseCard),          // true = RO course card picker
-  // true = this club's Halsail setup lists only one side of a class in GetSchedule
-  // (GBSC convention: "Cru - E" only) and scores the other side as a twin series at
-  // SeryID+1. Off by default — SeryID+1 being "adjacent" is a coincidence for most
-  // clubs, not a signal (confirmed against Dublin Bay SC, where it's an unrelated
-  // class with a completely different fleet). See loadResultsIfNeeded()/selectHalClass().
-  halIrcTandem: !!(_C.features&&_C.features.halIrcTandem),
 };
 
 // Map from feature key → tile element IDs that applyAllFeatureVisibility() shows/hides.
@@ -550,7 +544,7 @@ const FEAT_DEFAULTS={
   publishResults:true, usageStats:true, feeStatements:true, viewCourse:true,
   registrations:true, protests:true, boatMgmt:true, clubSettings:true,
   raceSchedule:true, startSequence:true, finishRecording:true,
-  courseCard:false, halIrcTandem:false,
+  courseCard:false,
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
   crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
@@ -559,7 +553,6 @@ const FEAT_DEFAULTS={
 const FEAT_CATALOG=[
   {key:'feeModel',    label:'Fee Model',               type:'select', options:['per-race','per-series'], group:'Behaviour'},
   {key:'declaration', label:'Skipper Declaration Gate', type:'bool',                                     group:'Behaviour'},
-  {key:'halIrcTandem', label:'Halsail IRC Tandem Scoring', type:'bool', group:'Behaviour'},
   {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
   {key:'courseCard',     label:'Course Card Picker',    type:'bool', group:'RO Tiles'},
   {key:'registrations',  label:'Registrations',         type:'bool', group:'RO Tiles'},
@@ -617,7 +610,6 @@ function liftVeil(){
     if(f.feeModel!==undefined) FEAT.feeModel=f.feeModel;
     if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
     if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
-    if(f.halIrcTandem!==undefined) FEAT.halIrcTandem=!!f.halIrcTandem;
   }catch(e){}
   liftVeil();
 })();
@@ -2432,8 +2424,6 @@ function applyAllFeatureVisibility(){
   if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
   if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
   else FEAT.courseCard=(FEAT_DEFAULTS.courseCard===true);
-  if(f.halIrcTandem!==undefined) FEAT.halIrcTandem=!!f.halIrcTandem;
-  else FEAT.halIrcTandem=(FEAT_DEFAULTS.halIrcTandem===true);
   const feeLabel=document.getElementById('dc-fees-label');
   if(feeLabel) feeLabel.textContent=FEAT.feeModel==='per-series'?'Series Fees':'Fees';
   updateSectionVisibility('sk','payments');
@@ -7773,16 +7763,9 @@ function halRaceLabel(r) {
 }
 
 let halSchedule=null;       // raw GetSchedule response
-// Flat, generic list of every distinct (Class, Series) pair in the schedule — one
-// selectable entry per HalSail class, whatever it's named. No naming-convention
-// assumptions, so it works the same for GBSC's "Cru - E" and Dublin Bay SC's
-// "Cruisers 0 Master" / "Combined Cruisers (Tue)" / one-designs alike.
-let halClassList=[];         // [{label, series, seryId, firstStart}]
-let halCurrentClassIdx=-1;   // index into halClassList currently shown
-// Same-fleet twin series for the current class, found only when FEAT.halIrcTandem is
-// on (see selectHalClass()) — {seryId, label} or null.
-let halTandemPartner=null;
-let halTandemShowing='primary'; // 'primary' | 'partner'
+let halSeriesList=[];        // [{label, ircId, echoId}] — one per series name
+let halCurrentFleet='irc';  // 'irc' | 'echo' — auto-set to whichever has data
+let halCurrentSeries=null;  // currently selected {label, ircId, echoId}
 let halResultsCache={};     // seriesId -> GetSeriesResult response (cleared on each panel open)
 let halBoatCache={};        // BoatID -> {name, sailText, helm} (cleared on each panel open)
 
@@ -7872,13 +7855,11 @@ async function loadResultsIfNeeded(){
     return;
   }
   // Always fetch live from Halsail — no session cache so results are never stale.
-  // Clear result/boat caches but preserve the user's current class selection.
-  const prevClass=halClassList[halCurrentClassIdx];
-  const prevKey=prevClass?prevClass.label+'|'+prevClass.series:null;
+  // Clear result/boat caches but preserve the user's current series selection.
+  const prevSeriesLabel=halCurrentSeries?halCurrentSeries.label:null;
   halResultsCache={};
   halBoatCache={};
-  halClassList=[];
-  halTandemPartner=null;
+  halSeriesList=[];
 
   // Show eStela link if a tracking URL is currently set
   const elink=document.getElementById('resultEstellaLink');
@@ -7903,133 +7884,86 @@ async function loadResultsIfNeeded(){
   }
   halSchedule=schedule;
 
-  // Flat, generic class list — one entry per distinct (Class, Series) pair literally
-  // present in the schedule. No naming-convention filtering: whatever the club's
-  // HalSail setup contains is what shows up here.
-  const classMap={};
+  // Build series list from ECHO entries; IRC SeryID = echoId + 1 (Halsail tandem convention)
+  const seriesMap={};
   schedule.forEach(r=>{
-    if(!r.SeryID||!r.Class) return;
-    const key=r.Class+'|'+(r.Series||'');
+    if(!isEchoClass(r.Class)) return; // skip non-ECHO entries
+    const key=r.Series;
+    if(!seriesMap[key]) seriesMap[key]={label:key,ircId:null,echoId:null,echoClassId:null,ircClassId:null,firstStart:null};
+    seriesMap[key].echoId=r.SeryID;
+    seriesMap[key].ircId=r.SeryID+1; // IRC tandem series is always echoId + 1
+    // ClassID (handicap namespace) — store alongside SeryID so TCC lookup uses the right ID
+    if(r.ClassID){seriesMap[key].echoClassId=r.ClassID;seriesMap[key].ircClassId=r.ClassID+1;}
+    // Track earliest start for chronological ordering
     const d=new Date(r.Start);
-    if(!classMap[key]) classMap[key]={label:r.Class, series:r.Series||'', seryId:r.SeryID, firstStart:d};
-    else if(d<classMap[key].firstStart) classMap[key].firstStart=d;
+    if(!seriesMap[key].firstStart||d<seriesMap[key].firstStart) seriesMap[key].firstStart=d;
   });
-  halClassList=Object.values(classMap)
-    .sort((a,b)=>a.series.localeCompare(b.series)||a.firstStart-b.firstStart);
 
-  if(!halClassList.length){
-    document.getElementById('resultSeriesSelect').innerHTML='<option value="">—</option>';
-    document.getElementById('resultsContent').innerHTML=
-      '<div class="empty-state"><div class="icon">🏆</div><div>No classes found in the schedule</div></div>';
-    return;
-  }
+  // Sort chronologically by first race start
+  halSeriesList=Object.values(seriesMap)
+    .filter(s=>s.ircId||s.echoId)
+    .sort((a,b)=>a.firstStart-b.firstStart);
 
-  // Restore previous selection if still available; else try to match the next race's
-  // label/series; else fall back to whichever class most recently started.
+  // Restore previous selection if still available; otherwise default to the next race's series
   const currentLabel=nextRace?nextRace.label.toLowerCase():'';
-  let defaultIdx=prevKey
-    ?halClassList.findIndex(c=>(c.label+'|'+c.series)===prevKey)
+  let defaultIdx=prevSeriesLabel
+    ?halSeriesList.findIndex(s=>s.label===prevSeriesLabel)
     :-1;
-  if(defaultIdx<0) defaultIdx=halClassList.findIndex(c=>currentLabel.includes(c.label.toLowerCase())||(c.series&&currentLabel.includes(c.series.toLowerCase())));
-  if(defaultIdx<0){
-    const now=new Date();
-    const started=halClassList.map((c,i)=>({c,i})).filter(x=>x.c.firstStart<=now);
-    defaultIdx=started.length?started.sort((a,b)=>b.c.firstStart-a.c.firstStart)[0].i:0;
-  }
+  if(defaultIdx<0) defaultIdx=halSeriesList.findIndex(s=>currentLabel.includes(s.label.toLowerCase()));
+  if(defaultIdx<0) defaultIdx=0;
 
-  // Populate selector, grouped by Series (an explicit HalSail field, not a guessed
-  // convention — safe to group by even for clubs running several concurrent series).
+  // Populate selector
   const sel=document.getElementById('resultSeriesSelect');
   sel.innerHTML='';
-  const seriesSeen=new Set();
-  let currentGroup=null;
-  halClassList.forEach((c,i)=>{
-    if(c.series&&!seriesSeen.has(c.series)){
-      seriesSeen.add(c.series);
-      currentGroup=document.createElement('optgroup');
-      currentGroup.label=c.series;
-      sel.appendChild(currentGroup);
-    }
+  halSeriesList.forEach((s,i)=>{
     const o=document.createElement('option');
     o.value=i;
-    o.textContent=c.label;
+    o.textContent=s.label;
     if(i===defaultIdx) o.selected=true;
-    (currentGroup||sel).appendChild(o);
+    sel.appendChild(o);
   });
 
-  await selectHalClass(defaultIdx);
+  if(halSeriesList.length){
+    halCurrentSeries=halSeriesList[defaultIdx];
+    // Both IRC and ECHO always present; default to IRC
+    halCurrentFleet='irc';
+    showFleet(halCurrentFleet);
+    await renderResultsForSeries(halCurrentSeries);
+  } else {
+    document.getElementById('resultsContent').innerHTML=
+      '<div class="empty-state"><div class="icon">🏆</div><div>No IRC or ECHO cruiser series found</div></div>';
+  }
 }
 
 async function onResultSeriesChange(){
   const i=parseInt(document.getElementById('resultSeriesSelect').value);
   if(isNaN(i)) return;
-  await selectHalClass(i);
+  halCurrentSeries=halSeriesList[i];
+  await renderResultsForSeries(halCurrentSeries);
 }
 
-// Selects a class from halClassList and, only for clubs that have opted into
-// FEAT.halIrcTandem, checks whether SeryID+1 is a genuine same-fleet twin series
-// (same boats, not just an adjacent ID) before offering it as a second view.
-async function selectHalClass(idx){
-  halCurrentClassIdx=idx;
-  halTandemPartner=null;
-  halTandemShowing='primary';
-  const entry=halClassList[idx];
-  if(!entry) return;
-
-  if(FEAT.halIrcTandem){
-    const partnerId=entry.seryId+1;
-    const [base,partner]=await Promise.all([
-      halResultsCache[entry.seryId]?Promise.resolve(halResultsCache[entry.seryId]):halFetch('/GetSeriesResult/'+entry.seryId),
-      halFetch('/GetSeriesResult/'+partnerId)
-    ]);
-    if(base&&!base._err) halResultsCache[entry.seryId]=base;
-    if(partner&&!partner._err&&Array.isArray(partner.ResultsOverall)&&partner.ResultsOverall.length){
-      const baseBoats=new Set((base&&base.ResultsOverall||[]).map(b=>b.BoatID));
-      const partnerBoats=new Set(partner.ResultsOverall.map(b=>b.BoatID));
-      const sameFleet=baseBoats.size>0&&baseBoats.size===partnerBoats.size&&[...baseBoats].every(id=>partnerBoats.has(id));
-      if(sameFleet){
-        halTandemPartner={seryId:partnerId,label:partner.ClassName||entry.label};
-        halResultsCache[partnerId]=partner;
-      }
-    }
-  }
-
-  updateTandemToggleUI();
-  await renderHalClass();
+function showFleet(fleet){
+  halCurrentFleet=fleet;
+  document.getElementById('ircBtn').className='';
+  document.getElementById('echoBtn').className='';
+  document.getElementById('ircBtn').style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'+(fleet==='irc'?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
+  document.getElementById('echoBtn').style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'+(fleet==='echo'?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
+  if(halCurrentSeries) renderResultsForSeries(halCurrentSeries);
 }
 
-function updateTandemToggleUI(){
-  const row=document.getElementById('halTandemRow');
-  if(!row) return;
-  if(!halTandemPartner){ row.style.display='none'; return; }
-  row.style.display='flex';
-  const entry=halClassList[halCurrentClassIdx];
-  document.getElementById('halTandemBtnA').textContent=entry.label;
-  document.getElementById('halTandemBtnB').textContent=halTandemPartner.label;
-  paintTandemButtons();
-}
-function paintTandemButtons(){
-  const on='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--teal);background:var(--teal);color:var(--navy);';
-  const off='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);';
-  document.getElementById('halTandemBtnA').style.cssText=halTandemShowing==='primary'?on:off;
-  document.getElementById('halTandemBtnB').style.cssText=halTandemShowing==='partner'?on:off;
-}
-function toggleTandemView(which){
-  halTandemShowing=which;
-  paintTandemButtons();
-  renderHalClass();
-}
-
-async function renderHalClass(){
-  const entry=halClassList[halCurrentClassIdx];
+async function renderResultsForSeries(series){
+  const seriesId=halCurrentFleet==='irc'?series.ircId:series.echoId;
+  const fleetLabel=halCurrentFleet==='irc'?'Cruiser (IRC)':'Cruiser (ECHO)';
   const wrap=document.getElementById('resultsContent');
-  if(!entry) return;
-  const showingPartner=halTandemShowing==='partner'&&halTandemPartner;
-  const seriesId=showingPartner?halTandemPartner.seryId:entry.seryId;
-  const classLabel=showingPartner?halTandemPartner.label:entry.label;
+
+  if(!seriesId){
+    wrap.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No '+fleetLabel+' results for this series</div></div>';
+    return;
+  }
 
   wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.4rem">⏳</div><div>Loading…</div></div>';
 
+  // Use cache if available
   if(!halResultsCache[seriesId]){
     const data=await halFetch('/GetSeriesResult/'+seriesId);
     if(!data||data._err){
@@ -8040,11 +7974,6 @@ async function renderHalClass(){
   }
   const data=halResultsCache[seriesId];
 
-  if(!(data.ResultsOverall||[]).length){
-    wrap.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No results yet for '+classLabel+'</div></div>';
-    return;
-  }
-
   // Fetch boat details for any BoatIDs not yet cached
   const boatIds=[...new Set((data.ResultsOverall||[]).map(b=>b.BoatID).filter(Boolean))];
   await Promise.all(boatIds.filter(id=>!halBoatCache[id]).map(async id=>{
@@ -8052,22 +7981,21 @@ async function renderHalClass(){
     if(b&&!b._err) halBoatCache[id]={name:b.Name||'',sailText:b.SailText||'',helm:b.Helm||'',handicaps:b.Handicaps||[]};
   }));
 
-  // TCC badge next to each boat name — only attempted when a verified tandem pairing
-  // exists for this class (see selectHalClass()); skipped otherwise rather than
-  // guessing a ClassID from coincidentally-adjacent IDs.
-  let handicapClassId=null;
-  if(halTandemPartner){
+  // Resolve ClassID for TCC lookup — GetSchedule doesn't include ClassID, so discover it
+  // by scanning handicap entries across all fetched boats. IRC and ECHO always have
+  // consecutive ClassIDs (e.g. 31396/31397), so find the first pair differing by 1.
+  let echoClassId=series.echoClassId;  // may already be set if schedule included it
+  let ircClassId=series.ircClassId;
+  if(echoClassId==null){
     const classIds=new Set();
     boatIds.forEach(id=>{ const b=halBoatCache[id]; if(b)(b.handicaps||[]).forEach(h=>{ if(h.ClassID)classIds.add(+h.ClassID); }); });
     const sorted=[...classIds].filter(n=>n>0).sort((a,b)=>a-b);
     for(let i=0;i<sorted.length-1;i++){
-      if(sorted[i+1]===sorted[i]+1){
-        handicapClassId=showingPartner?sorted[i]:sorted[i+1];
-        break;
-      }
+      if(sorted[i+1]===sorted[i]+1){ ircClassId=sorted[i]; echoClassId=sorted[i+1]; break; }
     }
   }
-  buildResultsTable(data, entry.series, classLabel, wrap, seriesId, handicapClassId);
+  const handicapClassId=halCurrentFleet==='irc'?ircClassId:echoClassId;
+  buildResultsTable(data, series.label, fleetLabel, wrap, seriesId, handicapClassId);
 }
 
 // Return the current TCC for a boat's cached handicap list, matching the given Halsail ClassID.
@@ -8100,16 +8028,8 @@ function halCurrentTCC(handicaps, classId){
 // result is found. "Next" comes from Halsail's public ECHO race analysis page
 // (/Result/EchoAnalysisRace/{raceId}) — this is computed live from the race results and
 // doesn't depend on that RO save step at all.
-//
-// Only runs for clubs that have opted into FEAT.halIrcTandem — this whole function is
-// built around GBSC's ECHO/IRC-tandem convention (one fleet, "Cru - E" in the
-// schedule, isEchoClass() to find it, consecutive-ClassID guessing for the pairing).
-// That doesn't generalize safely to clubs with a different HalSail setup (e.g. Dublin
-// Bay SC's rating-band classes have no ECHO/IRC pair at all), so for everyone else
-// this just returns empty — the Handicaps tab still shows real live ratings from the
-// Irish Sailing register regardless, this only affects the HalSail-sourced overlay.
 async function loadHalsailCurrentEcho(){
-  if(!HAL_CLUB||!FEAT.halIrcTandem) return {current:{}, next:{}};
+  if(!HAL_CLUB) return {current:{}, next:{}};
   try{
     let schedule=halSchedule;
     if(!schedule){
