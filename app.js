@@ -2342,7 +2342,11 @@ function _applyDbClubConfig(cfg){
   if(cfg.results_url)        _C.resultsUrl     = cfg.results_url;
 
   // Integrations
-  if(cfg.hal_club     != null){ _C.halClub = cfg.hal_club; HAL_CLUB = cfg.hal_club; }
+  // hal_club uses !==undefined (not !=null like everything else here) because null
+  // is itself a meaningful value — "explicitly no HalSail integration" — not "no
+  // override, fall back to the previous value" the way an absent/blank field is for
+  // every other setting in this function.
+  if(cfg.hal_club     !==undefined){ _C.halClub = cfg.hal_club; HAL_CLUB = cfg.hal_club||0; }
   if(cfg.vapid_public_key){ _C.vapidPublicKey = cfg.vapid_public_key; VAPID_PUBLIC_KEY = cfg.vapid_public_key; }
 
   // Fees & limits
@@ -2988,7 +2992,9 @@ function saveROClubSettings(){
     results_url: resultsUrlVal,
     worldtides_key: tidesKeyVal,
     ro_revolut_user: roRevolutVal,
-    hal_club: halClubVal!==''?(parseInt(halClubVal)||null):(clubSettings.hal_club||null),
+    // Unlike fees/etc below, a blank HalSail ID is a real, valid state (no HalSail
+    // integration) — not something to fall back to the old value for.
+    hal_club: halClubVal!==''?(parseInt(halClubVal)||null):null,
     fee_full:     numOrKeep('ro-fee-full',    clubSettings.fee_full),
     fee_crew:     numOrKeep('ro-fee-crew',    clubSettings.fee_crew),
     fee_visitor:  numOrKeep('ro-fee-visitor', clubSettings.fee_visitor),
