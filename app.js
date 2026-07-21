@@ -3392,7 +3392,7 @@ async function downloadDatabaseBackup(){
     const backup={
       _meta:{
         generated_at: new Date().toISOString(),
-        app: 'GBSC Racing App',
+        app: 'RaceOps Crest',
         tables: ['boats','settings','crew','registrations','published_courses','marks','race_records','protests'],
       },
       boats:            boats||[],
@@ -5770,7 +5770,7 @@ async function generatePaymentReport(){
     </div>
     <div style="text-align:right;font-size:.8rem;color:#888">
       Generated ${new Date().toLocaleString('en-IE')}<br>
-      GBSC Racing App
+      RaceOps Crest
     </div>
   </div>
 
@@ -8273,7 +8273,7 @@ function showCrewPayPage(data){
     </div>`;
 
   const footer=`<div style="text-align:center;font-size:.8rem;color:#4a5568;margin-top:24px">
-    GBSC Racing App · Race fees collected on behalf of Galway Bay Sailing Club
+    RaceOps Crest · Race fees collected on behalf of ${_C.name||'Galway Bay Sailing Club'}
   </div>`;
 
   // ── Step 1: Who are you? ───────────────────────────────────────
@@ -9596,7 +9596,7 @@ async function printProtest(protestId){
   </div>
 
   <div class="footer">
-    <span>GBSC Racing App · ${PRINT_META.docLabel} #${p.id}</span>
+    <span>RaceOps Crest · ${PRINT_META.docLabel} #${p.id}</span>
     <span>Racing Rules of Sailing 2025–2028 · World Sailing</span>
   </div>
 </body></html>`;
@@ -10700,7 +10700,7 @@ async function loadOutstandingReport(){
     </div>
     <div style="text-align:right;font-size:.8rem;color:#888">
       Generated ${new Date().toLocaleString('en-IE')}<br>
-      GBSC Racing App
+      RaceOps Crest
     </div>
   </div>
 

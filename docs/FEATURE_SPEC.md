@@ -1,14 +1,14 @@
-# GBSC Racing App — Feature Specification
+# RaceOps Crest — Feature Specification
 
 *Prepared for clubs evaluating the platform (e.g. Mayo Sailing Club) ahead of a full requirements analysis.*
 
 ## 1. What it is
 
-A web-based race-day and club-management app for sailing clubs, covering the full cycle of a race night: course setup, start sequence, registration, crew and fee management, finishing, results and protests. It runs in any phone or desktop browser (installable to the home screen — no app-store download required) and works with a poor or absent signal at the committee boat.
+**RaceOps Crest** is a web-based race-day and club-management platform for sailing clubs, covering the full cycle of a race night: course setup, start sequence, registration, crew and fee management, finishing, results and protests. It runs in any phone or desktop browser (installable to the home screen — no app-store download required) and works with a poor or absent signal at the committee boat.
 
 It is a **single shared platform serving multiple clubs**, not a bespoke build per club — each club gets its own branding, its own database, and its own feature configuration, but all run on the same codebase and receive the same ongoing improvements.
 
-**Currently live:** Galway Bay Sailing Club (GBSC), Royal Cork Yacht Club (RCYC), Howth Yacht Club (HYC).
+**Currently live:** Galway Bay Sailing Club (GBSC), Royal Cork Yacht Club (RCYC), Howth Yacht Club (HYC) — each under its own club branding; RaceOps Crest is the platform behind all three.
 
 ## 2. The three roles
 

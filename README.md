@@ -1,77 +1,59 @@
-# GBSC Racing App
+# RaceOps Crest
 
-Race management app for Galway Bay Sailing Club — built for dockside use on mobile.
+A multi-club sailing race-day and club-management platform — one codebase, one Netlify site, serving multiple sailing clubs each with their own branding, database and feature configuration.
 
-## What it does
+Currently live for Galway Bay Sailing Club (GBSC), Royal Cork Yacht Club (RCYC), and Howth Yacht Club (HYC).
 
-- **Boat login** with per-boat PIN (default `0000`)
-- **Race registration** — skippers declare intent to race before the start
-- **Crew roster** with membership type tracking (Full Member, Crew Member, Visitor)
-- **Race fee collection** — Revolut deep links, cash, bar tap, and Stripe (when configured)
-- **Course display** — published by Race Officer, shows mark sequence with port/starboard rounding, bearings, distances and total course length
-- **Race Officer tools** — course builder, wind direction, registered boats list, PIN management
-- **Halsail results** — live IRC and ECHO series standings pulled from halsail.com
+See [docs/FEATURE_SPEC.md](docs/FEATURE_SPEC.md) for the full feature catalog (written for clubs evaluating the platform).
 
 ## Tech stack
 
 | Layer | Tech |
 |---|---|
-| Frontend | Vanilla HTML / CSS / JS — no build step |
-| Database | Supabase (PostgreSQL) |
-| Hosting | Netlify |
-| Results | Halsail public API |
-| Payments | Revolut personal links · Stripe (configurable) |
+| Frontend | Vanilla HTML / CSS / JS — no build step, no framework |
+| Database | Supabase (PostgreSQL) — one project per club |
+| Hosting | Netlify (static site + Edge Functions + Functions) |
+| Results/handicaps | HalSail, Irish Sailing national ratings register |
+| Payments | Stripe (Payment Links + bulk checkout) · Revolut deep links · cash |
+| Push notifications | Web Push (VAPID), per-club key pair |
 
-## Files
+## Repo layout
 
 ```
-index.html   — App shell and all HTML markup
-style.css    — All styles and CSS variables
-app.js       — All application logic (~1,700 lines)
+index.html                 — App shell and all HTML markup
+app.js                     — All application logic
+style.css                  — Styles and CSS variables
+sw.js                      — Service worker (offline/PWA support)
+manifest.json              — PWA manifest (per-club values injected server-side)
+
+netlify/edge-functions/    — Deno runtime: club-config.js (branding injection),
+                              manifest.js, rewrite-club-links.js
+netlify/functions/         — Node runtime: Stripe checkout, push notifications,
+                              HalSail/tide/weather/eStela/Drive proxies, _club.js
+                              (shared hostname → club-slug resolution helper)
+
+supabase/
+  schema.sql                — Original baseline schema
+  migrations/*.sql           — GBSC's real incremental migration history, in order
+  <slug>_bootstrap.sql        — From-scratch setup for a new club (schema.sql +
+                                every non-GBSC-specific migration, consolidated)
+  NEW_CLUB_TEMPLATE.sql       — Template used to onboard the next club
+  MIGRATIONS.md               — How migrations work across multiple independent
+                                 Supabase projects, and how to check/catch up a club
 ```
 
-## Database (Supabase)
+## Multi-club architecture
 
-Project: `esqjcmwfnzkolwxfbcro.supabase.co`
-
-Tables: `boats`, `crew`, `race_records`, `registrations`, `published_courses`
-
-To set up the database from scratch, run the SQL files in order:
-1. `gbsc-schema.sql` — core tables
-2. `gbsc-migrate-boat-config.sql` — adds pin, revolut_user, stripe_link to boats
-3. `gbsc-fix-registrations.sql` — registrations table with named unique constraint
-4. `gbsc-fix-courses-table.sql` — published_courses with jsonb marks column
+Each club is fully isolated: its own Supabase project, its own `CLUB_CONFIG_<SLUG>` Netlify env var (branding, fees, coordinates, feature flags baked in at deploy time), and its own live-editable settings row in its own database. The request hostname resolves to a club slug (`HOSTNAME_MAP` env var), and that slug drives which config a given request gets — see `netlify/edge-functions/club-config.js` and `netlify/functions/_club.js`.
 
 ## Deployment
 
-Connected to Netlify via GitHub. Every push to `main` deploys automatically.
+Connected to Netlify via GitHub. Every push to `main` deploys automatically — no build step beyond stamping `version.json` with the commit and build time.
 
-The CI workflow checks JavaScript syntax and HTML integrity on every push.
+## Local development
 
-## Adding features
+There's no dev server required for the frontend — open `index.html` directly, or serve the folder statically. `node --check app.js` catches syntax errors before pushing. Netlify Functions need `npm install` (see `package.json`) for their one dependency (`web-push`).
 
-The best way to make changes safely:
-1. Edit `app.js` for logic changes
-2. Edit `style.css` for visual changes  
-3. Edit `index.html` only for structural HTML changes
-4. Run `node --check app.js` locally before pushing
-5. Push to `main` — CI checks then Netlify deploys
+## Adding a new club
 
-## Halsail integration
-
-Club ID: `3725`  
-Matches classes containing `irc` (IRC) or `echo`/`cru-e` pattern (ECHO).  
-Results are fetched live and cached per session. Use the ↺ button to force refresh.
-
-If Halsail blocks browser CORS, deploy the edge function proxy:
-```bash
-supabase functions deploy halsail-proxy --no-verify-jwt
-```
-
-## Race fees
-
-- Full Member: €4
-- Crew Member: €4  
-- Visitor: €10 (max 6 outings before must join as crew)
-
-Reports submitted by email to `rccruisers@gbsc.ie` and saved to Supabase.
+Follow `supabase/NEW_CLUB_TEMPLATE.sql` and `supabase/MIGRATIONS.md`.
