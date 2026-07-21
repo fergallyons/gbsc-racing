@@ -259,13 +259,13 @@
   </div>
 
   <!-- ── Payments ── -->
-  <div class="ro-sec-head" onclick="toggleDashSection('sk','payments')">
+  <div class="ro-sec-head" id="skSecHead-payments" onclick="toggleDashSection('sk','payments')">
     <span class="ro-sec-title">💰 Payments</span>
     <span class="ro-sec-chev" id="skSecChev-payments">▸</span>
   </div>
   <div class="dash-grid" id="skSecBody-payments" style="display:none">
-    <!-- Fee summary strip — spans both columns -->
-    <div class="dash-fee-strip" style="grid-column:1/-1" onclick="openFeePanel()">
+    <!-- Fee summary strip — spans both columns; per-race billing only, see updatePaymentsSectionVisibility() -->
+    <div class="dash-fee-strip" id="dashFeeStrip" style="grid-column:1/-1" onclick="openFeePanel()">
       <div class="dfs-item">
         <div class="dfs-val" id="dash-crew">0</div>
         <div class="dfs-label">Aboard</div>

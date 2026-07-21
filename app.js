@@ -927,6 +927,7 @@ async function registerForRace(){
       mySelectedRaceRegistered=true;
       if(isNextRace) registeredBoatIds.add(currentBoat.id);
       toast('✅ '+currentBoat.name+' registered for '+selectedRace.label+'!');
+      notifyPush('boat_registered',{raceLabel:selectedRace.label,boatName:currentBoat.name});
     } else { toast('⚠ Could not register — try again'); }
   }
   updateRegisterButton();
@@ -1359,6 +1360,7 @@ async function publishFromCourseCard(){
     updateHomeChips();
     closePanel('roCourseCardPanel');
     toast('✅ Course '+selectedCourseCardEntry.number+' published to all skippers!');
+    notifyPush('course_published',{raceLabel:selectedRace?selectedRace.label:''});
   } else {
     setSyncStatus('offline');
     toast('⚠ Could not save course — check connection');
@@ -2413,11 +2415,27 @@ function applyAllFeatureVisibility(){
   // Fee summary in crew panel is irrelevant when billing is per-series
   const crewTotals=document.getElementById('crewTotalsPanel');
   if(crewTotals) crewTotals.style.display=FEAT.feeModel==='per-series'?'none':'';
+  // Dashboard fee strip (Aboard/Total/Owed) is a per-race concept — hide under per-series billing
+  const feeStrip=document.getElementById('dashFeeStrip');
+  if(feeStrip) feeStrip.style.display=FEAT.feeModel==='per-series'?'none':'';
   if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
   if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
   else FEAT.courseCard=(FEAT_DEFAULTS.courseCard===true);
   const feeLabel=document.getElementById('dc-fees-label');
   if(feeLabel) feeLabel.textContent=FEAT.feeModel==='per-series'?'Series Fees':'Fees';
+  updatePaymentsSectionVisibility();
+}
+
+// Hides the whole "Payments" dashboard section (header + body) when nothing
+// inside it would be visible — e.g. fee strip off (per-series billing) and
+// both fee tiles hidden by feature flags. Avoids an empty, pointless header.
+function updatePaymentsSectionVisibility(){
+  const head=document.getElementById('skSecHead-payments');
+  const body=document.getElementById('skSecBody-payments');
+  if(!head||!body) return;
+  const anyVisible=Array.from(body.children).some(el=>el.style.display!=='none');
+  head.style.display=anyVisible?'':'none';
+  if(!anyVisible) body.style.display='none';
 }
 
 function getBoatPin(id){
@@ -2623,6 +2641,17 @@ async function savePushSub(sub){
     return 'DB error: '+r._err;
   }
   return null;
+}
+
+// Fire-and-forget: asks the send-push Netlify Function to push a notification
+// to a role's subscribers (RO on registration, crew+skipper on course publish).
+// Never blocks or throws into the caller — notifications are best-effort.
+function notifyPush(type,extra){
+  fetch('/.netlify/functions/send-push',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({type,...extra})
+  }).catch(()=>{});
 }
 
 // RO-scoped push subscription — boat_id NULL is how these are distinguished
@@ -7253,6 +7282,7 @@ async function publishCourse(){
     updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
     updateHomeChips();
     toast('✅ Course published to all skippers!');
+    notifyPush('course_published',{raceLabel:selectedRace?selectedRace.label:''});
   } else {
     setSyncStatus('offline');
     toast('⚠ Could not save to database');

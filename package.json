@@ -1,0 +1,9 @@
+{
+  "name": "gbsc-racing-app",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Serverless dependencies for Netlify Functions (the app itself is a static, no-build SPA).",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
