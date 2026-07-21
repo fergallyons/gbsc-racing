@@ -814,17 +814,57 @@ SELECT * FROM (VALUES
 ) AS v(boat_id, series_name, season, amount, method, paid_at)
 WHERE NOT EXISTS (SELECT 1 FROM series_fees WHERE series_name = 'Summer Series 2026');
 
+-- ── marks: DBSC's real course buoys ─────────────────────────
+-- Derived from DBSC's published bearings/distances table (dbsc.ie,
+-- "DBSC_Marks_Bearings_Distances_2026_v1.pdf") — that document gives
+-- each mark's position as minutes past 53°N / 6°W rather than plain
+-- lat/lng directly; decoding verified against the document's own
+-- bearing/distance figures (e.g. Salthill→Saoirse computes to 038°/
+-- 0.83nm from these coordinates, matching the table exactly).
+--
+-- IDs are DBSC's own single-letter mark codes (skips I/U, avoiding
+-- confusion with 1), kept as-is rather than invented mnemonics —
+-- DBSC's course cards reference marks by these exact letters, so
+-- matching them is what makes a future course-card import possible.
+-- Single letters are valid here: marks_insert only requires 1-60 chars
+-- (`^[a-z0-9_-]{1,60}$`), the Marks Manager UI's "e.g. IL" placeholder
+-- is just an example, not a real minimum length.
+INSERT INTO marks (id, name, lat, lng, colour, description, active, sort_order) VALUES
+  ('a', 'Salthill',      53.30600, -6.15000, '#f4a261', 'DBSC mark A — Orange',          true, 1),
+  ('b', 'Saoirse',       53.31700, -6.13583, '#2dc653', 'DBSC mark B — Green',           true, 2),
+  ('c', 'Seapoint',      53.32467, -6.14333, '#f0f4f8', 'DBSC mark C — Black',           true, 3),
+  ('d', 'South Bull',    53.33333, -6.13833, '#f4a261', 'DBSC mark D — Orange',          true, 4),
+  ('e', 'South Bar',     53.33700, -6.12417, '#f4b942', 'DBSC mark E — Yellow/Black',    true, 5),
+  ('f', 'Bligh',         53.33467, -6.11167, '#f4b942', 'DBSC mark F — Yellow/Orange',   true, 6),
+  ('g', 'New Ross',      53.32667, -6.10500, '#f4b942', 'DBSC mark G — Yellow/Blk/Wh',   true, 7),
+  ('h', 'Harbour',       53.31233, -6.12950, '#f4b942', 'DBSC mark H — Yellow',          true, 8),
+  ('j', 'Asgard',        53.31850, -6.10933, '#f4b942', 'DBSC mark J — Yellow/Black',    true, 9),
+  ('k', 'Boyd',          53.31417, -6.12283, '#f4a261', 'DBSC mark K — Orange',          true, 10),
+  ('l', 'Merrion',       53.31467, -6.15200, '#f0f4f8', 'DBSC mark L — Black/Yellow',    true, 11),
+  ('m', 'Middle',        53.32583, -6.12467, '#f4b942', 'DBSC mark M — Yellow',          true, 12),
+  ('n', 'Molly',         53.30467, -6.10467, '#f4b942', 'DBSC mark N — Yellow/Black',    true, 13),
+  ('o', 'Orange Start',  53.30633, -6.13200, '#f4a261', 'DBSC mark O — Orange',          true, 14),
+  ('p', 'Poldy',         53.29700, -6.09000, '#f4b942', 'DBSC mark P — Yellow/Orange',   true, 15),
+  ('q', 'Island',        53.29083, -6.09300, '#f0f4f8', 'DBSC mark Q — Black',           true, 16),
+  ('r', 'Bulloch',       53.28800, -6.10267, '#f4a261', 'DBSC mark R — Orange',          true, 17),
+  ('s', 'East',          53.30267, -6.09467, '#f4b942', 'DBSC mark S — Yellow/Green',    true, 18),
+  ('t', 'Battery',       53.29200, -6.11063, '#2dc653', 'DBSC mark T — Green/White',     true, 19),
+  ('v', 'Pier',          53.30167, -6.11400, '#f4a261', 'DBSC mark V — Orange',          true, 20),
+  ('w', 'Bay',           53.29550, -6.11833, '#f0f4f8', 'DBSC mark W — Black',           true, 21),
+  ('x', 'Turning',       53.30717, -6.13900, '#f4b942', 'DBSC mark X — Yellow Nav Mk',   true, 22),
+  ('y', 'Omega',         53.29633, -6.10383, '#f4b942', 'DBSC mark Y — Yellow',          true, 23)
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================================
 -- DONE
 -- ============================================================
 -- Seeded: 9 boats (real, from the national ratings register), a 5-race
 -- "Summer Series 2026" (4 finished + 1 upcoming, empty of registrations
--- on purpose), matching registrations for the 4 finished races, and
--- series fee history (7 paid, 2 outstanding).
+-- on purpose), matching registrations for the 4 finished races, series
+-- fee history (7 paid, 2 outstanding), and 23 real DBSC marks (single-
+-- letter IDs matching DBSC's own course-card convention).
 -- Not seeded: crew, and Race 5's registrations (both deliberately left
--- empty — adding crew and registering a boat live are good demo beats),
--- marks (add via RO Marks Manager if a course-builder demo needs real
--- Dublin Bay buoy positions).
+-- empty — adding crew and registering a boat live are good demo beats).
 -- Still needs verifying after first login: tide_station/tide_odm_offset
 -- (placeholder "Dublin"/0 above — confirm the exact IMI ERDDAP station
 -- name via Club Settings), RO PIN (default 0000 — change before wider use).
