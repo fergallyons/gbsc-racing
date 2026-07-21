@@ -2577,7 +2577,7 @@ async function onNotifToggle(enabled){
 
     if(Notification.permission==='denied'){
       uncheck();
-      setHint('Notifications blocked — enable them in iPhone Settings → Notifications → GBSC Racing');
+      setHint('Notifications blocked — enable them in iPhone Settings → Notifications → '+(_C.short||'GBSC')+' Racing');
       return;
     }
 
@@ -7453,10 +7453,10 @@ function shareRegistrationInvite(){
   const raceName=nextRace.label;
   const raceDate=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   const raceTime=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-  const appUrl='https://racing.gbsc.ie';
+  const appUrl=window.location.href.split('#')[0];
 
   const msg=
-    '⛵ *GBSC Racing — Registration Open*\n\n'+
+    '⛵ *'+(_C.short||'GBSC')+' Racing — Registration Open*\n\n'+
     '*'+raceName+'*\n'+
     raceDate+' · '+raceTime+'\n\n'+
     'Register your boat in the racing app:\n'+
@@ -7866,7 +7866,7 @@ async function loadResultsIfNeeded(){
   if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
 
   const wrap=document.getElementById('resultsContent');
-  wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading GBSC results from Halsail…</div></div>';
+  wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading '+(_C.short||'club')+' results from Halsail…</div></div>';
   document.getElementById('resultSeriesSelect').innerHTML='<option value="">Loading…</option>';
 
   const schedule=await halFetch('/GetSchedule/'+HAL_CLUB);
@@ -8268,7 +8268,7 @@ function showCrewPayPage(data){
   const pageHeader=`
     <div style="text-align:center;margin-bottom:24px;">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;
-        letter-spacing:.04em;color:#00b4d8;margin-bottom:2px">GBSC Racing</div>
+        letter-spacing:.04em;color:#00b4d8;margin-bottom:2px">${_C.short||'GBSC'} Racing</div>
       <div style="font-size:.85rem;color:#7a8fa6">${data.race} · ${data.boat}</div>
     </div>`;
 
@@ -9504,7 +9504,7 @@ async function printProtest(protestId){
       </div>
     </div>
     <div style="text-align:right">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:#1B3E93">GBSC Racing</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:#1B3E93">RaceOps Crest</div>
       <div style="font-size:.8rem;color:#888;margin-top:2px">Generated ${new Date().toLocaleString('en-IE')}</div>
       <button onclick="window.print()" style="margin-top:8px;padding:6px 16px;background:#1B3E93;color:#fff;border:none;border-radius:4px;font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;cursor:pointer;letter-spacing:.04em">🖨 Print / Save PDF</button>
     </div>
@@ -10682,7 +10682,7 @@ async function loadOutstandingReport(){
 
   _outstandingHtml = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
-<title>Outstanding Balances — GBSC Racing</title>
+<title>Outstanding Balances — RaceOps Crest</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
