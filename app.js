@@ -2418,20 +2418,33 @@ function applyAllFeatureVisibility(){
   // Dashboard fee strip (Aboard/Total/Owed) is a per-race concept — hide under per-series billing
   const feeStrip=document.getElementById('dashFeeStrip');
   if(feeStrip) feeStrip.style.display=FEAT.feeModel==='per-series'?'none':'';
+  // RO "Outstanding" report is per-race balances (race_records) — irrelevant under per-series billing
+  const roOutstanding=document.getElementById('tile-ro-outstanding');
+  if(roOutstanding) roOutstanding.style.display=FEAT.feeModel==='per-series'?'none':'';
   if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
   if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
   else FEAT.courseCard=(FEAT_DEFAULTS.courseCard===true);
   const feeLabel=document.getElementById('dc-fees-label');
   if(feeLabel) feeLabel.textContent=FEAT.feeModel==='per-series'?'Series Fees':'Fees';
-  updatePaymentsSectionVisibility();
+  updateSectionVisibility('sk','payments');
+  updateSectionVisibility('crew','raceday');
+  updateSectionVisibility('crew','payments');
+  updateSectionVisibility('crew','clubinfo');
+  updateSectionVisibility('crew','crew');
+  updateSectionVisibility('ro','raceday');
+  updateSectionVisibility('ro','payments');
+  updateSectionVisibility('ro','admin');
+  updateSectionVisibility('ro','advanced');
 }
 
-// Hides the whole "Payments" dashboard section (header + body) when nothing
-// inside it would be visible — e.g. fee strip off (per-series billing) and
-// both fee tiles hidden by feature flags. Avoids an empty, pointless header.
-function updatePaymentsSectionVisibility(){
-  const head=document.getElementById('skSecHead-payments');
-  const body=document.getElementById('skSecBody-payments');
+// Hides a whole dashboard section (header + body) when nothing inside its
+// body would be visible — e.g. all tiles feature-flagged off, or (Payments)
+// the fee strip hidden under per-series billing. Avoids an empty, pointless
+// collapsible header. prefix/name match the id pattern used by
+// toggleDashSection(): "<prefix>SecHead-<name>" / "<prefix>SecBody-<name>".
+function updateSectionVisibility(prefix,name){
+  const head=document.getElementById(prefix+'SecHead-'+name);
+  const body=document.getElementById(prefix+'SecBody-'+name);
   if(!head||!body) return;
   const anyVisible=Array.from(body.children).some(el=>el.style.display!=='none');
   head.style.display=anyVisible?'':'none';
