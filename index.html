@@ -864,6 +864,11 @@
       <div class="dash-card-label">Marks Manager</div>
       <div class="dash-card-sub">Toggle &amp; add marks</div>
     </div>
+    <div id="tile-ro-halConfig" class="dash-card ro-card" onclick="openPanel('roHalConfigPanel');loadHalConfigPanel()">
+      <div class="dash-card-icon">🏁</div>
+      <div class="dash-card-label">Results Setup</div>
+      <div class="dash-card-sub">Choose Halsail series to show</div>
+    </div>
     <div id="tile-ro-protests" class="dash-card ro-card" onclick="openPanel('roProtestsPanel')">
       <div class="dash-card-icon">🚩</div>
       <div class="dash-card-label">Protests</div>
@@ -1263,6 +1268,30 @@
   </div>
   <div class="panel-body">
     <div id="roCourseDisplay"></div>
+  </div>
+</div>
+
+<!-- roHalConfigPanel — pick which real Halsail series appear in Results -->
+<div class="panel-overlay" id="roHalConfigPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roHalConfigPanel')">‹</button>
+    <span class="panel-title">🏁 Results Setup</span>
+  </div>
+  <div class="panel-body">
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">
+      Choose which of your club's real Halsail-scored series show up in the Results tab.
+      Leave nothing checked to use the automatic Cru-E/Cru-IRC behaviour instead.
+    </div>
+    <div id="halConfigStatus" style="text-align:center;padding:24px;color:var(--muted);font-size:.85rem">Loading classes from Halsail…</div>
+    <input type="text" id="halConfigSearch" placeholder="Filter classes…" oninput="renderHalConfigList()"
+      style="display:none;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 12px;outline:none;box-sizing:border-box;margin-bottom:12px;">
+    <div id="halConfigList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:80px;"></div>
+  </div>
+  <div style="position:sticky;bottom:0;left:0;right:0;background:linear-gradient(180deg,transparent,var(--navy) 30%);padding:16px 16px 14px;">
+    <div style="background:var(--navy-lt);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;">
+      <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.88rem;color:var(--white);flex:1"><b id="halConfigCount" style="color:var(--teal)">0</b> series selected</span>
+      <button class="btn btn-primary" style="padding:9px 18px" onclick="saveHalConfig()">Save</button>
+    </div>
   </div>
 </div>
 

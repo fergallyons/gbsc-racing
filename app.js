@@ -7774,6 +7774,13 @@ let halCurrentFleet='irc';  // 'irc' | 'echo' — auto-set to whichever has data
 let halCurrentSeries=null;  // currently selected {label, ircId, echoId}
 let halResultsCache={};     // seriesId -> GetSeriesResult response (cleared on each panel open)
 let halBoatCache={};        // BoatID -> {name, sailText, helm} (cleared on each panel open)
+// Curated mode — set only when the RO has explicitly picked which real HalSail
+// series to show (Club Settings > Results Setup). null = untouched default
+// behaviour below (GBSC's Cru-E/Cru-IRC auto-detection). Array = a flat list
+// of {classId,name,seryId} the RO checked off; each is independently fetched
+// and shown, no tandem/ECHO-IRC-pairing logic at all — the RO already chose
+// exactly which real series matter, nothing left to guess.
+let halCuratedActive=null;
 
 // Halsail fetch — tries direct first, falls back to Supabase proxy if CORS blocks it
 const HAL_PROXY='/.netlify/functions/halsail-proxy'; // Netlify function proxy — avoids CORS on direct Halsail calls
@@ -7860,6 +7867,19 @@ async function loadResultsIfNeeded(){
       </div>`;
     return;
   }
+
+  // Curated mode — RO has explicitly picked real series in Results Setup.
+  // Completely separate path from the default logic below: no schedule
+  // scan, no isEchoClass filter, no tandem detection. Untouched default
+  // behaviour (GBSC today) only runs when this is empty.
+  const curated=(clubSettings&&clubSettings.features&&Array.isArray(clubSettings.features.halVisibleSeries))
+    ?clubSettings.features.halVisibleSeries:null;
+  if(curated&&curated.length){
+    await loadCuratedResults(curated);
+    return;
+  }
+  halCuratedActive=null;
+
   // Always fetch live from Halsail — no session cache so results are never stale.
   // Clear result/boat caches but preserve the user's current series selection.
   const prevSeriesLabel=halCurrentSeries?halCurrentSeries.label:null;
@@ -7944,8 +7964,184 @@ async function loadResultsIfNeeded(){
 async function onResultSeriesChange(){
   const i=parseInt(document.getElementById('resultSeriesSelect').value);
   if(isNaN(i)) return;
+  if(halCuratedActive){ await renderCuratedSeries(halCuratedActive[i]); return; }
   halCurrentSeries=halSeriesList[i];
   await renderResultsForSeries(halCurrentSeries);
+}
+
+// ── Curated results mode ────────────────────────────────────────────────
+// Populates the same dropdown/content elements as the default path above,
+// but from the RO's explicit selection (Results Setup) rather than
+// auto-detection. Each entry is a real, independently-scored HalSail series
+// (see netlify/functions/halsail-class-map.js) — no ECHO/IRC toggle, no TCC
+// badge guessing, because there's nothing left to infer: the RO already
+// named exactly which series this is.
+async function loadCuratedResults(curated){
+  halCuratedActive=curated;
+  halResultsCache={};
+  halBoatCache={};
+
+  const elink=document.getElementById('resultEstellaLink');
+  if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
+
+  // No tandem concept in curated mode — hide the IRC/ECHO toggle entirely.
+  // (showFleet(), if the default path ever runs later in this session,
+  // overwrites these buttons' full style and naturally un-hides them.)
+  const ircBtnEl=document.getElementById('ircBtn'), echoBtnEl=document.getElementById('echoBtn');
+  if(ircBtnEl) ircBtnEl.style.display='none';
+  if(echoBtnEl) echoBtnEl.style.display='none';
+
+  const sel=document.getElementById('resultSeriesSelect');
+  sel.innerHTML='';
+  curated.forEach((c,i)=>{
+    const o=document.createElement('option');
+    o.value=i;
+    o.textContent=c.name;
+    sel.appendChild(o);
+  });
+
+  if(!curated.length){
+    document.getElementById('resultsContent').innerHTML=
+      '<div class="empty-state"><div class="icon">🏆</div><div>No series configured yet</div></div>';
+    return;
+  }
+  await renderCuratedSeries(curated[0]);
+}
+
+async function renderCuratedSeries(entry){
+  const wrap=document.getElementById('resultsContent');
+  if(!entry) return;
+  wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.4rem">⏳</div><div>Loading…</div></div>';
+
+  if(!halResultsCache[entry.seryId]){
+    const data=await halFetch('/GetSeriesResult/'+entry.seryId);
+    if(!data||data._err){
+      wrap.innerHTML=`<div class="empty-state"><div class="icon">⚠</div><div>Could not load results<br><span style="font-size:.75rem;color:var(--muted)">${data&&data._err?data._err:'No data'}</span></div></div>`;
+      return;
+    }
+    halResultsCache[entry.seryId]=data;
+  }
+  const data=halResultsCache[entry.seryId];
+
+  const boatIds=[...new Set((data.ResultsOverall||[]).map(b=>b.BoatID).filter(Boolean))];
+  await Promise.all(boatIds.filter(id=>!halBoatCache[id]).map(async id=>{
+    const b=await halFetch('/GetBoat/'+id);
+    if(b&&!b._err) halBoatCache[id]={name:b.Name||'',sailText:b.SailText||'',helm:b.Helm||'',handicaps:b.Handicaps||[]};
+  }));
+
+  buildResultsTable(data, '', entry.name, wrap, entry.seryId, null);
+}
+
+// ── Results Setup panel (RO) ────────────────────────────────────────────
+// Lets the RO fetch the club's real Halsail class/series map (see
+// netlify/functions/halsail-class-map.js) and pick which series show up in
+// the skipper/crew Results tab — saved to settings.features.halVisibleSeries,
+// consumed by loadCuratedResults() above. Leaving nothing checked falls back
+// to the default Cru-E/Cru-IRC auto-detection untouched.
+let halConfigClasses=[];
+let halConfigSelected=new Set();
+
+async function loadHalConfigPanel(){
+  const status=document.getElementById('halConfigStatus');
+  const search=document.getElementById('halConfigSearch');
+  const list=document.getElementById('halConfigList');
+  status.style.display=''; status.textContent='Loading classes from Halsail…';
+  search.style.display='none';
+  list.innerHTML='';
+
+  if(!HAL_CLUB){
+    status.textContent='No Halsail Club ID set — configure it in Club Settings first.';
+    return;
+  }
+
+  const existing=(clubSettings&&clubSettings.features&&Array.isArray(clubSettings.features.halVisibleSeries))
+    ?clubSettings.features.halVisibleSeries:[];
+  halConfigSelected=new Set(existing.map(c=>c.seryId));
+
+  try{
+    const r=await fetch('/.netlify/functions/halsail-class-map?club='+HAL_CLUB);
+    const data=await r.json();
+    if(!r.ok||data.error){
+      status.textContent='⚠ Could not load classes: '+(data.error||('HTTP '+r.status));
+      return;
+    }
+    halConfigClasses=data.classes||[];
+  }catch(e){
+    status.textContent='⚠ Network error loading classes';
+    return;
+  }
+
+  if(!halConfigClasses.length){
+    status.textContent='No classes found for this Halsail club';
+    return;
+  }
+  status.style.display='none';
+  search.style.display='';
+  renderHalConfigList();
+}
+
+// Purely cosmetic display grouping — strips common scoring-view suffixes
+// (Echo/IRC/Scratch/VPRS/one-design sub-fleet) to find a shared class-family
+// prefix. Never affects what gets selected or saved: the exact name and
+// seryId are always what's shown and stored. A wrong guess here just puts a
+// checkbox under a slightly odd group heading — unlike guessing at scoring
+// meaning, there's no functional risk in getting this wrong.
+function halConfigGroupKey(name){
+  return name
+    .replace(/\s*-\s*(J109|Sigma\s?33)\s*$/i,'')
+    .replace(/\s+(Echo|IRC|Scratch|NS VPRS)\s*(\([^)]*\))?\s*$/i,'')
+    .replace(/[AB]$/,'')
+    .trim() || name;
+}
+
+function renderHalConfigList(){
+  const q=(document.getElementById('halConfigSearch').value||'').toLowerCase().trim();
+  const groups={};
+  halConfigClasses.forEach(c=>{
+    if(q&&!c.name.toLowerCase().includes(q)) return;
+    const key=halConfigGroupKey(c.name);
+    (groups[key]=groups[key]||[]).push(c);
+  });
+  const list=document.getElementById('halConfigList');
+  const keys=Object.keys(groups).sort();
+  if(!keys.length){ list.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted);font-size:.85rem">No matches</div>'; return; }
+  list.innerHTML=keys.map(key=>{
+    const items=groups[key];
+    const rows=items.map(c=>{
+      const subLabel=items.length>1?(c.name.replace(key,'').trim()||c.name):c.name;
+      return `<label style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer">
+        <input type="checkbox" data-seryid="${c.seryId}" onchange="onHalConfigCheck(this)"
+          ${halConfigSelected.has(c.seryId)?'checked':''}
+          style="width:18px;height:18px;accent-color:#00aeef;cursor:pointer;flex-shrink:0">
+        <span style="font-size:.86rem;color:var(--white);flex:1">${subLabel}</span>
+      </label>`;
+    }).join('');
+    return `<div style="background:var(--navy-mid);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">${key}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+  updateHalConfigCount();
+}
+
+function onHalConfigCheck(el){
+  const seryId=el.dataset.seryid;
+  if(el.checked) halConfigSelected.add(seryId);
+  else halConfigSelected.delete(seryId);
+  updateHalConfigCount();
+}
+
+function updateHalConfigCount(){
+  const el=document.getElementById('halConfigCount');
+  if(el) el.textContent=halConfigSelected.size;
+}
+
+async function saveHalConfig(){
+  const selected=halConfigClasses
+    .filter(c=>halConfigSelected.has(c.seryId))
+    .map(c=>({seryId:c.seryId, classId:c.classId, name:c.name}));
+  await saveFeatureSetting('halVisibleSeries', selected);
+  closePanel('roHalConfigPanel');
 }
 
 function showFleet(fleet){
