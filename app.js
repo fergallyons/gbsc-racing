@@ -49,6 +49,7 @@ if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have 
   }
   if(_C.roColor) document.documentElement.style.setProperty('--ro', _C.roColor);
   if(_C.bgHue!=null) applyBgHue(_C.bgHue);
+  if(_C.bgColor) applyBgColor(_C.bgColor); // takes precedence over bgHue if both are set
 })();
 function hexToRgb(hex){
   const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
@@ -73,6 +74,55 @@ function applyBgHue(hue){
   const navyLt    =_hslToHex(hue,52,30);
   const navyInput =_hslToHex(hue,61,13);
   const navyDark  =_hslToHex(hue,67,10);
+  const root=document.documentElement.style;
+  root.setProperty('--navy', navy);
+  root.setProperty('--navy-mid', navyMid);
+  root.setProperty('--navy-lt', navyLt);
+  root.setProperty('--navy-input', navyInput);
+  root.setProperty('--navy-dark', navyDark);
+  root.setProperty('--card', navyMid);
+  const themeColor=document.querySelector('meta[name="theme-color"]');
+  if(themeColor) themeColor.content=navy;
+  const veil=document.getElementById('appVeil');
+  if(veil) veil.style.background=navyDark;
+}
+
+function _hexToHsl(hex){
+  const r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+  const max=Math.max(r,g,b), min=Math.min(r,g,b);
+  const l=(max+min)/2;
+  let h=0,s=0;
+  if(max!==min){
+    const d=max-min;
+    s=l>0.5?d/(2-max-min):d/(max+min);
+    switch(max){
+      case r: h=(g-b)/d+(g<b?6:0); break;
+      case g: h=(b-r)/d+2; break;
+      default: h=(r-g)/d+4;
+    }
+    h*=60;
+  }
+  return {h, s:s*100, l:l*100};
+}
+// Re-shades the whole navy background family from an actual brand colour —
+// unlike applyBgHue() above (which only rotates hue and forces every club
+// through GBSC's fixed saturation/lightness), this anchors the real S/L of
+// the given hex, then derives the lighter/darker shades using the same S/L
+// *offsets* GBSC's own palette uses between its shades, so the page/card/
+// input/overlay hierarchy stays intact while the club's actual brand colour
+// — not just its hue — comes through. e.g. Irish Sailing's Pantone 343
+// (#115740, a deep green) can't be reproduced by hue rotation alone, since
+// its own saturation/lightness are very different from GBSC's navy.
+// Purely additive: existing clubs using bgHue are completely unaffected —
+// this only runs when a club's CLUB_CONFIG sets bgColor.
+function applyBgColor(hex){
+  const {h,s,l}=_hexToHsl(hex);
+  const clamp=v=>Math.max(0,Math.min(100,v));
+  const navy      =_hslToHex(h, clamp(s),   clamp(l));
+  const navyMid   =_hslToHex(h, clamp(s-4), clamp(l+9));
+  const navyLt    =_hslToHex(h, clamp(s-9), clamp(l+15));
+  const navyInput =_hslToHex(h, clamp(s),   clamp(l-2));
+  const navyDark  =_hslToHex(h, clamp(s+6), clamp(l-5));
   const root=document.documentElement.style;
   root.setProperty('--navy', navy);
   root.setProperty('--navy-mid', navyMid);
