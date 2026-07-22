@@ -78,6 +78,7 @@ function applyBgHue(hue){
   root.setProperty('--navy', navy);
   root.setProperty('--navy-mid', navyMid);
   root.setProperty('--navy-lt', navyLt);
+  root.setProperty('--navy-lt-rgb', hexToRgb(navyLt)); // keeps header/panel-header's rgba() blur in sync
   root.setProperty('--navy-input', navyInput);
   root.setProperty('--navy-dark', navyDark);
   root.setProperty('--card', navyMid);
@@ -127,6 +128,7 @@ function applyBgColor(hex){
   root.setProperty('--navy', navy);
   root.setProperty('--navy-mid', navyMid);
   root.setProperty('--navy-lt', navyLt);
+  root.setProperty('--navy-lt-rgb', hexToRgb(navyLt)); // keeps header/panel-header's rgba() blur in sync
   root.setProperty('--navy-input', navyInput);
   root.setProperty('--navy-dark', navyDark);
   root.setProperty('--card', navyMid);

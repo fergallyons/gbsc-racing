@@ -3,6 +3,9 @@
   --navy:#0f1f3d;        /* page background */
   --navy-mid:#1a3260;    /* cards, panels */
   --navy-lt:#243d73;     /* elevated surfaces, sheets, header */
+  --navy-lt-rgb:36,61,115; /* same colour as --navy-lt, as an r,g,b triplet for
+                              rgba() blends (header/panel-header blur) — kept in
+                              sync with --navy-lt by applyBgHue()/applyBgColor() */
   --navy-input:#0d1b35;  /* input fields — recede */
   --navy-dark:#081529;   /* deepest — overlays */
 
@@ -130,7 +133,7 @@ body.role-ro header{border-bottom-color:var(--ro);border-bottom-width:3px;}
 #addBoatBtn:hover{border-color:var(--teal);background:rgba(0,180,216,.05);}
 
 /* ─── HEADER ──────────────────────────────────────────────── */
-header{background:rgba(36,61,115,.97);border-bottom:1px solid var(--border);
+header{background:rgba(var(--navy-lt-rgb),.97);border-bottom:1px solid var(--border);
   padding:env(safe-area-inset-top) 16px 0;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px);}
 .hdr{max-width:680px;margin:0 auto;display:flex;align-items:center;
   justify-content:space-between;height:56px;}
@@ -673,7 +676,7 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   height:calc(56px + env(safe-area-inset-top));
   padding:env(safe-area-inset-top) 16px 0;
   border-bottom:1px solid var(--border);
-  background:rgba(36,61,115,.97);backdrop-filter:blur(10px);flex-shrink:0;}
+  background:rgba(var(--navy-lt-rgb),.97);backdrop-filter:blur(10px);flex-shrink:0;}
 .panel-back{background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.25);
   border-radius:10px;color:var(--teal);font-size:3rem;
   font-family:'Barlow Condensed',sans-serif;font-weight:700;cursor:pointer;
