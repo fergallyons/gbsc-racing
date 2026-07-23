@@ -626,6 +626,122 @@ ALTER TABLE boats ADD COLUMN IF NOT EXISTS photo_url text NOT NULL DEFAULT '';
 
 
 -- ============================================================
+-- SECURE PINS (migration 040) — see migrations/040_secure_pins.sql for
+-- full rationale/comments. Hashes boat + RO PINs so they're never
+-- readable/writable via plain REST, and gates payment-redirect fields
+-- (revolut_user, Stripe links) behind PIN-verified RPCs.
+-- ============================================================
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+ALTER TABLE boats ADD COLUMN IF NOT EXISTS pin_hash text;
+ALTER TABLE boats ADD COLUMN IF NOT EXISTS pin_is_default boolean NOT NULL DEFAULT true;
+UPDATE boats SET pin_hash = crypt(pin, gen_salt('bf')) WHERE pin_hash IS NULL;
+UPDATE boats SET pin_is_default = (pin = '0000') WHERE pin_hash IS NOT NULL;
+ALTER TABLE boats ALTER COLUMN pin_hash SET NOT NULL;
+-- New boats (RO Add Boat, or a skipper self-registering) still INSERT via
+-- the old boats_insert policy without ever knowing about pin_hash — this
+-- default keeps that working, matching the old pin DEFAULT '0000' exactly.
+ALTER TABLE boats ALTER COLUMN pin_hash SET DEFAULT crypt('0000', gen_salt('bf'));
+REVOKE SELECT (pin) ON boats FROM anon;
+REVOKE UPDATE (pin, revolut_user) ON boats FROM anon;
+
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS ro_pin_hash text;
+UPDATE settings SET ro_pin_hash = crypt(COALESCE(ro_pin, '0000'), gen_salt('bf')) WHERE ro_pin_hash IS NULL;
+REVOKE SELECT (ro_pin) ON settings FROM anon;
+REVOKE UPDATE (ro_pin, stripe_link_member, stripe_link_student, stripe_link_visitor, ro_revolut_user) ON settings FROM anon;
+
+CREATE OR REPLACE FUNCTION verify_boat_pin(p_boat_id text, p_pin text)
+RETURNS TABLE(ok boolean, is_default boolean)
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT (pin_hash = crypt(p_pin, pin_hash)), pin_is_default
+  FROM boats WHERE id = p_boat_id;
+$$;
+REVOKE ALL ON FUNCTION verify_boat_pin(text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION verify_boat_pin(text,text) TO anon;
+
+CREATE OR REPLACE FUNCTION change_boat_pin(p_boat_id text, p_current_pin text, p_new_pin text)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_ok boolean;
+BEGIN
+  SELECT (pin_hash = crypt(p_current_pin, pin_hash)) INTO v_ok FROM boats WHERE id = p_boat_id;
+  IF NOT COALESCE(v_ok, false) THEN RETURN false; END IF;
+  UPDATE boats SET pin_hash = crypt(p_new_pin, gen_salt('bf')), pin_is_default = (p_new_pin = '0000')
+    WHERE id = p_boat_id;
+  RETURN true;
+END; $$;
+REVOKE ALL ON FUNCTION change_boat_pin(text,text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION change_boat_pin(text,text,text) TO anon;
+
+CREATE OR REPLACE FUNCTION reset_boat_pin(p_ro_pin text, p_boat_id text, p_new_pin text)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_ok boolean;
+BEGIN
+  SELECT (ro_pin_hash = crypt(p_ro_pin, ro_pin_hash)) INTO v_ok FROM settings WHERE id = 'club';
+  IF NOT COALESCE(v_ok, false) THEN RETURN false; END IF;
+  UPDATE boats SET pin_hash = crypt(p_new_pin, gen_salt('bf')), pin_is_default = (p_new_pin = '0000')
+    WHERE id = p_boat_id;
+  RETURN true;
+END; $$;
+REVOKE ALL ON FUNCTION reset_boat_pin(text,text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION reset_boat_pin(text,text,text) TO anon;
+
+CREATE OR REPLACE FUNCTION set_boat_revolut_user(p_boat_id text, p_current_pin text, p_revolut_user text)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_ok boolean;
+BEGIN
+  SELECT (pin_hash = crypt(p_current_pin, pin_hash)) INTO v_ok FROM boats WHERE id = p_boat_id;
+  IF NOT COALESCE(v_ok, false) THEN RETURN false; END IF;
+  UPDATE boats SET revolut_user = p_revolut_user WHERE id = p_boat_id;
+  RETURN true;
+END; $$;
+REVOKE ALL ON FUNCTION set_boat_revolut_user(text,text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION set_boat_revolut_user(text,text,text) TO anon;
+
+CREATE OR REPLACE FUNCTION verify_ro_pin(p_pin text)
+RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT (ro_pin_hash = crypt(p_pin, ro_pin_hash)) FROM settings WHERE id = 'club';
+$$;
+REVOKE ALL ON FUNCTION verify_ro_pin(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION verify_ro_pin(text) TO anon;
+
+CREATE OR REPLACE FUNCTION change_ro_pin(p_current_pin text, p_new_pin text)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_ok boolean;
+BEGIN
+  SELECT (ro_pin_hash = crypt(p_current_pin, ro_pin_hash)) INTO v_ok FROM settings WHERE id = 'club';
+  IF NOT COALESCE(v_ok, false) THEN RETURN false; END IF;
+  UPDATE settings SET ro_pin_hash = crypt(p_new_pin, gen_salt('bf')) WHERE id = 'club';
+  RETURN true;
+END; $$;
+REVOKE ALL ON FUNCTION change_ro_pin(text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION change_ro_pin(text,text) TO anon;
+
+CREATE OR REPLACE FUNCTION set_ro_payment_settings(
+  p_current_pin text, p_stripe_link_member text, p_stripe_link_student text,
+  p_stripe_link_visitor text, p_ro_revolut_user text
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_ok boolean;
+BEGIN
+  SELECT (ro_pin_hash = crypt(p_current_pin, ro_pin_hash)) INTO v_ok FROM settings WHERE id = 'club';
+  IF NOT COALESCE(v_ok, false) THEN RETURN false; END IF;
+  UPDATE settings SET
+    stripe_link_member  = COALESCE(p_stripe_link_member,  stripe_link_member),
+    stripe_link_student = COALESCE(p_stripe_link_student, stripe_link_student),
+    stripe_link_visitor = COALESCE(p_stripe_link_visitor, stripe_link_visitor),
+    ro_revolut_user      = COALESCE(p_ro_revolut_user,      ro_revolut_user)
+  WHERE id = 'club';
+  RETURN true;
+END; $$;
+REVOKE ALL ON FUNCTION set_ro_payment_settings(text,text,text,text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION set_ro_payment_settings(text,text,text,text,text) TO anon;
+
+-- ============================================================
 -- SCHEMA MIGRATIONS TRACKING
 -- ============================================================
 -- Records which migration files this DB has applied, so "is this club
@@ -673,7 +789,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('035_crew_is_guest_flag.sql'),
   ('036_schema_migrations_tracking.sql'),
   ('037_boat_photos.sql'),
-  ('038_push_subscriptions_role.sql')
+  ('038_push_subscriptions_role.sql'),
+  ('040_secure_pins.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- the GBSC-only/RCYC-only seed migrations, which this bootstrap never runs.

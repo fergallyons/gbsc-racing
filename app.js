@@ -109,17 +109,31 @@ async function sbEnsureBoat(b){
     body:JSON.stringify({id:b.id,name:b.name,icon:b.icon})});
 }
 async function sbLoadBoatConfig(id){
-  // Returns {pin, revolut_user} or null if offline
-  const r=await sbFetch('/rest/v1/boats?id=eq.'+id+'&select=pin,revolut_user');
+  // Returns {revolut_user} or null if offline. PIN is never fetched here —
+  // it's hashed server-side (migration 040) and checked via sbRpc('verify_boat_pin', ...).
+  const r=await sbFetch('/rest/v1/boats?id=eq.'+id+'&select=revolut_user');
   if(!r||!r.length) return null;
   return r[0];
 }
 async function sbSaveBoatConfig(id,fields){
-  // fields: any subset of {pin, revolut_user}
+  // fields: any subset of boats' non-sensitive columns. pin/revolut_user are
+  // no longer anon-writable directly — see sbRpc('change_boat_pin'/'set_boat_revolut_user').
   return sbFetch('/rest/v1/boats?id=eq.'+id,{
     method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify(fields)
+  });
+}
+async function sbRpc(name,args){
+  // Calls a Postgres RPC (SECURITY DEFINER function) — used for the PIN-gated
+  // writes migration 040 moved out of direct anon UPDATE (boat/RO pins,
+  // revolut_user, Stripe links). Returns the parsed JSON result (a bare
+  // scalar for boolean-returning functions, an array of rows for
+  // table-returning ones), or null on network failure / {_err} on HTTP error.
+  return sbFetch('/rest/v1/rpc/'+name,{
+    method:'POST',
+    headers:{...SBH,'Prefer':'return=representation'},
+    body:JSON.stringify(args)
   });
 }
 async function sbLoadClubSettings(){
@@ -132,8 +146,10 @@ async function sbLoadClubSettings(){
     +'start_lat,start_lng,wind_lat,wind_lng,'
     +'tide_station,tide_odm_offset,'
     +'fee_full,fee_crew,fee_visitor,fee_student,fee_kid,'
-    +'visitor_max,crew_max_yrs,ro_pin,'
+    +'visitor_max,crew_max_yrs,'
     +'noticeboard_url,results_url,hal_club,vapid_public_key';
+    // ro_pin deliberately excluded — hashed + no longer anon-readable (migration 040);
+    // use sbRpc('verify_ro_pin', ...) instead.
   let r=await sbFetch('/rest/v1/settings?id=eq.club&select='+fullSelect);
   if(r&&r._err){
     // Migration 020 likely not run yet — fall back to base columns so features still load
@@ -481,13 +497,15 @@ function buildSatTiles(refLat,refLng,cosLat,scale,ox,oy,W,H){
 // ═══════════════════════════════════════════════════════════════
 // CONSTANTS & STATE
 // ═══════════════════════════════════════════════════════════════
-// Fees/limits/PIN start with env-var or hard-coded defaults; overwritten from DB
-// after settings load (see loadClubSettings below).
+// Fees/limits start with env-var or hard-coded defaults; overwritten from DB
+// after settings load (see loadClubSettings below). RO PIN is NOT loaded
+// here — it's hashed server-side (migration 040) and verified via
+// sbRpc('verify_ro_pin', ...) in checkPin(), never held as a comparable
+// plaintext value in JS.
 let FEES=Object.assign({full:4,crew:4,visitor:10,student:5,kid:0}, _C.fees||{});
 let VISITOR_MAX=_C.visitorMax||6;
 let CREW_MAX_YRS=_C.crewMaxYrs||2;
 const CY=new Date().getFullYear();
-let RO_PIN=_C.roPin||'0000';
 
 // ── Per-club feature flags ────────────────────────────────────────────────────
 // Sourced from window.CLUB.features; safe defaults preserve existing GBSC behaviour.
@@ -1084,6 +1102,7 @@ function switchBoat(){
   sbEndSession(currentSessionId).catch(()=>{});
   currentSessionId=null;
   currentBoat=null;roster=[];isRO=false;isGuest=false;boatConfig={};
+  _currentBoatPin=null;_currentRoPin=null; // clear session-held pins used to authorize pin/revolut/Stripe changes
   document.body.classList.remove('role-skipper','role-ro');
   // Stop countdown timer so it doesn't keep firing after logout
   if(_countdownInterval){clearInterval(_countdownInterval);_countdownInterval=null;}
@@ -1587,10 +1606,16 @@ async function checkPin(){
   const ctx=pinContext; // save before closePinOverlay nulls it
   const errEl=document.getElementById('pinError');
 
-  // RO PIN lives only in localStorage — no DB lookup needed
+  // RO PIN — verified server-side (migration 040), never compared client-side.
   if(ctx==='ro'){
-    const correct=getRoPin();
-    if(pinEntry===correct){
+    errEl.textContent='Checking…';
+    const res=await sbRpc('verify_ro_pin',{p_pin:pinEntry});
+    // Offline/network failure — fall back to the last pin that verified
+    // successfully on this device, same resilience as the boat flow below.
+    const ok = (res===true) || ((res===null||res._err) && pinEntry===(localStorage.getItem('_roPinCache')||''));
+    if(ok){
+      _currentRoPin=pinEntry;
+      try{localStorage.setItem('_roPinCache',pinEntry);}catch(e){}
       closePinOverlay();
       await _settingsReady.catch(()=>{});
       enterApp({id:'ro',name:'Race Officer',icon:'🎌'},true);
@@ -1602,20 +1627,33 @@ async function checkPin(){
     return;
   }
 
-  // Boat PIN — always fetch live from DB, fall back to cache if offline
+  // Boat PIN — verified server-side (migration 040); falls back to the last
+  // pin that verified successfully on this device if offline.
   errEl.textContent='Checking…';
-  const cfg=await sbLoadBoatConfig(ctx);
-  const correct=cfg ? cfg.pin||'0000' : getBoatPin(ctx); // cache fallback if offline
-  // Update local cache with fresh value
-  if(cfg){ try{localStorage.setItem('cfg_'+ctx,JSON.stringify(cfg));}catch(e){} }
+  const res=await sbRpc('verify_boat_pin',{p_boat_id:ctx,p_pin:pinEntry});
+  let ok, isDefault=false;
+  if(Array.isArray(res)&&res.length){
+    ok=!!res[0].ok; isDefault=!!res[0].is_default;
+  } else {
+    // offline/network/permission failure — fall back to cache
+    ok = pinEntry===getBoatPin(ctx);
+    isDefault = ok && pinEntry==='0000';
+  }
 
-  if(pinEntry===correct){
+  if(ok){
     errEl.textContent='';
+    _currentBoatPin=pinEntry;
+    try{
+      const c=localStorage.getItem('cfg_'+ctx);
+      const obj=c?JSON.parse(c):{};
+      obj.pin=pinEntry;
+      localStorage.setItem('cfg_'+ctx,JSON.stringify(obj));
+    }catch(e){}
     closePinOverlay();
     await _settingsReady.catch(()=>{});
     const b=boats.find(x=>x.id===ctx);
     if(b) enterApp(b,false).then(()=>{
-      if(correct==='0000') showDefaultPinModal();
+      if(isDefault) showDefaultPinModal();
     });
   } else {
     errEl.textContent='Incorrect PIN';
@@ -1664,23 +1702,41 @@ function cpClear(){ cpEntry=''; updateCpDots(); }
 function updateCpDots(){ for(let i=0;i<4;i++) document.getElementById('cpd'+i).classList.toggle('filled',i<cpEntry.length); }
 async function confirmChangePin(){
   if(cpEntry.length!==4){ document.getElementById('cpError').textContent='Enter 4 digits'; return; }
+  const fail=()=>{
+    document.getElementById('cpError').textContent='Could not save — check connection';
+    cpEntry=''; updateCpDots();
+  };
   if(cpTargetId==='ro'){
-    const ok=await setRoPin(cpEntry);
-    if(!ok){
-      document.getElementById('cpError').textContent='Could not save — check connection';
-      cpEntry=''; updateCpDots();
-      return;
-    }
+    if(!_currentRoPin){ fail(); return; }
+    const ok=await sbRpc('change_ro_pin',{p_current_pin:_currentRoPin,p_new_pin:cpEntry});
+    if(ok!==true){ fail(); return; }
+    _currentRoPin=cpEntry;
+    try{localStorage.setItem('_roPinCache',cpEntry);}catch(e){}
     closeChangePinOverlay();
     toast('✅ RO PIN updated');
     return;
   }
   const b=boats.find(x=>x.id===cpTargetId);
-  const ok=await setBoatPin(cpTargetId,cpEntry);
-  if(!ok){
-    document.getElementById('cpError').textContent='Could not save — check connection';
-    cpEntry=''; updateCpDots();
-    return;
+  let ok;
+  if(isRO){
+    // RO admin override — reset a boat's forgotten PIN without knowing the
+    // old one, gated by the RO's own pin instead (openChangePinForBoat()).
+    if(!_currentRoPin){ fail(); return; }
+    ok=await sbRpc('reset_boat_pin',{p_ro_pin:_currentRoPin,p_boat_id:cpTargetId,p_new_pin:cpEntry});
+  } else {
+    // Self-service — boat changing its own pin, already verified at login.
+    if(!_currentBoatPin){ fail(); return; }
+    ok=await sbRpc('change_boat_pin',{p_boat_id:cpTargetId,p_current_pin:_currentBoatPin,p_new_pin:cpEntry});
+  }
+  if(ok!==true){ fail(); return; }
+  if(!isRO){
+    _currentBoatPin=cpEntry;
+    try{
+      const c=localStorage.getItem('cfg_'+cpTargetId);
+      const obj=c?JSON.parse(c):{};
+      obj.pin=cpEntry;
+      localStorage.setItem('cfg_'+cpTargetId,JSON.stringify(obj));
+    }catch(e){}
   }
   closeChangePinOverlay();
   toast('✅ PIN updated'+(b?' for '+b.name:''));
@@ -2358,9 +2414,6 @@ function _applyDbClubConfig(cfg){
   if(cfg.visitor_max  != null) VISITOR_MAX  = cfg.visitor_max;
   if(cfg.crew_max_yrs != null) CREW_MAX_YRS = cfg.crew_max_yrs;
 
-  // RO PIN
-  if(cfg.ro_pin) RO_PIN = cfg.ro_pin;
-
   // Branding — re-apply only if DB provides values not present in env var
   let brandingChanged = false;
   if(cfg.logo_url && !(_C.logoUrl||_C.logoURL||_C.logourl||_C.logo_url||_C.logo)){
@@ -2455,38 +2508,17 @@ function updateSectionVisibility(prefix,name){
   if(!anyVisible) body.style.display='none';
 }
 
+// PINs are hashed server-side (migration 040) — never fetched or compared
+// client-side. getBoatPin() is only the OFFLINE fallback: the last pin that
+// successfully verified via sbRpc('verify_boat_pin', ...) on this device.
+// Boat/RO pin verification and changes go through sbRpc() calls directly in
+// checkPin() / confirmChangePin(); _currentBoatPin / _currentRoPin hold the
+// just-verified pin for the rest of the session, since the sensitive-write
+// RPCs (change pin, set revolut_user, set Stripe links) re-check it server
+// side on every call rather than trusting a login that happened earlier.
+let _currentBoatPin=null, _currentRoPin=null;
 function getBoatPin(id){
-  // For login screen we need the PIN before loading config — use localStorage cache
-  if(currentBoat&&currentBoat.id===id) return boatConfig.pin||'0000';
   try{ const c=localStorage.getItem('cfg_'+id); return c?JSON.parse(c).pin||'0000':'0000'; }catch(e){ return'0000'; }
-}
-// RO_PIN is loaded from settings.ro_pin (DB) at startup — see loadClubSettings().
-// getRoPin() trusts it directly rather than a local cache, so every device stays
-// in sync with whatever was last saved, instead of silently diverging per-device.
-function getRoPin(){ return RO_PIN; }
-async function setRoPin(pin){
-  // Persist to DB first — only update in-memory state on success, matching setBoatPin().
-  const result=await sbSaveClubSettings({ro_pin:pin});
-  if(!result||result._err) return false;
-  RO_PIN=pin;
-  // Clean up the old per-device override key from before this was DB-backed —
-  // a stale value here used to permanently shadow the real DB PIN on this device.
-  try{localStorage.removeItem('pin_ro');}catch(e){}
-  return true;
-}
-
-async function setBoatPin(id,pin){
-  // Persist to DB first — only update local cache on success
-  const result=await sbSaveBoatConfig(id,{pin});
-  if(!result||result._err) return false;
-  if(currentBoat&&currentBoat.id===id) boatConfig.pin=pin;
-  try{
-    const c=localStorage.getItem('cfg_'+id);
-    const obj=c?JSON.parse(c):{};
-    obj.pin=pin;
-    localStorage.setItem('cfg_'+id,JSON.stringify(obj));
-  }catch(e){}
-  return true;
 }
 
 function getRevolutUser(){
@@ -2502,6 +2534,11 @@ function hasAnyStripeLink(){
 }
 function getRORevolutUser(){ return clubSettings.ro_revolut_user||''; }
 async function saveBoatSettings(revolut_user){
+  // Gated by the pin verified at login (migration 040) — payment-redirect
+  // field, not a plain anon-writable column anymore.
+  if(!_currentBoatPin) return false;
+  const ok=await sbRpc('set_boat_revolut_user',{p_boat_id:currentBoat.id,p_current_pin:_currentBoatPin,p_revolut_user:revolut_user});
+  if(ok!==true) return false;
   boatConfig.revolut_user=revolut_user;
   try{
     const c=localStorage.getItem('cfg_'+currentBoat?.id)||'{}';
@@ -2509,9 +2546,9 @@ async function saveBoatSettings(revolut_user){
     obj.revolut_user=revolut_user;
     localStorage.setItem('cfg_'+currentBoat?.id,JSON.stringify(obj));
   }catch(e){}
-  await sbSaveBoatConfig(currentBoat.id,{revolut_user});
+  return true;
 }
-async function saveClubStripeLinks(links){
+async function saveClubSettingsFields(links){
   Object.assign(clubSettings,links);
   try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
   const r=await sbSaveClubSettings(links);
@@ -2887,11 +2924,11 @@ function toggleHelpSection(id){
   body.classList.toggle('open',!isOpen);
   chev.classList.toggle('open',!isOpen);
 }
-function saveSettings(){
+async function saveSettings(){
   const rev=document.getElementById('settings-revolut').value.trim().replace(/^@/,'');
-  saveBoatSettings(rev);
+  const ok=await saveBoatSettings(rev);
   closeSheet('settingsSheet');
-  toast('Settings saved ✓');
+  toast(ok?'Settings saved ✓':'⚠ Could not save — try logging in again');
 }
 async function openROClubSettings(){
   // Always reload from DB first so form reflects actual saved values,
@@ -2983,15 +3020,35 @@ function saveROClubSettings(){
   const tideStationVal=getVal('ro-tide-station');
   const vapidKeyVal=getVal('ro-vapid-key');
 
-  saveClubStripeLinks({
-    stripe_link_member:   memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'',
-    stripe_link_student:  studentVal !==''?studentVal :clubSettings.stripe_link_student||'',
-    stripe_link_visitor:  visitorVal !==''?visitorVal :clubSettings.stripe_link_visitor||'',
+  // Stripe links + RO's own Revolut handle are payment-redirect fields —
+  // gated behind the RO pin verified at login (migration 040), via RPC
+  // rather than the plain settings PATCH used for everything else below.
+  const newMemberVal  = memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'';
+  const newStudentVal = studentVal !==''?studentVal :clubSettings.stripe_link_student||'';
+  const newVisitorVal = visitorVal !==''?visitorVal :clubSettings.stripe_link_visitor||'';
+  if(_currentRoPin){
+    sbRpc('set_ro_payment_settings',{
+      p_current_pin:_currentRoPin,
+      p_stripe_link_member:newMemberVal,
+      p_stripe_link_student:newStudentVal,
+      p_stripe_link_visitor:newVisitorVal,
+      p_ro_revolut_user:roRevolutVal
+    }).then(ok=>{
+      if(ok!==true){ toast('⚠ Payment settings not saved — try logging in again'); return; }
+      clubSettings.stripe_link_member=newMemberVal;
+      clubSettings.stripe_link_student=newStudentVal;
+      clubSettings.stripe_link_visitor=newVisitorVal;
+      clubSettings.ro_revolut_user=roRevolutVal;
+    });
+  } else {
+    toast('⚠ Payment settings not saved — try logging in again');
+  }
+
+  saveClubSettingsFields({
     pre_race_window_hours: windowHours,
     estella_url: estellaVal,
     results_url: resultsUrlVal,
     worldtides_key: tidesKeyVal,
-    ro_revolut_user: roRevolutVal,
     // Unlike fees/etc below, a blank HalSail ID is a real, valid state (no HalSail
     // integration) — not something to fall back to the old value for.
     hal_club: halClubVal!==''?(parseInt(halClubVal)||null):null,
@@ -3015,7 +3072,6 @@ function saveROClubSettings(){
   clubSettings.estella_url=estellaVal;
   clubSettings.results_url=resultsUrlVal;
   clubSettings.worldtides_key=tidesKeyVal;
-  clubSettings.ro_revolut_user=roRevolutVal;
   _C.resultsUrl=resultsUrlVal;
   _applyDbClubConfig(clubSettings); // syncs HAL_CLUB, FEES, VISITOR_MAX, CREW_MAX_YRS, tide/wind/start into live runtime state
   updateEstellaLink();
@@ -3373,9 +3429,9 @@ async function pickEstelaRace(idx){
   document.getElementById('ro-estella-url').value=race.link;
   closeSheet('estelaPickerSheet');
   // Auto-save — no separate Save tap required.
-  // saveClubStripeLinks updates clubSettings + localStorage immediately and
+  // saveClubSettingsFields updates clubSettings + localStorage immediately and
   // toasts on DB failure, so the public link refreshes whether online or not.
-  await saveClubStripeLinks({estella_url: race.link});
+  await saveClubSettingsFields({estella_url: race.link});
   updateEstellaLink();
   toast('eStela link saved: '+race.name);
 }
@@ -7309,14 +7365,11 @@ async function publishCourse(){
 }
 async function buildPinMgmtList(){
   const list=document.getElementById('pinMgmtList'); if(!list)return;
-  list.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted);font-size:.85rem">Loading…</div>';
-  // Fetch live PINs from DB — never trust localStorage for the RO view
-  const rows=await sbFetch('/rest/v1/boats?select=id,pin');
-  const pinMap={};
-  if(Array.isArray(rows)) rows.forEach(r=>{ pinMap[r.id]=r.pin||'0000'; });
   list.innerHTML='';
+  // PINs are hashed (migration 040) — can't be displayed anymore, only reset.
+  // The RO's "PIN" button now resets to a new known value (reset_boat_pin RPC)
+  // rather than showing the old one, same idea as any other password reset.
   boats.forEach(b=>{
-    const pin=pinMap[b.id]||'0000'; // live DB value; fall back to 0000 if not found
     const row=document.createElement('div');
     row.id='pinrow-'+b.id;
     row.style.cssText='display:flex;align-items:center;justify-content:space-between;background:var(--navy);border-radius:10px;padding:9px 12px;margin-bottom:5px;';
@@ -7330,8 +7383,7 @@ async function buildPinMgmtList(){
         '<input type="text" value="'+escHtml(b.sailNumber||'')+'" placeholder="Sail No" title="Sail number — used for HalSail finish exports" '+
           'onchange="updateBoatSailNumber(\''+b.id+'\',this.value)" '+
           'style="width:64px;background:var(--navy-input);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:Barlow Condensed,sans-serif;font-size:.8rem;padding:3px 6px;text-align:center">'+
-        '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.15em">'+pin+'</span>'+
-        '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">PIN</button>'+
+        '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">Reset PIN</button>'+
         '<button onclick="deleteBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">Delete</button>'+
       '</div>';
     list.appendChild(row);
@@ -7343,8 +7395,7 @@ async function buildPinMgmtList(){
       '<span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem;color:var(--ro)">🎌 Race Officer</span>'+
     '</div>'+
     '<div style="display:flex;align-items:center;gap:6px">'+
-      '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);letter-spacing:.15em">'+getRoPin()+'</span>'+
-      '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(254,224,30,.4);background:transparent;color:var(--ro);cursor:pointer">PIN</button>'+
+      '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(254,224,30,.4);background:transparent;color:var(--ro);cursor:pointer">Change PIN</button>'+
     '</div>';
   list.appendChild(roRow);
 }
