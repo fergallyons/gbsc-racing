@@ -1116,6 +1116,24 @@ ALTER TABLE boats ADD COLUMN IF NOT EXISTS photo_url text NOT NULL DEFAULT '';
 
 
 -- ============================================================
+-- PROTEST WORKFLOW (migration 041) -- see migrations/041_protest_workflow.sql
+-- for full rationale. Hearing scheduling, arbitration step, per-race
+-- protest deadline, skipper WhatsApp contact.
+-- ============================================================
+ALTER TABLE protests
+  ADD COLUMN IF NOT EXISTS hearing_at         timestamptz,
+  ADD COLUMN IF NOT EXISTS hearing_location   text NOT NULL DEFAULT '''''',
+  ADD COLUMN IF NOT EXISTS arbitration_status text NOT NULL DEFAULT '''none'''
+    CHECK (arbitration_status IN ('''none''','''offered''','''penalty_accepted''','''withdrawn''','''proceeding''')),
+  ADD COLUMN IF NOT EXISTS arbitration_notes  text NOT NULL DEFAULT '''''';
+
+ALTER TABLE races
+  ADD COLUMN IF NOT EXISTS protest_deadline timestamptz;
+
+ALTER TABLE boats
+  ADD COLUMN IF NOT EXISTS whatsapp text NOT NULL DEFAULT '''''';
+
+-- ============================================================
 -- SCHEMA MIGRATIONS TRACKING
 -- ============================================================
 -- Records which migration files this DB has applied, so "is this club
@@ -1163,7 +1181,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('035_crew_is_guest_flag.sql'),
   ('036_schema_migrations_tracking.sql'),
   ('037_boat_photos.sql'),
-  ('038_push_subscriptions_role.sql')
+  ('038_push_subscriptions_role.sql'),
+  ('041_protest_workflow.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- the GBSC-only/superseded files excluded from this bootstrap (below).

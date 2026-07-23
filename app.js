@@ -109,13 +109,13 @@ async function sbEnsureBoat(b){
     body:JSON.stringify({id:b.id,name:b.name,icon:b.icon})});
 }
 async function sbLoadBoatConfig(id){
-  // Returns {pin, revolut_user} or null if offline
-  const r=await sbFetch('/rest/v1/boats?id=eq.'+id+'&select=pin,revolut_user');
+  // Returns {pin, revolut_user, whatsapp} or null if offline
+  const r=await sbFetch('/rest/v1/boats?id=eq.'+id+'&select=pin,revolut_user,whatsapp');
   if(!r||!r.length) return null;
   return r[0];
 }
 async function sbSaveBoatConfig(id,fields){
-  // fields: any subset of {pin, revolut_user}
+  // fields: any subset of {pin, revolut_user, whatsapp}
   return sbFetch('/rest/v1/boats?id=eq.'+id,{
     method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
@@ -653,7 +653,8 @@ async function loadRaceSchedule(){
   allRaces=rows.map(r=>{
     const d=new Date(r.race_date+'T00:00:00'); // local midnight, no UTC shift
     d.setHours(r.start_hour||19, r.start_min||0, 0, 0);
-    return {id:r.id, label:r.label, date:d, series:r.series||''};
+    return {id:r.id, label:r.label, date:d, series:r.series||'',
+      protestDeadline: r.protest_deadline?new Date(r.protest_deadline):null};
   });
   nextRace=getNextRace();
 }
@@ -2303,8 +2304,8 @@ async function loadBoatConfig(boatId){
   } else {
     try{
       const cached=localStorage.getItem('cfg_'+boatId);
-      boatConfig=cached?JSON.parse(cached):{pin:'0000',revolut_user:''};
-    }catch(e){ boatConfig={pin:'0000',revolut_user:''}; }
+      boatConfig=cached?JSON.parse(cached):{pin:'0000',revolut_user:'',whatsapp:''};
+    }catch(e){ boatConfig={pin:'0000',revolut_user:'',whatsapp:''}; }
   }
 }
 async function loadClubSettings(){
@@ -2492,6 +2493,9 @@ async function setBoatPin(id,pin){
 function getRevolutUser(){
   return boatConfig.revolut_user||'';
 }
+function getWhatsapp(){
+  return boatConfig.whatsapp||'';
+}
 function getStripeLink(type){
   if(type==='student') return clubSettings.stripe_link_student||'';
   if(type==='visitor') return clubSettings.stripe_link_visitor||'';
@@ -2501,15 +2505,17 @@ function hasAnyStripeLink(){
   return !!(clubSettings.stripe_link_member||clubSettings.stripe_link_student||clubSettings.stripe_link_visitor);
 }
 function getRORevolutUser(){ return clubSettings.ro_revolut_user||''; }
-async function saveBoatSettings(revolut_user){
+async function saveBoatSettings(revolut_user,whatsapp){
   boatConfig.revolut_user=revolut_user;
+  boatConfig.whatsapp=whatsapp;
   try{
     const c=localStorage.getItem('cfg_'+currentBoat?.id)||'{}';
     const obj=JSON.parse(c);
     obj.revolut_user=revolut_user;
+    obj.whatsapp=whatsapp;
     localStorage.setItem('cfg_'+currentBoat?.id,JSON.stringify(obj));
   }catch(e){}
-  await sbSaveBoatConfig(currentBoat.id,{revolut_user});
+  await sbSaveBoatConfig(currentBoat.id,{revolut_user,whatsapp});
 }
 async function saveClubStripeLinks(links){
   Object.assign(clubSettings,links);
@@ -2536,6 +2542,7 @@ async function checkNotifSupport(){
 
 async function openSettingsSheet(){
   document.getElementById('settings-revolut').value=getRevolutUser();
+  document.getElementById('settings-whatsapp').value=getWhatsapp();
   // Notification toggle state
   const supported=await checkNotifSupport();
   const row=document.getElementById('notif-row');
@@ -2889,7 +2896,8 @@ function toggleHelpSection(id){
 }
 function saveSettings(){
   const rev=document.getElementById('settings-revolut').value.trim().replace(/^@/,'');
-  saveBoatSettings(rev);
+  const wa=document.getElementById('settings-whatsapp').value.trim();
+  saveBoatSettings(rev,wa);
   closeSheet('settingsSheet');
   toast('Settings saved ✓');
 }
@@ -3104,6 +3112,7 @@ function openAddRaceForm(){
   document.getElementById('rf-time').value='19:00';
   document.getElementById('rf-series').value='';
   document.getElementById('rf-sort').value='99';
+  document.getElementById('rf-protest-deadline').value='';
   form.style.display='block';
   form.scrollIntoView({behavior:'smooth'});
 }
@@ -3122,6 +3131,8 @@ async function openEditRaceForm(id){
   document.getElementById('rf-time').value=hh+':'+mm;
   document.getElementById('rf-series').value=r.series||'';
   document.getElementById('rf-sort').value=r.sort_order||0;
+  document.getElementById('rf-protest-deadline').value=r.protest_deadline
+    ?new Date(r.protest_deadline).toTimeString().slice(0,5):'';
   form.style.display='block';
   form.scrollIntoView({behavior:'smooth'});
 }
@@ -3139,9 +3150,15 @@ async function saveRace(){
   const [hourStr,minStr]=time.split(':');
   const series=document.getElementById('rf-series').value.trim();
   const sort=parseInt(document.getElementById('rf-sort').value,10)||0;
+  const deadlineTime=document.getElementById('rf-protest-deadline').value;
   if(!label||!date){alert('Race name and date are required');return;}
   const payload={label,race_date:date,start_hour:parseInt(hourStr,10),
-    start_min:parseInt(minStr,10),series,sort_order:sort};
+    start_min:parseInt(minStr,10),series,sort_order:sort,
+    // Combined with race_date since the input is just a clock time — RO
+    // leaves this blank to fall back to RRS 60.3's default (2h after the
+    // last boat finishes), which the app can't compute locally (finishes
+    // are typically recorded downstream in HalSail, not stored here).
+    protest_deadline: deadlineTime?new Date(date+'T'+deadlineTime).toISOString():null};
   if(id){
     await sbFetch('/rest/v1/races?id=eq.'+id,{
       method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(payload)});
@@ -8807,13 +8824,20 @@ async function checkForProtestsAgainstMe(){
       <div style="font-size:.9rem;color:var(--white);line-height:1.5">${p.description||'—'}</div>
     </div>
 
+    ${p.hearing_at?`<div style="background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.35);
+      border-radius:10px;padding:14px;margin-bottom:12px">
+      <div style="font-size:.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;
+        font-weight:700;margin-bottom:4px">⚖ Hearing Scheduled</div>
+      <div style="font-size:1rem;color:var(--white);font-weight:700">${new Date(p.hearing_at).toLocaleString('en-IE',{weekday:'long',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
+      ${p.hearing_location?`<div style="font-size:.85rem;color:var(--muted);margin-top:2px">${p.hearing_location}</div>`:''}
+    </div>`:''}
     <div style="background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);
       border-radius:10px;padding:14px;margin-bottom:16px">
       <div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:6px">
         Your rights under RRS Rule 63</div>
       <div style="font-size:.82rem;color:var(--muted);line-height:1.5">
         You are entitled to be present throughout the hearing, to hear all evidence,
-        and to call witnesses. Contact the Race Officer to confirm the hearing time and location.
+        and to call witnesses.${p.hearing_at?'':' Contact the Race Officer to confirm the hearing time and location.'}
       </div>
     </div>
 
@@ -9435,11 +9459,11 @@ async function printProtest(protestId){
       partiesHead:'Parties to the Protest',
       protestorLabel:'Protestor (Boat Filing Protest)',
       protesteeLabel:'Protestee (Boat Protested Against)',
-      incidentHead:'Incident Details (RRS Rule 61.2)',
+      incidentHead:'Incident Details (RRS Rule 60.3)',
       showRequirements:true,
       rulesHead:'Rules Alleged to Have Been Broken',
       rulesEmpty:'No rules specified',
-      rulesFootnote:'Racing Rules of Sailing 2025–2028, World Sailing. The hearing committee will determine which rules, if any, were broken (RRS Rule 64).',
+      rulesFootnote:'Racing Rules of Sailing 2025–2028, World Sailing. The hearing committee will determine which rules, if any, were broken (RRS Rule 63.5).',
       sigLabel:'Protestor Signature',
       docLabel:'Protest',
     },
@@ -9448,11 +9472,11 @@ async function printProtest(protestId){
       partiesHead:'Parties',
       protestorLabel:'Requesting Boat',
       protesteeLabel:'Boat / Committee Concerned',
-      incidentHead:'Details of the Incident (RRS Rule 62.2)',
+      incidentHead:'Details of the Incident (RRS Rule 61.2)',
       showRequirements:false,
-      rulesHead:'Grounds for Redress (RRS Rule 62.1)',
+      rulesHead:'Grounds for Redress (RRS Rule 61.4)',
       rulesEmpty:'No grounds specified',
-      rulesFootnote:'Racing Rules of Sailing 2025–2028, World Sailing. RRS Rule 62.1: a request for redress shall identify one of the grounds listed above.',
+      rulesFootnote:'Racing Rules of Sailing 2025–2028, World Sailing. RRS Rule 61.4: a request for redress shall identify one of the grounds listed above.',
       sigLabel:'Requesting Boat Signature',
       docLabel:'Redress Request',
     },
@@ -9617,12 +9641,15 @@ async function printProtest(protestId){
   setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
 
-// ── Protest type — Protest (RRS 61) / Redress (RRS 62) / Scoring Enquiry ──
+// ── Protest type — Protest (RRS 60) / Redress (RRS 61) / Scoring Enquiry ──
+// RRS 2025-2028 renumbered Part 5 — Protest Requirements moved from 61 to
+// 60.3, Redress moved from 62 to 61, and a new Rule 62 (Support Persons)
+// was inserted. See chat 2026-07-23.
 let prType='protest';
 const PROTEST_TYPE_META={
   protest:{
     title:'🚩 File a Protest',
-    sub:'Under RRS Rule 61.2 — must be submitted within 2 hours of the last boat finishing.',
+    sub:'Under RRS Rule 60.3 — must be submitted within 2 hours of the last boat finishing.',
     protesteeLabel:'Boat being protested',
     showProtestee:true,
     protesteeRequired:true,
@@ -9636,7 +9663,7 @@ const PROTEST_TYPE_META={
   },
   redress:{
     title:'⚖ Request Redress',
-    sub:'Under RRS Rule 62 — submit within the time limit set by the race committee, or 2 hours after finishing if none is set.',
+    sub:'Under RRS Rule 61 — submit within the time limit set by the race committee, or 2 hours after finishing if none is set.',
     protesteeLabel:'Boat / committee concerned (optional)',
     showProtestee:true,
     protesteeRequired:false,
@@ -9685,6 +9712,16 @@ function setProtestType(type){
 function openProtestSheet(){
   if(!selectedRace){toast('Select a race first');return;}
   setProtestType('protest');
+  const deadlineRow=document.getElementById('pr-deadline-row');
+  if(selectedRace.protestDeadline){
+    const past=Date.now()>selectedRace.protestDeadline.getTime();
+    const when=selectedRace.protestDeadline.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    deadlineRow.style.display='block';
+    deadlineRow.style.color=past?'var(--danger)':'var(--teal)';
+    deadlineRow.textContent=past?'⚠ Protest deadline was '+when+' — filing late may require showing good cause':'⏱ Protest deadline: '+when;
+  } else {
+    deadlineRow.style.display='none';
+  }
   const sel=document.getElementById('pr-protestee');
   sel.innerHTML='<option value="">Select boat…</option>';
   boats.filter(b=>b.id!==currentBoat.id).forEach(b=>{
@@ -9765,6 +9802,10 @@ async function submitProtest(){
     toast('⚠ Could not file — '+result._err.slice(0,60));
     return;
   }
+  // Informational heads-up only — this is NOT the formal RRS 60.2 notice
+  // (that happens on the water, hail + red flag) but it's the first moment
+  // the protestee's phone can plausibly know before opening the app.
+  if(protesteeId) notifyPush('protest_filed',{boatIds:[protesteeId],boatName:currentBoat.name,raceLabel:selectedRace.label});
   closeSheet('protestSheet');
   toast(meta.filedToast);
 }
@@ -9797,13 +9838,18 @@ async function loadProtests(){
     const rules=(p.rules_broken||[]).join(', ');
     const statusOpts=PROTEST_STATUSES.map(s=>
       `<option value="${s}"${p.status===s?' selected':''}>${s}</option>`).join('');
+    const waMsg=`Hi — regarding the ${typeLabel[type]||typeLabel.protest} filed for ${p.race_name}, please check the RaceOps app for details.`;
+    const protestorWa=isRO&&protestor&&protestor.whatsapp?waLink(protestor.whatsapp,waMsg):'';
+    const protesteeWa=isRO&&protestee&&protestee.whatsapp?waLink(protestee.whatsapp,waMsg):'';
+    const waBtn=(url,title)=>url?`<a href="${url}" target="_blank" rel="noopener" title="${title} via WhatsApp"
+      style="color:#25d366;text-decoration:none;font-size:.85rem;margin-left:4px">💬</a>`:'';
     return`<div class="protest-card status-${p.status.toLowerCase().replace(' ','-')}" data-protest-id="${p.id}">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div>
           <span class="protest-type-badge" style="margin-right:6px">${typeLabel[type]||typeLabel.protest}</span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem">${protestor?protestor.name:'Unknown'}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem">${protestor?protestor.name:'Unknown'}</span>${waBtn(protestorWa,'Message '+(protestor?protestor.name:'protestor'))}
           <span style="color:var(--muted);font-size:.8rem"> → </span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem;color:var(--danger)">${protesteeLabel}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem;color:var(--danger)">${protesteeLabel}</span>${waBtn(protesteeWa,'Message '+protesteeLabel)}
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span class="protest-status ${p.status}">${p.status}</span>
@@ -9820,12 +9866,41 @@ async function loadProtests(){
       ${(PROTEST_TYPE_META[type]||PROTEST_TYPE_META.protest).showFlagHail?`<div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${p.flag_displayed?'🚩 Flag displayed':'⚠ No flag'} · ${p.protest_hailed?'📣 Hailed':'⚠ Not hailed'}</div>`:''}
       <div style="font-size:.78rem;color:var(--teal);margin-bottom:8px">${rules}</div>
       <div style="font-size:.82rem;color:var(--white);margin-bottom:12px;line-height:1.4">${p.description}</div>
+      ${p.hearing_at?`<div style="font-size:.78rem;color:var(--white);background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.25);border-radius:8px;padding:7px 10px;margin-bottom:10px">⚖ Hearing: ${new Date(p.hearing_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}${p.hearing_location?' · '+p.hearing_location:''}</div>`:''}
+      ${isRO&&type==='protest'&&p.protestee_id?`
+      <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px">
+        <div style="font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Arbitration (Appendix T)</div>
+        <select onchange="updateProtestArbitration('${p.id}',this.value)"
+          style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
+          color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
+          padding:7px 10px;outline:none;${p.arbitration_status!=='none'?'margin-bottom:6px':''}">${ARBITRATION_OPTS.map(o=>
+          `<option value="${o.value}"${(p.arbitration_status||'none')===o.value?' selected':''}>${o.label}</option>`).join('')}</select>
+        ${p.arbitration_status&&p.arbitration_status!=='none'?`<textarea placeholder="Arbitration notes…" onchange="updateProtestArbitrationNotes('${p.id}',this.value)"
+          style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
+          color:var(--white);font-family:'Barlow',sans-serif;font-size:.8rem;padding:7px 8px;
+          outline:none;box-sizing:border-box;resize:none;height:44px;line-height:1.4">${p.arbitration_notes||''}</textarea>`:''}
+      </div>`:''}
       <div style="border-top:1px solid var(--border);padding-top:10px">
         <div style="font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">RO Decision</div>
         <select onchange="updateProtestStatus('${p.id}',this.value)"
           style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
           color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.88rem;font-weight:700;
           padding:7px 10px;outline:none;margin-bottom:8px">${statusOpts}</select>
+        ${p.status==='Hearing Scheduled'?`<div style="margin-bottom:8px">
+          <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Hearing — time &amp; place (RRS 63.1)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+            <input type="datetime-local" id="ph-when-${p.id}" value="${p.hearing_at?toLocalDatetimeValue(new Date(p.hearing_at)):''}"
+              style="background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);
+              font-family:'Barlow',sans-serif;font-size:.82rem;padding:7px 8px;outline:none;color-scheme:dark">
+            <input type="text" id="ph-loc-${p.id}" placeholder="Location" value="${escHtml(p.hearing_location||'')}"
+              style="background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);
+              font-family:'Barlow',sans-serif;font-size:.82rem;padding:7px 8px;outline:none">
+          </div>
+          <button onclick="saveProtestHearing('${p.id}')"
+            style="width:100%;padding:7px;background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.35);
+            border-radius:8px;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;
+            font-size:.8rem;cursor:pointer">📣 Save &amp; Notify Parties</button>
+        </div>`:''}
         <textarea placeholder="RO notes…" onchange="updateProtestNotes('${p.id}',this.value)"
           style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
           color:var(--white);font-family:'Barlow',sans-serif;font-size:.82rem;padding:8px 10px;
@@ -9836,20 +9911,77 @@ async function loadProtests(){
   }).join('');
 }
 
+// Statuses that represent the hearing committee having actually decided
+// something (RRS Rule 63.6 — committee must promptly inform parties of the
+// decision) vs. still-pending states that don't warrant a "decision" push.
+const PROTEST_DECISION_STATUSES=['Upheld','Dismissed','Withdrawn'];
 async function updateProtestStatus(id,status){
   const r=await sbUpdateProtest(id,{status});
   if(r===null){ toast('⚠ Could not update status'); return; }
   toast('✅ Status updated');
-  // Immediately update the card in the DOM
-  const card=document.querySelector(`.protest-card[data-protest-id="${id}"]`);
-  if(card){
-    card.className=card.className.replace(/status-\S+/,`status-${status.toLowerCase().replace(/ /g,'-')}`);
-    const badge=card.querySelector('.protest-status');
-    if(badge){ badge.className=`protest-status ${status}`; badge.textContent=status; }
+  if(PROTEST_DECISION_STATUSES.includes(status)){
+    const p=_loadedProtests.find(x=>String(x.id)===String(id));
+    const boatIds=p?[p.protestor_id,p.protestee_id].filter(Boolean):[];
+    if(boatIds.length) notifyPush('protest_decision',{boatIds,status});
   }
+  // Reload rather than a light DOM patch — the hearing-scheduling block
+  // only appears for "Hearing Scheduled", so the card shape itself changes.
+  loadProtests();
 }
 async function updateProtestNotes(id,notes){
   await sbUpdateProtest(id,{ro_notes:notes});
+}
+
+function toLocalDatetimeValue(d){
+  // Format for <input type="datetime-local">'s value attribute, in local
+  // time (that input has no timezone of its own — the browser always means
+  // "local" — so this must NOT go through toISOString(), which is UTC).
+  const pad=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+}
+async function saveProtestHearing(id){
+  const whenVal=document.getElementById('ph-when-'+id).value;
+  const loc=document.getElementById('ph-loc-'+id).value.trim();
+  if(!whenVal){ toast('Set a date/time first'); return; }
+  const hearingAt=new Date(whenVal).toISOString();
+  const r=await sbUpdateProtest(id,{hearing_at:hearingAt,hearing_location:loc});
+  if(r===null){ toast('⚠ Could not save hearing details'); return; }
+  const p=_loadedProtests.find(x=>String(x.id)===String(id));
+  const boatIds=p?[p.protestor_id,p.protestee_id].filter(Boolean):[];
+  if(boatIds.length){
+    notifyPush('protest_hearing_scheduled',{boatIds,hearingAt,hearingLocation:loc});
+  }
+  toast('✅ Hearing saved — parties notified');
+  if(p){ p.hearing_at=hearingAt; p.hearing_location=loc; }
+}
+
+// ── Arbitration (RRS Appendix T) — a lighter pre-hearing step the RO can
+// offer for two-boat protests before scheduling a full hearing. This app
+// doesn't compute the arbitrator's opinion or scoring penalties — it just
+// gives the RO a structured place to log that the step happened and its
+// outcome, which was the actual gap flagged (a National Race Officer
+// reviewing the app, 2026-07-23): encouraging arbitration as a first step.
+const ARBITRATION_OPTS=[
+  {value:'none',              label:'Not offered'},
+  {value:'offered',           label:'Offered — awaiting outcome'},
+  {value:'penalty_accepted',  label:'✅ Penalty accepted (Appendix T4)'},
+  {value:'withdrawn',         label:'✅ Protest withdrawn'},
+  {value:'proceeding',        label:'→ Proceeding to full hearing'},
+];
+async function updateProtestArbitration(id,status){
+  const r=await sbUpdateProtest(id,{arbitration_status:status});
+  if(r===null){ toast('⚠ Could not update arbitration status'); return; }
+  toast('✅ Arbitration status updated');
+  loadProtests(); // notes field's visibility depends on status — simplest to re-render
+}
+async function updateProtestArbitrationNotes(id,notes){
+  await sbUpdateProtest(id,{arbitration_notes:notes});
+}
+
+function waLink(number,text){
+  const digits=(number||'').replace(/[^0-9]/g,'');
+  if(!digits) return '';
+  return 'https://wa.me/'+digits+(text?'?text='+encodeURIComponent(text):'');
 }
 async function deleteProtest(id){
   if(!confirm('Delete this protest? This cannot be undone.'))return;

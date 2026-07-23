@@ -1467,6 +1467,10 @@
           <input id="rf-sort" type="number" min="0" max="999" class="race-form-input">
         </div>
       </div>
+      <div style="margin-bottom:14px">
+        <label class="field-label">Protest Deadline (RRS 60.3 default is 2h after last boat finishes — leave blank to use that)</label>
+        <input id="rf-protest-deadline" type="time" class="race-form-input" style="color-scheme:dark">
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveRace()">Save</button>
         <button class="btn btn-ghost" style="flex:1;padding:12px" onclick="hideRaceForm()">Cancel</button>
@@ -1714,6 +1718,16 @@
           outline:none;box-sizing:border-box;">
       </div>
       <div style="font-size:.8rem;color:var(--muted);margin-top:5px">Used to generate Revolut payment request links for your crew</div>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        💬 Your WhatsApp Number
+      </label>
+      <input type="tel" id="settings-whatsapp" placeholder="+353 87 123 4567"
+        style="width:100%;margin-top:6px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:9px 12px;
+        outline:none;box-sizing:border-box;">
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px">Lets the Race Officer reach you directly — e.g. about a protest hearing</div>
     </div>
     <!-- Notifications toggle -->
     <div class="form-group" style="margin-bottom:20px" id="notif-row">
@@ -2100,7 +2114,8 @@
       <button class="pr-type-btn" id="pr-type-redress" onclick="setProtestType('redress')">⚖ Redress</button>
       <button class="pr-type-btn" id="pr-type-scoring_enquiry" onclick="setProtestType('scoring_enquiry')">📊 Scoring Enquiry</button>
     </div>
-    <div style="font-size:.75rem;color:var(--muted);margin-bottom:14px" id="pr-sheet-sub">Under RRS Rule 61.2 — must be submitted within 2 hours of the last boat finishing.</div>
+    <div style="font-size:.75rem;color:var(--muted);margin-bottom:6px" id="pr-sheet-sub">Under RRS Rule 60.3 — must be submitted within 2 hours of the last boat finishing.</div>
+    <div style="font-size:.75rem;font-weight:700;margin-bottom:14px;display:none" id="pr-deadline-row"></div>
 
     <div class="form-group" id="pr-protestee-group" style="margin-bottom:12px">
       <label style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase" id="pr-protestee-label">Boat being protested</label>
@@ -2151,12 +2166,12 @@
     </div>
 
     <div id="pr-redress-section" style="display:none">
-      <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Grounds for redress (RRS 62.1)</div>
+      <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Grounds for redress (RRS 61.4)</div>
       <div id="pr-redress-grounds" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
-        <button class="pr-rule-btn" onclick="toggleRule(this,'62.1(a) — Improper action or omission by the race committee, protest committee or organizing authority')">62.1(a) RC/organizer error</button>
-        <button class="pr-rule-btn" onclick="toggleRule(this,'62.1(b) — Physical damage or injury caused by another boat breaking a rule, or a vessel not racing')">62.1(b) Damage / injury</button>
-        <button class="pr-rule-btn" onclick="toggleRule(this,'62.1(c) — Gave help required by Rule 1.1')">62.1(c) Gave help</button>
-        <button class="pr-rule-btn" onclick="toggleRule(this,'62.1(d) — Improper action by a boat that was penalized or exonerated for breaking a rule')">62.1(d) Other boat's penalty</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'61.4(a) — Improper action or omission by the race committee, protest committee or organizing authority')">61.4(a) RC/organizer error</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'61.4(b) — Physical damage or injury caused by another boat breaking a rule, or a vessel not racing')">61.4(b) Damage / injury</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'61.4(c) — Gave help required by Rule 1.1')">61.4(c) Gave help</button>
+        <button class="pr-rule-btn" onclick="toggleRule(this,'61.4(d) — Improper action by a boat that was penalized or exonerated for breaking a rule')">61.4(d) Other boat's penalty</button>
         <button class="pr-rule-btn" onclick="toggleRule(this,'Other')">Other</button>
       </div>
     </div>
