@@ -1194,22 +1194,24 @@
     <div class="form-group" style="margin-bottom:14px">
       <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Preparatory Flag</label>
       <div style="display:flex;gap:6px;margin-top:8px" id="roStartFlagSystemBtns">
-        <button class="pr-type-btn active" data-val="P" onclick="roSelectFlagSystem('P')">P</button>
-        <button class="pr-type-btn" data-val="I" onclick="roSelectFlagSystem('I')">I</button>
-        <button class="pr-type-btn" data-val="Z" onclick="roSelectFlagSystem('Z')">Z</button>
-        <button class="pr-type-btn" data-val="U" onclick="roSelectFlagSystem('U')">U</button>
-        <button class="pr-type-btn" data-val="Black" onclick="roSelectFlagSystem('Black')">Black</button>
+        <button class="pr-type-btn flag-btn active" data-val="P" onclick="roSelectFlagSystem('P')"><div class="flag-swatch"></div><span>P</span></button>
+        <button class="pr-type-btn flag-btn" data-val="I" onclick="roSelectFlagSystem('I')"><div class="flag-swatch"></div><span>I</span></button>
+        <button class="pr-type-btn flag-btn" data-val="Z" onclick="roSelectFlagSystem('Z')"><div class="flag-swatch"></div><span>Z</span></button>
+        <button class="pr-type-btn flag-btn" data-val="U" onclick="roSelectFlagSystem('U')"><div class="flag-swatch"></div><span>U</span></button>
+        <button class="pr-type-btn flag-btn" data-val="Black" onclick="roSelectFlagSystem('Black')"><div class="flag-swatch"></div><span>Black</span></button>
       </div>
       <div id="roStartFlagNote" style="font-size:.75rem;color:var(--muted);margin-top:8px;line-height:1.4"></div>
     </div>
 
     <div class="form-group" style="margin-bottom:20px">
       <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Class Flag</label>
-      <div style="display:flex;gap:6px;margin-top:8px" id="roStartClassFlagBtns">
-        <button class="pr-type-btn active" data-val="E" onclick="roSelectClassFlag('E')">E</button>
-        <button class="pr-type-btn" data-val="0" onclick="roSelectClassFlag('0')">0</button>
-        <button class="pr-type-btn" data-val="1" onclick="roSelectClassFlag('1')">1</button>
-        <button class="pr-type-btn" data-val="2" onclick="roSelectClassFlag('2')">2</button>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap" id="roStartClassFlagBtns">
+        <button class="pr-type-btn flag-btn active" data-val="E" onclick="roSelectClassFlag('E')"><div class="flag-swatch"></div><span>E</span></button>
+        <button class="pr-type-btn flag-btn" data-val="0" onclick="roSelectClassFlag('0')"><div class="flag-swatch"></div><span>0</span></button>
+        <button class="pr-type-btn flag-btn" data-val="1" onclick="roSelectClassFlag('1')"><div class="flag-swatch"></div><span>1</span></button>
+        <button class="pr-type-btn flag-btn" data-val="2" onclick="roSelectClassFlag('2')"><div class="flag-swatch"></div><span>2</span></button>
+        <button class="pr-type-btn flag-btn" data-val="T" onclick="roSelectClassFlag('T')"><div class="flag-swatch"></div><span>T</span></button>
+        <button class="pr-type-btn flag-btn" data-val="W" onclick="roSelectClassFlag('W')"><div class="flag-swatch"></div><span>W</span></button>
       </div>
     </div>
 

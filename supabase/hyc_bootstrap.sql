@@ -549,7 +549,7 @@ CREATE TABLE IF NOT EXISTS race_starts (
   id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   start_time  timestamptz NOT NULL,
   flag_system text NOT NULL DEFAULT 'P' CHECK (flag_system IN ('P','U','Black','I','Z')),
-  class_flag  text NOT NULL DEFAULT 'E' CHECK (class_flag IN ('E','0','1','2')),
+  class_flag  text NOT NULL DEFAULT 'E' CHECK (class_flag IN ('E','0','1','2','T','W')),
   status      text NOT NULL DEFAULT 'armed' CHECK (status IN ('armed','cancelled','postponed')),
   created_at  timestamptz DEFAULT now()
 );
@@ -673,7 +673,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('035_crew_is_guest_flag.sql'),
   ('036_schema_migrations_tracking.sql'),
   ('037_boat_photos.sql'),
-  ('038_push_subscriptions_role.sql')
+  ('038_push_subscriptions_role.sql'),
+  ('043_race_starts_more_class_flags.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- the GBSC-only/RCYC-only seed migrations, which this bootstrap never runs.

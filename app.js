@@ -8894,6 +8894,7 @@ let _roStartFlagSystem='P', _roStartClassFlag='E';
 
 async function openRoStartPanel(){
   openPanel('roStartPanel');
+  renderFlagSelectorSwatches();
   roSelectFlagSystem('P');
   roSelectClassFlag('E');
   roSetStartOffset(5);
@@ -9247,72 +9248,111 @@ function playPostponeHorn(){
 // International code flag colours (approximate standard maritime signal shades)
 const FLAG_BLUE='#0033a0', FLAG_RED='#c8102e';
 
-function renderPrepFlagGraphic(system){
-  const el=document.getElementById('startSeqPrepFlag');
-  el.style.border='';
+// Pure style descriptors for each flag design — {background, border, html}.
+// Single source of truth for what a flag actually looks like, shared by the
+// big countdown display (renderPrepFlagGraphic) and the small swatches on
+// the RO's start-setup buttons (renderFlagSelectorSwatches), so the two
+// never drift out of sync.
+function prepFlagStyle(system){
   if(system==='P'){
     // Blue Peter — blue field, white rectangle inset (not touching the edges)
-    el.style.background=FLAG_BLUE;
-    el.innerHTML='<div style="position:absolute;inset:20% 30%;background:#fff"></div>';
+    return {background:FLAG_BLUE, html:'<div style="position:absolute;inset:20% 30%;background:#fff"></div>'};
   } else if(system==='U'){
     // Uniform — quartered red/white checkerboard (red top-left & bottom-right)
-    el.style.background='';
-    el.innerHTML=
+    return {background:'', html:
       '<div style="position:absolute;inset:0 50% 50% 0;background:'+FLAG_RED+'"></div>'
       +'<div style="position:absolute;inset:0 0 50% 50%;background:#fff"></div>'
       +'<div style="position:absolute;inset:50% 50% 0 0;background:#fff"></div>'
-      +'<div style="position:absolute;inset:50% 0 0 50%;background:'+FLAG_RED+'"></div>';
+      +'<div style="position:absolute;inset:50% 0 0 50%;background:'+FLAG_RED+'"></div>'};
   } else if(system==='I'){
     // India — yellow field, black disc
-    el.style.background='#ffd100';
-    el.innerHTML='<div style="position:absolute;inset:22%;border-radius:50%;background:#111"></div>';
+    return {background:'#ffd100', html:'<div style="position:absolute;inset:22%;border-radius:50%;background:#111"></div>'};
   } else if(system==='Z'){
     // Zulu — quartered yellow (top) / red (fly) / black (bottom) / blue (hoist)
-    el.style.background='';
-    el.innerHTML=
+    return {background:'', html:
       '<div style="position:absolute;inset:0;clip-path:polygon(0 0,100% 0,50% 50%);background:#ffd100"></div>'
       +'<div style="position:absolute;inset:0;clip-path:polygon(100% 0,100% 100%,50% 50%);background:'+FLAG_RED+'"></div>'
       +'<div style="position:absolute;inset:0;clip-path:polygon(100% 100%,0 100%,50% 50%);background:#111"></div>'
-      +'<div style="position:absolute;inset:0;clip-path:polygon(0 100%,0 0,50% 50%);background:'+FLAG_BLUE+'"></div>';
+      +'<div style="position:absolute;inset:0;clip-path:polygon(0 100%,0 0,50% 50%);background:'+FLAG_BLUE+'"></div>'};
   } else {
-    el.style.background='#0a0a0a';
-    el.style.border='2px solid rgba(255,255,255,.35)';
-    el.innerHTML='';
+    // Black flag — no international code flag, just a black flag
+    return {background:'#0a0a0a', border:'2px solid rgba(255,255,255,.35)', html:''};
   }
 }
+function renderPrepFlagGraphic(system){
+  const el=document.getElementById('startSeqPrepFlag');
+  const s=prepFlagStyle(system);
+  el.style.background=s.background;
+  el.style.border=s.border||'';
+  el.innerHTML=s.html;
+}
 
-function renderClassFlagGraphic(classFlag){
-  const el=document.getElementById('startSeqClassFlag');
-  el.style.border='';
+// Class flags: E (Echo, ICS letter), T (Tango) and W (Whiskey, both ICS
+// letters — verified against the real flag designs, not just picked for
+// looking distinct) sit alongside the three numeral pennants (0/1/2) as
+// six total identifiers for a multi-class start sequence.
+function classFlagStyle(classFlag){
   if(classFlag==='E'){
-    // International Code Flag "Echo" — blue over red, split horizontally
-    el.style.aspectRatio='3/2';
-    el.style.clipPath='';
-    el.style.background='';
-    el.innerHTML=
+    // Echo — blue over red, split horizontally
+    return {aspectRatio:'3/2', clipPath:'', background:'', html:
       '<div style="position:absolute;inset:0 0 50% 0;background:'+FLAG_BLUE+'"></div>'+
-      '<div style="position:absolute;inset:50% 0 0 0;background:'+FLAG_RED+'"></div>';
+      '<div style="position:absolute;inset:50% 0 0 0;background:'+FLAG_RED+'"></div>'};
+  } else if(classFlag==='T'){
+    // Tango — three equal vertical stripes, hoist to fly: red, white, blue
+    return {aspectRatio:'3/2', clipPath:'', background:FLAG_RED, html:
+      '<div style="position:absolute;inset:0 33.33% 0 33.33%;background:#fff"></div>'+
+      '<div style="position:absolute;inset:0 0 0 66.66%;background:'+FLAG_BLUE+'"></div>'};
+  } else if(classFlag==='W'){
+    // Whiskey — concentric squares: blue border, white middle, red centre
+    return {aspectRatio:'3/2', clipPath:'', background:FLAG_BLUE, html:
+      '<div style="position:absolute;inset:20%;background:#fff"></div>'+
+      '<div style="position:absolute;inset:40%;background:'+FLAG_RED+'"></div>'};
   } else {
     // Numeral pennants — standard ICS designs, not free-form colour + digit.
     // 0: yellow with a red vertical band. 1: white with a red hoist disc.
-    // 2: blue with a white hoist disc. (Only 0/1/2 are used as class flags here.)
-    el.style.aspectRatio='9/5'; // real ICS pennant hoist:fly proportion (5:9)
-    el.style.clipPath=NUMERAL_PENNANT_CLIP;
+    // 2: blue with a white hoist disc.
     const disc=(colour)=>'<div style="position:absolute;left:27.8%;top:50%;width:27.9%;aspect-ratio:1;'
       +'transform:translate(-50%,-50%);border-radius:50%;background:'+colour+'"></div>';
+    const base={aspectRatio:'9/5', clipPath:NUMERAL_PENNANT_CLIP}; // real ICS pennant hoist:fly proportion (5:9)
     if(classFlag==='0'){
-      el.style.background='#ffd100';
-      el.innerHTML='<div style="position:absolute;inset:0;'
-        +'clip-path:polygon(32.9% 8.7%,67.1% 17.3%,67.1% 82.7%,32.9% 91.3%);background:'+FLAG_RED+'"></div>';
+      return {...base, background:'#ffd100', html:'<div style="position:absolute;inset:0;'
+        +'clip-path:polygon(32.9% 8.7%,67.1% 17.3%,67.1% 82.7%,32.9% 91.3%);background:'+FLAG_RED+'"></div>'};
     } else if(classFlag==='2'){
-      el.style.background=FLAG_BLUE;
-      el.innerHTML=disc('#fff');
+      return {...base, background:FLAG_BLUE, html:disc('#fff')};
     } else {
-      // '1' (and any other numeral, since only 0/1/2 are wired up as class flags)
-      el.style.background='#fff';
-      el.innerHTML=disc(FLAG_RED);
+      // '1' (and any other numeral, since only 0/1/2 are wired up)
+      return {...base, background:'#fff', html:disc(FLAG_RED)};
     }
   }
+}
+function renderClassFlagGraphic(classFlag){
+  const el=document.getElementById('startSeqClassFlag');
+  const s=classFlagStyle(classFlag);
+  el.style.aspectRatio=s.aspectRatio;
+  el.style.clipPath=s.clipPath;
+  el.style.background=s.background;
+  el.style.border='';
+  el.innerHTML=s.html;
+}
+
+// Small flag swatches on the RO's start-setup buttons (roStartPanel) —
+// shows the actual flag instead of just naming it, so the RO recognizes
+// it rather than having to remember what "Z" or "Tango" looks like.
+function renderFlagSelectorSwatches(){
+  document.querySelectorAll('#roStartFlagSystemBtns .flag-swatch').forEach(el=>{
+    const s=prepFlagStyle(el.closest('button').dataset.val);
+    el.style.background=s.background;
+    el.style.border=s.border||'';
+    el.innerHTML=s.html;
+  });
+  document.querySelectorAll('#roStartClassFlagBtns .flag-swatch').forEach(el=>{
+    const s=classFlagStyle(el.closest('button').dataset.val);
+    el.style.aspectRatio=s.aspectRatio;
+    el.style.clipPath=s.clipPath;
+    el.style.background=s.background;
+    el.style.border=s.border||'';
+    el.innerHTML=s.html;
+  });
 }
 
 function _ensureStartSeqAudio(){

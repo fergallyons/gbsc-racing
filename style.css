@@ -553,6 +553,15 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   background:var(--navy);color:var(--muted);cursor:pointer;transition:all .15s;
   letter-spacing:.03em;text-align:center;}
 .pr-type-btn.active{border-color:var(--teal);background:rgba(0,174,239,.15);color:var(--teal);}
+/* Flag-selector buttons (RO Start Sequence setup) — small rendered swatch
+   above the letter label, so the RO recognizes the actual flag instead of
+   just reading its name. */
+.flag-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 4px 7px;}
+.flag-swatch{position:relative;width:32px;aspect-ratio:3/2;border-radius:3px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.25);box-shadow:0 1px 2px rgba(0,0,0,.35);flex-shrink:0;}
+/* Class flag row has 6 buttons (E/0/1/2/T/W) — wrap to 3-per-row instead of
+   squeezing all 6 into one cramped line. */
+#roStartClassFlagBtns .flag-btn{flex:1 1 28%;}
 .pr-rule-btn{font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;
   padding:5px 10px;border-radius:8px;border:1px solid var(--border);
   background:var(--navy);color:var(--muted);cursor:pointer;transition:all .15s;letter-spacing:.04em;}
