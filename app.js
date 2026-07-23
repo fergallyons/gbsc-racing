@@ -516,6 +516,7 @@ const FEAT_TILE_MAP={
   clubSettings:   ['tile-ro-clubSettings'],
   raceSchedule:   ['tile-ro-raceSchedule'],
   startSequence:  ['tile-ro-startSequence','tile-pub-startSequence','tile-sk-startSequence'],
+  raceTracker:    ['tile-ro-raceTracker','tile-pub-raceTracker','tile-sk-raceTracker'],
   finishRecording:['tile-ro-finishRecording'],
   // Skipper tiles
   crew:           ['tile-sk-crew'],
@@ -544,6 +545,7 @@ const FEAT_DEFAULTS={
   publishResults:true, usageStats:true, feeStatements:true, viewCourse:true,
   registrations:true, protests:true, boatMgmt:true, clubSettings:true,
   raceSchedule:true, startSequence:true, finishRecording:true,
+  raceTracker:false, // experimental — off by default, RO opts the club in first (Features panel)
   courseCard:false,
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
@@ -568,6 +570,7 @@ const FEAT_CATALOG=[
   {key:'paymentReport',  label:'Payment Report',        type:'bool', group:'RO Tiles'},
   {key:'marksManager',   label:'Marks Manager',         type:'bool', group:'RO Tiles'},
   {key:'startSequence',  label:'Start Sequence',        type:'bool', group:'RO Tiles'},
+  {key:'raceTracker',    label:'Race Tracker (experimental — live GPS)', type:'bool', group:'RO Tiles'},
   {key:'finishRecording',label:'Finish Recording',      type:'bool', group:'RO Tiles'},
   {key:'crew',         label:'Crew Roster',   type:'bool', group:'Skipper Tiles'},
   {key:'fees',         label:'Fees',          type:'bool', group:'Skipper Tiles'},
@@ -940,6 +943,8 @@ function updateRegisterButton(){
     btn.style.display='none';
     const crewRow=document.getElementById('lookingForCrewRow');
     if(crewRow) crewRow.style.display='none';
+    const trackRow=document.getElementById('trackingRow');
+    if(trackRow) trackRow.style.display='none';
     renderBoatGrid();
     updateHomeChips();
     if(!isRO&&!isGuest) updateSkipperDash();
@@ -960,6 +965,12 @@ function updateRegisterButton(){
   const crewWantedOn=_cwf.crewWanted!==undefined?_cwf.crewWanted:FEAT_DEFAULTS.crewWanted;
   if(crewRow) crewRow.style.display=(isReg&&crewWantedOn)?'block':'none';
   if(crewBtn) updateCrewWantedChip(crewBtn);
+  // Show/hide tracking opt-in toggle
+  const trackRow=document.getElementById('trackingRow');
+  const _rtf=(clubSettings&&clubSettings.features)||{};
+  const trackerOn=_rtf.raceTracker!==undefined?_rtf.raceTracker:FEAT_DEFAULTS.raceTracker;
+  if(trackRow) trackRow.style.display=(isReg&&trackerOn)?'block':'none';
+  updateTrackingButton();
   renderBoatGrid();
   updateHomeChips();
   if(!isRO&&!isGuest) updateSkipperDash();
@@ -993,6 +1004,203 @@ async function toggleLookingForCrew(){
   }
   if(btn) btn.disabled=false;
   updateCrewWantedChip(btn);
+}
+
+// ── Race Tracker: opt-in position sharing (skipper side) ────────────────
+// Per-race, per-boat consent — see supabase/migrations/039_race_positions.sql.
+// Sharing only ever runs while trackingEnabled is true for the boat's
+// registration on the currently selected race; toggling off both flips the
+// DB flag and immediately stops the device's GPS watch.
+let trackingEnabled=false;
+let _trackWatchId=null;
+let _trackLastPost=0; // ms timestamp — throttles posts to at most 1 per 15s
+
+async function sbToggleTracking(boatId,race,value){
+  const key=raceKey(race);
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/registrations?boat_id=eq.'+boatId+'&race_key=eq.'+encodeURIComponent(key),{
+      method:'PATCH',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({tracking_enabled:value})
+    });
+    return r.ok;
+  }catch(e){ return false; }
+}
+async function toggleTracking(){
+  if(!currentBoat||!selectedRace) return;
+  const newVal=!trackingEnabled;
+  const btn=document.getElementById('trackingBtn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳…'; }
+  const ok=await sbToggleTracking(currentBoat.id,selectedRace,newVal);
+  if(ok){
+    trackingEnabled=newVal;
+    if(newVal) startPositionSharing(); else stopPositionSharing();
+    toast(newVal?'📍 Sharing your position — visible on Race Tracker':'📍 Position sharing stopped');
+  } else {
+    toast('⚠ Could not update — try again');
+  }
+  if(btn) btn.disabled=false;
+  updateTrackingButton();
+}
+function updateTrackingButton(){
+  const btn=document.getElementById('trackingBtn');
+  if(!btn) return;
+  if(trackingEnabled){
+    btn.textContent='📍 Sharing position — tap to stop';
+    btn.style.background='rgba(39,174,96,.15)';
+    btn.style.borderColor='var(--success)';
+    btn.style.color='var(--success)';
+  } else {
+    btn.textContent='📍 Share my position for this race?';
+    btn.style.background='transparent';
+    btn.style.borderColor='var(--border)';
+    btn.style.color='var(--muted)';
+  }
+}
+function startPositionSharing(){
+  if(!navigator.geolocation||_trackWatchId!=null) return;
+  _trackWatchId=navigator.geolocation.watchPosition(onTrackPosition,
+    (err)=>console.warn('Race Tracker geolocation error',err.message),
+    {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+}
+function stopPositionSharing(){
+  if(_trackWatchId!=null){ navigator.geolocation.clearWatch(_trackWatchId); _trackWatchId=null; }
+}
+function onTrackPosition(pos){
+  const now=Date.now();
+  if(now-_trackLastPost<15000) return; // throttle — at most one post per 15s
+  if(!currentBoat||!selectedRace||!trackingEnabled) return;
+  _trackLastPost=now;
+  const c=pos.coords;
+  sbFetch('/rest/v1/race_positions',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({
+      boat_id:currentBoat.id,
+      race_key:raceKey(selectedRace),
+      lat:c.latitude, lng:c.longitude,
+      heading:(c.heading!=null&&!isNaN(c.heading))?c.heading:null,
+      speed_kn:(c.speed!=null&&!isNaN(c.speed))?+(c.speed*1.94384).toFixed(2):null // m/s -> knots
+    })
+  });
+}
+
+// ── Race Tracker: live map (all roles) ───────────────────────────────────
+// Chart tiles from OpenStreetMap via Leaflet, loaded lazily — most sessions
+// never open this panel, so it isn't worth the weight on every page load.
+let _trackerMap=null;
+let _trackerMarkers={};
+let _trackerPollTimer=null;
+let _trackerBoatColour={};
+let _leafletLoading=null;
+const TRACKER_COLOURS=['#00aeef','#f4a261','#27ae60','#e8c14a','#c98bf0','#e6707e','#5bc8d6','#f28c8c'];
+
+function ensureLeaflet(){
+  if(window.L) return Promise.resolve();
+  if(_leafletLoading) return _leafletLoading;
+  _leafletLoading=new Promise((resolve,reject)=>{
+    const link=document.createElement('link');
+    link.rel='stylesheet';
+    link.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(link);
+    const script=document.createElement('script');
+    script.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.onload=()=>resolve();
+    script.onerror=()=>reject(new Error('map library failed to load'));
+    document.head.appendChild(script);
+  });
+  return _leafletLoading;
+}
+function colourForBoat(boatId){
+  if(!_trackerBoatColour[boatId]) _trackerBoatColour[boatId]=TRACKER_COLOURS[Object.keys(_trackerBoatColour).length%TRACKER_COLOURS.length];
+  return _trackerBoatColour[boatId];
+}
+async function loadRaceTracker(){
+  const mapEl=document.getElementById('trackerMap');
+  try{
+    await ensureLeaflet();
+  }catch(e){
+    if(mapEl) mapEl.innerHTML='<div style="padding:40px 20px;text-align:center;color:var(--muted)">⚠ Could not load the map — check your connection</div>';
+    return;
+  }
+  if(!_trackerMap){
+    const centerLat=(_C.startLat!=null)?_C.startLat:53.27;
+    const centerLng=(_C.startLng!=null)?_C.startLng:-9.05;
+    _trackerMap=L.map('trackerMap',{attributionControl:false}).setView([centerLat,centerLng],13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18}).addTo(_trackerMap);
+    L.control.attribution({prefix:false}).addAttribution('© OpenStreetMap contributors').addTo(_trackerMap);
+  } else {
+    setTimeout(()=>_trackerMap.invalidateSize(),50); // panel was display:none, size was unknown
+  }
+  await refreshTrackerPositions();
+  if(_trackerPollTimer) clearInterval(_trackerPollTimer);
+  _trackerPollTimer=setInterval(refreshTrackerPositions, 15000);
+}
+function stopTrackerPolling(){
+  if(_trackerPollTimer){ clearInterval(_trackerPollTimer); _trackerPollTimer=null; }
+}
+async function refreshTrackerPositions(){
+  const race=selectedRace||nextRace;
+  const emptyEl=document.getElementById('trackerEmptyState');
+  const listEl=document.getElementById('trackerFleetList');
+  if(!race){ if(emptyEl) emptyEl.style.display=''; return; }
+  const key=raceKey(race);
+  const since=new Date(Date.now()-10*60*1000).toISOString();
+  const rows=await sbFetch('/rest/v1/race_positions?race_key=eq.'+encodeURIComponent(key)
+    +'&recorded_at=gte.'+encodeURIComponent(since)+'&order=recorded_at.desc&select=boat_id,lat,lng,heading,speed_kn,recorded_at');
+
+  if(!rows||!rows.length){
+    if(emptyEl) emptyEl.style.display='';
+    if(listEl) listEl.innerHTML='';
+    if(_trackerMap) Object.values(_trackerMarkers).forEach(m=>_trackerMap.removeLayer(m));
+    _trackerMarkers={};
+    return;
+  }
+  if(emptyEl) emptyEl.style.display='none';
+
+  const latest={};
+  rows.forEach(r=>{ if(!latest[r.boat_id]) latest[r.boat_id]=r; }); // rows are newest-first
+  const boatIds=Object.keys(latest);
+  const nameFor=(id)=>{ const b=boats.find(x=>x.id===id); return b?b.name:id; };
+
+  boatIds.forEach(id=>{
+    const p=latest[id];
+    const colour=colourForBoat(id);
+    if(_trackerMarkers[id]){
+      _trackerMarkers[id].setLatLng([p.lat,p.lng]);
+    } else {
+      const icon=L.divIcon({
+        className:'',
+        html:'<div style="width:14px;height:14px;border-radius:50%;background:'+colour+';border:2px solid #0a1628;box-shadow:0 0 0 2px '+colour+'55"></div>',
+        iconSize:[14,14], iconAnchor:[7,7]
+      });
+      _trackerMarkers[id]=L.marker([p.lat,p.lng],{icon}).addTo(_trackerMap);
+    }
+    _trackerMarkers[id].bindPopup('<b>'+nameFor(id)+'</b><br>'
+      +(p.speed_kn!=null?p.speed_kn.toFixed(1)+' kn':'—')
+      +(p.heading!=null?' · '+Math.round(p.heading)+'°':''));
+  });
+  Object.keys(_trackerMarkers).forEach(id=>{
+    if(!boatIds.includes(id)){ _trackerMap.removeLayer(_trackerMarkers[id]); delete _trackerMarkers[id]; }
+  });
+
+  if(listEl){
+    listEl.innerHTML=boatIds.map(id=>{
+      const p=latest[id], colour=colourForBoat(id);
+      const ageSec=Math.max(0,Math.round((Date.now()-new Date(p.recorded_at).getTime())/1000));
+      return '<div class="tracker-fleet-row" data-boatid="'+id+'" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer">'
+        +'<span style="width:10px;height:10px;border-radius:50%;background:'+colour+';flex-shrink:0"></span>'
+        +'<span style="flex:1;font-weight:600">'+nameFor(id)+'</span>'
+        +'<span style="font-size:.78rem;color:var(--muted)">'+(p.speed_kn!=null?p.speed_kn.toFixed(1)+'kn · ':'')+ageSec+'s ago</span>'
+        +'</div>';
+    }).join('');
+    listEl.querySelectorAll('.tracker-fleet-row').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const m=_trackerMarkers[el.dataset.boatid];
+        if(m) m.openPopup();
+      });
+    });
+  }
 }
 function loginAs(id){
   const b=boats.find(x=>x.id===id); if(!b)return;
@@ -1059,12 +1267,15 @@ async function enterApp(b,ro){
   buildRaceDropdown();
   // Refresh registration state for this boat
   updateRegisterButton();
-  // Load looking_for_crew state for this boat
+  // Load looking_for_crew + tracking state for this boat
   if(nextRace){
     sbLoadRegistrations(nextRace).then(regs=>{
       const myReg=(regs||[]).find(r=>r.boat_id===b.id);
       lookingForCrew=myReg?!!myReg.looking_for_crew:false;
       updateCrewWantedChip();
+      trackingEnabled=myReg?!!myReg.tracking_enabled:false;
+      updateTrackingButton();
+      if(trackingEnabled) startPositionSharing(); // resume sharing across reloads/re-logins
     }).catch(()=>{});
   }
   loadAndDrawCourse();
@@ -1087,6 +1298,7 @@ function switchBoat(){
   document.body.classList.remove('role-skipper','role-ro');
   // Stop countdown timer so it doesn't keep firing after logout
   if(_countdownInterval){clearInterval(_countdownInterval);_countdownInterval=null;}
+  stopPositionSharing(); // don't keep broadcasting this boat's GPS after logout — resumes next login if still opted in
   halResultsCache={};halBoatCache={};
   // Return to public view — show login button, hide boat tag
   document.getElementById('boatTag').style.display='none';

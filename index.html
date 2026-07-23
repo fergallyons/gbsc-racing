@@ -225,6 +225,14 @@
       🔍 Looking for crew?
     </button>
   </div>
+  <div id="trackingRow" style="display:none;margin-bottom:14px;text-align:center">
+    <button id="trackingBtn" onclick="toggleTracking()"
+      style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
+        padding:6px 14px;border-radius:20px;border:1px solid var(--border);
+        background:transparent;color:var(--muted);cursor:pointer;transition:all .2s">
+      📍 Share my position for this race?
+    </button>
+  </div>
   <!-- ── Race Day ── (expanded by default — everything used live during a race) -->
   <div class="ro-sec-head" onclick="toggleDashSection('sk','raceday')">
     <span class="ro-sec-title">🏁 Race day</span>
@@ -235,6 +243,11 @@
       <div class="dash-card-icon">🗺</div>
       <div class="dash-card-label">Course</div>
       <div class="dash-card-sub">Today's course</div>
+    </div>
+    <div id="tile-sk-raceTracker" class="dash-card" onclick="openPanel('raceTrackerPanel');loadRaceTracker()">
+      <div class="dash-card-icon">📍</div>
+      <div class="dash-card-label">Race Tracker</div>
+      <div class="dash-card-sub" id="skTrackerSub">Live fleet positions</div>
     </div>
     <div id="tile-sk-startSequence" class="dash-card" onclick="openStartSeq()">
       <div class="dash-card-icon">🚦</div>
@@ -525,6 +538,23 @@
   </div>
 </div><!-- /resultsPanel -->
 
+<!-- ═══ PANEL: RACE TRACKER ═══ (experimental — opt-in live GPS, see settings.features.raceTracker) -->
+<div class="panel-overlay" id="raceTrackerPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="stopTrackerPolling();closePanel('raceTrackerPanel')">‹</button>
+    <span class="panel-title">📍 Race Tracker</span>
+  </div>
+  <div class="panel-body" style="padding:0">
+    <div id="trackerMap" style="width:100%;height:340px;background:var(--navy-input)"></div>
+    <div id="trackerEmptyState" style="display:none;padding:40px 20px;text-align:center">
+      <div style="font-size:2rem;margin-bottom:8px">📍</div>
+      <div style="font-weight:700;font-size:1.05rem;margin-bottom:8px">No one's sharing yet</div>
+      <div style="font-size:.85rem;color:var(--muted);line-height:1.5">Skippers can turn on position sharing from their dashboard before the race — it only shows boats that have opted in.</div>
+    </div>
+    <div id="trackerFleetList" style="padding:6px 16px 16px;"></div>
+  </div>
+</div><!-- /raceTrackerPanel -->
+
 <!-- ═══ PANEL: CALENDAR ═══ -->
 <div class="panel-overlay" id="calendarPanel" style="display:none">
   <div class="panel-header">
@@ -638,6 +668,11 @@
       <div class="dash-card-icon">🗺</div>
       <div class="dash-card-label">Course</div>
       <div class="dash-card-sub">Today's course</div>
+    </div>
+    <div id="tile-pub-raceTracker" class="dash-card" onclick="openPanel('raceTrackerPanel');loadRaceTracker()">
+      <div class="dash-card-icon">📍</div>
+      <div class="dash-card-label">Race Tracker</div>
+      <div class="dash-card-sub">Live fleet positions</div>
     </div>
     <div id="tile-pub-startSequence" class="dash-card" onclick="openStartSeq()">
       <div class="dash-card-icon">🚦</div>
@@ -797,6 +832,11 @@
       <div class="dash-card-icon">📐</div>
       <div class="dash-card-label">View Course</div>
       <div class="dash-card-sub">Published diagram</div>
+    </div>
+    <div id="tile-ro-raceTracker" class="dash-card ro-card" onclick="openPanel('raceTrackerPanel');loadRaceTracker()">
+      <div class="dash-card-icon">📍</div>
+      <div class="dash-card-label">Race Tracker</div>
+      <div class="dash-card-sub">Live fleet positions</div>
     </div>
     <div id="tile-ro-registrations" class="dash-card ro-card" onclick="openPanel('roRegsPanel')">
       <div class="dash-card-icon">⛵</div>

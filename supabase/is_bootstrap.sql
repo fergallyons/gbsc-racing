@@ -635,6 +635,34 @@ CREATE POLICY "boat_photos_update" ON storage.objects FOR UPDATE
   USING (bucket_id = 'boat-photos');
 ALTER TABLE boats ADD COLUMN IF NOT EXISTS photo_url text NOT NULL DEFAULT '';
 
+-- ── race_positions: opt-in live tracking + 72h replay ────────
+CREATE TABLE IF NOT EXISTS race_positions (
+  id          bigint            GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  boat_id     text              NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  race_key    text              NOT NULL,
+  lat         double precision  NOT NULL,
+  lng         double precision  NOT NULL,
+  heading     double precision,
+  speed_kn    double precision,
+  recorded_at timestamptz       NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS race_positions_race_key_idx ON race_positions(race_key, recorded_at);
+CREATE INDEX IF NOT EXISTS race_positions_boat_idx ON race_positions(boat_id, race_key);
+ALTER TABLE race_positions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "race_positions_select" ON race_positions;
+DROP POLICY IF EXISTS "race_positions_insert" ON race_positions;
+CREATE POLICY "race_positions_select" ON race_positions FOR SELECT USING (true);
+CREATE POLICY "race_positions_insert" ON race_positions FOR INSERT WITH CHECK (
+  boat_id IS NOT NULL AND race_key IS NOT NULL
+  AND lat BETWEEN -90 AND 90 AND lng BETWEEN -180 AND 180
+);
+GRANT SELECT, INSERT ON race_positions TO anon;
+GRANT USAGE, SELECT ON SEQUENCE race_positions_id_seq TO anon;
+ALTER TABLE registrations
+  ADD COLUMN IF NOT EXISTS tracking_enabled boolean NOT NULL DEFAULT false;
+GRANT UPDATE (tracking_enabled) ON registrations TO anon;
+
+
 
 -- ============================================================
 -- SCHEMA MIGRATIONS TRACKING
@@ -686,7 +714,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('035_crew_is_guest_flag.sql'),
   ('036_schema_migrations_tracking.sql'),
   ('037_boat_photos.sql'),
-  ('038_push_subscriptions_role.sql')
+  ('038_push_subscriptions_role.sql'),
+  ('039_race_positions.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.
