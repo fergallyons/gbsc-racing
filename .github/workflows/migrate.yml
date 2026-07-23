@@ -1,0 +1,41 @@
+name: Apply DB migrations
+
+# Manual only — deliberately NOT triggered on push/PR. Applying schema
+# changes to a live club's database should always be a conscious action,
+# not something that happens as a side effect of merging code.
+on:
+  workflow_dispatch:
+    inputs:
+      club:
+        description: 'Club slug to migrate (gbsc, rcyc, hyc, is) — leave blank for ALL configured clubs'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run — list pending migrations without applying them'
+        type: boolean
+        default: true
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install pg
+
+      - name: Run migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_DB_URL_GBSC: ${{ secrets.SUPABASE_DB_URL_GBSC }}
+          SUPABASE_DB_URL_RCYC: ${{ secrets.SUPABASE_DB_URL_RCYC }}
+          SUPABASE_DB_URL_HYC: ${{ secrets.SUPABASE_DB_URL_HYC }}
+          SUPABASE_DB_URL_IS: ${{ secrets.SUPABASE_DB_URL_IS }}
+        run: |
+          ARGS=""
+          if [ -n "${{ github.event.inputs.club }}" ]; then ARGS="$ARGS --club=${{ github.event.inputs.club }}"; fi
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          node scripts/run-migrations.mjs $ARGS
