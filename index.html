@@ -831,7 +831,7 @@
     <span class="ro-sec-chev" id="roSecChev-payments">▸</span>
   </div>
   <div class="dash-grid" id="roSecBody-payments" style="display:none">
-    <div id="tile-ro-paymentReport" class="dash-card ro-card" onclick="openPanel('roPaymentReportPanel')">
+    <div id="tile-ro-paymentReport" class="dash-card ro-card admin-gated" onclick="requireAdmin(()=>openPanel('roPaymentReportPanel'))">
       <div class="dash-card-icon">💰</div>
       <div class="dash-card-label">Payment Report</div>
       <div class="dash-card-sub">Generate PDF</div>
@@ -841,7 +841,7 @@
       <div class="dash-card-label">Outstanding</div>
       <div class="dash-card-sub" id="roOutstandingSub">Who owes money</div>
     </div>
-    <div id="tile-ro-feeStatements" class="dash-card ro-card" onclick="openFeeStatement()">
+    <div id="tile-ro-feeStatements" class="dash-card ro-card admin-gated" onclick="requireAdmin(openFeeStatement)">
       <div class="dash-card-icon">📋</div>
       <div class="dash-card-label">Fee Statements</div>
       <div class="dash-card-sub">Per-boat payment history</div>
@@ -854,12 +854,12 @@
     <span class="ro-sec-chev" id="roSecChev-admin">▸</span>
   </div>
   <div class="dash-grid" id="roSecBody-admin" style="display:none">
-    <div id="tile-ro-boatMgmt" class="dash-card ro-card" onclick="openPanel('roBoatsPanel')">
+    <div id="tile-ro-boatMgmt" class="dash-card ro-card admin-gated" onclick="requireAdmin(()=>openPanel('roBoatsPanel'))">
       <div class="dash-card-icon">🔑</div>
       <div class="dash-card-label">Boat Management</div>
       <div class="dash-card-sub">Manage boats &amp; PINs</div>
     </div>
-    <div id="tile-ro-marksManager" class="dash-card ro-card" onclick="openPanel('roMarksPanel')">
+    <div id="tile-ro-marksManager" class="dash-card ro-card admin-gated" onclick="requireAdmin(()=>openPanel('roMarksPanel'))">
       <div class="dash-card-icon">📍</div>
       <div class="dash-card-label">Marks Manager</div>
       <div class="dash-card-sub">Toggle &amp; add marks</div>
@@ -874,7 +874,7 @@
       <div class="dash-card-label">Publish Results</div>
       <div class="dash-card-sub" id="roResultsStatus">—</div>
     </div>
-    <div id="tile-ro-raceSchedule" class="dash-card ro-card" onclick="openRaceSchedulePanel()">
+    <div id="tile-ro-raceSchedule" class="dash-card ro-card admin-gated" onclick="requireAdmin(openRaceSchedulePanel)">
       <div class="dash-card-icon">📅</div>
       <div class="dash-card-label">Race Schedule</div>
       <div class="dash-card-sub" id="roRaceScheduleSub">Manage races</div>
@@ -892,12 +892,12 @@
     <span class="ro-sec-chev" id="roSecChev-advanced">▸</span>
   </div>
   <div class="dash-grid" id="roSecBody-advanced" style="display:none">
-    <div id="tile-ro-clubSettings" class="dash-card ro-card" onclick="openROClubSettings()">
+    <div id="tile-ro-clubSettings" class="dash-card ro-card admin-gated" onclick="requireAdmin(openROClubSettings)">
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Club Settings</div>
       <div class="dash-card-sub">Payment links</div>
     </div>
-    <div id="tile-ro-usageStats" class="dash-card ro-card" onclick="loadUsageStats()">
+    <div id="tile-ro-usageStats" class="dash-card ro-card admin-gated" onclick="requireAdmin(loadUsageStats)">
       <div class="dash-card-icon">📊</div>
       <div class="dash-card-label">Usage Stats</div>
       <div class="dash-card-sub">Sessions &amp; logins</div>

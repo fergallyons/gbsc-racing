@@ -655,11 +655,13 @@ ALTER TABLE boats ALTER COLUMN pin_hash SET NOT NULL;
 ALTER TABLE boats ALTER COLUMN pin_hash SET DEFAULT crypt('0000', gen_salt('bf'));
 REVOKE SELECT (pin) ON boats FROM anon;
 REVOKE UPDATE (pin, revolut_user) ON boats FROM anon;
+REVOKE SELECT (pin_hash, pin_is_default) ON boats FROM anon;
 
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS ro_pin_hash text;
 UPDATE settings SET ro_pin_hash = crypt(COALESCE(ro_pin, '0000'), gen_salt('bf')) WHERE ro_pin_hash IS NULL;
 REVOKE SELECT (ro_pin) ON settings FROM anon;
 REVOKE UPDATE (ro_pin, stripe_link_member, stripe_link_student, stripe_link_visitor, ro_revolut_user) ON settings FROM anon;
+REVOKE SELECT (ro_pin_hash) ON settings FROM anon;
 
 CREATE OR REPLACE FUNCTION verify_boat_pin(p_boat_id text, p_pin text)
 RETURNS TABLE(ok boolean, is_default boolean)
@@ -753,6 +755,35 @@ REVOKE ALL ON FUNCTION set_ro_payment_settings(text,text,text,text,text) FROM PU
 GRANT EXECUTE ON FUNCTION set_ro_payment_settings(text,text,text,text,text) TO anon;
 
 -- ============================================================
+-- ADMIN PIN (migration 042) -- see migrations/042_admin_pin.sql for full
+-- rationale. Second, more tightly-held PIN tier above the RO PIN.
+-- ============================================================
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS admin_pin_hash text;
+UPDATE settings SET admin_pin_hash = crypt('''0000''', gen_salt('''bf''')) WHERE admin_pin_hash IS NULL;
+REVOKE SELECT (admin_pin_hash) ON settings FROM anon;
+
+CREATE OR REPLACE FUNCTION verify_admin_pin(p_pin text)
+RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT (admin_pin_hash = crypt(p_pin, admin_pin_hash)) FROM settings WHERE id = '''club''';
+$$;
+REVOKE ALL ON FUNCTION verify_admin_pin(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION verify_admin_pin(text) TO anon;
+
+CREATE OR REPLACE FUNCTION change_admin_pin(p_current_pin text, p_new_pin text)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_ok boolean;
+BEGIN
+  SELECT (admin_pin_hash = crypt(p_current_pin, admin_pin_hash)) INTO v_ok FROM settings WHERE id = '''club''';
+  IF NOT COALESCE(v_ok, false) THEN RETURN false; END IF;
+  UPDATE settings SET admin_pin_hash = crypt(p_new_pin, gen_salt('''bf''')) WHERE id = '''club''';
+  RETURN true;
+END; $$;
+REVOKE ALL ON FUNCTION change_admin_pin(text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION change_admin_pin(text,text) TO anon;
+
+-- ============================================================
 -- SCHEMA MIGRATIONS TRACKING
 -- ============================================================
 -- Records which migration files this DB has applied, so "is this club
@@ -803,7 +834,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('036_schema_migrations_tracking.sql'),
   ('037_boat_photos.sql'),
   ('038_push_subscriptions_role.sql'),
-  ('040_secure_pins.sql')
+  ('040_secure_pins.sql'),
+  ('042_admin_pin.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.

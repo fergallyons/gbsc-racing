@@ -648,6 +648,11 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
   padding:16px;display:flex;flex-direction:column;align-items:center;
   cursor:pointer;transition:border-color .15s,background .15s;text-align:center;}
 .dash-card:hover{border-color:var(--teal);background:rgba(0,174,239,.07);}
+/* Season-setup/financial tiles gated behind the Admin PIN (migration 042) —
+   a small lock badge so tapping one and getting a second PIN prompt isn't
+   a surprise. */
+.dash-card.admin-gated{position:relative;}
+.dash-card.admin-gated::after{content:'🔒';position:absolute;top:8px;right:10px;font-size:.7rem;opacity:.55;}
 .dash-card-icon{font-size:1.2rem;margin-bottom:5px;line-height:1;}
 .dash-card-label{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;
   color:var(--white);margin-bottom:3px;letter-spacing:.02em;}

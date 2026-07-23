@@ -30,8 +30,12 @@ ALTER TABLE boats ALTER COLUMN pin_hash SET DEFAULT crypt('0000', gen_salt('bf')
 
 REVOKE SELECT (pin) ON boats FROM anon;
 REVOKE UPDATE (pin, revolut_user) ON boats FROM anon;
--- pin_hash / pin_is_default are new columns — anon was never granted them,
--- so there's nothing to revoke; just don't grant them below.
+-- pin_hash / pin_is_default are NEW columns, but boats already has a
+-- table-level "GRANT SELECT ON boats TO anon" from the original schema —
+-- in Postgres that covers every column, including ones added later, unless
+-- explicitly revoked. A bcrypt hash of a 4-digit PIN is brute-forceable in
+-- well under an hour if it leaks, so this isn't optional hardening.
+REVOKE SELECT (pin_hash, pin_is_default) ON boats FROM anon;
 
 -- ── settings (RO pin + Stripe / payment fields) ──────────────────────────
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS ro_pin_hash text;
@@ -39,6 +43,9 @@ UPDATE settings SET ro_pin_hash = crypt(COALESCE(ro_pin, '0000'), gen_salt('bf')
 
 REVOKE SELECT (ro_pin) ON settings FROM anon;
 REVOKE UPDATE (ro_pin, stripe_link_member, stripe_link_student, stripe_link_visitor, ro_revolut_user) ON settings FROM anon;
+-- Same reasoning as pin_hash above — settings also has a pre-existing
+-- table-level SELECT grant that would otherwise cover this new column too.
+REVOKE SELECT (ro_pin_hash) ON settings FROM anon;
 
 -- ── boat PIN: verify / change (self-service) ──────────────────────────────
 CREATE OR REPLACE FUNCTION verify_boat_pin(p_boat_id text, p_pin text)

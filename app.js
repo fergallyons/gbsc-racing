@@ -1102,7 +1102,7 @@ function switchBoat(){
   sbEndSession(currentSessionId).catch(()=>{});
   currentSessionId=null;
   currentBoat=null;roster=[];isRO=false;isGuest=false;boatConfig={};
-  _currentBoatPin=null;_currentRoPin=null; // clear session-held pins used to authorize pin/revolut/Stripe changes
+  _currentBoatPin=null;_currentRoPin=null;_currentAdminPin=null; // clear session-held pins used to authorize pin/revolut/Stripe/admin-tile changes
   document.body.classList.remove('role-skipper','role-ro');
   // Stop countdown timer so it doesn't keep firing after logout
   if(_countdownInterval){clearInterval(_countdownInterval);_countdownInterval=null;}
@@ -1578,18 +1578,32 @@ function roSubmitAddBoat(){
 // PIN SYSTEM — see getBoatPin/setBoatPin/getRoPin/setRoPin below
 // ═══════════════════════════════════════════════════════════════
 
-let pinEntry='', pinContext=null; // context: 'ro' | {boatId}
+let pinEntry='', pinContext=null; // context: 'ro' | 'admin' | {boatId}
+let _pendingAdminAction=null; // set by requireAdmin(), run once the admin PIN checks out
+
+// Gates season-setup/financial RO tiles (Club Settings, Race Schedule, Marks
+// Manager, Boat Management, Usage Stats, Fee Statements, Payment Report)
+// behind the Admin PIN instead of just the RO PIN — see migration 042. Once
+// verified this session, later admin-gated taps skip straight to `action`.
+function requireAdmin(action){
+  if(_currentAdminPin){ action(); return; }
+  _pendingAdminAction=action;
+  openPinOverlay('admin');
+}
 function openPinOverlay(ctx){
   pinEntry=''; pinContext=ctx;
   updatePinDots();
   document.getElementById('pinError').textContent='';
-  const isRO=ctx==='ro';
   const box=document.getElementById('pinBox');
-  box.style.setProperty('--pin-accent', isRO?'var(--ro)':'var(--teal)');
-  document.getElementById('pinTitle').style.color=isRO?'var(--ro)':'var(--teal)';
-  if(isRO){
+  const accent=ctx==='ro'?'var(--ro)':ctx==='admin'?'#a78bfa':'var(--teal)';
+  box.style.setProperty('--pin-accent', accent);
+  document.getElementById('pinTitle').style.color=accent;
+  if(ctx==='ro'){
     document.getElementById('pinTitle').textContent='🎌 Race Officer';
     document.getElementById('pinSubtitle').textContent='Enter the Race Officer PIN';
+  } else if(ctx==='admin'){
+    document.getElementById('pinTitle').textContent='🛠 RaceOps Admin';
+    document.getElementById('pinSubtitle').textContent='Enter the Admin PIN';
   } else {
     const b=boats.find(x=>x.id===ctx);
     document.getElementById('pinTitle').textContent=(b?b.icon+' '+b.name:'Boat');
@@ -1597,7 +1611,11 @@ function openPinOverlay(ctx){
   }
   document.getElementById('pinOverlay').classList.add('open');
 }
-function closePinOverlay(){ document.getElementById('pinOverlay').classList.remove('open'); pinContext=null; }
+function closePinOverlay(){
+  document.getElementById('pinOverlay').classList.remove('open');
+  pinContext=null;
+  _pendingAdminAction=null; // cancelling an admin-gated tile shouldn't fire it later
+}
 function pinKey(k){ if(pinEntry.length>=4)return; pinEntry+=k; updatePinDots(); if(pinEntry.length===4)checkPin(); }
 function pinBack(){ pinEntry=pinEntry.slice(0,-1); updatePinDots(); }
 function pinClear(){ pinEntry=''; updatePinDots(); }
@@ -1619,6 +1637,27 @@ async function checkPin(){
       closePinOverlay();
       await _settingsReady.catch(()=>{});
       enterApp({id:'ro',name:'Race Officer',icon:'🎌'},true);
+    } else {
+      errEl.textContent='Incorrect PIN';
+      pinEntry=''; updatePinDots();
+      setTimeout(()=>{ errEl.textContent=''; },2000);
+    }
+    return;
+  }
+
+  // Admin PIN — gates season-setup/financial tiles above the RO PIN (see
+  // requireAdmin()). Not a login — RO is already inside the app when this
+  // fires, so on success it just runs whatever tile action was waiting.
+  if(ctx==='admin'){
+    errEl.textContent='Checking…';
+    const res=await sbRpc('verify_admin_pin',{p_pin:pinEntry});
+    const ok = (res===true) || ((res===null||res._err) && pinEntry===(localStorage.getItem('_adminPinCache')||''));
+    if(ok){
+      _currentAdminPin=pinEntry;
+      try{localStorage.setItem('_adminPinCache',pinEntry);}catch(e){}
+      const action=_pendingAdminAction; _pendingAdminAction=null;
+      closePinOverlay();
+      if(action) action();
     } else {
       errEl.textContent='Incorrect PIN';
       pinEntry=''; updatePinDots();
@@ -1685,6 +1724,15 @@ function openChangePinFlow(){
   document.getElementById('cpSubtitle').textContent='Enter new 4-digit PIN';
   document.getElementById('changePinOverlay').classList.add('open');
 }
+// Reachable from Club Settings (already Admin-gated to get there)
+function openChangePinForAdmin(){
+  cpEntry=''; cpTargetId='admin';
+  updateCpDots();
+  document.getElementById('cpError').textContent='';
+  document.getElementById('cpTitle').textContent='🛠 Change Admin PIN';
+  document.getElementById('cpSubtitle').textContent='Enter new 4-digit PIN';
+  document.getElementById('changePinOverlay').classList.add('open');
+}
 // RO can change any boat's PIN from settings panel
 function openChangePinForBoat(id){
   cpEntry=''; cpTargetId=id;
@@ -1714,6 +1762,16 @@ async function confirmChangePin(){
     try{localStorage.setItem('_roPinCache',cpEntry);}catch(e){}
     closeChangePinOverlay();
     toast('✅ RO PIN updated');
+    return;
+  }
+  if(cpTargetId==='admin'){
+    if(!_currentAdminPin){ fail(); return; }
+    const ok=await sbRpc('change_admin_pin',{p_current_pin:_currentAdminPin,p_new_pin:cpEntry});
+    if(ok!==true){ fail(); return; }
+    _currentAdminPin=cpEntry;
+    try{localStorage.setItem('_adminPinCache',cpEntry);}catch(e){}
+    closeChangePinOverlay();
+    toast('✅ Admin PIN updated');
     return;
   }
   const b=boats.find(x=>x.id===cpTargetId);
@@ -2508,15 +2566,16 @@ function updateSectionVisibility(prefix,name){
   if(!anyVisible) body.style.display='none';
 }
 
-// PINs are hashed server-side (migration 040) — never fetched or compared
-// client-side. getBoatPin() is only the OFFLINE fallback: the last pin that
-// successfully verified via sbRpc('verify_boat_pin', ...) on this device.
-// Boat/RO pin verification and changes go through sbRpc() calls directly in
-// checkPin() / confirmChangePin(); _currentBoatPin / _currentRoPin hold the
-// just-verified pin for the rest of the session, since the sensitive-write
-// RPCs (change pin, set revolut_user, set Stripe links) re-check it server
-// side on every call rather than trusting a login that happened earlier.
-let _currentBoatPin=null, _currentRoPin=null;
+// PINs are hashed server-side (migration 040/042) — never fetched or
+// compared client-side. getBoatPin() is only the OFFLINE fallback: the last
+// pin that successfully verified via sbRpc('verify_boat_pin', ...) on this
+// device. Boat/RO/Admin pin verification and changes go through sbRpc()
+// calls directly in checkPin() / confirmChangePin() / requireAdmin();
+// _currentBoatPin / _currentRoPin / _currentAdminPin hold the just-verified
+// pin for the rest of the session, since the sensitive-write RPCs (change
+// pin, set revolut_user, set Stripe links) re-check it server side on every
+// call rather than trusting a login that happened earlier.
+let _currentBoatPin=null, _currentRoPin=null, _currentAdminPin=null;
 function getBoatPin(id){
   try{ const c=localStorage.getItem('cfg_'+id); return c?JSON.parse(c).pin||'0000':'0000'; }catch(e){ return'0000'; }
 }
@@ -7398,6 +7457,19 @@ async function buildPinMgmtList(){
       '<button onclick="openChangePinForBoat(\'ro\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(254,224,30,.4);background:transparent;color:var(--ro);cursor:pointer">Change PIN</button>'+
     '</div>';
   list.appendChild(roRow);
+
+  // Admin PIN (migration 042) — this panel is itself Admin-gated to reach,
+  // so being here already means _currentAdminPin is set.
+  const adminRow=document.createElement('div');
+  adminRow.style.cssText='display:flex;align-items:center;justify-content:space-between;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.25);border-radius:10px;padding:9px 12px;margin-top:4px;';
+  adminRow.innerHTML=
+    '<div style="display:flex;align-items:center;gap:8px">'+
+      '<span style="font-family:Barlow Condensed,sans-serif;font-weight:700;font-size:.9rem;color:#a78bfa">🛠 RaceOps Admin</span>'+
+    '</div>'+
+    '<div style="display:flex;align-items:center;gap:6px">'+
+      '<button onclick="openChangePinForAdmin()" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(167,139,250,.4);background:transparent;color:#a78bfa;cursor:pointer">Change PIN</button>'+
+    '</div>';
+  list.appendChild(adminRow);
 }
 
 async function updateBoatSailNumber(id,value){
