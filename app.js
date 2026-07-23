@@ -1127,11 +1127,12 @@ async function loadRaceTracker(){
     const centerLat=(_C.startLat!=null)?_C.startLat:53.27;
     const centerLng=(_C.startLng!=null)?_C.startLng:-9.05;
     _trackerMap=L.map('trackerMap',{attributionControl:false}).setView([centerLat,centerLng],13);
-    // CartoDB Dark Matter — matches the app's dark navy chrome (default OSM
-    // tiles are bright/general-purpose and looked out of place here), free,
-    // retina-aware ({r}), and avoids leaning on tile.openstreetmap.org's own
-    // servers, which have a strict usage policy not meant for production apps.
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
+    // CartoDB Voyager — Dark Matter was too minimal to make out coastline/
+    // land against marks; Voyager keeps real detail (coast, terrain, labels)
+    // in a muted palette, free, retina-aware ({r}), and avoids leaning on
+    // tile.openstreetmap.org's own servers (strict usage policy, not meant
+    // for production apps).
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
       maxZoom:20, subdomains:'abcd'
     }).addTo(_trackerMap);
     L.control.attribution({prefix:false}).addAttribution('© OpenStreetMap contributors © CARTO').addTo(_trackerMap);
@@ -1179,7 +1180,9 @@ async function refreshTrackerPositions(){
         className:'',
         // White border (not dark) — a dark border would disappear against the
         // Dark Matter basemap's near-black water/land
-        html:'<div style="width:14px;height:14px;border-radius:50%;background:'+colour+';border:2px solid #e8f2ff;box-shadow:0 0 0 2px '+colour+'55"></div>',
+        // Dark border — Voyager's land/water are light, a white border would
+        // wash out against it (the opposite problem it solved on Dark Matter)
+        html:'<div style="width:14px;height:14px;border-radius:50%;background:'+colour+';border:2px solid #0a1628;box-shadow:0 0 0 2px '+colour+'55"></div>',
         iconSize:[14,14], iconAnchor:[7,7]
       });
       _trackerMarkers[id]=L.marker([p.lat,p.lng],{icon}).addTo(_trackerMap);
