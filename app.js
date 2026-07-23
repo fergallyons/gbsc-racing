@@ -5,9 +5,17 @@ const _C = window.CLUB || {};
 if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have failed to load');
 
 // Apply club branding immediately — before any async work
+//
+// Fallbacks below are deliberately club-NEUTRAL ('Club'/'Race Management'),
+// not GBSC's real name. This function runs for every club's deployment —
+// if /club-config.js ever transiently fails (edge cold start, flaky
+// network, env var hiccup) and window.CLUB comes back empty, RCYC/HYC/etc.
+// must never silently display "GBSC" or "Galway Bay Sailing Club" as their
+// own identity. Found 2026-07-23 after an intermittent report of GBSC text
+// flashing on RCYC's site — this was the root cause, not a timing bug.
 (function applyClubBranding(){
-  const short  = _C.short || 'GBSC';
-  const name   = _C.name  || 'Galway Bay Sailing Club';
+  const short  = _C.short || 'Club';
+  const name   = _C.name  || 'Race Management';
   const logoUrl= _C.logoUrl|| _C.logoURL|| _C.logourl|| _C.logo_url|| _C.logo|| '';
   // Page title
   document.title = short + ' Racing \u2014 ' + name;
@@ -2024,7 +2032,7 @@ function renderNewSailorsPanel(){
   const fRace=FEES.crew||4;
   const fStu=FEES.student||5;
   const fKid=FEES.kid||0;
-  const short=_C.short||'GBSC';
+  const short=_C.short||'Club'; // never GBSC's real name — see applyClubBranding() comment
   el.innerHTML=`
     <div style="margin-bottom:20px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;font-weight:700;color:var(--white);margin-bottom:6px">New to ${short} Racing? ⛵</div>
@@ -2379,7 +2387,7 @@ function _applyDbClubConfig(cfg){
 }
 
 function _reapplyBranding(){
-  const short   = _C.short || 'GBSC';
+  const short   = _C.short || 'Club'; // never GBSC's real name — see applyClubBranding() comment
   const logoUrl = _C.logoUrl||_C.logoURL||_C.logourl||_C.logo_url||_C.logo||'';
   const img = document.getElementById('clubLogoImg');
   if(img && logoUrl){
@@ -2581,7 +2589,7 @@ async function onNotifToggle(enabled){
 
     if(Notification.permission==='denied'){
       uncheck();
-      setHint('Notifications blocked — enable them in iPhone Settings → Notifications → '+(_C.short||'GBSC')+' Racing');
+      setHint('Notifications blocked — enable them in iPhone Settings → Notifications → '+(_C.short||'Club')+' Racing');
       return;
     }
 
@@ -5845,7 +5853,10 @@ async function loadHandicaps(){
   if(!body||_handicapsLoaded) return;
   body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading ratings from Irish Sailing &amp; Halsail…</div></div>';
   try{
-    const clubName=_C.name||'Galway Bay Sailing Club';
+    // Empty, not GBSC's real name, if _C.name is missing — querying the
+    // ratings API for the wrong club would silently return GBSC's own
+    // fleet data mislabeled as this club's. Empty just returns nothing.
+    const clubName=_C.name||'';
     const [res,halEcho]=await Promise.all([
       fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName)),
       loadHalsailCurrentEcho()
@@ -5944,7 +5955,7 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
 let _bpLastNational=[], _bpLastHalEcho={current:{},next:{}}; // cached so the dashboard strip and panel don't both fetch
 
 async function _fetchBoatRatingData(){
-  const clubName=_C.name||'Galway Bay Sailing Club';
+  const clubName=_C.name||''; // empty, not GBSC's real name — see _C.name fallback comment above loadHandicaps()
   const [res,halEcho]=await Promise.all([
     fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName)),
     loadHalsailCurrentEcho()
@@ -6452,8 +6463,8 @@ function downloadCourseGpx(source){
   const gpxFinishPos=lineMidpoint(gpxFinishLine);
   const gpxSameLine=gpxStartLine.id===gpxFinishLine.id;
 
-  // Use window.CLUB if available (multi-club branch), fall back to hardcoded GBSC
-  const clubShort=(window.CLUB&&window.CLUB.short)||'GBSC';
+  // Neutral fallback, not GBSC's real name — see applyClubBranding() comment
+  const clubShort=(window.CLUB&&window.CLUB.short)||'Club';
   const clubName=clubShort+' Racing';
   const raceName=nextRace?nextRace.label:'Course';
 
@@ -7462,7 +7473,7 @@ function shareRegistrationInvite(){
   const appUrl=window.location.href.split('#')[0];
 
   const msg=
-    '⛵ *'+(_C.short||'GBSC')+' Racing — Registration Open*\n\n'+
+    '⛵ *'+(_C.short||'Club')+' Racing — Registration Open*\n\n'+
     '*'+raceName+'*\n'+
     raceDate+' · '+raceTime+'\n\n'+
     'Register your boat in the racing app:\n'+
@@ -8274,12 +8285,15 @@ function showCrewPayPage(data){
   const pageHeader=`
     <div style="text-align:center;margin-bottom:24px;">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;
-        letter-spacing:.04em;color:#00b4d8;margin-bottom:2px">${_C.short||'GBSC'} Racing</div>
+        letter-spacing:.04em;color:#00b4d8;margin-bottom:2px">${_C.short||'Club'} Racing</div>
       <div style="font-size:.85rem;color:#7a8fa6">${data.race} · ${data.boat}</div>
     </div>`;
 
+  // Payment receipt — never GBSC's real name as a fallback here of all
+  // places (a misconfigured club's crew would see "collected on behalf of
+  // Galway Bay Sailing Club" on their own payment page).
   const footer=`<div style="text-align:center;font-size:.8rem;color:#4a5568;margin-top:24px">
-    RaceOps Crest · Race fees collected on behalf of ${_C.name||'Galway Bay Sailing Club'}
+    RaceOps Crest · Race fees collected on behalf of ${_C.name||'the organizing club'}
   </div>`;
 
   // ── Step 1: Who are you? ───────────────────────────────────────
