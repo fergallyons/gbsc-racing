@@ -10368,6 +10368,7 @@ fetch('/version.json').then(r=>r.ok?r.json():null).then(v=>{
   if(!v) return;
   const el=document.getElementById('buildBadge');
   if(el) el.textContent=v.commit+' · '+v.built;
+  if(window.Sentry) Sentry.setTag('release', v.commit);
 }).catch(()=>{});
 
 // Keyboard support for PIN overlays (digits, Backspace, Escape)
