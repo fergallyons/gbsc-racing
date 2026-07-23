@@ -1,4 +1,4 @@
-const CACHE = 'gbsc-racing-v7';
+const CACHE = 'gbsc-racing-v8'; // bumped 2026-07-23 to force-purge any cache holding pre-club-branding-fix content
 const STATIC = ['/', '/index.html', '/app.js', '/style.css', '/favicon.svg', '/manifest.json'];
 
 // Install — cache static assets
