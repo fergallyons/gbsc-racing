@@ -4,21 +4,17 @@
 <meta charset="UTF-8">
 <title>Racing App</title><!-- updated by applyClubBranding() -->
 <!-- Error tracking (Sentry) — loaded early so it can catch load-time errors too.
-     DSN is a public identifier (write-only, Sentry docs confirm it's safe to
-     ship client-side, same trust level as the Supabase anon key already
-     embedded per club). Silently no-ops if DSN is blank or on localhost. -->
+     Loader script embeds only a public key (write-only, same trust level as
+     the Supabase anon key already embedded per club) — safe to ship as-is.
+     Disabled on localhost via enabled:false so local dev doesn't burn quota. -->
+<script src="https://js-de.sentry-cdn.com/a355814cda873c44244367b07f59e1c8.min.js" crossorigin="anonymous"></script>
 <script>
-(function(){
-  var SENTRY_DSN = ''; // TODO: paste DSN from Sentry project settings, then this goes live
-  if(!SENTRY_DSN || location.hostname === 'localhost') return;
-  var s = document.createElement('script');
-  s.src = 'https://browser.sentry-cdn.com/8.9.2/bundle.min.js';
-  s.crossOrigin = 'anonymous';
-  s.onload = function(){
-    Sentry.init({ dsn: SENTRY_DSN, environment: location.hostname });
-  };
-  document.head.appendChild(s);
-})();
+  Sentry.onLoad(function(){
+    Sentry.init({
+      environment: location.hostname,
+      enabled: location.hostname !== 'localhost'
+    });
+  });
 </script>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
