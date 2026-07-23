@@ -731,3 +731,12 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .race-mgmt-btn.cancel:hover{background:rgba(255,80,80,.25);}
 .race-mgmt-btn.uncancel{background:rgba(34,197,94,.12);color:#4ade80;}
 .race-mgmt-btn.uncancel:hover{background:rgba(34,197,94,.25);}
+
+/* Leaflet's default popup is a plain white box — override to match the
+   app's dark navy chrome (and the Dark Matter basemap it now sits on). */
+#trackerMap .leaflet-popup-content-wrapper{background:var(--navy-mid);color:var(--white);
+  border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.4);}
+#trackerMap .leaflet-popup-content{margin:10px 14px;font-family:'Barlow',sans-serif;font-size:.85rem;}
+#trackerMap .leaflet-popup-tip{background:var(--navy-mid);}
+#trackerMap .leaflet-popup-close-button{color:var(--muted) !important;}
+#trackerMap .leaflet-popup-close-button:hover{color:var(--white) !important;}
