@@ -4212,18 +4212,24 @@ async function loadRaceWeather(){
     // Discard cache if it doesn't cover the race date (was fetched for a shorter horizon)
     const cacheCoversRace=c&&c.wx&&c.wx.hourly&&c.wx.hourly.time&&
       c.wx.hourly.time[c.wx.hourly.time.length-1]>=raceTs;
-    // Only use cache if tides were successfully fetched; re-fetch if tides is null
-    if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.tides!=null){ renderWeather(c.wx,c.tides); return; }
+    // Only use cache if tides were successfully fetched; re-fetch if tides is null.
+    // Warnings are NEVER read from this cache — always fetched fresh below,
+    // even on a full cache hit, since a stale small-craft warning is a real
+    // safety issue and the licence requires them kept up to date.
+    if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.tides!=null){
+      const warnings=await fetchMetWarnings();
+      renderWeather(c.wx,c.tides,warnings); return;
+    }
     if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.wx){
-      // wx is cached, fresh, and covers race date — only re-fetch tides
-      const tides=await fetchTideData();
+      // wx is cached, fresh, and covers race date — only re-fetch tides + warnings
+      const [tides,warnings]=await Promise.all([fetchTideData(),fetchMetWarnings()]);
       try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:c.ts,wx:c.wx,tides})); }catch(e){}
-      renderWeather(c.wx,tides); return;
+      renderWeather(c.wx,tides,warnings); return;
     }
   }catch(e){}
-  const [wx,tides]=await Promise.all([fetchOpenMeteo(),fetchTideData()]);
+  const [wx,tides,warnings]=await Promise.all([fetchRaceWeather(),fetchTideData(),fetchMetWarnings()]);
   try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
-  renderWeather(wx,tides);
+  renderWeather(wx,tides,warnings);
 }
 
 async function fetchOpenMeteo(){
@@ -4249,6 +4255,7 @@ async function fetchOpenMeteo(){
         const data=await r.json();
         if(data.hourly&&data.hourly.time&&data.hourly.time.length){
           data._model='AROME (Météo-France, 1.3 km)';
+          data._source='open-meteo';
           data._fetchedAt=Date.now();
           return data;
         }
@@ -4260,8 +4267,140 @@ async function fetchOpenMeteo(){
     const r=await fetch(base+'&forecast_days='+forecastDays); if(!r.ok) return null;
     const data=await r.json();
     data._model='ICON-EU (DWD, 7 km)';
+    data._source='open-meteo';
     data._fetchedAt=Date.now();
     return data;
+  }catch(e){ return null; }
+}
+
+// Met Éireann (Ireland's national meteorological service) is tried first —
+// a National Race Officer flagged that incident investigations (MCIB-style)
+// only give real weight to national-authority sources, not third-party
+// aggregators, even when the underlying models are related. Falls back to
+// Open-Meteo (AROME/ICON-EU above) only if Met Éireann is unreachable.
+// See chat 2026-07-24.
+async function fetchRaceWeather(){
+  const met=await fetchMetEireann();
+  if(met) return met;
+  return fetchOpenMeteo();
+}
+
+async function fetchMetEireann(){
+  const wxLat=_C.windLat||_C.startLat||GBSC_LAT;
+  const wxLng=_C.windLng||_C.startLng||GBSC_LNG;
+  try{
+    const r=await fetch('/.netlify/functions/met-eireann-proxy?lat='+wxLat+'&lon='+wxLng);
+    if(!r.ok) return null;
+    const xmlText=await r.text();
+    const doc=new DOMParser().parseFromString(xmlText,'text/xml');
+    if(doc.querySelector('parsererror')) return null;
+
+    // meta > model confirms which NWP model is actually behind the near-term
+    // data — surfaced in the panel footer so the source is traceable, which
+    // is the whole point of this switch.
+    const hasHarmonie=!!doc.querySelector('meta model[name="harmonie"]');
+    const modelLabel=hasHarmonie?'Met Éireann · HARMONIE':'Met Éireann';
+
+    // The XML interleaves two kinds of <time> blocks sharing the same
+    // "from" timestamp: instant blocks (from===to) carry temp/wind/pressure/
+    // cloud; period blocks (from<to) carry the symbol code for that hour.
+    // Merge both into one record per hour to match Open-Meteo's flat-array
+    // hourly{} shape, so renderWeather() never needs to know which source
+    // produced the data.
+    const byTime={};
+    doc.querySelectorAll('product > time').forEach(timeEl=>{
+      const from=Date.parse(timeEl.getAttribute('from'))/1000;
+      const to=Date.parse(timeEl.getAttribute('to'))/1000;
+      const loc=timeEl.querySelector('location');
+      if(!loc||!Number.isFinite(from)) return;
+      const rec=byTime[from]=byTime[from]||{};
+      if(from===to){
+        const temp=loc.querySelector('temperature');
+        const wDir=loc.querySelector('windDirection');
+        const wSpd=loc.querySelector('windSpeed');
+        const wGust=loc.querySelector('windGust');
+        const press=loc.querySelector('pressure');
+        const cloud=loc.querySelector('cloudiness');
+        if(temp) rec.temp=parseFloat(temp.getAttribute('value'));
+        if(wDir) rec.dir=parseFloat(wDir.getAttribute('deg'));
+        if(wSpd) rec.wind=parseFloat(wSpd.getAttribute('mps'))*1.94384; // m/s -> kt
+        if(wGust) rec.gust=parseFloat(wGust.getAttribute('mps'))*1.94384;
+        if(press) rec.pressure=parseFloat(press.getAttribute('value'));
+        if(cloud) rec.cloud=parseFloat(cloud.getAttribute('percent'));
+      } else {
+        const sym=loc.querySelector('symbol');
+        if(sym) rec.symbolId=sym.getAttribute('id');
+      }
+    });
+
+    const times=Object.keys(byTime).map(Number).sort((a,b)=>a-b)
+      .filter(t=>byTime[t].temp!=null); // only hours with real instant data
+    if(!times.length) return null;
+
+    const hourly={time:[],temperature_2m:[],apparent_temperature:[],wind_speed_10m:[],
+      wind_gusts_10m:[],wind_direction_10m:[],cloud_cover:[],surface_pressure:[],weather_code:[]};
+    times.forEach(t=>{
+      const r=byTime[t];
+      hourly.time.push(t);
+      hourly.temperature_2m.push(r.temp);
+      hourly.apparent_temperature.push(r.temp); // Met Éireann doesn't publish a "feels like" field
+      hourly.wind_speed_10m.push(r.wind!=null?r.wind:0);
+      hourly.wind_gusts_10m.push(r.gust!=null?r.gust:(r.wind||0));
+      hourly.wind_direction_10m.push(r.dir!=null?r.dir:0);
+      hourly.cloud_cover.push(r.cloud!=null?r.cloud:0);
+      hourly.surface_pressure.push(r.pressure!=null?r.pressure:1013);
+      hourly.weather_code.push(metSymbolToWmoCode(r.symbolId));
+    });
+
+    // No sunset field in this API (that's a separate met.no-style product
+    // Met Éireann doesn't mirror) — renderWeather() already shows "—" when
+    // wx.daily is absent, same as any other missing-data case.
+    return {hourly, daily:null, _model:modelLabel, _source:'met-eireann', _fetchedAt:Date.now()};
+  }catch(e){ return null; }
+}
+
+// Met Éireann's <symbol id="..."/> uses the long-standing met.no/Yr symbol
+// naming (plain descriptive English, e.g. "PartlyCloud", "LightRainSun")
+// rather than WMO weather codes — the full symbol set isn't published
+// anywhere authoritative, so this is keyword-matched rather than an exact
+// lookup table, and degrades to "partly cloudy" for anything unrecognized
+// rather than guessing at something more specific.
+function metSymbolToWmoCode(id){
+  if(!id) return 2;
+  const s=id.toLowerCase();
+  if(s.includes('thunder')) return 95;
+  if(s.includes('snow')) return 73;
+  if(s.includes('sleet')) return 71;
+  if(s.includes('drizzle')) return 51;
+  if(s.includes('rain')) return s.includes('sun')?80:63; // "...Sun" combo reads as showery, not steady rain
+  if(s.includes('fog')) return 45;
+  if(s.includes('lightcloud')||s.includes('partlycloud')||s.includes('fair')) return 2;
+  if(s.includes('cloud')) return 3;
+  if(s.includes('sun')||s.includes('clear')) return 0;
+  return 2;
+}
+
+// Met Éireann's Custom Open Data Licence requires that anyone publishing
+// their forecast data ALSO publishes their current Weather Warnings,
+// unmodified and kept up to date (not just attribution — an actual licence
+// condition: https://www.met.ie/cms/assets/uploads/2018/05/Met-Éireann-
+// Open-Data-Custom-Licence_Final.odt, Section 3(a)). Always fetched fresh,
+// deliberately never cached alongside the hourly forecast — a stale small-
+// craft warning is a safety issue, not just a UX nicety. This feed already
+// sends Access-Control-Allow-Origin: *, so no proxy function needed here.
+async function fetchMetWarnings(){
+  try{
+    const r=await fetch('https://www.met.ie/warningsxml/rss.xml');
+    if(!r.ok) return null;
+    const xmlText=await r.text();
+    const doc=new DOMParser().parseFromString(xmlText,'text/xml');
+    if(doc.querySelector('parsererror')) return null;
+    return Array.from(doc.querySelectorAll('item')).map(item=>({
+      title:item.querySelector('title')?.textContent||'',
+      description:item.querySelector('description')?.textContent||'',
+      category:item.querySelector('category')?.textContent||'',
+      link:item.querySelector('link')?.textContent||'',
+    }));
   }catch(e){ return null; }
 }
 
@@ -4358,7 +4497,7 @@ function windArrowSvg(deg,color,px=24){
 }
 
 // ── Main render ───────────────────────────────────────────────
-function renderWeather(wx,tides){
+function renderWeather(wx,tides,warnings){
   const body=document.getElementById('weatherBody'); if(!body) return;
   if(!wx||!wx.hourly){
     body.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)">
@@ -4528,12 +4667,40 @@ function renderWeather(wx,tides){
     }
   }
 
+  // ── MET ÉIREANN WARNINGS ────────────────────────────────────────
+  // Displaying these (unmodified, kept current) is a condition of Met
+  // Éireann's Custom Open Data Licence when using their forecast data
+  // above, not just a nice-to-have — see fetchMetWarnings().
+  let warningsBlock='';
+  if(Array.isArray(warnings)){
+    if(warnings.length){
+      const marine=warnings.filter(w=>/marine/i.test(w.category));
+      const relevant=marine.length?marine:warnings; // prefer marine, fall back to all if none tagged
+      warningsBlock=`
+        <div style="background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.4);
+          border-radius:14px;padding:16px;margin-bottom:10px">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
+            letter-spacing:.1em;text-transform:uppercase;color:var(--danger);margin-bottom:10px">
+            ⚠ Met Éireann Warnings</div>
+          ${relevant.map((w,i)=>`<div style="${i<relevant.length-1?'margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(230,57,70,.2)':''}">
+            <div style="font-size:.88rem;font-weight:700;color:var(--white)">${escHtml(w.title)}</div>
+            <div style="font-size:.8rem;color:var(--muted);margin-top:2px">${escHtml(w.description)}</div>
+          </div>`).join('')}
+        </div>`;
+    } else {
+      warningsBlock=`<div style="display:flex;align-items:center;gap:6px;font-size:.8rem;
+        color:var(--success);margin-bottom:10px">✓ No Met Éireann warnings currently in effect</div>`;
+    }
+  }
+
   // ── HEADER + FOOTER ──────────────────────────────────────────
   const raceDateStr=raceDate.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
   const raceLabel=race?race.label:'Next race';
   const raceTimeStr=raceDate.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  const providerLabel=wx._source==='met-eireann'?'Met Éireann':'Open-Meteo';
 
   body.innerHTML=`
+    ${warningsBlock}
     <div style="margin-bottom:16px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:700;
         color:var(--white)">${raceLabel}</div>
@@ -4542,13 +4709,13 @@ function renderWeather(wx,tides){
     ${windBlock}${condBlock}${tidesBlock}
     <div style="padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
-        <span style="font-weight:600;color:var(--muted)">Model: ${wx._model||'Open-Meteo'}</span>
+        <span style="font-weight:600;color:var(--muted)">Model: ${wx._model||providerLabel}</span>
         <button onclick="localStorage.removeItem('__race_weather__');localStorage.removeItem('__race_tides__');loadRaceWeather()"
           style="font-size:.8rem;color:var(--teal);background:transparent;border:none;
           cursor:pointer;font-family:inherit;padding:0">↺ Refresh</button>
       </div>
       <div>${wx._fetchedAt?'Fetched '+new Date(wx._fetchedAt).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · ':''}\
-Open-Meteo${tides?' · '+tideSource:''}</div>
+${providerLabel}${tides?' · '+tideSource:''}</div>
     </div>`;
 }
 
@@ -8423,7 +8590,7 @@ async function loadWindWidget(){
       const c=JSON.parse(localStorage.getItem('__race_weather_v2__')||'null');
       if(c&&Date.now()-c.ts<3600000) wx=c.wx;
     }catch(e){}
-    if(!wx) wx=await fetchOpenMeteo();
+    if(!wx) wx=await fetchRaceWeather();
     if(!wx||!wx.hourly) return;
     const race=nextRace||getNextRace();
     const raceDate=race?race.date:new Date();
