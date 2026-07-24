@@ -4386,11 +4386,17 @@ function metSymbolToWmoCode(id){
 // condition: https://www.met.ie/cms/assets/uploads/2018/05/Met-Éireann-
 // Open-Data-Custom-Licence_Final.odt, Section 3(a)). Always fetched fresh,
 // deliberately never cached alongside the hourly forecast — a stale small-
-// craft warning is a safety issue, not just a UX nicety. This feed already
-// sends Access-Control-Allow-Origin: *, so no proxy function needed here.
+// craft warning is a safety issue, not just a UX nicety.
+//
+// Routed through the same proxy as the forecast rather than fetched
+// directly, even though met.ie's own CORS headers looked fine when checked
+// server-side — a direct browser fetch failed in testing, and depending on
+// this app's own domain rather than a third party's CDN/CORS behaviour
+// staying consistent is the more robust choice for something licence-
+// mandated, not optional.
 async function fetchMetWarnings(){
   try{
-    const r=await fetch('https://www.met.ie/warningsxml/rss.xml');
+    const r=await fetch('/.netlify/functions/met-eireann-proxy?type=warnings');
     if(!r.ok) return null;
     const xmlText=await r.text();
     const doc=new DOMParser().parseFromString(xmlText,'text/xml');
