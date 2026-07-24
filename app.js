@@ -639,9 +639,9 @@ let selectedFinishLineId='club';  // can differ for destination-finish races
 // Laid Course — RO picks a course SHAPE instead of fixed marks, for races
 // where marks are laid on the day with no known coordinates.
 let _laidCourseMode=false;
-let _laidCourseType=null;   // 'windward_leeward' | 'triangle' | 'olympic'
+let _laidCourseType=null;   // 'windward_leeward' | 'triangle' | 'trapezoid'
 let _laidCourseLaps=1;
-const LAID_COURSE_LABELS={windward_leeward:'Windward-Leeward',triangle:'Triangle',olympic:'Olympic'};
+const LAID_COURSE_LABELS={windward_leeward:'Windward-Leeward',triangle:'Triangle',trapezoid:'Trapezoid'};
 let registeredBoatIds=new Set(); // boat IDs registered for the next race — used by the pre-login boat picker grid, always nextRace-scoped
 let mySelectedRaceRegistered=false; // is currentBoat registered for `selectedRace` specifically — the skipper dashboard's own race dropdown can point at a different (often past) race than nextRace
 let lookingForCrew=false;        // whether currentBoat is looking for crew for nextRace
@@ -6978,7 +6978,7 @@ function setCourseMode(mode){
 }
 function setLaidCourseType(type){
   _laidCourseType=type;
-  ['windward_leeward','triangle','olympic'].forEach(t=>{
+  ['windward_leeward','triangle','trapezoid'].forEach(t=>{
     const btn=document.getElementById('laidTypeBtn-'+t);
     if(btn) btn.classList.toggle('active',t===type);
   });
@@ -7002,17 +7002,31 @@ function buildLaidCourseSvg(courseType, wDeg, laps){
   let pts=[]; // [{x,y,label,colour}]
   let legs=[]; // ordered points incl. sf at start/end
   if(courseType==='triangle'){
+    // RRS Appendix S, Course TW/TL: the full triangle (1-2-3) is only
+    // sailed once — every extra lap is 1-3 direct, not the whole triangle
+    // again. TW3 e.g. is Start-1-2-3-1-3-Finish, not Start-1-2-3-1-2-3-Finish.
     const p1={x:cx,y:windY,label:'1 · Windward',colour:RED};
-    const p2={x:cx+68,y:180,label:'2 · Wing',colour:YEL};
-    const p3={x:cx-68,y:180,label:'3 · Wing',colour:GRN};
+    const p2={x:cx+68,y:180,label:'2',colour:YEL};
+    const p3={x:cx-68,y:180,label:'3',colour:GRN};
     pts=[p1,p2,p3];
-    legs=[sf,p1,p2,p3,sf];
-  } else if(courseType==='olympic'){
-    const p1={x:cx,y:windY,label:'Windward',colour:RED};
-    const wing={x:cx+64,y:126,label:'Wing',colour:YEL};
-    const lee={x:cx,y:206,label:'Leeward',colour:GRN};
-    pts=[p1,wing,lee];
-    legs=[sf,p1,wing,lee,p1,sf];
+    legs=[sf,p1,p2,p3];
+    for(let i=1;i<laps;i++) legs.push(p1,p3);
+    legs.push(sf);
+  } else if(courseType==='trapezoid'){
+    // Not an Appendix S term (no official "Olympic course" in the current
+    // RRS) — built from the club convention described in chat 2026-07-24:
+    // windward leg, reach to a spreader/offset mark, leeward leg, then a
+    // reach finish. Mark 3 is offset from directly-below-mark-1 (unlike
+    // windward_leeward's leeward mark) so the course reads as a genuine
+    // 4-sided trapezoid rather than a straight up-and-down line, and the
+    // final return leg reads as a reach into the finish rather than a run.
+    const p1={x:cx,y:windY,label:'1 · Windward',colour:RED};
+    const p2={x:cx+70,y:140,label:'2 · Spreader',colour:YEL};
+    const p3={x:cx+26,y:220,label:'3 · Leeward',colour:GRN};
+    pts=[p1,p2,p3];
+    legs=[sf,p1,p2,p3];
+    for(let i=1;i<laps;i++) legs.push(p1,p2,p3);
+    legs.push(sf);
   } else { // windward_leeward
     const p1={x:cx,y:windY,label:'Windward',colour:RED};
     const lee={x:cx,y:206,label:'Leeward',colour:GRN};
@@ -7157,10 +7171,19 @@ function renderCourseDiagram(targetId){
     const dirs3=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
     const windDegDisp3=c.windDeg!=null?c.windDeg+'° '+dirs3[Math.round(c.windDeg/22.5)%16]:'—';
     const laps=c.laps||1;
+    // Triangle: RRS Appendix S Course TW — the full triangle (1-2-3) is
+    // only sailed once; every extra lap is a direct 1-3, not the whole
+    // triangle again (e.g. TW3 = Start-1-2-3-1-3-Finish).
+    const triangleLegs='1 (Windward) – 2 – 3'+(' – 1 – 3'.repeat(Math.max(0,laps-1)));
+    // Trapezoid: not an Appendix S term — club convention (chat 2026-07-24):
+    // windward leg, reach to a spreader/offset mark, leeward leg, repeated
+    // per lap, with the final leeward-to-finish leg read as a reach rather
+    // than a run since the finish sits off the leeward mark at an angle.
+    const trapezoidLegs=(' – 1 (Windward) – 2 (Spreader) – 3 (Leeward)').repeat(laps).slice(3);
     const legText={
       windward_leeward:'Start/Finish – Windward – Leeward'+(laps>1?' (× '+laps+')':'')+' – Windward – Finish',
-      triangle:'Start/Finish – Mark 1 (Windward) – Mark 2 (Wing) – Mark 3 (Wing)'+(laps>1?' (× '+laps+')':'')+' – Finish',
-      olympic:'Start/Finish – Windward – Wing – Leeward – Windward'+(laps>1?' (× '+laps+')':'')+' – Finish'
+      triangle:'Start/Finish – '+triangleLegs+' – Finish',
+      trapezoid:'Start – '+trapezoidLegs+' – Finish (reach)'
     }[c.courseType]||'';
     wrap.innerHTML=`
       <div class="course-diagram-wrap">
@@ -7679,7 +7702,7 @@ function clearCourse(){
   _laidCourseLaps=1;
   const lapsInput=document.getElementById('laidLaps');
   if(lapsInput) lapsInput.value=1;
-  ['windward_leeward','triangle','olympic'].forEach(t=>{
+  ['windward_leeward','triangle','trapezoid'].forEach(t=>{
     const btn=document.getElementById('laidTypeBtn-'+t);
     if(btn) btn.classList.remove('active');
   });

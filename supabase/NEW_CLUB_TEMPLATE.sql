@@ -148,7 +148,7 @@ CREATE TABLE IF NOT EXISTS published_courses (
   race_name    text DEFAULT '',
   notes        text DEFAULT '',
   published_at timestamptz DEFAULT now(),
-  course_type  text CHECK (course_type IN ('windward_leeward','triangle','olympic')),
+  course_type  text CHECK (course_type IN ('windward_leeward','triangle','trapezoid')),
   laps         int
 );
 
@@ -688,7 +688,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('036_schema_migrations_tracking.sql'),
   ('037_boat_photos.sql'),
   ('038_push_subscriptions_role.sql'),
-  ('043_race_starts_more_class_flags.sql')
+  ('043_race_starts_more_class_flags.sql'),
+  ('044_rename_olympic_to_trapezoid.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.
