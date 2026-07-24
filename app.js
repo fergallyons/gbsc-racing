@@ -4207,7 +4207,7 @@ async function loadRaceWeather(){
   // Clear any stale Open-Meteo tide cache (replaced by IMI ERDDAP)
   try{ const c=JSON.parse(localStorage.getItem('__race_tides__')||'null'); if(c&&c.src==='om') localStorage.removeItem('__race_tides__'); }catch(e){}
   try{
-    const c=JSON.parse(localStorage.getItem('__race_weather_v2__')||'null');
+    const c=JSON.parse(localStorage.getItem('__race_weather_v3__')||'null');
     const raceTs=race?Math.floor(race.date.getTime()/1000):0;
     // Discard cache if it doesn't cover the race date (was fetched for a shorter horizon)
     const cacheCoversRace=c&&c.wx&&c.wx.hourly&&c.wx.hourly.time&&
@@ -4223,12 +4223,12 @@ async function loadRaceWeather(){
     if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.wx){
       // wx is cached, fresh, and covers race date — only re-fetch tides + warnings
       const [tides,warnings]=await Promise.all([fetchTideData(),fetchMetWarnings()]);
-      try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:c.ts,wx:c.wx,tides})); }catch(e){}
+      try{ localStorage.setItem('__race_weather_v3__',JSON.stringify({ts:c.ts,wx:c.wx,tides})); }catch(e){}
       renderWeather(c.wx,tides,warnings); return;
     }
   }catch(e){}
   const [wx,tides,warnings]=await Promise.all([fetchRaceWeather(),fetchTideData(),fetchMetWarnings()]);
-  try{ localStorage.setItem('__race_weather_v2__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
+  try{ localStorage.setItem('__race_weather_v3__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
   renderWeather(wx,tides,warnings);
 }
 
@@ -4508,7 +4508,7 @@ function renderWeather(wx,tides,warnings){
   if(!wx||!wx.hourly){
     body.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)">
       ⚠ Could not load weather data
-      <br><button onclick="localStorage.removeItem('__race_weather__');loadRaceWeather()"
+      <br><button onclick="localStorage.removeItem('__race_weather_v3__');loadRaceWeather()"
         style="margin-top:16px;padding:8px 20px;border-radius:8px;background:transparent;
         border:1px solid var(--border);color:var(--teal);cursor:pointer;font-family:inherit">↺ Retry</button>
     </div>`; return;
@@ -4716,7 +4716,7 @@ function renderWeather(wx,tides,warnings){
     <div style="padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
         <span style="font-weight:600;color:var(--muted)">Model: ${wx._model||providerLabel}</span>
-        <button onclick="localStorage.removeItem('__race_weather__');localStorage.removeItem('__race_tides__');loadRaceWeather()"
+        <button onclick="localStorage.removeItem('__race_weather_v3__');localStorage.removeItem('__race_tides__');loadRaceWeather()"
           style="font-size:.8rem;color:var(--teal);background:transparent;border:none;
           cursor:pointer;font-family:inherit;padding:0">↺ Refresh</button>
       </div>
@@ -8593,7 +8593,7 @@ async function loadWindWidget(){
   try{
     let wx=null;
     try{
-      const c=JSON.parse(localStorage.getItem('__race_weather_v2__')||'null');
+      const c=JSON.parse(localStorage.getItem('__race_weather_v3__')||'null');
       if(c&&Date.now()-c.ts<3600000) wx=c.wx;
     }catch(e){}
     if(!wx) wx=await fetchRaceWeather();
