@@ -24,11 +24,21 @@
 // specialised-services/open-data
 
 exports.handler = async (event) => {
-  const { lat, lon, type } = event.queryStringParameters || {};
+  const { lat, lon, type, url: capUrl } = event.queryStringParameters || {};
 
   let url;
   if (type === 'warnings') {
     url = 'https://www.met.ie/warningsxml/rss.xml';
+  } else if (type === 'cap') {
+    // Each warning's own CAP (Common Alerting Protocol) alert — carries
+    // onset/expires/severity that the RSS summary doesn't include. The URL
+    // is supplied by the RSS feed itself (per-warning, not fixed), so this
+    // is deliberately restricted to the cap.met.ie host only rather than
+    // proxying an arbitrary caller-supplied URL.
+    if (!capUrl || !/^https:\/\/cap\.met\.ie\//.test(capUrl)) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'url must be an https://cap.met.ie/ link' }) };
+    }
+    url = capUrl;
   } else {
     const latNum = parseFloat(lat), lonNum = parseFloat(lon);
     if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) {

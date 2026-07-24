@@ -4401,13 +4401,40 @@ async function fetchMetWarnings(){
     const xmlText=await r.text();
     const doc=new DOMParser().parseFromString(xmlText,'text/xml');
     if(doc.querySelector('parsererror')) return null;
-    return Array.from(doc.querySelectorAll('item')).map(item=>({
+    const warnings=Array.from(doc.querySelectorAll('item')).map(item=>({
       title:item.querySelector('title')?.textContent||'',
       description:item.querySelector('description')?.textContent||'',
       category:item.querySelector('category')?.textContent||'',
       link:item.querySelector('link')?.textContent||'',
     }));
+    // Enrich with each warning's own CAP (Common Alerting Protocol) alert —
+    // the RSS summary above doesn't carry onset/expires/severity, but the
+    // full CAP document each item links to does. Fetched in parallel;
+    // failure on any one warning just leaves that one without a time
+    // window rather than failing the whole list.
+    await Promise.all(warnings.map(w=>fetchCapDetails(w)));
+    return warnings;
   }catch(e){ return null; }
+}
+
+async function fetchCapDetails(warning){
+  if(!warning.link) return;
+  try{
+    const r=await fetch('/.netlify/functions/met-eireann-proxy?type=cap&url='+encodeURIComponent(warning.link));
+    if(!r.ok) return;
+    const xmlText=await r.text();
+    const doc=new DOMParser().parseFromString(xmlText,'text/xml');
+    if(doc.querySelector('parsererror')) return;
+    const info=doc.querySelector('info');
+    if(!info) return;
+    warning.onset=info.querySelector('onset')?.textContent||null;
+    warning.expires=info.querySelector('expires')?.textContent||null;
+    warning.severity=info.querySelector('severity')?.textContent||null;
+    // awareness_level value looks like "2; yellow; Moderate" — just want the colour word
+    const awareness=Array.from(info.querySelectorAll('parameter')).find(p=>p.querySelector('valueName')?.textContent==='awareness_level');
+    const levelVal=awareness?.querySelector('value')?.textContent||'';
+    warning.colour=(levelVal.match(/;\s*(yellow|orange|red)\s*;/i)||[])[1]?.toLowerCase()||null;
+  }catch(e){ /* leave warning without timing rather than fail the batch */ }
 }
 
 async function fetchTideData(){
@@ -4677,21 +4704,46 @@ function renderWeather(wx,tides,warnings){
   // Displaying these (unmodified, kept current) is a condition of Met
   // Éireann's Custom Open Data Licence when using their forecast data
   // above, not just a nice-to-have — see fetchMetWarnings().
+  const WARN_COLOURS={yellow:'#f4a261',orange:'#e67e22',red:'var(--danger)'};
+  function warningTimeWindow(w){
+    if(!w.onset&&!w.expires) return '';
+    const fmt=d=>{
+      const dt=new Date(d);
+      const sameDay=dt.toDateString()===new Date().toDateString();
+      const time=dt.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      return sameDay?time:dt.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' '+time;
+    };
+    const now=Date.now();
+    const onsetMs=w.onset?new Date(w.onset).getTime():null;
+    const expiresMs=w.expires?new Date(w.expires).getTime():null;
+    const status=(onsetMs&&now<onsetMs)?'From ':(expiresMs&&now>expiresMs)?'Expired ':'Active ';
+    if(w.onset&&w.expires) return status+fmt(w.onset)+' – '+fmt(w.expires);
+    if(w.onset) return status+fmt(w.onset);
+    return status+'until '+fmt(w.expires);
+  }
   let warningsBlock='';
   if(Array.isArray(warnings)){
-    if(warnings.length){
-      const marine=warnings.filter(w=>/marine/i.test(w.category));
-      const relevant=marine.length?marine:warnings; // prefer marine, fall back to all if none tagged
+    // Expired warnings shouldn't linger — the licence requires expired
+    // warnings to be removed, and it's misleading for race planning anyway.
+    const current=warnings.filter(w=>!w.expires||new Date(w.expires).getTime()>Date.now());
+    if(current.length){
+      const marine=current.filter(w=>/marine/i.test(w.category));
+      const relevant=marine.length?marine:current; // prefer marine, fall back to all if none tagged
       warningsBlock=`
         <div style="background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.4);
           border-radius:14px;padding:16px;margin-bottom:10px">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
             letter-spacing:.1em;text-transform:uppercase;color:var(--danger);margin-bottom:10px">
             ⚠ Met Éireann Warnings</div>
-          ${relevant.map((w,i)=>`<div style="${i<relevant.length-1?'margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(230,57,70,.2)':''}">
-            <div style="font-size:.88rem;font-weight:700;color:var(--white)">${escHtml(w.title)}</div>
+          ${relevant.map((w,i)=>{
+            const timeStr=warningTimeWindow(w);
+            const dot=w.colour&&WARN_COLOURS[w.colour]?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${WARN_COLOURS[w.colour]};margin-right:6px;flex-shrink:0"></span>`:'';
+            return `<div style="${i<relevant.length-1?'margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(230,57,70,.2)':''}">
+            <div style="display:flex;align-items:baseline;gap:0"><div style="font-size:.88rem;font-weight:700;color:var(--white)">${dot}${escHtml(w.title)}</div></div>
             <div style="font-size:.8rem;color:var(--muted);margin-top:2px">${escHtml(w.description)}</div>
-          </div>`).join('')}
+            ${timeStr?`<div style="font-size:.76rem;color:var(--teal);margin-top:3px;font-weight:600">${escHtml(timeStr)}</div>`:''}
+          </div>`;
+          }).join('')}
         </div>`;
     } else {
       warningsBlock=`<div style="display:flex;align-items:center;gap:6px;font-size:.8rem;
