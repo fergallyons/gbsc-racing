@@ -7002,36 +7002,48 @@ function buildLaidCourseSvg(courseType, wDeg, laps){
   let pts=[]; // [{x,y,label,colour}]
   let legs=[]; // ordered points incl. sf at start/end
   if(courseType==='triangle'){
-    // RRS Appendix S, Course TW/TL: the full triangle (1-2-3) is only
-    // sailed once — every extra lap is 1-3 direct, not the whole triangle
-    // again. TW3 e.g. is Start-1-2-3-1-3-Finish, not Start-1-2-3-1-2-3-Finish.
+    // A real club triangle sits on the same windward/leeward axis as a
+    // normal W/L leg — 1 (windward) directly above 3 (leeward) — with a
+    // single gybe mark (2) offset to one side, conventionally the left.
+    // Only the first time up the course goes via the gybe mark: RRS
+    // Appendix S Course TW only sails the full triangle once, every extra
+    // lap is a direct 1-3 (TW3 = Start-1-2-3-1-3-Finish, not -1-2-3-1-2-3-).
     const p1={x:cx,y:windY,label:'1 · Windward',colour:RED};
-    const p2={x:cx+68,y:180,label:'2',colour:YEL};
-    const p3={x:cx-68,y:180,label:'3',colour:GRN};
+    const p2={x:cx-72,y:132,label:'2 · Gybe',colour:YEL};
+    const p3={x:cx,y:206,label:'3 · Leeward',colour:GRN};
     pts=[p1,p2,p3];
     legs=[sf,p1,p2,p3];
     for(let i=1;i<laps;i++) legs.push(p1,p3);
     legs.push(sf);
   } else if(courseType==='trapezoid'){
     // Not an Appendix S term (no official "Olympic course" in the current
-    // RRS) — built from the club convention described in chat 2026-07-24:
-    // windward leg, reach to a spreader/offset mark, leeward leg, then a
-    // reach finish. Mark 3 is offset from directly-below-mark-1 (unlike
-    // windward_leeward's leeward mark) so the course reads as a genuine
-    // 4-sided trapezoid rather than a straight up-and-down line, and the
-    // final return leg reads as a reach into the finish rather than a run.
-    const p1={x:cx,y:windY,label:'1 · Windward',colour:RED};
-    const p2={x:cx+70,y:140,label:'2 · Spreader',colour:YEL};
-    const p3={x:cx+26,y:220,label:'3 · Leeward',colour:GRN};
-    pts=[p1,p2,p3];
-    legs=[sf,p1,p2,p3];
-    for(let i=1;i<laps;i++) legs.push(p1,p2,p3);
-    legs.push(sf);
+    // RRS) — matches RRS Appendix S's "offset mark" idea instead (Course
+    // LA/WA's mark "1a"): a spreader/offset mark right beside the windward
+    // mark, letting boats bear away cleanly after a crowded rounding. Per
+    // club convention (chat 2026-07-24): spreader to the LEFT of windward,
+    // with a second leeward mark (4) directly below it forming a parallel
+    // downwind leg — a true trapezoid shape (1-3 axis on the right, 2-4
+    // axis on the left). ROs run as many standard 1-3 windward/leeward laps
+    // as they like; only the FINAL lap peels off via the spreader down the
+    // parallel leg to the second leeward mark, where the fleet finishes.
+    const p1={x:cx,y:windY,label:'1 · Windward',colour:RED,labelSide:'right'};
+    const p2={x:cx-42,y:windY+22,label:'2 · Spreader',colour:YEL};
+    const p3={x:cx,y:206,label:'3 · Leeward',colour:GRN};
+    const p4={x:cx-42,y:206,label:'4 · Leeward (Fin)',colour:GRN};
+    // Mark 3 only actually gets rounded on laps 2+ — on a single-lap
+    // trapezoid the fleet goes straight from the spreader to the finish
+    // mark, so leave it off the diagram rather than show an unused mark.
+    pts=laps>1?[p1,p2,p3,p4]:[p1,p2,p4];
+    legs=[sf];
+    for(let i=1;i<laps;i++) legs.push(p1,p3);
+    legs.push(p1,p2,p4,sf);
   } else { // windward_leeward
     const p1={x:cx,y:windY,label:'Windward',colour:RED};
     const lee={x:cx,y:206,label:'Leeward',colour:GRN};
     pts=[p1,lee];
-    legs=[sf,p1,lee,p1,sf];
+    legs=[sf];
+    for(let i=0;i<laps;i++) legs.push(p1,lee);
+    legs.push(p1,sf);
   }
 
   let svgParts=[];
@@ -7041,14 +7053,92 @@ function buildLaidCourseSvg(courseType, wDeg, laps){
     </marker>
   </defs>`);
 
-  // Dashed course legs (dashed = conceptual, not a real bearing)
+  // Course legs — solid, not dashed. A leg between the same two marks can
+  // appear more than once (extra laps) — rather than stack identical lines
+  // on top of each other, each repeat is fanned out with a small
+  // perpendicular offset, centred on the direct line, so the number of
+  // laps is visible at a glance instead of hidden under a single line.
+  const allPts=[sf,...pts];
+  const idOf=new Map(allPts.map((p,i)=>[p,i]));
+  const legKey=(a,b)=>{ const ia=idOf.get(a),ib=idOf.get(b); return ia<ib?ia+'-'+ib:ib+'-'+ia; };
+  const totalOnLeg={};
+  for(let i=0;i<legs.length-1;i++){
+    const k=legKey(legs[i],legs[i+1]);
+    totalOnLeg[k]=(totalOnLeg[k]||0)+1;
+  }
+  const OFFSET_PX=5, PULLBACK=13;
+  const seenOnLeg={};
   for(let i=0;i<legs.length-1;i++){
     const p1=legs[i],p2=legs[i+1];
+    const k=legKey(p1,p2);
+    const total=totalOnLeg[k];
+    const seen=seenOnLeg[k]=(seenOnLeg[k]||0)+1;
     const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1;
-    const sx=(p1.x+dx/len*8).toFixed(1),sy=(p1.y+dy/len*8).toFixed(1);
-    const ex=(p2.x-dx/len*10).toFixed(1),ey=(p2.y-dy/len*10).toFixed(1);
-    svgParts.push(`<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="rgba(0,180,216,0.55)" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#lca)"/>`);
+    let ox=0,oy=0;
+    if(total>1){
+      const perpX=-dy/len, perpY=dx/len;
+      const centred=(seen-1)-(total-1)/2; // e.g. total=3 -> -1,0,1
+      ox=perpX*centred*OFFSET_PX; oy=perpY*centred*OFFSET_PX;
+    }
+    // Pulled back from each mark by PULLBACK px (was 8/10) to leave room
+    // for the rounding arc drawn separately below, so the straight run and
+    // the curve meet cleanly instead of the line running through the mark.
+    const sx=(p1.x+ox+dx/len*PULLBACK).toFixed(1),sy=(p1.y+oy+dy/len*PULLBACK).toFixed(1);
+    const ex=(p2.x+ox-dx/len*PULLBACK).toFixed(1),ey=(p2.y+oy-dy/len*PULLBACK).toFixed(1);
+    svgParts.push(`<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="rgba(0,180,216,0.7)" stroke-width="1.8" marker-end="url(#lca)"/>`);
   }
+
+  // Rounding arcs — one per mark actually on the course, curving from its
+  // incoming to outgoing leg instead of meeting at a sharp point, like a
+  // boat actually rounding it. Uses each mark's first incoming/outgoing
+  // pair in the sequence — repeat visits (extra laps) round the same mark
+  // the same way, so one clear arc per mark reads better than several
+  // overlapping ones stacked at the same spot.
+  const cX=allPts.reduce((s,p)=>s+p.x,0)/allPts.length;
+  const cY=allPts.reduce((s,p)=>s+p.y,0)/allPts.length;
+  const BULGE=13;
+  pts.forEach(mark=>{
+    const idx=legs.indexOf(mark);
+    if(idx<=0||idx>=legs.length-1) return; // only real interior roundings
+    const prev=legs[idx-1], next=legs[idx+1];
+    const dinx=mark.x-prev.x, diny=mark.y-prev.y, dinLen=Math.sqrt(dinx*dinx+diny*diny)||1;
+    const doutx=next.x-mark.x, douty=next.y-mark.y, doutLen=Math.sqrt(doutx*doutx+douty*douty)||1;
+    const uinx=dinx/dinLen, uiny=diny/dinLen, uoutx=doutx/doutLen, uouty=douty/doutLen;
+    const A={x:mark.x-uinx*PULLBACK, y:mark.y-uiny*PULLBACK};
+    const B={x:mark.x+uoutx*PULLBACK, y:mark.y+uouty*PULLBACK};
+    // Bulge perpendicular to the average travel direction (falling back to
+    // perpendicular-of-incoming for a near-180° reversal, where in+out
+    // nearly cancel out) — then pick whichever side points away from the
+    // diagram's centre, so arcs read as rounding outward from the course
+    // shape rather than cutting back through the middle of it.
+    let avgx=uinx+uoutx, avgy=uiny+uouty;
+    const avgLen=Math.sqrt(avgx*avgx+avgy*avgy);
+    let px,py;
+    const isReversal=avgLen<0.05;
+    if(isReversal){ px=-uiny; py=uinx; }
+    else { px=-avgy/avgLen; py=avgx/avgLen; }
+    if(px*(cX-mark.x)+py*(cY-mark.y)>0){ px=-px; py=-py; }
+    let pathD;
+    if(isReversal){
+      // A near-exact 180° reversal (e.g. the windward mark on a plain W/L
+      // course, where the boat arrives from and departs back toward the
+      // same side) pulls A and B back onto almost the same point, which
+      // collapses a single shared-control-point curve into an invisible
+      // retraced line instead of a visible loop. Two independent control
+      // points, offset to the bulge side and nudged apart along the
+      // (near-identical) in/out direction, trace a real semicircle-like
+      // loop around the mark instead.
+      const backx=-uinx, backy=-uiny, fwdx=uoutx, fwdy=uouty;
+      const LOOP=BULGE+3;
+      const C1={x:mark.x+px*LOOP-backx*3, y:mark.y+py*LOOP-backy*3};
+      const C2={x:mark.x+px*LOOP+fwdx*3, y:mark.y+py*LOOP+fwdy*3};
+      pathD=`M${A.x.toFixed(1)},${A.y.toFixed(1)} C${C1.x.toFixed(1)},${C1.y.toFixed(1)} ${C2.x.toFixed(1)},${C2.y.toFixed(1)} ${B.x.toFixed(1)},${B.y.toFixed(1)}`;
+    } else {
+      const C={x:mark.x+px*BULGE, y:mark.y+py*BULGE};
+      pathD=`M${A.x.toFixed(1)},${A.y.toFixed(1)} Q${C.x.toFixed(1)},${C.y.toFixed(1)} ${B.x.toFixed(1)},${B.y.toFixed(1)}`;
+    }
+    svgParts.push(`<path d="${pathD}" fill="none" stroke="rgba(0,180,216,0.7)" stroke-width="1.8"/>`);
+  });
 
   // Start/Finish line
   svgParts.push(`<line x1="${(sf.x-26).toFixed(1)}" y1="${sf.y}" x2="${(sf.x+26).toFixed(1)}" y2="${sf.y}" stroke="${TEAL}" stroke-width="3.5" stroke-linecap="round" opacity="0.85"/>`);
@@ -7060,7 +7150,11 @@ function buildLaidCourseSvg(courseType, wDeg, laps){
   pts.forEach(p=>{
     svgParts.push(`<circle cx="${p.x}" cy="${p.y}" r="7" fill="${p.colour}33" stroke="${p.colour}" stroke-width="1.8"/>`);
     svgParts.push(`<circle cx="${p.x}" cy="${p.y}" r="2" fill="${p.colour}"/>`);
-    const labelLeft=p.x>cx;
+    // Auto-side by position, unless a point explicitly overrides it
+    // (e.g. trapezoid's windward mark sits dead-centre with the spreader
+    // mark close by on the left, so it needs to be forced right to avoid
+    // the two labels colliding).
+    const labelLeft=p.labelSide?p.labelSide==='left':p.x>cx;
     const lx=labelLeft?p.x+12:p.x-12;
     svgParts.push(`<text x="${lx}" y="${p.y+3}" text-anchor="${labelLeft?'start':'end'}" fill="${p.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${p.label}</text>`);
   });
@@ -7174,16 +7268,19 @@ function renderCourseDiagram(targetId){
     // Triangle: RRS Appendix S Course TW — the full triangle (1-2-3) is
     // only sailed once; every extra lap is a direct 1-3, not the whole
     // triangle again (e.g. TW3 = Start-1-2-3-1-3-Finish).
-    const triangleLegs='1 (Windward) – 2 – 3'+(' – 1 – 3'.repeat(Math.max(0,laps-1)));
+    const triangleLegs='1 (Windward) – 2 (Gybe) – 3 (Leeward)'+(' – 1 – 3'.repeat(Math.max(0,laps-1)));
     // Trapezoid: not an Appendix S term — club convention (chat 2026-07-24):
-    // windward leg, reach to a spreader/offset mark, leeward leg, repeated
-    // per lap, with the final leeward-to-finish leg read as a reach rather
-    // than a run since the finish sits off the leeward mark at an angle.
-    const trapezoidLegs=(' – 1 (Windward) – 2 (Spreader) – 3 (Leeward)').repeat(laps).slice(3);
+    // standard 1 (Windward) – 3 (Leeward) laps as usual, then on the final
+    // lap the fleet peels off via 2 (Spreader) down the parallel leg to
+    // 4 (Leeward), which is also the finish.
+    const trapezoidStops=[];
+    for(let i=1;i<laps;i++) trapezoidStops.push('1 (Windward)','3 (Leeward)');
+    trapezoidStops.push('1 (Windward)','2 (Spreader)','4 (Leeward)');
+    const trapezoidLegs=trapezoidStops.join(' – ');
     const legText={
       windward_leeward:'Start/Finish – Windward – Leeward'+(laps>1?' (× '+laps+')':'')+' – Windward – Finish',
       triangle:'Start/Finish – '+triangleLegs+' – Finish',
-      trapezoid:'Start – '+trapezoidLegs+' – Finish (reach)'
+      trapezoid:'Start – '+trapezoidLegs+' – Finish'
     }[c.courseType]||'';
     wrap.innerHTML=`
       <div class="course-diagram-wrap">
