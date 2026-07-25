@@ -9001,11 +9001,12 @@ function renderHalConfigList(){
       </label>`;
     }).join('');
     return `<div style="background:var(--navy-mid);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
-      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
-        <input type="text" value="${escHtml(halConfigNames[key]||'')}" placeholder="${escHtml(key)}"
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <input type="text" value="${escHtml(halConfigNames[key]||'')}" placeholder="Rename “${escHtml(key)}”…"
           onchange="onHalConfigNameChange('${escHtml(key).replace(/'/g,"\\'")}',this.value)"
           title="Friendly name shown to skippers — Halsail's own name (${escHtml(key)}) is used if left blank"
-          style="flex:1;min-width:0;background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--white);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 0;outline:none;">
+          style="flex:1;min-width:0;background:var(--navy-input);border:1px solid var(--border);border-radius:7px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;padding:7px 10px;outline:none;">
+        <span aria-hidden="true" style="font-size:.85rem;color:var(--muted);flex-shrink:0">✎</span>
       </div>
       ${rows}
     </div>`;
