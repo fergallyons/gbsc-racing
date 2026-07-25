@@ -41,6 +41,13 @@
  *                                    //   lightness, so contrast stays identical across clubs — only
  *                                    //   the hue shifts. Omit to keep GBSC's default navy (hue 219).
  *                                    //   e.g. 352 = wine red (HYC), 232 = indigo blue (RCYC)
+ *      "bgColor":       "#115740",   // optional hex — like bgHue, but anchors the family on a real
+ *                                    //   brand colour's actual saturation/lightness (not just its hue),
+ *                                    //   so a specific Pantone/brand green (etc.) comes through
+ *                                    //   correctly instead of being forced through GBSC's navy S/L.
+ *                                    //   Takes precedence over bgHue if both are set. Card/input/
+ *                                    //   overlay shades are derived automatically — see applyBgColor()
+ *                                    //   in app.js. e.g. Irish Sailing's Pantone 343.
  *      "sponsors": [
  *        {"match":"galway.?maritime","name":"Galway Maritime","tagline":"Marine Chandlery",
  *         "logo":"https://...","url":"https://galwaymaritime.com"},
