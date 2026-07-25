@@ -52,7 +52,11 @@ function loadMigrationFiles() {
 }
 
 async function applyToClub(slug, connectionString, migrations) {
-  const client = new pg.Client({ connectionString, ssl: { rejectUnauthorized: false } });
+  // pg has no default connect timeout — a network-level hang (e.g. a
+  // "Direct connection" string resolving over IPv6 on a runner with no
+  // IPv6 egress, which is what GitHub Actions' ubuntu runners are) would
+  // otherwise block silently instead of surfacing a clear error.
+  const client = new pg.Client({ connectionString, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 10000 });
   await client.connect();
   try {
     await client.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
