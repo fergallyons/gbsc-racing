@@ -694,7 +694,7 @@ REVOKE SELECT (ro_pin_hash) ON settings FROM anon;
 
 CREATE OR REPLACE FUNCTION verify_boat_pin(p_boat_id text, p_pin text)
 RETURNS TABLE(ok boolean, is_default boolean)
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = public, extensions AS $$
   SELECT (pin_hash = crypt(p_pin, pin_hash)), pin_is_default
   FROM boats WHERE id = p_boat_id;
 $$;
@@ -703,7 +703,7 @@ GRANT EXECUTE ON FUNCTION verify_boat_pin(text,text) TO anon;
 
 CREATE OR REPLACE FUNCTION change_boat_pin(p_boat_id text, p_current_pin text, p_new_pin text)
 RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE v_ok boolean;
 BEGIN
   SELECT (pin_hash = crypt(p_current_pin, pin_hash)) INTO v_ok FROM boats WHERE id = p_boat_id;
@@ -717,7 +717,7 @@ GRANT EXECUTE ON FUNCTION change_boat_pin(text,text,text) TO anon;
 
 CREATE OR REPLACE FUNCTION reset_boat_pin(p_ro_pin text, p_boat_id text, p_new_pin text)
 RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE v_ok boolean;
 BEGIN
   SELECT (ro_pin_hash = crypt(p_ro_pin, ro_pin_hash)) INTO v_ok FROM settings WHERE id = 'club';
@@ -731,7 +731,7 @@ GRANT EXECUTE ON FUNCTION reset_boat_pin(text,text,text) TO anon;
 
 CREATE OR REPLACE FUNCTION set_boat_revolut_user(p_boat_id text, p_current_pin text, p_revolut_user text)
 RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE v_ok boolean;
 BEGIN
   SELECT (pin_hash = crypt(p_current_pin, pin_hash)) INTO v_ok FROM boats WHERE id = p_boat_id;
@@ -744,7 +744,7 @@ GRANT EXECUTE ON FUNCTION set_boat_revolut_user(text,text,text) TO anon;
 
 CREATE OR REPLACE FUNCTION verify_ro_pin(p_pin text)
 RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = public, extensions AS $$
   SELECT (ro_pin_hash = crypt(p_pin, ro_pin_hash)) FROM settings WHERE id = 'club';
 $$;
 REVOKE ALL ON FUNCTION verify_ro_pin(text) FROM PUBLIC;
@@ -752,7 +752,7 @@ GRANT EXECUTE ON FUNCTION verify_ro_pin(text) TO anon;
 
 CREATE OR REPLACE FUNCTION change_ro_pin(p_current_pin text, p_new_pin text)
 RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE v_ok boolean;
 BEGIN
   SELECT (ro_pin_hash = crypt(p_current_pin, ro_pin_hash)) INTO v_ok FROM settings WHERE id = 'club';
@@ -767,7 +767,7 @@ CREATE OR REPLACE FUNCTION set_ro_payment_settings(
   p_current_pin text, p_stripe_link_member text, p_stripe_link_student text,
   p_stripe_link_visitor text, p_ro_revolut_user text
 ) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE v_ok boolean;
 BEGIN
   SELECT (ro_pin_hash = crypt(p_current_pin, ro_pin_hash)) INTO v_ok FROM settings WHERE id = 'club';
@@ -811,7 +811,7 @@ REVOKE SELECT (admin_pin_hash) ON settings FROM anon;
 
 CREATE OR REPLACE FUNCTION verify_admin_pin(p_pin text)
 RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = public, extensions AS $$
   SELECT (admin_pin_hash = crypt(p_pin, admin_pin_hash)) FROM settings WHERE id = 'club';
 $$;
 REVOKE ALL ON FUNCTION verify_admin_pin(text) FROM PUBLIC;
@@ -819,7 +819,7 @@ GRANT EXECUTE ON FUNCTION verify_admin_pin(text) TO anon;
 
 CREATE OR REPLACE FUNCTION change_admin_pin(p_current_pin text, p_new_pin text)
 RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE v_ok boolean;
 BEGIN
   SELECT (admin_pin_hash = crypt(p_current_pin, admin_pin_hash)) INTO v_ok FROM settings WHERE id = 'club';

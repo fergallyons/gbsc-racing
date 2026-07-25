@@ -19,7 +19,7 @@ REVOKE SELECT (admin_pin_hash) ON settings FROM anon;
 
 CREATE OR REPLACE FUNCTION verify_admin_pin(p_pin text)
 RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = public, extensions AS $$
   SELECT (admin_pin_hash = crypt(p_pin, admin_pin_hash)) FROM settings WHERE id = 'club';
 $$;
 REVOKE ALL ON FUNCTION verify_admin_pin(text) FROM PUBLIC;
@@ -27,7 +27,7 @@ GRANT EXECUTE ON FUNCTION verify_admin_pin(text) TO anon;
 
 CREATE OR REPLACE FUNCTION change_admin_pin(p_current_pin text, p_new_pin text)
 RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE v_ok boolean;
 BEGIN
   SELECT (admin_pin_hash = crypt(p_current_pin, admin_pin_hash)) INTO v_ok FROM settings WHERE id = 'club';
