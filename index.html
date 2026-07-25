@@ -2566,6 +2566,38 @@
 <!-- Club config loader — sets window.CLUB before app.js runs.
      ?club=<slug> on the page URL overrides hostname lookup (persists for the session). -->
 <script>
+  // Renders inside the existing startup veil when window.CLUB comes back
+  // null (see cfg.onload below) — an unrecognised ?club= slug, or (rarer)
+  // a hostname with no HOSTNAME_MAP entry and no "default". Lists every
+  // real club from window.CLUB_DIRECTORY (built server-side in club-config.js
+  // from whatever CLUB_CONFIG_* env vars exist) so a mistyped/stale link
+  // still gets somewhere useful instead of a silently broken app shell.
+  function renderClubDirectory(){
+    var v=document.getElementById('appVeil');
+    if(!v) return;
+    v.style.pointerEvents='auto';
+    function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    var requested=window.CLUB_NOT_FOUND;
+    var dir=Array.isArray(window.CLUB_DIRECTORY)?window.CLUB_DIRECTORY:[];
+    var heading=requested?('Club "'+esc(requested)+'" not found'):'Choose your club';
+    var links=dir.length
+      ? dir.map(function(c){
+          return '<a href="/?club='+encodeURIComponent(c.slug)+'" '
+            +'style="display:block;width:260px;max-width:80vw;margin:6px 0;padding:12px 18px;'
+            +'background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.3);border-radius:10px;'
+            +'color:#fff;text-decoration:none;font-family:Barlow Condensed,sans-serif;font-weight:700;'
+            +'font-size:1rem;text-align:center">'+esc(c.name)+'</a>';
+        }).join('')
+      : '<div style="color:rgba(255,255,255,.5);font-family:Barlow,sans-serif;font-size:.85rem">'
+        +'No clubs configured yet.</div>';
+    v.innerHTML=
+      '<div style="font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;'
+      +'letter-spacing:.18em;text-transform:uppercase;color:rgba(0,174,239,.75);margin-bottom:18px">'
+      +'RaceOps Crest</div>'
+      +'<div style="font-family:Barlow Condensed,sans-serif;font-size:1.3rem;font-weight:800;'
+      +'color:#fff;margin-bottom:22px;text-align:center;padding:0 24px">'+heading+'</div>'
+      +links;
+  }
   (function(){
     var slug = new URLSearchParams(location.search).get('club');
     if(slug) sessionStorage.setItem('_clubOverride', slug);
@@ -2578,6 +2610,11 @@
     var cfg = document.createElement('script');
     cfg.src = cfgSrc;
     cfg.onload = function(){
+      // window.CLUB comes back null for an unrecognised ?club= override (typo,
+      // decommissioned slug, etc.) — never load app.js against a non-existent
+      // club (empty sbUrl/sbKey means every API call would silently fail).
+      // Show a clear "pick a club" page instead.
+      if(!window.CLUB){ renderClubDirectory(); return; }
       // Apply club branding immediately — window.CLUB is set, app.js not yet loaded.
       // This eliminates the flash of GBSC content on non-GBSC deployments.
       var C = window.CLUB || {};

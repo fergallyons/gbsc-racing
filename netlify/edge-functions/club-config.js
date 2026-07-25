@@ -113,16 +113,38 @@ export default async function handler(request) {
   const envKey = 'CLUB_CONFIG_' + slug.toUpperCase();
   const configJson = Deno.env.get(envKey);
 
+  // Every known club, derived from whichever CLUB_CONFIG_* env vars exist —
+  // no separate list to keep in sync. Used below to render a "pick a club"
+  // page instead of a silently broken app shell when the requested slug
+  // (almost always via a mistyped/stale ?club= override) doesn't resolve.
+  function buildDirectory() {
+    const dir = [];
+    for (const [key, value] of Object.entries(Deno.env.toObject())) {
+      const m = key.match(/^CLUB_CONFIG_([A-Z0-9]+)$/);
+      if (!m) continue;
+      try {
+        const cfg = JSON.parse(value);
+        dir.push({ slug: cfg.slug || m[1].toLowerCase(), name: cfg.name || m[1], short: cfg.short || m[1] });
+      } catch (e) { /* skip malformed entries */ }
+    }
+    dir.sort((a, b) => a.name.localeCompare(b.name));
+    return dir;
+  }
+
   if (!configJson) {
-    // Config not found — return an empty CLUB so app.js can show a
-    // "misconfigured" state rather than crashing silently.
+    // Config not found — return an empty CLUB plus a directory of every
+    // real club, so app.js is never loaded against a non-existent club and
+    // the visitor instead sees a clear "not found, pick one" page.
     console.warn(`club-config: no env var ${envKey} for host "${host}" (slug "${slug}")`);
-    return new Response('window.CLUB=null;', {
-      headers: {
-        'Content-Type': 'application/javascript',
-        'Cache-Control': 'no-store',
+    return new Response(
+      `window.CLUB=null;window.CLUB_NOT_FOUND=${JSON.stringify(overrideSlug || slug)};window.CLUB_DIRECTORY=${JSON.stringify(buildDirectory())};`,
+      {
+        headers: {
+          'Content-Type': 'application/javascript',
+          'Cache-Control': 'no-store',
+        },
       },
-    });
+    );
   }
 
   let config;
@@ -130,9 +152,10 @@ export default async function handler(request) {
     config = JSON.parse(configJson);
   } catch (e) {
     console.error(`club-config: invalid JSON in ${envKey}`, e);
-    return new Response('window.CLUB=null;', {
-      headers: { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-store' },
-    });
+    return new Response(
+      `window.CLUB=null;window.CLUB_NOT_FOUND=${JSON.stringify(overrideSlug || slug)};window.CLUB_DIRECTORY=${JSON.stringify(buildDirectory())};`,
+      { headers: { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-store' } },
+    );
   }
 
   // ── 3. Serve as JS ─────────────────────────────────────────────────
