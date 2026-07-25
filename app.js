@@ -162,6 +162,17 @@ async function sbFetch(path,opts={}){
     const t=await r.text();return t?JSON.parse(t):[];
   }catch(e){console.error('SB net',e);return null;}
 }
+// Explicit column lists for boats/settings — required, not just tidy: since
+// migration 045, anon only has column-level (not table-level) SELECT on
+// these tables, and Postgres's bare `select=*` default fails outright (401)
+// rather than gracefully narrowing to the permitted columns.
+const BOATS_SELECT='id,name,icon,revolut_user,created_at,stripe_link,sail_number,photo_url,whatsapp';
+const SETTINGS_SELECT='id,stripe_link_member,stripe_link_student,stripe_link_visitor,'
+  +'pre_race_window_hours,worldtides_key,ro_revolut_user,results_published_race_key,'
+  +'updated_at,features,estella_url,logo_url,favicon_url,primary_color,ro_color,'
+  +'start_lat,start_lng,wind_lat,wind_lng,tide_station,tide_odm_offset,'
+  +'fee_full,fee_crew,fee_visitor,fee_student,fee_kid,visitor_max,crew_max_yrs,'
+  +'noticeboard_url,results_url,hal_club,vapid_public_key';
 async function sbEnsureBoat(b){
   // Upsert the boat — ignore duplicates so we don't overwrite existing config
   return sbFetch('/rest/v1/boats',{method:'POST',
@@ -943,8 +954,11 @@ async function buildBoatGrid(){
   const g=document.getElementById('boatGrid');
   if(g) g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:.82rem;padding:16px">Loading boats…</div>';
 
-  // Load all boats from Supabase
-  const sbBoats=await sbFetch('/rest/v1/boats?order=name.asc');
+  // Load all boats from Supabase — explicit select is required, not just
+  // tidy: since migration 045, anon only has column-level (not table-level)
+  // SELECT on boats, and Postgres's bare `select=*` default fails outright
+  // rather than gracefully narrowing to the permitted columns.
+  const sbBoats=await sbFetch('/rest/v1/boats?order=name.asc&select='+BOATS_SELECT);
   if(sbBoats&&sbBoats.length){
     boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||'',photoUrl:b.photo_url||''}));
   } else {
@@ -3804,8 +3818,11 @@ async function downloadDatabaseBackup(){
   try{
     // Fetch all tables in parallel
     const [boats,settings,crew,registrations,courses,marks,records,protests]=await Promise.all([
-      sbFetch('/rest/v1/boats?order=name.asc'),
-      sbFetch('/rest/v1/settings'),
+      // Backup intentionally uses the same anon-readable allowlist as the
+      // rest of the app, not a raw dump — pin/pin_hash/ro_pin/admin_pin_hash
+      // were never meant to be in a downloadable file anyway.
+      sbFetch('/rest/v1/boats?order=name.asc&select='+BOATS_SELECT),
+      sbFetch('/rest/v1/settings?select='+SETTINGS_SELECT),
       sbFetch('/rest/v1/crew?order=boat_id.asc,last.asc'),
       sbFetch('/rest/v1/registrations?order=race_date.desc'),
       sbFetch('/rest/v1/published_courses'),

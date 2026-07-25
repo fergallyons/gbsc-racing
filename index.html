@@ -2571,7 +2571,12 @@
       var C = window.CLUB || {};
       var short = C.short || '';
       var name  = C.name  || '';
-      if(window.Sentry) Sentry.setTag('club', C.slug || short || 'unknown');
+      // Sentry's Loader Script installs a stub immediately (only .onLoad/.init
+      // are guaranteed synchronously) — the real SDK, including setTag, loads
+      // async and often isn't ready yet here. An uncaught TypeError on this
+      // line would abort the rest of this callback, which is also what loads
+      // app.js itself below — so this must never throw.
+      if(window.Sentry && typeof Sentry.setTag==='function') Sentry.setTag('club', C.slug || short || 'unknown');
       // Update splash veil with club branding
       var logoUrl = C.logoUrl || C.logoURL || C.logourl || C.logo_url || C.logo || '';
       var veilLogo = document.getElementById('veilLogo');
