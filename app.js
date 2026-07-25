@@ -8573,6 +8573,13 @@ let halBoatCache={};        // BoatID -> {name, sailText, helm} (cleared on each
 // and shown, no tandem/ECHO-IRC-pairing logic at all — the RO already chose
 // exactly which real series matter, nothing left to guess.
 let halCuratedActive=null;
+// The RO's flat picks often bundle several independently-scored fleets under
+// one real-world series (e.g. IRC + Echo Sat + Echo Thu all under "Cruisers
+// 0") — grouped by the same family-prefix heuristic the RO's own picker
+// uses (halConfigGroupKey), so skippers get a Series-then-Fleet flow instead
+// of a flat list of raw Halsail class names. See chat 2026-07-25.
+let halCuratedGroups=[];    // [{key, members:[{classId,name,seryId,fleetLabel}]}]
+let halCuratedGroupIdx=0;   // index into halCuratedGroups of the selected series
 
 // Halsail fetch — tries direct first, falls back to Supabase proxy if CORS blocks it
 const HAL_PROXY='/.netlify/functions/halsail-proxy'; // Netlify function proxy — avoids CORS on direct Halsail calls
@@ -8756,7 +8763,7 @@ async function loadResultsIfNeeded(){
 async function onResultSeriesChange(){
   const i=parseInt(document.getElementById('resultSeriesSelect').value);
   if(isNaN(i)) return;
-  if(halCuratedActive){ await renderCuratedSeries(halCuratedActive[i]); return; }
+  if(halCuratedActive){ await selectCuratedGroup(i); return; }
   halCurrentSeries=halSeriesList[i];
   await renderResultsForSeries(halCurrentSeries);
 }
@@ -8764,10 +8771,12 @@ async function onResultSeriesChange(){
 // ── Curated results mode ────────────────────────────────────────────────
 // Populates the same dropdown/content elements as the default path above,
 // but from the RO's explicit selection (Results Setup) rather than
-// auto-detection. Each entry is a real, independently-scored HalSail series
-// (see netlify/functions/halsail-class-map.js) — no ECHO/IRC toggle, no TCC
-// badge guessing, because there's nothing left to infer: the RO already
-// named exactly which series this is.
+// auto-detection. The RO's flat picks are grouped into real-world series by
+// stripping the same Echo/IRC/day-suffix pattern the RO's own picker uses
+// (halConfigGroupKey) — a club like DBSC checks off "Cruisers 0 IRC",
+// "Cruisers 0 Echo Sat", "Cruisers 0 Echo Thu" as three separate Halsail
+// classes, but a skipper thinks of that as one series ("Cruisers 0") with
+// three fleets, same mental model as the default IRC/ECHO toggle below.
 async function loadCuratedResults(curated){
   halCuratedActive=curated;
   halResultsCache={};
@@ -8776,28 +8785,80 @@ async function loadCuratedResults(curated){
   const elink=document.getElementById('resultEstellaLink');
   if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
 
-  // No tandem concept in curated mode — hide the IRC/ECHO toggle entirely.
-  // (showFleet(), if the default path ever runs later in this session,
-  // overwrites these buttons' full style and naturally un-hides them.)
+  // No fixed IRC/ECHO tandem in curated mode — fleets are shown as dynamic
+  // pills instead (renderFleetPills), sized to however many real classes are
+  // grouped under each series. (showFleet(), if the default path ever runs
+  // later in this session, overwrites these buttons' full style and
+  // naturally un-hides them.)
   const ircBtnEl=document.getElementById('ircBtn'), echoBtnEl=document.getElementById('echoBtn');
   if(ircBtnEl) ircBtnEl.style.display='none';
   if(echoBtnEl) echoBtnEl.style.display='none';
 
+  const seriesNames=(clubSettings&&clubSettings.features&&clubSettings.features.halSeriesNames)||{};
+  const groups={};
+  curated.forEach(c=>{
+    const key=halConfigGroupKey(c.name);
+    (groups[key]=groups[key]||[]).push(c);
+  });
+  halCuratedGroups=Object.keys(groups).map(key=>{
+    const members=groups[key];
+    // seriesNames[key] is the RO's friendly override (Results Setup) — Halsail's
+    // own naming ("Cruisers 0", "Cru - E") often isn't what a skipper expects.
+    return {key, displayName:seriesNames[key]||key, members:members.map(c=>({...c, fleetLabel:members.length>1?(c.name.replace(key,'').trim()||c.name):null}))};
+  });
+
   const sel=document.getElementById('resultSeriesSelect');
   sel.innerHTML='';
-  curated.forEach((c,i)=>{
+  halCuratedGroups.forEach((g,i)=>{
     const o=document.createElement('option');
     o.value=i;
-    o.textContent=c.name;
+    o.textContent=g.displayName;
     sel.appendChild(o);
   });
 
-  if(!curated.length){
+  if(!halCuratedGroups.length){
+    const pillsEl=document.getElementById('resultFleetPills');
+    if(pillsEl){ pillsEl.style.display='none'; pillsEl.innerHTML=''; }
     document.getElementById('resultsContent').innerHTML=
       '<div class="empty-state"><div class="icon">🏆</div><div>No series configured yet</div></div>';
     return;
   }
-  await renderCuratedSeries(curated[0]);
+  await selectCuratedGroup(0);
+}
+
+// Series changed (dropdown) — (re)render its fleet pills and show the first
+// (or only) fleet in that series.
+async function selectCuratedGroup(groupIdx){
+  const g=halCuratedGroups[groupIdx];
+  if(!g) return;
+  halCuratedGroupIdx=groupIdx;
+  renderFleetPills(g);
+  await renderCuratedSeries(g.members[0]);
+}
+
+// Renders one pill per fleet within the selected series — hidden entirely
+// when there's only one, same as a single-fleet series needing no toggle.
+function renderFleetPills(group){
+  const wrap=document.getElementById('resultFleetPills');
+  if(!wrap) return;
+  if(!group||group.members.length<2){ wrap.style.display='none'; wrap.innerHTML=''; return; }
+  wrap.style.display='flex';
+  wrap.innerHTML=group.members.map((m,i)=>
+    `<button onclick="selectCuratedFleet(${i})" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;`
+    +(i===0?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);')
+    +`">${escHtml(m.fleetLabel||m.name)}</button>`
+  ).join('');
+}
+
+async function selectCuratedFleet(memberIdx){
+  const g=halCuratedGroups[halCuratedGroupIdx];
+  if(!g) return;
+  const wrap=document.getElementById('resultFleetPills');
+  if(wrap) [...wrap.children].forEach((btn,i)=>{
+    btn.style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'
+      +(i===memberIdx?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
+  });
+  await renderCuratedSeries(g.members[memberIdx]);
 }
 
 async function renderCuratedSeries(entry){
@@ -8821,7 +8882,11 @@ async function renderCuratedSeries(entry){
     if(b&&!b._err) halBoatCache[id]={name:b.Name||'',sailText:b.SailText||'',helm:b.Helm||'',handicaps:b.Handicaps||[]};
   }));
 
-  buildResultsTable(data, '', entry.name, wrap, entry.seryId, null);
+  // Prefer the RO's friendly series name + fleet label over Halsail's raw
+  // class name (e.g. "Wednesday Cruisers — IRC" instead of "Cruisers 0 IRC").
+  const group=halCuratedGroups[halCuratedGroupIdx];
+  const title=group?(group.displayName+(entry.fleetLabel?' — '+entry.fleetLabel:'')):entry.name;
+  buildResultsTable(data, '', title, wrap, entry.seryId, null);
 }
 
 // ── Results Setup panel (RO) ────────────────────────────────────────────
@@ -8832,6 +8897,14 @@ async function renderCuratedSeries(entry){
 // to the default Cru-E/Cru-IRC auto-detection untouched.
 let halConfigClasses=[];
 let halConfigSelected=new Set();
+// Friendly names for series groups — Halsail's own class names are often
+// clumsy ("Cruisers 0", "Cru - E"), so the RO can override the group
+// heading with something a skipper would actually recognise ("Wednesday
+// Cruisers"). Keyed by halConfigGroupKey(), saved to
+// settings.features.halSeriesNames, consumed by loadCuratedResults() for
+// the skipper-facing Series dropdown. Falls back to the raw group key when
+// nothing's been set. See chat 2026-07-25.
+let halConfigNames={};
 
 async function loadHalConfigPanel(){
   const status=document.getElementById('halConfigStatus');
@@ -8849,6 +8922,7 @@ async function loadHalConfigPanel(){
   const existing=(clubSettings&&clubSettings.features&&Array.isArray(clubSettings.features.halVisibleSeries))
     ?clubSettings.features.halVisibleSeries:[];
   halConfigSelected=new Set(existing.map(c=>c.seryId));
+  halConfigNames=Object.assign({},(clubSettings&&clubSettings.features&&clubSettings.features.halSeriesNames)||{});
 
   try{
     const r=await fetch('/.netlify/functions/halsail-class-map?club='+HAL_CLUB);
@@ -8881,7 +8955,12 @@ async function loadHalConfigPanel(){
 function halConfigGroupKey(name){
   return name
     .replace(/\s*-\s*(J109|Sigma\s?33)\s*$/i,'')
-    .replace(/\s+(Echo|IRC|Scratch|NS VPRS)\s*(\([^)]*\))?\s*$/i,'')
+    // Trailing day-of-week qualifies a scoring split within the same real
+    // series (e.g. "Cruisers 0 Echo Sat" / "Echo Thu" / "IRC" are one series,
+    // three fleets — the exact multi-day-scoring case this whole curated-mode
+    // feature was built for) — optional, so plain "... Echo"/"... IRC" still
+    // strips the same as before.
+    .replace(/\s+(Echo|IRC|Scratch|NS VPRS)(\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun))?\s*(\([^)]*\))?\s*$/i,'')
     .replace(/[AB]$/,'')
     .trim() || name;
 }
@@ -8909,7 +8988,12 @@ function renderHalConfigList(){
       </label>`;
     }).join('');
     return `<div style="background:var(--navy-mid);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">${key}</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px;">
+        <input type="text" value="${escHtml(halConfigNames[key]||'')}" placeholder="${escHtml(key)}"
+          onchange="onHalConfigNameChange('${escHtml(key).replace(/'/g,"\\'")}',this.value)"
+          title="Friendly name shown to skippers — Halsail's own name (${escHtml(key)}) is used if left blank"
+          style="flex:1;min-width:0;background:transparent;border:none;border-bottom:1px dashed var(--border);color:var(--white);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.04em;padding:2px 0;outline:none;">
+      </div>
       ${rows}
     </div>`;
   }).join('');
@@ -8923,6 +9007,12 @@ function onHalConfigCheck(el){
   updateHalConfigCount();
 }
 
+function onHalConfigNameChange(key,value){
+  const trimmed=value.trim();
+  if(trimmed) halConfigNames[key]=trimmed;
+  else delete halConfigNames[key]; // blank = fall back to Halsail's own name
+}
+
 function updateHalConfigCount(){
   const el=document.getElementById('halConfigCount');
   if(el) el.textContent=halConfigSelected.size;
@@ -8933,6 +9023,7 @@ async function saveHalConfig(){
     .filter(c=>halConfigSelected.has(c.seryId))
     .map(c=>({seryId:c.seryId, classId:c.classId, name:c.name}));
   await saveFeatureSetting('halVisibleSeries', selected);
+  await saveFeatureSetting('halSeriesNames', halConfigNames);
   closePanel('roHalConfigPanel');
 }
 

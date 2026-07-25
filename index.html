@@ -545,6 +545,12 @@
         <button onclick="refreshResults()" title="Refresh from Halsail" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;">↺</button>
       </div>
     </div>
+    <!-- Curated-mode fleet pills — one per real Halsail class grouped under the
+         selected series above (e.g. IRC / Echo Sat / Echo Thu). Hidden by
+         default; populated by renderFleetPills() only when a series has more
+         than one fleet. The fixed IRC/ECHO buttons above handle the default
+         (non-curated) auto-detected path instead. -->
+    <div id="resultFleetPills" style="display:none;gap:6px;margin:-8px 0 16px;flex-wrap:wrap;"></div>
     <div id="resultsContent">
       <div class="empty-state"><div class="icon">🏆</div><div>Loading results…</div></div>
     </div>
