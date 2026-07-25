@@ -5,5 +5,12 @@
   "description": "RaceOps Crest — multi-club sailing race-day platform. Serverless dependencies for Netlify Functions (the app itself is a static, no-build SPA).",
   "dependencies": {
     "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "pg": "^8.12.0"
+  },
+  "scripts": {
+    "migrate": "node scripts/run-migrations.mjs",
+    "migrate:dry-run": "node scripts/run-migrations.mjs --dry-run"
   }
 }
