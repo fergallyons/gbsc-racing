@@ -8804,7 +8804,7 @@ async function loadCuratedResults(curated){
     const members=groups[key];
     // seriesNames[key] is the RO's friendly override (Results Setup) — Halsail's
     // own naming ("Cruisers 0", "Cru - E") often isn't what a skipper expects.
-    return {key, displayName:seriesNames[key]||key, members:members.map(c=>({...c, fleetLabel:members.length>1?(c.name.replace(key,'').trim()||c.name):null}))};
+    return {key, displayName:seriesNames[key]||key, members:members.map(c=>({...c, fleetLabel:members.length>1?halFleetLabel(c.name,key):null}))};
   });
 
   const sel=document.getElementById('resultSeriesSelect');
@@ -8955,14 +8955,27 @@ async function loadHalConfigPanel(){
 function halConfigGroupKey(name){
   return name
     .replace(/\s*-\s*(J109|Sigma\s?33)\s*$/i,'')
-    // Trailing day-of-week qualifies a scoring split within the same real
-    // series (e.g. "Cruisers 0 Echo Sat" / "Echo Thu" / "IRC" are one series,
-    // three fleets — the exact multi-day-scoring case this whole curated-mode
-    // feature was built for) — optional, so plain "... Echo"/"... IRC" still
-    // strips the same as before.
-    .replace(/\s+(Echo|IRC|Scratch|NS VPRS)(\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun))?\s*(\([^)]*\))?\s*$/i,'')
+    // GBSC's own real convention: a bare single-letter Echo abbreviation,
+    // always hyphen-separated ("Cru - E" alongside "Cru - IRC") — hyphen
+    // required here specifically because a bare trailing "E" preceded by
+    // just whitespace is too short/common to safely strip on its own.
+    .replace(/\s*-\s*E\s*$/i,'')
+    // Trailing fleet/scoring suffix, space- or hyphen-separated, with an
+    // optional day-of-week qualifying a scoring split within the same real
+    // series (e.g. "Cruisers 0 Echo Sat" / "Echo Thu" / "IRC" are one
+    // series, three fleets — the exact multi-day-scoring case this whole
+    // curated-mode feature was built for).
+    .replace(/[-\s]+(Echo|IRC|Scratch|NS VPRS)(\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun))?\s*(\([^)]*\))?\s*$/i,'')
     .replace(/[AB]$/,'')
     .trim() || name;
+}
+
+// The fleet-specific remainder once the shared group key is stripped back
+// out (e.g. "Cru - E" minus "Cru" -> "E", not "- E") — a plain string
+// replace leaves the separator behind since the key itself never included
+// it, so that leftover hyphen/space needs trimming off the front too.
+function halFleetLabel(name,key){
+  return name.replace(key,'').replace(/^[\s-]+/,'').trim() || name;
 }
 
 function renderHalConfigList(){
@@ -8979,7 +8992,7 @@ function renderHalConfigList(){
   list.innerHTML=keys.map(key=>{
     const items=groups[key];
     const rows=items.map(c=>{
-      const subLabel=items.length>1?(c.name.replace(key,'').trim()||c.name):c.name;
+      const subLabel=items.length>1?halFleetLabel(c.name,key):c.name;
       return `<label style="display:flex;align-items:center;gap:10px;padding:6px 0;cursor:pointer">
         <input type="checkbox" data-seryid="${c.seryId}" onchange="onHalConfigCheck(this)"
           ${halConfigSelected.has(c.seryId)?'checked':''}
