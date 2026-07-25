@@ -1309,6 +1309,36 @@ REVOKE ALL ON FUNCTION change_admin_pin(text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION change_admin_pin(text,text) TO anon;
 
 -- ============================================================
+-- FIX COLUMN PRIVILEGE REVOKES (migration 045) -- see
+-- migrations/045_fix_column_privilege_revokes.sql for full rationale.
+-- Column-level REVOKE cannot narrow a table-level GRANT in Postgres, so
+-- 040/042's REVOKE (col) ... FROM anon statements above were no-ops.
+-- ============================================================
+REVOKE SELECT, UPDATE ON boats FROM anon;
+GRANT SELECT (id, name, icon, revolut_user, created_at, stripe_link, sail_number, photo_url, whatsapp)
+  ON boats TO anon;
+GRANT UPDATE (icon, sail_number, photo_url, whatsapp) ON boats TO anon;
+
+REVOKE SELECT, UPDATE ON settings FROM anon;
+GRANT SELECT (
+  id, stripe_link_member, stripe_link_student, stripe_link_visitor,
+  pre_race_window_hours, worldtides_key, ro_revolut_user,
+  results_published_race_key, updated_at, features, estella_url,
+  logo_url, favicon_url, primary_color, ro_color,
+  start_lat, start_lng, wind_lat, wind_lng, tide_station, tide_odm_offset,
+  fee_full, fee_crew, fee_visitor, fee_student, fee_kid,
+  visitor_max, crew_max_yrs, noticeboard_url, results_url, hal_club,
+  vapid_public_key
+) ON settings TO anon;
+GRANT UPDATE (
+  id, pre_race_window_hours, worldtides_key, results_published_race_key,
+  updated_at, features, estella_url, hal_club,
+  fee_full, fee_crew, fee_visitor, fee_student, fee_kid,
+  visitor_max, crew_max_yrs, start_lat, start_lng, wind_lat, wind_lng,
+  tide_station, tide_odm_offset, noticeboard_url, vapid_public_key, results_url
+) ON settings TO anon;
+
+-- ============================================================
 -- SCHEMA MIGRATIONS TRACKING
 -- ============================================================
 -- Records which migration files this DB has applied, so "is this club
@@ -1362,7 +1392,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('041_protest_workflow.sql'),
   ('042_admin_pin.sql'),
   ('043_race_starts_more_class_flags.sql'),
-  ('044_rename_olympic_to_trapezoid.sql')
+  ('044_rename_olympic_to_trapezoid.sql'),
+  ('045_fix_column_privilege_revokes.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- the GBSC-only/superseded files excluded from this bootstrap (below).
