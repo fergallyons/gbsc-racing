@@ -58,7 +58,8 @@ export default async function handler(request) {
   let faviconUrl = club.faviconUrl || club.faviconurl || club.logoUrl || club.logourl || club.logo_url || club.logo || '';
   if (!faviconUrl) faviconUrl = await dbFaviconFallback(club);
   const ext = faviconUrl ? faviconUrl.split('.').pop().toLowerCase() : '';
-  const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'png' ? 'image/png' : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/svg+xml';
+  const mimeMap = { svg: 'image/svg+xml', png: 'image/png', webp: 'image/webp', gif: 'image/gif', ico: 'image/x-icon', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
+  const mime = mimeMap[ext] || 'image/svg+xml';
 
   const icons = faviconUrl
     ? [{ src: faviconUrl, sizes: 'any', type: mime, purpose: 'any' }]

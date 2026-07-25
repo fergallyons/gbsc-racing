@@ -2802,7 +2802,7 @@ function _reapplyBranding(){
     const fi = document.querySelector('link[rel="icon"]');
     const ai = document.querySelector('link[rel="apple-touch-icon"]');
     const ext = faviconUrl.split('.').pop().toLowerCase();
-    const mime = ext==='svg'?'image/svg+xml':ext==='png'?'image/png':'image/jpeg';
+    const mime = ({svg:'image/svg+xml',png:'image/png',webp:'image/webp',gif:'image/gif',ico:'image/x-icon',jpg:'image/jpeg',jpeg:'image/jpeg'})[ext] || 'image/jpeg';
     if(fi){ fi.href=faviconUrl; fi.type=mime; }
     if(ai)  ai.href=faviconUrl;
   }
