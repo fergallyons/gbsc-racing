@@ -756,17 +756,35 @@ REVOKE ALL ON FUNCTION set_ro_payment_settings(text,text,text,text,text) FROM PU
 GRANT EXECUTE ON FUNCTION set_ro_payment_settings(text,text,text,text,text) TO anon;
 
 -- ============================================================
+-- PROTEST WORKFLOW (migration 041) -- see migrations/041_protest_workflow.sql
+-- for full rationale. Hearing scheduling, arbitration step, per-race
+-- protest deadline, skipper WhatsApp contact.
+-- ============================================================
+ALTER TABLE protests
+  ADD COLUMN IF NOT EXISTS hearing_at         timestamptz,
+  ADD COLUMN IF NOT EXISTS hearing_location   text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS arbitration_status text NOT NULL DEFAULT 'none'
+    CHECK (arbitration_status IN ('none','offered','penalty_accepted','withdrawn','proceeding')),
+  ADD COLUMN IF NOT EXISTS arbitration_notes  text NOT NULL DEFAULT '';
+
+ALTER TABLE races
+  ADD COLUMN IF NOT EXISTS protest_deadline timestamptz;
+
+ALTER TABLE boats
+  ADD COLUMN IF NOT EXISTS whatsapp text NOT NULL DEFAULT '';
+
+-- ============================================================
 -- ADMIN PIN (migration 042) -- see migrations/042_admin_pin.sql for full
 -- rationale. Second, more tightly-held PIN tier above the RO PIN.
 -- ============================================================
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS admin_pin_hash text;
-UPDATE settings SET admin_pin_hash = crypt('''0000''', gen_salt('''bf''')) WHERE admin_pin_hash IS NULL;
+UPDATE settings SET admin_pin_hash = crypt('0000', gen_salt('bf')) WHERE admin_pin_hash IS NULL;
 REVOKE SELECT (admin_pin_hash) ON settings FROM anon;
 
 CREATE OR REPLACE FUNCTION verify_admin_pin(p_pin text)
 RETURNS boolean
 LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
-  SELECT (admin_pin_hash = crypt(p_pin, admin_pin_hash)) FROM settings WHERE id = '''club''';
+  SELECT (admin_pin_hash = crypt(p_pin, admin_pin_hash)) FROM settings WHERE id = 'club';
 $$;
 REVOKE ALL ON FUNCTION verify_admin_pin(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION verify_admin_pin(text) TO anon;
@@ -776,9 +794,9 @@ RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE v_ok boolean;
 BEGIN
-  SELECT (admin_pin_hash = crypt(p_current_pin, admin_pin_hash)) INTO v_ok FROM settings WHERE id = '''club''';
+  SELECT (admin_pin_hash = crypt(p_current_pin, admin_pin_hash)) INTO v_ok FROM settings WHERE id = 'club';
   IF NOT COALESCE(v_ok, false) THEN RETURN false; END IF;
-  UPDATE settings SET admin_pin_hash = crypt(p_new_pin, gen_salt('''bf''')) WHERE id = '''club''';
+  UPDATE settings SET admin_pin_hash = crypt(p_new_pin, gen_salt('bf')) WHERE id = 'club';
   RETURN true;
 END; $$;
 REVOKE ALL ON FUNCTION change_admin_pin(text,text) FROM PUBLIC;
@@ -836,6 +854,7 @@ INSERT INTO schema_migrations (filename) VALUES
   ('037_boat_photos.sql'),
   ('038_push_subscriptions_role.sql'),
   ('040_secure_pins.sql'),
+  ('041_protest_workflow.sql'),
   ('042_admin_pin.sql'),
   ('043_race_starts_more_class_flags.sql'),
   ('044_rename_olympic_to_trapezoid.sql')

@@ -23,6 +23,14 @@
 // Request (POST, JSON):
 //   { type: "boat_registered", raceLabel: "Sat 25 Jul", boatName: "Silver Fox" }
 //   { type: "course_published", raceLabel: "Sat 25 Jul" }
+//   { type: "protest_filed", boatIds: ["silver-fox"], boatName: "Wanderer" }
+//   { type: "protest_hearing_scheduled", boatIds: [...], hearingAt: "...", hearingLocation: "..." }
+//   { type: "protest_decision", boatIds: [...], status: "Upheld" }
+//
+// boatIds (optional): restricts delivery to those boats' own 'skipper'-role
+// subscription instead of broadcasting to every subscriber with a matching
+// role — used for protest notifications, which are only relevant to the
+// specific boats involved, not the whole fleet.
 //
 // Response:
 //   200 { sent, failed, deleted }
@@ -33,8 +41,11 @@ const webpush = require('web-push');
 const { resolveClubSlug, clubEnv } = require('./_club');
 
 const TARGET_ROLES = {
-  boat_registered:  ['ro'],
-  course_published: ['crew', 'skipper'],
+  boat_registered:           ['ro'],
+  course_published:          ['crew', 'skipper'],
+  protest_filed:              ['skipper'],
+  protest_hearing_scheduled:  ['skipper'],
+  protest_decision:           ['skipper'],
 };
 
 exports.handler = async (event) => {
@@ -52,6 +63,14 @@ exports.handler = async (event) => {
   }
   const raceLabel = typeof body.raceLabel === 'string' ? body.raceLabel.slice(0, 80) : '';
   const boatName  = typeof body.boatName  === 'string' ? body.boatName.slice(0, 80)  : '';
+  const hearingLocation = typeof body.hearingLocation === 'string' ? body.hearingLocation.slice(0, 80) : '';
+  const hearingAt = typeof body.hearingAt === 'string' ? body.hearingAt : '';
+  const status = typeof body.status === 'string' ? body.status.slice(0, 40) : '';
+  // Same charset boats_insert's RLS policy already requires of a boat id —
+  // reused here just to keep this safe to interpolate into a REST filter.
+  const boatIds = Array.isArray(body.boatIds)
+    ? body.boatIds.filter(id => typeof id === 'string' && /^[a-z0-9_-]{1,60}$/.test(id))
+    : [];
 
   const slug = resolveClubSlug(event);
   let clubConfig;
@@ -85,10 +104,26 @@ exports.handler = async (event) => {
 
   webpush.setVapidDetails('mailto:noreply@example.com', vapidPublicKey, vapidPrivateKey);
 
+  const BOAT_SCOPED_TYPES = ['protest_filed', 'protest_hearing_scheduled', 'protest_decision'];
+  if (boatIds.length > 0 && !roles.includes('skipper')) {
+    // boatIds only makes sense for skipper-role notifications — nothing else
+    // is boat-scoped. Guard so a bad request can't silently broadcast wider
+    // than intended.
+    return json(400, { error: 'boatIds is only valid for skipper-role notification types' });
+  }
+  if (BOAT_SCOPED_TYPES.includes(body.type) && boatIds.length === 0) {
+    // These types are only ever meant for the specific boat(s) involved in a
+    // protest — never a club-wide broadcast. A missing/empty boatIds here is
+    // a caller bug, not "notify everyone", so fail loudly instead of paging
+    // the whole fleet about someone else's protest.
+    return json(400, { error: body.type + ' requires a non-empty boatIds array' });
+  }
+
   const roleFilter = roles.length === 1 ? 'eq.' + roles[0] : 'in.(' + roles.join(',') + ')';
+  const boatFilter = boatIds.length > 0 ? '&boat_id=in.(' + boatIds.join(',') + ')' : '';
   let subs;
   try {
-    const r = await fetch(sbUrl + '/rest/v1/push_subscriptions?role=' + roleFilter + '&select=id,endpoint,p256dh,auth', {
+    const r = await fetch(sbUrl + '/rest/v1/push_subscriptions?role=' + roleFilter + boatFilter + '&select=id,endpoint,p256dh,auth', {
       headers: { apikey: serviceKey, Authorization: 'Bearer ' + serviceKey },
     });
     if (!r.ok) return json(502, { error: 'could not load subscribers: ' + r.status });
@@ -97,9 +132,15 @@ exports.handler = async (event) => {
     return json(502, { error: 'could not load subscribers' });
   }
 
-  const payload = body.type === 'boat_registered'
-    ? { title: '⛵ New Registration', body: (boatName || 'A boat') + ' registered' + (raceLabel ? ' for ' + raceLabel : ''), tag: 'reg' }
-    : { title: '📋 Course Published', body: 'Today\'s course is up' + (raceLabel ? ' for ' + raceLabel : ''), tag: 'course' };
+  const hearingWhen = hearingAt ? new Date(hearingAt).toLocaleString('en-IE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const PAYLOADS = {
+    boat_registered: { title: '⛵ New Registration', body: (boatName || 'A boat') + ' registered' + (raceLabel ? ' for ' + raceLabel : ''), tag: 'reg' },
+    course_published: { title: '📋 Course Published', body: 'Today\'s course is up' + (raceLabel ? ' for ' + raceLabel : ''), tag: 'course' },
+    protest_filed: { title: '🚩 Protest Filed', body: (boatName || 'A boat') + ' has filed a protest against you' + (raceLabel ? ' — ' + raceLabel : ''), tag: 'protest' },
+    protest_hearing_scheduled: { title: '⚖ Hearing Scheduled', body: 'Protest hearing' + (hearingWhen ? ' ' + hearingWhen : '') + (hearingLocation ? ' at ' + hearingLocation : ''), tag: 'protest' },
+    protest_decision: { title: '⚖ Protest Decision', body: 'Decision reached: ' + (status || 'see the app for details'), tag: 'protest' },
+  };
+  const payload = PAYLOADS[body.type];
 
   let sent = 0, failed = 0;
   const staleIds = [];
