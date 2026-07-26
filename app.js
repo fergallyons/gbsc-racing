@@ -8157,14 +8157,21 @@ async function updateBoatSailNumber(id,value){
 function openIconPicker(boatId){
   const b=boats.find(x=>x.id===boatId); if(!b) return;
   const old=document.getElementById('iconPickerOverlay'); if(old) old.remove();
-  // Curated emoji palette — nautical, birds, animals, nature, bold
+  // Curated emoji palette — nautical, birds, animals, nature, bold, drinks/party,
+  // weather, mythical. Widened 2026-07-26 (was 62 icons) — this is only ever a
+  // suggested palette, not a restriction: boats.icon is free text, so any emoji
+  // (or none of these — e.g. "After Fizzer" already uses 🥂) still works fine.
   const emojis=[
     '⛵','🚢','🛥️','⚓','🌊','🏄','🎣','🧭','💨','🌬️','🏖️','🪝',
+    '🛟','🛶','🚤','⛴️','🚣','🏝️','🗺️','🌅','🌄',
     '🦅','🦜','🐦','🦢','🦩','🦆','🦉','🦚','🦋','🐧',
-    '🦭','🐬','🐳','🦈','🐙','🦀','🦞','🐠','🐟',
+    '🦭','🐬','🐳','🦈','🐙','🦀','🦞','🐠','🐟','🐡','🦑','🦐','🐚',
     '🌴','🌿','🍀','🌸','🌺','⭐','🌟','💫','☀️','🌙','🌈','⚡',
+    '⛈️','🌪️','❄️',
     '🔥','💥','😈','🏴‍☠️','🎯','🏆','💎','🚀','🦊','🐺','🦁','🐯',
-    '🍺','🎪','🎭','🎸','🥊','🏋️','⚔️','🛡️','🔱','♟️'
+    '🍺','🥂','🍾','🍻','🥃','🍷','🍸','🍹',
+    '🎪','🎭','🎸','🥊','🏋️','⚔️','🛡️','🔱','♟️','🏁','🎉',
+    '🧜','🐉','🦄','👑','😎','🤙'
   ];
   const overlay=document.createElement('div');
   overlay.id='iconPickerOverlay';
