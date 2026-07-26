@@ -747,7 +747,7 @@
     <div id="tile-pub-notifications" class="dash-card" onclick="openCrewNotifSheet()">
       <div class="dash-card-icon">🔔</div>
       <div class="dash-card-label">Notifications</div>
-      <div class="dash-card-sub">Course published alerts</div>
+      <div class="dash-card-sub">Configure alerts</div>
     </div>
   </div>
 
@@ -850,7 +850,7 @@
     <div id="tile-ro-viewCourse" class="dash-card ro-card" onclick="openPanel('roCourseViewPanel')">
       <div class="dash-card-icon">📐</div>
       <div class="dash-card-label">View Course</div>
-      <div class="dash-card-sub">Published diagram</div>
+      <div class="dash-card-sub">Show race diagram</div>
     </div>
     <div id="tile-ro-raceTracker" class="dash-card ro-card" onclick="openPanel('raceTrackerPanel');loadRaceTracker()">
       <div class="dash-card-icon">📍</div>
@@ -869,7 +869,7 @@
     </div>
     <div id="tile-ro-finishRecording" class="dash-card ro-card" onclick="openFinishRecordPanel()">
       <div class="dash-card-icon">🏁</div>
-      <div class="dash-card-label">Finish Recording</div>
+      <div class="dash-card-label">Finish Line</div>
       <div class="dash-card-sub" id="finishRecordStatus">No finishes recorded</div>
     </div>
     <div id="tile-ro-halsail" class="dash-card ro-card" onclick="openHalsail()">
@@ -1300,7 +1300,7 @@
 <div class="panel-overlay" id="roFinishPanel" style="display:none">
   <div class="panel-header">
     <button class="panel-back" onclick="closePanel('roFinishPanel')">‹</button>
-    <span class="panel-title">🏁 Finish Recording</span>
+    <span class="panel-title">🏁 Finish Line</span>
   </div>
   <div class="panel-body">
     <div class="race-bar" style="margin-bottom:14px">
