@@ -7317,24 +7317,27 @@ function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
   const flP1=sameLine?slP1:svgPts[2], flP2=sameLine?slP2:svgPts[3];
   const flMid=sameLine?slMid:{x:(flP1.x+flP2.x)/2, y:(flP1.y+flP2.y)/2};
   const markOffset=sameLine?2:4;
-  const rawMarkPts=svgPts.slice(markOffset);
-  // A mark visited more than once (course-card "Cage (S)" in round 1, then
-  // "Cage (P)" in round 2 — same real buoy, different rounding) projects to
-  // the exact same pixel position both times, so the second draw would sit
-  // exactly on top of the first and silently hide its rounding indicator.
-  // Fan repeat visits out at a small radius (golden-angle spacing so 3+
-  // repeats never line up) — same philosophy as the laid-course diagram's
-  // repeat-leg offsetting. Single-visit marks are completely unaffected.
+  // markPts is each mark's TRUE projected position — course legs always
+  // connect to it exactly, never offset, so the route stays geographically
+  // accurate. A mark visited more than once (course-card "Cage (S)" in
+  // round 1, then "Cage (P)" in round 2 — same real buoy, different
+  // rounding) still needs a second, visually distinct rounding badge
+  // though — badgePts (below) is where that decorative circle+label gets
+  // drawn, fanned out at a small radius from the true point with a thin
+  // leader line back to it, rather than moving the mark itself (that
+  // previously made the diagram inaccurate — see chat 2026-07-26).
+  const markPts=svgPts.slice(markOffset);
   const idTotal={};
   resolvedMarks.forEach(m=>{idTotal[m.id]=(idTotal[m.id]||0)+1;});
   const idSeen={};
-  const markPts=rawMarkPts.map((p,i)=>{
+  const badgePts=markPts.map((p,i)=>{
     const id=resolvedMarks[i].id;
     if(idTotal[id]<=1) return p;
     const occurrence=idSeen[id]=(idSeen[id]||0);
     idSeen[id]++;
+    if(occurrence===0) return p; // first visit sits exactly on the true point, unchanged
     const angle=occurrence*137.5*Math.PI/180;
-    const R=9;
+    const R=13;
     return {x:p.x+Math.cos(angle)*R, y:p.y+Math.sin(angle)*R};
   });
   const route=[slMid,...markPts,flMid];
@@ -7377,7 +7380,17 @@ function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
   }
 
   resolvedMarks.forEach((m,i)=>{
-    const p=markPts[i];
+    const truePt=markPts[i];
+    const p=badgePts[i];
+    const isOffset=p.x!==truePt.x||p.y!==truePt.y;
+    if(isOffset){
+      // Thin leader from the mark's real position to its (fanned-out)
+      // rounding badge — keeps the true point visible and accurate while
+      // still giving a second/third rounding of the same mark room to
+      // show its own badge without drawing on top of the first.
+      svgParts.push(`<line x1="${truePt.x.toFixed(1)}" y1="${truePt.y.toFixed(1)}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" stroke="${m.colour}" stroke-width="0.75" stroke-dasharray="1.5 1.5" opacity="0.6"/>`);
+      svgParts.push(`<circle cx="${truePt.x.toFixed(1)}" cy="${truePt.y.toFixed(1)}" r="2" fill="${m.colour}"/>`);
+    }
     const rnd=m.rounding;
     const rndCol=rnd==='port'?'#e63946':'#2dc653';
     const cx=p.x.toFixed(1), cy=p.y.toFixed(1);
