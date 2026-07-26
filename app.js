@@ -7512,7 +7512,11 @@ function updateLaidLaps(v){
 // reusing the same visual language (colours, wind/north arrows) as
 // buildCourseSvg so it feels consistent with the real mark-based diagram.
 function buildLaidCourseSvg(courseType, wDeg, laps){
-  const SVG_W=320, SVG_H=300;
+  // Wider than the other course types need on their own so a true
+  // equilateral triangle (mark 2 pulled a full sin(60°)·side off the 1-3
+  // axis, per RRS Appendix S's actual 60-60-60 proportions) still has
+  // clearance from the left edge for its mark circle — see triangle block.
+  const SVG_W=360, SVG_H=300;
   const cx=SVG_W/2, startY=SVG_H-40, windY=46;
   const RED='#e63946', YEL='#fee01e', GRN='#2dc653', TEAL='#00b4d8';
   const sf={x:cx,y:startY};
@@ -7525,9 +7529,16 @@ function buildLaidCourseSvg(courseType, wDeg, laps){
     // Only the first time up the course goes via the gybe mark: RRS
     // Appendix S Course TW only sails the full triangle once, every extra
     // lap is a direct 1-3 (TW3 = Start-1-2-3-1-3-Finish, not -1-2-3-1-2-3-).
+    //
+    // Genuinely equilateral (60-60-60), not just "offset to the left": with
+    // 1 and 3 on the same vertical (side length L = leeY-windY), mark 2 sits
+    // at the triangle's apex — perpendicular distance L·sin(60°) from the
+    // 1-3 axis, level with its midpoint — matching RRS Appendix S's diagram
+    // instead of the previous shallow "kite" shape.
+    const leeY=206, L=leeY-windY;
     const p1={x:cx,y:windY,label:'1 · Windward',colour:RED};
-    const p2={x:cx-72,y:132,label:'2 · Gybe',colour:YEL};
-    const p3={x:cx,y:206,label:'3 · Leeward',colour:GRN};
+    const p2={x:cx-L*Math.sin(Math.PI/3),y:(windY+leeY)/2,label:'2 · Gybe',colour:YEL,labelSide:'right'};
+    const p3={x:cx,y:leeY,label:'3 · Leeward',colour:GRN};
     pts=[p1,p2,p3];
     legs=[sf,p1,p2,p3];
     for(let i=1;i<laps;i++) legs.push(p1,p3);
@@ -7570,92 +7581,127 @@ function buildLaidCourseSvg(courseType, wDeg, laps){
     </marker>
   </defs>`);
 
-  // Course legs — solid, not dashed. A leg between the same two marks can
-  // appear more than once (extra laps) — rather than stack identical lines
-  // on top of each other, each repeat is fanned out with a small
-  // perpendicular offset, centred on the direct line, so the number of
-  // laps is visible at a glance instead of hidden under a single line.
+  // Route rendering. Two genuinely different situations, per club
+  // convention (chat 2026-07-26) — these are conceptual diagrams, not
+  // accurate ones, so a small constant offset is enough, no need to taper
+  // it in from a true single centreline:
+  //  - A leg sailed in BOTH directions (e.g. the windward/leeward leg, or a
+  //    triangle's direct 1-3 leg on later laps) is drawn as two parallel
+  //    lines offset a small fixed distance either side of the true
+  //    mark-to-mark line — one lane per direction, each with its own arrow
+  //    — closed off at each end by a true semicircular arc that goes
+  //    around the mark itself, exactly like a running track's rounded end.
+  //    "×N laps" already tells the reader how many times it's sailed, so
+  //    this is drawn once no matter the lap count.
+  //  - A leg sailed in ONE direction only (e.g. the triangle's gybe mark,
+  //    or the trapezoid's spreader) is a single line, corner-filleted with
+  //    a true tangent-circle arc at the mark so the curve's sweep matches
+  //    the boat's actual turn angle.
   const allPts=[sf,...pts];
   const idOf=new Map(allPts.map((p,i)=>[p,i]));
-  const legKey=(a,b)=>{ const ia=idOf.get(a),ib=idOf.get(b); return ia<ib?ia+'-'+ib:ib+'-'+ia; };
-  const totalOnLeg={};
-  for(let i=0;i<legs.length-1;i++){
-    const k=legKey(legs[i],legs[i+1]);
-    totalOnLeg[k]=(totalOnLeg[k]||0)+1;
-  }
-  const OFFSET_PX=5, PULLBACK=13;
-  const seenOnLeg={};
-  for(let i=0;i<legs.length-1;i++){
-    const p1=legs[i],p2=legs[i+1];
-    const k=legKey(p1,p2);
-    const total=totalOnLeg[k];
-    const seen=seenOnLeg[k]=(seenOnLeg[k]||0)+1;
-    const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1;
-    let ox=0,oy=0;
-    if(total>1){
-      const perpX=-dy/len, perpY=dx/len;
-      const centred=(seen-1)-(total-1)/2; // e.g. total=3 -> -1,0,1
-      ox=perpX*centred*OFFSET_PX; oy=perpY*centred*OFFSET_PX;
-    }
-    // Pulled back from each mark by PULLBACK px (was 8/10) to leave room
-    // for the rounding arc drawn separately below, so the straight run and
-    // the curve meet cleanly instead of the line running through the mark.
-    const sx=(p1.x+ox+dx/len*PULLBACK).toFixed(1),sy=(p1.y+oy+dy/len*PULLBACK).toFixed(1);
-    const ex=(p2.x+ox-dx/len*PULLBACK).toFixed(1),ey=(p2.y+oy-dy/len*PULLBACK).toFixed(1);
-    svgParts.push(`<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="rgba(0,180,216,0.7)" stroke-width="1.8" marker-end="url(#lca)"/>`);
-  }
+  const trimKey=(p,dx,dy)=>p.x.toFixed(1)+','+p.y.toFixed(1)+':'+dx.toFixed(2)+','+dy.toFixed(2);
+  const trims=new Map();
+  const R_FILLET=11, LANE=10;
 
-  // Rounding arcs — one per mark actually on the course, curving from its
-  // incoming to outgoing leg instead of meeting at a sharp point, like a
-  // boat actually rounding it. Uses each mark's first incoming/outgoing
-  // pair in the sequence — repeat visits (extra laps) round the same mark
-  // the same way, so one clear arc per mark reads better than several
-  // overlapping ones stacked at the same spot.
-  const cX=allPts.reduce((s,p)=>s+p.x,0)/allPts.length;
-  const cY=allPts.reduce((s,p)=>s+p.y,0)/allPts.length;
-  const BULGE=13;
-  pts.forEach(mark=>{
-    const idx=legs.indexOf(mark);
-    if(idx<=0||idx>=legs.length-1) return; // only real interior roundings
-    const prev=legs[idx-1], next=legs[idx+1];
+  // Which undirected leg-keys get sailed in both directions somewhere in
+  // the route (repeat laps on a W/L-type leg) vs. only ever one way. Only
+  // counts between two real marks — the start/finish point reuses the
+  // windward mark's line for both the opening leg and the final approach,
+  // which share a key but aren't actually a repeat-sailed leg the way a
+  // genuine W/L up-and-down leg is, so sf never gets a lane pair.
+  const pointByIdx=new Map(allPts.map((p,i)=>[i,p]));
+  const dirsOnLeg=new Map();
+  for(let i=0;i<legs.length-1;i++){
+    const ia=idOf.get(legs[i]), ib=idOf.get(legs[i+1]);
+    const k=ia<ib?ia+'-'+ib:ib+'-'+ia;
+    if(!dirsOnLeg.has(k)) dirsOnLeg.set(k,new Set());
+    dirsOnLeg.get(k).add(ia<ib?'f':'r');
+  }
+  const bothWays=new Set([...dirsOnLeg].filter(([k,s])=>{
+    if(s.size<=1) return false;
+    const [loI,hiI]=k.split('-');
+    return pts.includes(pointByIdx.get(+loI)) && pts.includes(pointByIdx.get(+hiI));
+  }).map(([k])=>k));
+
+  // Corner fillets — one per distinct one-way rounding actually on the
+  // course (dedup handles repeat laps reusing the same in/out pair). A
+  // genuine reversal (dot≈-1) is skipped entirely — that's handled by the
+  // stadium cap below, not a fillet. Where one side of a real corner leads
+  // straight into a stadium leg (e.g. the triangle's leeward mark, entered
+  // from the gybe mark but then repeating 1-3 for extra laps), the fillet
+  // still rounds the corner but bridges straight to the true mark position
+  // on that side rather than trying to line up with the lane's small
+  // sideways offset — close enough for a conceptual diagram.
+  const seenCorner=new Set();
+  for(let i=1;i<legs.length-1;i++){
+    const mark=legs[i];
+    if(!pts.includes(mark)) continue; // only real course marks get rounding treatment
+    const prev=legs[i-1], next=legs[i+1];
+    const ia=idOf.get(prev), im=idOf.get(mark), ib=idOf.get(next);
+    const kIn=ia<im?ia+'-'+im:im+'-'+ia, kOut=im<ib?im+'-'+ib:ib+'-'+im;
     const dinx=mark.x-prev.x, diny=mark.y-prev.y, dinLen=Math.sqrt(dinx*dinx+diny*diny)||1;
     const doutx=next.x-mark.x, douty=next.y-mark.y, doutLen=Math.sqrt(doutx*doutx+douty*douty)||1;
     const uinx=dinx/dinLen, uiny=diny/dinLen, uoutx=doutx/doutLen, uouty=douty/doutLen;
-    const A={x:mark.x-uinx*PULLBACK, y:mark.y-uiny*PULLBACK};
-    const B={x:mark.x+uoutx*PULLBACK, y:mark.y+uouty*PULLBACK};
-    // Bulge perpendicular to the average travel direction (falling back to
-    // perpendicular-of-incoming for a near-180° reversal, where in+out
-    // nearly cancel out) — then pick whichever side points away from the
-    // diagram's centre, so arcs read as rounding outward from the course
-    // shape rather than cutting back through the middle of it.
-    let avgx=uinx+uoutx, avgy=uiny+uouty;
-    const avgLen=Math.sqrt(avgx*avgx+avgy*avgy);
-    let px,py;
-    const isReversal=avgLen<0.05;
-    if(isReversal){ px=-uiny; py=uinx; }
-    else { px=-avgy/avgLen; py=avgx/avgLen; }
-    if(px*(cX-mark.x)+py*(cY-mark.y)>0){ px=-px; py=-py; }
-    let pathD;
-    if(isReversal){
-      // A near-exact 180° reversal (e.g. the windward mark on a plain W/L
-      // course, where the boat arrives from and departs back toward the
-      // same side) pulls A and B back onto almost the same point, which
-      // collapses a single shared-control-point curve into an invisible
-      // retraced line instead of a visible loop. Two independent control
-      // points, offset to the bulge side and nudged apart along the
-      // (near-identical) in/out direction, trace a real semicircle-like
-      // loop around the mark instead.
-      const backx=-uinx, backy=-uiny, fwdx=uoutx, fwdy=uouty;
-      const LOOP=BULGE+3;
-      const C1={x:mark.x+px*LOOP-backx*3, y:mark.y+py*LOOP-backy*3};
-      const C2={x:mark.x+px*LOOP+fwdx*3, y:mark.y+py*LOOP+fwdy*3};
-      pathD=`M${A.x.toFixed(1)},${A.y.toFixed(1)} C${C1.x.toFixed(1)},${C1.y.toFixed(1)} ${C2.x.toFixed(1)},${C2.y.toFixed(1)} ${B.x.toFixed(1)},${B.y.toFixed(1)}`;
-    } else {
-      const C={x:mark.x+px*BULGE, y:mark.y+py*BULGE};
-      pathD=`M${A.x.toFixed(1)},${A.y.toFixed(1)} Q${C.x.toFixed(1)},${C.y.toFixed(1)} ${B.x.toFixed(1)},${B.y.toFixed(1)}`;
+    if(uinx*uoutx+uiny*uouty<-0.85) continue; // reversal — handled by the stadium cap
+    const sig=pts.indexOf(mark)+'|'+uinx.toFixed(2)+','+uiny.toFixed(2)+'|'+uoutx.toFixed(2)+','+uouty.toFixed(2);
+    if(seenCorner.has(sig)) continue;
+    seenCorner.add(sig);
+    const rinx=-uinx, riny=-uiny;
+    const phi=Math.acos(Math.max(-1,Math.min(1,rinx*uoutx+riny*uouty)));
+    if(phi>0.08){
+      const t=R_FILLET/Math.tan(phi/2);
+      const A={x:mark.x+rinx*t, y:mark.y+riny*t};
+      const B={x:mark.x+uoutx*t, y:mark.y+uouty*t};
+      const sweepFlag=(uinx*uouty-uiny*uoutx)>0?1:0;
+      svgParts.push(`<path d="M${A.x.toFixed(1)},${A.y.toFixed(1)} A${R_FILLET},${R_FILLET} 0 0,${sweepFlag} ${B.x.toFixed(1)},${B.y.toFixed(1)}" fill="none" stroke="rgba(0,180,216,0.7)" stroke-width="1.8"/>`);
+      if(bothWays.has(kIn)){
+        svgParts.push(`<line x1="${mark.x.toFixed(1)}" y1="${mark.y.toFixed(1)}" x2="${A.x.toFixed(1)}" y2="${A.y.toFixed(1)}" stroke="rgba(0,180,216,0.7)" stroke-width="1.8"/>`);
+      } else {
+        trims.set(trimKey(mark,-uinx,-uiny), t);
+      }
+      if(bothWays.has(kOut)){
+        svgParts.push(`<line x1="${B.x.toFixed(1)}" y1="${B.y.toFixed(1)}" x2="${mark.x.toFixed(1)}" y2="${mark.y.toFixed(1)}" stroke="rgba(0,180,216,0.7)" stroke-width="1.8"/>`);
+      } else {
+        trims.set(trimKey(mark,uoutx,uouty), t);
+      }
     }
-    svgParts.push(`<path d="${pathD}" fill="none" stroke="rgba(0,180,216,0.7)" stroke-width="1.8"/>`);
-  });
+  }
+
+  // Draw each leg exactly once, whichever way it's actually sailed.
+  const drawnLegs=new Set();
+  for(let i=0;i<legs.length-1;i++){
+    const a=legs[i], b=legs[i+1];
+    const ia=idOf.get(a), ib=idOf.get(b);
+    const k=ia<ib?ia+'-'+ib:ib+'-'+ia;
+    if(drawnLegs.has(k)) continue;
+    drawnLegs.add(k);
+    const lo=ia<ib?a:b, hi=ia<ib?b:a;
+    if(bothWays.has(k)){
+      const dx=hi.x-lo.x, dy=hi.y-lo.y, len=Math.sqrt(dx*dx+dy*dy)||1;
+      const ux=dx/len, uy=dy/len, px=-uy, py=ux;
+      const A1={x:lo.x+px*LANE, y:lo.y+py*LANE}, A2={x:hi.x+px*LANE, y:hi.y+py*LANE};
+      const B1={x:lo.x-px*LANE, y:lo.y-py*LANE}, B2={x:hi.x-px*LANE, y:hi.y-py*LANE};
+      svgParts.push(`<line x1="${A1.x.toFixed(1)}" y1="${A1.y.toFixed(1)}" x2="${A2.x.toFixed(1)}" y2="${A2.y.toFixed(1)}" stroke="rgba(0,180,216,0.7)" stroke-width="1.8" marker-end="url(#lca)"/>`);
+      svgParts.push(`<line x1="${B2.x.toFixed(1)}" y1="${B2.y.toFixed(1)}" x2="${B1.x.toFixed(1)}" y2="${B1.y.toFixed(1)}" stroke="rgba(0,180,216,0.7)" stroke-width="1.8" marker-end="url(#lca)"/>`);
+      // Semicircular end caps — go around the actual mark, LANE px out, on
+      // the far side from the other end of the leg (sweep=0 always works
+      // out to the outward side here, given how A1/B1/A2/B2 are built above).
+      if(pts.includes(lo)){
+        svgParts.push(`<path d="M${B1.x.toFixed(1)},${B1.y.toFixed(1)} A${LANE},${LANE} 0 0,0 ${A1.x.toFixed(1)},${A1.y.toFixed(1)}" fill="none" stroke="rgba(0,180,216,0.7)" stroke-width="1.8"/>`);
+      }
+      if(pts.includes(hi)){
+        svgParts.push(`<path d="M${A2.x.toFixed(1)},${A2.y.toFixed(1)} A${LANE},${LANE} 0 0,0 ${B2.x.toFixed(1)},${B2.y.toFixed(1)}" fill="none" stroke="rgba(0,180,216,0.7)" stroke-width="1.8"/>`);
+      }
+    } else {
+      const dx=b.x-a.x, dy=b.y-a.y, len=Math.sqrt(dx*dx+dy*dy)||1;
+      const ux=dx/len, uy=dy/len;
+      const trimA=trims.get(trimKey(a,ux,uy))||0;
+      const trimB=trims.get(trimKey(b,-ux,-uy))||0;
+      const sx=(a.x+ux*trimA).toFixed(1), sy=(a.y+uy*trimA).toFixed(1);
+      const ex=(b.x-ux*trimB).toFixed(1), ey=(b.y-uy*trimB).toFixed(1);
+      svgParts.push(`<line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="rgba(0,180,216,0.7)" stroke-width="1.8" marker-end="url(#lca)"/>`);
+    }
+  }
 
   // Start/Finish line
   svgParts.push(`<line x1="${(sf.x-26).toFixed(1)}" y1="${sf.y}" x2="${(sf.x+26).toFixed(1)}" y2="${sf.y}" stroke="${TEAL}" stroke-width="3.5" stroke-linecap="round" opacity="0.85"/>`);
@@ -7670,10 +7716,12 @@ function buildLaidCourseSvg(courseType, wDeg, laps){
     // Auto-side by position, unless a point explicitly overrides it
     // (e.g. trapezoid's windward mark sits dead-centre with the spreader
     // mark close by on the left, so it needs to be forced right to avoid
-    // the two labels colliding).
-    const labelLeft=p.labelSide?p.labelSide==='left':p.x>cx;
-    const lx=labelLeft?p.x+12:p.x-12;
-    svgParts.push(`<text x="${lx}" y="${p.y+3}" text-anchor="${labelLeft?'start':'end'}" fill="${p.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${p.label}</text>`);
+    // the two labels colliding; triangle's gybe mark is pulled far left
+    // for a true equilateral shape and needs its label forced back toward
+    // the canvas interior so it doesn't run off the left edge).
+    const labelRight=p.labelSide?p.labelSide==='right':p.x>cx;
+    const lx=labelRight?p.x+12:p.x-12;
+    svgParts.push(`<text x="${lx}" y="${p.y+3}" text-anchor="${labelRight?'start':'end'}" fill="${p.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${p.label}</text>`);
   });
 
   // North arrow (top-right)
