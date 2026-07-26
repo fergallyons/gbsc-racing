@@ -1571,6 +1571,7 @@ function populateCcLineSelects(){
 function ccLineChange(which, id){
   if(which==='start') selectedStartLineId=id;
   else selectedFinishLineId=id;
+  if(selectedCourseCardEntry) selectCourseCardCourse(selectedCourseCardEntry.number);
 }
 
 function renderCourseCardList(filter){
@@ -1616,6 +1617,43 @@ function renderCourseCardList(filter){
   `).join('');
 }
 
+// ── Course Card → diagram: parse round text, cross-reference real marks ────
+// Course card "marks" text (e.g. "Ringabella (P) – W2 (P) – Cage (S)") is
+// free text, not structured — this splits each round on the en-dash
+// separator, extracts each mark's name + rounding side, and resolves it
+// against the live Marks Manager list so the same buildCourseSvg() used by
+// the manual Course Builder can render it. Rounds are sequential STAGES of
+// one continuous course, not repeated laps (RCYC's own course cards confirm
+// this — round 2 picks up wherever round 1 left off, e.g. Course 1's Cage
+// is visited once in round 1 and again in round 2 from a different leg) —
+// each resolved mark is tagged with its stage index so the diagram can
+// colour each stage differently. Marks that don't resolve (not yet added to
+// the Marks Manager) are skipped, not fatal. Re-run at render time rather
+// than resolved once at publish — if the RO adds a missing mark to Marks
+// Manager later, an already-published diagram improves automatically. See
+// chat 2026-07-26.
+const COURSE_CARD_MOJIBAKE_DASH=/â€“/g; // en-dash mis-decoded as Windows-1252, seen in RCYC's seed data
+function parseCourseCardMarks(entry){
+  const rounds=Array.isArray(entry.rounds)
+    ?entry.rounds
+    :(typeof entry.rounds==='string'?JSON.parse(entry.rounds):[]);
+  const markEntries=[];
+  const unresolved=[];
+  rounds.forEach((round,stage)=>{
+    const text=(round.marks||'').replace(COURSE_CARD_MOJIBAKE_DASH,'–');
+    text.split(/[–—]/).map(s=>s.trim()).filter(Boolean).forEach(seg=>{
+      if(/^finish$/i.test(seg)) return; // sentinel — buildCourseSvg draws the finish line separately
+      const m=seg.match(/^(.*?)\s*\(([PSps])\)\s*$/);
+      const name=(m?m[1]:seg).trim();
+      const rounding=m&&m[2].toUpperCase()==='S'?'starboard':'port';
+      const mark=MARKS.find(x=>x.name.toLowerCase()===name.toLowerCase());
+      if(mark) markEntries.push({id:mark.id,rounding,stage});
+      else unresolved.push(name);
+    });
+  });
+  return {markEntries,unresolved:[...new Set(unresolved)]};
+}
+
 let selectedCourseCardEntry=null;
 
 function selectCourseCardCourse(number){
@@ -1630,14 +1668,24 @@ function selectCourseCardCourse(number){
   const gwNote=selectedCourseCardEntry.grassy_walk_note
     ?'<div style="font-size:.75rem;color:var(--gold);margin-top:6px">** When Grassy Walk line in use: insert Dosco (P) as Mark 1</div>':''
   ;
+  const STAGE_COLORS=['#00b4d8','#fee01e','#ff8c42','#9b59b6','#5c9bd6','#e91e8c'];
+  const {markEntries,unresolved}=parseCourseCardMarks(selectedCourseCardEntry);
+  const diagramHtml=markEntries.length
+    ?buildCourseSvg(markEntries,null,getLineById(selectedStartLineId),getLineById(selectedFinishLineId))
+    :'';
+  const unresolvedNote=unresolved.length
+    ?`<div style="font-size:.75rem;color:var(--gold);margin-bottom:10px">⚠ Not shown on diagram (not in Marks Manager yet): ${unresolved.join(', ')}</div>`
+    :'';
   preview.innerHTML=`
+    ${diagramHtml?`<div style="background:var(--navy);border-radius:10px;padding:8px;margin-bottom:10px">${diagramHtml}</div>`:''}
+    ${unresolvedNote}
     <div style="background:rgba(0,188,212,.08);border:1px solid rgba(0,188,212,.3);border-radius:10px;padding:14px;margin-bottom:12px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--white);margin-bottom:8px">
         Course ${selectedCourseCardEntry.number}${selectedCourseCardEntry.name?' — '+selectedCourseCardEntry.name:''}
         <span style="font-size:.8rem;font-weight:400;color:var(--muted);margin-left:8px">${selectedCourseCardEntry.wind_direction} Wind · ${lastDist} nm</span>
       </div>
-      ${rounds.map(r=>`<div style="margin-bottom:5px">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--teal)">${r.label}:</span>
+      ${rounds.map((r,i)=>`<div style="margin-bottom:5px">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:${STAGE_COLORS[i%STAGE_COLORS.length]}">${r.label}:</span>
         <span style="font-size:.88rem;color:var(--fg)"> ${r.marks}</span>
         <span style="font-size:.78rem;color:var(--muted)"> (${r.distance_nm} nm)</span>
       </div>`).join('')}
@@ -7229,8 +7277,14 @@ function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
 
   const resolvedMarks=markEntries.map(me=>{
     const m=MARKS.find(x=>x.id===me.id);
-    return m?{...m,rounding:me.rounding||'port'}:null;
+    return m?{...m,rounding:me.rounding||'port',stage:me.stage}:null;
   }).filter(Boolean);
+  // Course-card entries tag each mark with a "stage" (round) index so
+  // repeat visits to the same mark from different rounds read as distinct
+  // legs instead of overlapping — see parseCourseCardMarks(). Avoids red/
+  // green since those already mean port/starboard rounding on each mark.
+  const STAGE_COLORS=['#00b4d8','#fee01e','#ff8c42','#9b59b6','#5c9bd6','#e91e8c'];
+  const hasStages=resolvedMarks.some(m=>m.stage!=null);
 
   // Build geo list: start endpoints first, then finish endpoints (if different), then marks.
   // Index map:  0=sl.p1  1=sl.p2  [2=fl.p1  3=fl.p2 if different]  then marks
@@ -7263,7 +7317,26 @@ function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
   const flP1=sameLine?slP1:svgPts[2], flP2=sameLine?slP2:svgPts[3];
   const flMid=sameLine?slMid:{x:(flP1.x+flP2.x)/2, y:(flP1.y+flP2.y)/2};
   const markOffset=sameLine?2:4;
-  const markPts=svgPts.slice(markOffset);
+  const rawMarkPts=svgPts.slice(markOffset);
+  // A mark visited more than once (course-card "Cage (S)" in round 1, then
+  // "Cage (P)" in round 2 — same real buoy, different rounding) projects to
+  // the exact same pixel position both times, so the second draw would sit
+  // exactly on top of the first and silently hide its rounding indicator.
+  // Fan repeat visits out at a small radius (golden-angle spacing so 3+
+  // repeats never line up) — same philosophy as the laid-course diagram's
+  // repeat-leg offsetting. Single-visit marks are completely unaffected.
+  const idTotal={};
+  resolvedMarks.forEach(m=>{idTotal[m.id]=(idTotal[m.id]||0)+1;});
+  const idSeen={};
+  const markPts=rawMarkPts.map((p,i)=>{
+    const id=resolvedMarks[i].id;
+    if(idTotal[id]<=1) return p;
+    const occurrence=idSeen[id]=(idSeen[id]||0);
+    idSeen[id]++;
+    const angle=occurrence*137.5*Math.PI/180;
+    const R=9;
+    return {x:p.x+Math.cos(angle)*R, y:p.y+Math.sin(angle)*R};
+  });
   const route=[slMid,...markPts,flMid];
 
   let svgParts=[];
@@ -7279,6 +7352,7 @@ function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
     <marker id="cw" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto">
       <path d="M0,0.5 L0,3.5 L4,2 z" fill="rgba(255,170,0,0.9)"/>
     </marker>
+    ${hasStages?STAGE_COLORS.map((col,i)=>`<marker id="ca-s${i}" markerWidth="4" markerHeight="4" refX="3" refY="2" orient="auto"><path d="M0,0.5 L0,3.5 L4,2 z" fill="${col}"/></marker>`).join(''):''}
     ${satFilter}
   </defs>`);
 
@@ -7292,7 +7366,14 @@ function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
     const dx=p2.x-p1.x,dy=p2.y-p1.y,len=Math.sqrt(dx*dx+dy*dy)||1;
     const sx=p1.x+dx/len*NR,sy=p1.y+dy/len*NR;
     const ex=p2.x-dx/len*(NR+2),ey=p2.y-dy/len*(NR+2);
-    svgParts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="rgba(0,180,216,0.6)" stroke-width="1.8" marker-end="url(#ca)"/>`);
+    // Colour each leg by the stage of the mark it's approaching — falls
+    // back to the original fixed teal when no mark carries a stage (the
+    // manual Course Builder never sets one).
+    const destIdx=i<resolvedMarks.length?i:resolvedMarks.length-1;
+    const destStage=resolvedMarks[destIdx]&&resolvedMarks[destIdx].stage;
+    const legStroke=hasStages&&destStage!=null?STAGE_COLORS[destStage%STAGE_COLORS.length]:'rgba(0,180,216,0.6)';
+    const legMarker=hasStages&&destStage!=null?`url(#ca-s${destStage%STAGE_COLORS.length})`:'url(#ca)';
+    svgParts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${legStroke}" stroke-width="1.8" marker-end="${legMarker}"/>`);
   }
 
   resolvedMarks.forEach((m,i)=>{
@@ -7648,6 +7729,17 @@ function renderCourseDiagram(targetId){
         rounds.filter(r=>r.note).map(r=>'ℹ '+r.note).join('<br>')+
         '</div>':''
     ;
+    const STAGE_COLORS=['#00b4d8','#fee01e','#ff8c42','#9b59b6','#5c9bd6','#e91e8c'];
+    // Re-parsed at render time rather than stored at publish — if the RO
+    // adds a missing mark to Marks Manager after publishing, this diagram
+    // improves next render without needing to republish. See chat 2026-07-26.
+    const {markEntries:cardMarkEntries,unresolved:cardUnresolved}=parseCourseCardMarks(c);
+    const cardDiagramHtml=cardMarkEntries.length
+      ?buildCourseSvg(cardMarkEntries,c.windDeg,getLineById(c.startLineId||'club'),getLineById(c.finishLineId||'club'))
+      :'';
+    const cardUnresolvedNote=cardUnresolved.length
+      ?`<div style="margin-top:8px;font-size:.75rem;color:var(--gold)">⚠ Not shown on diagram (not in Marks Manager yet): ${cardUnresolved.join(', ')}</div>`
+      :'';
     wrap.innerHTML=`
       <div class="course-diagram-wrap">
         ${isStale?`
@@ -7671,10 +7763,12 @@ function renderCourseDiagram(targetId){
           </div>
         </div>
         ${c.notes?`<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.82rem;color:var(--gold)">📋 ${c.notes}</div>`:''}
+        ${cardDiagramHtml?`<div style="margin-top:14px;background:var(--navy);border-radius:10px;padding:8px;${isStale?'opacity:0.6':''}">${cardDiagramHtml}</div>`:''}
+        ${cardUnresolvedNote}
         <div style="margin-top:14px;${isStale?'opacity:0.6':''}">
           ${rounds.map((r,i)=>`
             <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px">
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--teal);letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:${STAGE_COLORS[i%STAGE_COLORS.length]};letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">
                 ${r.label} · ${r.distance_nm} nm
               </div>
               <div style="font-size:.95rem;color:var(--white);line-height:1.5">${r.marks}</div>
