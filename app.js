@@ -9754,7 +9754,12 @@ async function deleteMark(id){
 }
 
 async function submitAddMark(){
-  const id=document.getElementById('mk-id').value.trim().toUpperCase();
+  // marks_insert's RLS policy only permits lowercase ids (^[a-z0-9_-]{1,60}$)
+  // — every existing mark was seeded directly via SQL, which is why this
+  // uppercasing (presumably meant to normalise the RO's typed input for
+  // display) went unnoticed: it made every "Add Mark" submission from the
+  // app itself fail RLS outright. See chat 2026-07-26.
+  const id=document.getElementById('mk-id').value.trim().toLowerCase();
   const name=document.getElementById('mk-name').value.trim();
   const latD=parseFloat(document.getElementById('mk-lat-d').value);
   const latM=parseFloat(document.getElementById('mk-lat-m').value);
