@@ -1372,13 +1372,30 @@ function setTrackerMode(mode){
     loadReplayData();
   }
 }
+async function fetchAllRacePositions(key){
+  // PostgREST caps a single response at (typically) 1000 rows — a real
+  // race easily exceeds that (a few boats posting every 15s over an hour
+  // is already 1000+ rows), so a plain single fetch silently truncates the
+  // track. Page through with Range until a page comes back short.
+  const PAGE=1000;
+  let all=[], offset=0;
+  while(true){
+    const page=await sbFetch('/rest/v1/race_positions?race_key=eq.'+encodeURIComponent(key)
+      +'&order=recorded_at.asc&select=boat_id,lat,lng,heading,speed_kn,recorded_at',
+      {headers:{...SBH,'Range':offset+'-'+(offset+PAGE-1)}});
+    if(!page||!Array.isArray(page)||!page.length) break;
+    all=all.concat(page);
+    if(page.length<PAGE) break;
+    offset+=PAGE;
+  }
+  return all;
+}
 async function loadReplayData(){
   const race=selectedRace||nextRace;
   const listEl=document.getElementById('trackerFleetList');
   if(!race){ setTrackerEmptyState(true,'No race selected','Pick a race first, then come back to replay its tracked positions.'); return; }
   const key=raceKey(race);
-  const rows=await sbFetch('/rest/v1/race_positions?race_key=eq.'+encodeURIComponent(key)
-    +'&order=recorded_at.asc&select=boat_id,lat,lng,heading,speed_kn,recorded_at');
+  const rows=await fetchAllRacePositions(key);
   if(!rows||!rows.length){
     _replayData=null;
     document.getElementById('trackerReplayControls').style.display='none';
