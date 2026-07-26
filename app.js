@@ -7318,28 +7318,8 @@ function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
   const flMid=sameLine?slMid:{x:(flP1.x+flP2.x)/2, y:(flP1.y+flP2.y)/2};
   const markOffset=sameLine?2:4;
   // markPts is each mark's TRUE projected position — course legs always
-  // connect to it exactly, never offset, so the route stays geographically
-  // accurate. A mark visited more than once (course-card "Cage (S)" in
-  // round 1, then "Cage (P)" in round 2 — same real buoy, different
-  // rounding) still needs a second, visually distinct rounding badge
-  // though — badgePts (below) is where that decorative circle+label gets
-  // drawn, fanned out at a small radius from the true point with a thin
-  // leader line back to it, rather than moving the mark itself (that
-  // previously made the diagram inaccurate — see chat 2026-07-26).
+  // connect to it exactly, so the route stays geographically accurate.
   const markPts=svgPts.slice(markOffset);
-  const idTotal={};
-  resolvedMarks.forEach(m=>{idTotal[m.id]=(idTotal[m.id]||0)+1;});
-  const idSeen={};
-  const badgePts=markPts.map((p,i)=>{
-    const id=resolvedMarks[i].id;
-    if(idTotal[id]<=1) return p;
-    const occurrence=idSeen[id]=(idSeen[id]||0);
-    idSeen[id]++;
-    if(occurrence===0) return p; // first visit sits exactly on the true point, unchanged
-    const angle=occurrence*137.5*Math.PI/180;
-    const R=13;
-    return {x:p.x+Math.cos(angle)*R, y:p.y+Math.sin(angle)*R};
-  });
   const route=[slMid,...markPts,flMid];
 
   let svgParts=[];
@@ -7379,46 +7359,61 @@ function buildCourseSvg(markEntries, wDeg, startLine, finishLine){
     svgParts.push(`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${legStroke}" stroke-width="1.8" marker-end="${legMarker}"/>`);
   }
 
+  // A mark rounded more than once (course-card "Cage (S)" in round 1, then
+  // "Cage (P)" in round 2 — same real buoy) is drawn ONCE, at its one true
+  // position — no duplicate circles, no offsetting. Each rounding just adds
+  // its own PORT/STBD line, stacked in course order under the mark's name.
+  const uniqueMarks=[];
+  const uniqueIdx={};
   resolvedMarks.forEach((m,i)=>{
-    const truePt=markPts[i];
-    const p=badgePts[i];
-    const isOffset=p.x!==truePt.x||p.y!==truePt.y;
-    if(isOffset){
-      // Thin leader from the mark's real position to its (fanned-out)
-      // rounding badge — keeps the true point visible and accurate while
-      // still giving a second/third rounding of the same mark room to
-      // show its own badge without drawing on top of the first.
-      svgParts.push(`<line x1="${truePt.x.toFixed(1)}" y1="${truePt.y.toFixed(1)}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" stroke="${m.colour}" stroke-width="0.75" stroke-dasharray="1.5 1.5" opacity="0.6"/>`);
-      svgParts.push(`<circle cx="${truePt.x.toFixed(1)}" cy="${truePt.y.toFixed(1)}" r="2" fill="${m.colour}"/>`);
+    if(uniqueIdx[m.id]===undefined){
+      uniqueIdx[m.id]=uniqueMarks.length;
+      uniqueMarks.push({...m, roundings:[m.rounding], ptIndex:i});
+    } else {
+      uniqueMarks[uniqueIdx[m.id]].roundings.push(m.rounding);
     }
-    const rnd=m.rounding;
-    const rndCol=rnd==='port'?'#e63946':'#2dc653';
+  });
+  uniqueMarks.forEach(m=>{
+    const p=markPts[m.ptIndex];
     const cx=p.x.toFixed(1), cy=p.y.toFixed(1);
     const r=NR, top=(p.y-r).toFixed(1), bot=(p.y+r).toFixed(1);
-    // Half-circle paths split vertically at cx:
-    //   left  half: arc sweeps counterclockwise (flag 0)
-    //   right half: arc sweeps clockwise       (flag 1)
-    const leftHalf =`M ${cx} ${top} A ${r} ${r} 0 0 0 ${cx} ${bot} Z`;
-    const rightHalf=`M ${cx} ${top} A ${r} ${r} 0 0 1 ${cx} ${bot} Z`;
-    // Port rounding  → red   left half,  mark-colour right half
-    // Stbd rounding  → mark-colour left, green right half
-    const [leftFill,rightFill]=rnd==='port'
-      ?[rndCol, m.colour+'cc']
-      :[m.colour+'cc', rndCol];
-    // Outer glow
-    svgParts.push(`<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="${m.colour}12" stroke="${m.colour}" stroke-width="0.7" opacity="0.55"/>`);
-    // Split halves
-    svgParts.push(`<path d="${leftHalf}"  fill="${leftFill}"  opacity="0.85"/>`);
-    svgParts.push(`<path d="${rightHalf}" fill="${rightFill}" opacity="0.85"/>`);
+    if(m.roundings.length===1){
+      const rnd=m.roundings[0];
+      const rndCol=rnd==='port'?'#e63946':'#2dc653';
+      // Half-circle paths split vertically at cx:
+      //   left  half: arc sweeps counterclockwise (flag 0)
+      //   right half: arc sweeps clockwise       (flag 1)
+      const leftHalf =`M ${cx} ${top} A ${r} ${r} 0 0 0 ${cx} ${bot} Z`;
+      const rightHalf=`M ${cx} ${top} A ${r} ${r} 0 0 1 ${cx} ${bot} Z`;
+      // Port rounding  → red   left half,  mark-colour right half
+      // Stbd rounding  → mark-colour left, green right half
+      const [leftFill,rightFill]=rnd==='port'
+        ?[rndCol, m.colour+'cc']
+        :[m.colour+'cc', rndCol];
+      svgParts.push(`<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="${m.colour}12" stroke="${m.colour}" stroke-width="0.7" opacity="0.55"/>`);
+      svgParts.push(`<path d="${leftHalf}"  fill="${leftFill}"  opacity="0.85"/>`);
+      svgParts.push(`<path d="${rightHalf}" fill="${rightFill}" opacity="0.85"/>`);
+    } else {
+      // Rounded more than once with (potentially) different sides on each
+      // pass — a single half-circle split can't represent that, so the
+      // circle stays neutral and the stacked text below carries each one.
+      svgParts.push(`<circle cx="${cx}" cy="${cy}" r="${r+3}" fill="${m.colour}12" stroke="${m.colour}" stroke-width="0.7" opacity="0.55"/>`);
+      svgParts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${m.colour}55"/>`);
+    }
     // Circle outline & centre dot
     svgParts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${m.colour}" stroke-width="1.5"/>`);
     svgParts.push(`<circle cx="${cx}" cy="${cy}" r="1.5" fill="${m.colour}"/>`);
-    // Label: name above, small P/S below in rounding colour
+    // Label: name above, PORT/STBD below — one line per rounding, in
+    // course order, first on top.
     const labelLeft=p.x<=SVG_W/2;
     const lx=(labelLeft?p.x-r-4:p.x+r+4).toFixed(1);
     const anchor=labelLeft?'end':'start';
     svgParts.push(`<text x="${lx}" y="${(p.y-2).toFixed(1)}" text-anchor="${anchor}" fill="${m.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="400"${tf}>${m.name}</text>`);
-    svgParts.push(`<text x="${lx}" y="${(p.y+7).toFixed(1)}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="7.5" font-weight="700"${tf}>${rnd==='port'?'PORT':'STBD'}</text>`);
+    m.roundings.forEach((rnd,idx)=>{
+      const rndCol=rnd==='port'?'#e63946':'#2dc653';
+      const ly=(p.y+7+idx*9).toFixed(1);
+      svgParts.push(`<text x="${lx}" y="${ly}" text-anchor="${anchor}" fill="${rndCol}" font-family="Barlow Condensed,sans-serif" font-size="7.5" font-weight="700"${tf}>${rnd==='port'?'PORT':'STBD'}</text>`);
+    });
   });
 
   // ── Start / finish line rendering ────────────────────────────────────────
