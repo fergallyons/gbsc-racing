@@ -1234,14 +1234,21 @@ async function loadRaceTracker(){
   } else {
     setTimeout(()=>_trackerMap.invalidateSize(),50); // panel was display:none, size was unknown
   }
+  // Always reopen the panel fresh in Live mode — a half-finished replay
+  // from a previous visit would be a confusing thing to land back on.
+  _trackerMode='live';
+  document.getElementById('trackerReplayControls').style.display='none';
+  updateTrackerModeButtons();
   await refreshTrackerPositions();
   if(_trackerPollTimer) clearInterval(_trackerPollTimer);
   _trackerPollTimer=setInterval(refreshTrackerPositions, 15000);
 }
 function stopTrackerPolling(){
   if(_trackerPollTimer){ clearInterval(_trackerPollTimer); _trackerPollTimer=null; }
+  pauseReplay();
 }
 async function refreshTrackerPositions(){
+  if(_trackerMode!=='live') return; // a stale poll tick landing mid-replay would clobber the scrubbed positions
   const race=selectedRace||nextRace;
   const emptyEl=document.getElementById('trackerEmptyState');
   const listEl=document.getElementById('trackerFleetList');
@@ -1252,13 +1259,13 @@ async function refreshTrackerPositions(){
     +'&recorded_at=gte.'+encodeURIComponent(since)+'&order=recorded_at.desc&select=boat_id,lat,lng,heading,speed_kn,recorded_at');
 
   if(!rows||!rows.length){
-    if(emptyEl) emptyEl.style.display='';
+    setTrackerEmptyState(true,'No one\'s sharing yet','Skippers can turn on position sharing from their dashboard before the race — it only shows boats that have opted in.');
     if(listEl) listEl.innerHTML='';
     if(_trackerMap) Object.values(_trackerMarkers).forEach(m=>_trackerMap.removeLayer(m));
     _trackerMarkers={};
     return;
   }
-  if(emptyEl) emptyEl.style.display='none';
+  setTrackerEmptyState(false);
 
   const latest={};
   rows.forEach(r=>{ if(!latest[r.boat_id]) latest[r.boat_id]=r; }); // rows are newest-first
@@ -1308,6 +1315,218 @@ async function refreshTrackerPositions(){
     });
   }
 }
+function setTrackerEmptyState(show,title,body){
+  const emptyEl=document.getElementById('trackerEmptyState');
+  if(!emptyEl) return;
+  emptyEl.style.display=show?'':'none';
+  if(show){
+    const t=document.getElementById('trackerEmptyTitle'), b=document.getElementById('trackerEmptyBody');
+    if(t&&title) t.textContent=title;
+    if(b&&body) b.textContent=body;
+  }
+}
+
+// ── Race Tracker: replay ─────────────────────────────────────────────────
+// Every position a boat ever posts is kept (see 039_race_positions.sql,
+// purged after 72h) — replay just re-plays that same table from the start
+// instead of only reading the newest row per boat. Positions land roughly
+// every 15s, so between two real fixes we linearly interpolate the boat's
+// position for a smooth-looking track rather than a jump-cut every replay
+// frame; heading/speed just take the earlier fix's value, not interpolated.
+let _trackerMode='live'; // 'live' | 'replay'
+let _replayData=null;    // {boatId:[{t,lat,lng,heading,speed_kn}, ...]} sorted by t
+let _replayTrails={};
+let _replayStart=0, _replayEnd=0; // ms epoch
+let _replayCursor=0;     // ms elapsed since _replayStart
+let _replaySpeed=4;
+let _replayPlaying=false;
+let _replayRAF=null;
+let _replayLastTick=0;
+
+function updateTrackerModeButtons(){
+  const liveBtn=document.getElementById('trackerModeLive'), replayBtn=document.getElementById('trackerModeReplay');
+  if(!liveBtn||!replayBtn) return;
+  const style=(btn,on)=>{
+    btn.style.background=on?'rgba(0,174,239,.15)':'transparent';
+    btn.style.borderColor=on?'var(--teal)':'var(--border)';
+    btn.style.color=on?'var(--teal)':'var(--muted)';
+  };
+  style(liveBtn,_trackerMode==='live');
+  style(replayBtn,_trackerMode==='replay');
+}
+function setTrackerMode(mode){
+  if(_trackerMode===mode) return;
+  _trackerMode=mode;
+  updateTrackerModeButtons();
+  pauseReplay();
+  Object.values(_trackerMarkers).forEach(m=>_trackerMap.removeLayer(m));
+  _trackerMarkers={};
+  clearReplayTrails();
+  if(mode==='live'){
+    document.getElementById('trackerReplayControls').style.display='none';
+    refreshTrackerPositions();
+    if(_trackerPollTimer) clearInterval(_trackerPollTimer);
+    _trackerPollTimer=setInterval(refreshTrackerPositions,15000);
+  } else {
+    if(_trackerPollTimer){ clearInterval(_trackerPollTimer); _trackerPollTimer=null; }
+    loadReplayData();
+  }
+}
+async function loadReplayData(){
+  const race=selectedRace||nextRace;
+  const listEl=document.getElementById('trackerFleetList');
+  if(!race){ setTrackerEmptyState(true,'No race selected','Pick a race first, then come back to replay its tracked positions.'); return; }
+  const key=raceKey(race);
+  const rows=await sbFetch('/rest/v1/race_positions?race_key=eq.'+encodeURIComponent(key)
+    +'&order=recorded_at.asc&select=boat_id,lat,lng,heading,speed_kn,recorded_at');
+  if(!rows||!rows.length){
+    _replayData=null;
+    document.getElementById('trackerReplayControls').style.display='none';
+    if(listEl) listEl.innerHTML='';
+    setTrackerEmptyState(true,'Nothing to replay','No one shared their position for this race (or it\'s aged out after 72h).');
+    return;
+  }
+  setTrackerEmptyState(false);
+  document.getElementById('trackerReplayControls').style.display='block';
+  setReplaySpeed(_replaySpeed);
+  const byBoat={};
+  rows.forEach(r=>{
+    (byBoat[r.boat_id]=byBoat[r.boat_id]||[]).push({t:new Date(r.recorded_at).getTime(),lat:r.lat,lng:r.lng,heading:r.heading,speed_kn:r.speed_kn});
+  });
+  _replayData=byBoat;
+  const times=rows.map(r=>new Date(r.recorded_at).getTime());
+  _replayStart=Math.min(...times);
+  _replayEnd=Math.max(...times);
+  _replayCursor=0;
+  drawReplayTrails();
+  renderReplayFleetList();
+  seekReplay(0);
+}
+function drawReplayTrails(){
+  clearReplayTrails();
+  Object.keys(_replayData).forEach(id=>{
+    const pts=_replayData[id].map(p=>[p.lat,p.lng]);
+    _replayTrails[id]=L.polyline(pts,{color:colourForBoat(id),weight:2,opacity:0.35}).addTo(_trackerMap);
+  });
+}
+function clearReplayTrails(){
+  Object.values(_replayTrails).forEach(l=>{ if(_trackerMap) _trackerMap.removeLayer(l); });
+  _replayTrails={};
+}
+function renderReplayFleetList(){
+  const listEl=document.getElementById('trackerFleetList');
+  if(!listEl||!_replayData) return;
+  const nameFor=(id)=>{ const b=boats.find(x=>x.id===id); return b?b.name:id; };
+  listEl.innerHTML=Object.keys(_replayData).map(id=>{
+    const colour=colourForBoat(id);
+    return '<div class="tracker-fleet-row" data-boatid="'+id+'" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer">'
+      +'<span style="width:10px;height:10px;border-radius:50%;background:'+colour+';flex-shrink:0"></span>'
+      +'<span style="flex:1;font-weight:600">'+nameFor(id)+'</span>'
+      +'</div>';
+  }).join('');
+  listEl.querySelectorAll('.tracker-fleet-row').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const m=_trackerMarkers[el.dataset.boatid];
+      if(m) m.openPopup();
+    });
+  });
+}
+function interpolatePosition(points,t){
+  if(t<=points[0].t) return points[0];
+  const last=points[points.length-1];
+  if(t>=last.t) return last;
+  for(let i=0;i<points.length-1;i++){
+    const a=points[i], b=points[i+1];
+    if(t>=a.t&&t<=b.t){
+      const frac=(b.t-a.t)>0?(t-a.t)/(b.t-a.t):0;
+      return {lat:a.lat+(b.lat-a.lat)*frac, lng:a.lng+(b.lng-a.lng)*frac, heading:a.heading, speed_kn:a.speed_kn};
+    }
+  }
+  return last;
+}
+function seekReplay(cursorMs){
+  if(!_replayData) return;
+  const duration=Math.max(0,_replayEnd-_replayStart);
+  _replayCursor=Math.max(0,Math.min(cursorMs,duration));
+  const t=_replayStart+_replayCursor;
+  const nameFor=(id)=>{ const b=boats.find(x=>x.id===id); return b?b.name:id; };
+  Object.keys(_replayData).forEach(id=>{
+    const p=interpolatePosition(_replayData[id],t);
+    const colour=colourForBoat(id);
+    if(_trackerMarkers[id]){
+      _trackerMarkers[id].setLatLng([p.lat,p.lng]);
+    } else {
+      const icon=L.divIcon({
+        className:'',
+        html:'<div style="width:14px;height:14px;border-radius:50%;background:'+colour+';border:2px solid #0a1628;box-shadow:0 0 0 2px '+colour+'55"></div>',
+        iconSize:[14,14], iconAnchor:[7,7]
+      });
+      _trackerMarkers[id]=L.marker([p.lat,p.lng],{icon}).addTo(_trackerMap);
+    }
+    _trackerMarkers[id].bindPopup('<b>'+nameFor(id)+'</b><br>'
+      +(p.speed_kn!=null?p.speed_kn.toFixed(1)+' kn':'—')
+      +(p.heading!=null?' · '+Math.round(p.heading)+'°':''));
+  });
+  updateReplayUI();
+}
+function updateReplayUI(){
+  const scrubber=document.getElementById('trackerScrubber');
+  const duration=Math.max(1,_replayEnd-_replayStart);
+  if(scrubber){ scrubber.max=duration; scrubber.value=_replayCursor; }
+  const label=document.getElementById('trackerTimeLabel');
+  if(label) label.textContent=fmtReplayElapsed(_replayCursor)+' / '+fmtReplayElapsed(duration);
+}
+function fmtReplayElapsed(ms){
+  const totalSec=Math.floor(ms/1000);
+  const m=Math.floor(totalSec/60), s=totalSec%60;
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+function scrubReplay(value){
+  pauseReplay();
+  seekReplay(+value);
+}
+function setReplaySpeed(speed){
+  _replaySpeed=speed;
+  document.querySelectorAll('.tracker-speed-btn').forEach(b=>{
+    const on=(+b.dataset.speed===speed);
+    b.style.background=on?'rgba(0,174,239,.15)':'transparent';
+    b.style.borderColor=on?'var(--teal)':'var(--border)';
+    b.style.color=on?'var(--teal)':'var(--muted)';
+  });
+}
+function toggleReplayPlay(){
+  if(_replayPlaying) pauseReplay(); else playReplay();
+}
+function playReplay(){
+  if(!_replayData) return;
+  const duration=_replayEnd-_replayStart;
+  if(_replayCursor>=duration) _replayCursor=0; // restart from the beginning if already at the end
+  _replayPlaying=true;
+  const btn=document.getElementById('trackerPlayBtn');
+  if(btn) btn.textContent='⏸';
+  _replayLastTick=performance.now();
+  const tick=(now)=>{
+    if(!_replayPlaying) return;
+    const dt=now-_replayLastTick;
+    _replayLastTick=now;
+    _replayCursor+=dt*_replaySpeed;
+    if(_replayCursor>=duration){
+      seekReplay(duration);
+      pauseReplay();
+      return;
+    }
+    seekReplay(_replayCursor);
+    _replayRAF=requestAnimationFrame(tick);
+  };
+  _replayRAF=requestAnimationFrame(tick);
+}
+function pauseReplay(){
+  _replayPlaying=false;
+  if(_replayRAF){ cancelAnimationFrame(_replayRAF); _replayRAF=null; }
+  const btn=document.getElementById('trackerPlayBtn');
+  if(btn) btn.textContent='▶';
+}
+
 function loginAs(id){
   const b=boats.find(x=>x.id===id); if(!b)return;
   document.querySelectorAll('.boat-btn').forEach(e=>e.classList.remove('active'));

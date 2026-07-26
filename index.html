@@ -564,11 +564,27 @@
     <span class="panel-title">📍 Race Tracker</span>
   </div>
   <div class="panel-body" style="padding:0">
-    <div id="trackerMap" style="width:100%;height:340px;background:var(--navy-input)"></div>
+    <div style="display:flex;gap:8px;padding:10px 16px 0">
+      <button id="trackerModeLive" onclick="setTrackerMode('live')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:.85rem;cursor:pointer">🔴 Live</button>
+      <button id="trackerModeReplay" onclick="setTrackerMode('replay')" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:.85rem;cursor:pointer">⏮ Replay</button>
+    </div>
+    <div id="trackerMap" style="width:100%;height:340px;background:var(--navy-input);margin-top:10px"></div>
+    <div id="trackerReplayControls" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button id="trackerPlayBtn" onclick="toggleReplayPlay()" style="width:36px;height:36px;flex-shrink:0;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--fg);font-size:1rem;cursor:pointer">▶</button>
+        <input id="trackerScrubber" type="range" min="0" max="1000" value="0" oninput="scrubReplay(this.value)" style="flex:1;accent-color:var(--teal)">
+        <span id="trackerTimeLabel" style="font-size:.78rem;color:var(--muted);white-space:nowrap;min-width:92px;text-align:right;font-variant-numeric:tabular-nums">00:00 / 00:00</span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="tracker-speed-btn" data-speed="4" onclick="setReplaySpeed(4)" style="flex:1;padding:6px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:.8rem;cursor:pointer">4×</button>
+        <button class="tracker-speed-btn" data-speed="16" onclick="setReplaySpeed(16)" style="flex:1;padding:6px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:.8rem;cursor:pointer">16×</button>
+        <button class="tracker-speed-btn" data-speed="32" onclick="setReplaySpeed(32)" style="flex:1;padding:6px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);font-weight:700;font-size:.8rem;cursor:pointer">32×</button>
+      </div>
+    </div>
     <div id="trackerEmptyState" style="display:none;padding:40px 20px;text-align:center">
       <div style="font-size:2rem;margin-bottom:8px">📍</div>
-      <div style="font-weight:700;font-size:1.05rem;margin-bottom:8px">No one's sharing yet</div>
-      <div style="font-size:.85rem;color:var(--muted);line-height:1.5">Skippers can turn on position sharing from their dashboard before the race — it only shows boats that have opted in.</div>
+      <div id="trackerEmptyTitle" style="font-weight:700;font-size:1.05rem;margin-bottom:8px">No one's sharing yet</div>
+      <div id="trackerEmptyBody" style="font-size:.85rem;color:var(--muted);line-height:1.5">Skippers can turn on position sharing from their dashboard before the race — it only shows boats that have opted in.</div>
     </div>
     <div id="trackerFleetList" style="padding:6px 16px 16px;"></div>
   </div>
