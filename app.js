@@ -1404,10 +1404,16 @@ async function loadReplayData(){
 }
 function drawReplayTrails(){
   clearReplayTrails();
+  const allPts=[];
   Object.keys(_replayData).forEach(id=>{
     const pts=_replayData[id].map(p=>[p.lat,p.lng]);
     _replayTrails[id]=L.polyline(pts,{color:colourForBoat(id),weight:2,opacity:0.35}).addTo(_trackerMap);
+    allPts.push(...pts);
   });
+  // Frame the actual track, not wherever the map happened to be centred —
+  // a race tracked far from the club's default view (or just a smaller/
+  // larger course) would otherwise render mostly off-screen.
+  if(allPts.length) _trackerMap.fitBounds(allPts,{padding:[30,30]});
 }
 function clearReplayTrails(){
   Object.values(_replayTrails).forEach(l=>{ if(_trackerMap) _trackerMap.removeLayer(l); });
