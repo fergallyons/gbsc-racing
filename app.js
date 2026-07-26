@@ -1210,6 +1210,30 @@ function colourForBoat(boatId){
   if(!_trackerBoatColour[boatId]) _trackerBoatColour[boatId]=TRACKER_COLOURS[Object.keys(_trackerBoatColour).length%TRACKER_COLOURS.length];
   return _trackerBoatColour[boatId];
 }
+// Small top-down hull silhouette, bow pointing up (0°/north) by default —
+// the outer wrapper carries Leaflet's position/anchor, the inner div is
+// what actually rotates to heading, so updating heading on an existing
+// marker is a one-line style change instead of tearing down the icon.
+function boatIconHtml(colour){
+  return '<div class="tracker-boat-rot" style="width:100%;height:100%;transform-origin:50% 50%">'
+    +'<svg viewBox="0 0 20 24" width="18" height="20" style="display:block;overflow:visible">'
+    +'<path d="M10 0 L16 9 L16 19 Q10 24 4 19 L4 9 Z" fill="'+colour+'" stroke="#0a1628" stroke-width="1.6"/>'
+    +'</svg></div>';
+}
+function upsertBoatMarker(id,lat,lng,heading,colour){
+  const rot=(heading!=null&&!isNaN(heading))?heading:0;
+  let m=_trackerMarkers[id];
+  if(m){
+    m.setLatLng([lat,lng]);
+  } else {
+    const icon=L.divIcon({className:'', html:boatIconHtml(colour), iconSize:[18,20], iconAnchor:[9,10]});
+    m=_trackerMarkers[id]=L.marker([lat,lng],{icon}).addTo(_trackerMap);
+  }
+  const el=m.getElement();
+  const rotEl=el&&el.querySelector('.tracker-boat-rot');
+  if(rotEl) rotEl.style.transform='rotate('+rot+'deg)';
+  return m;
+}
 async function loadRaceTracker(){
   const mapEl=document.getElementById('trackerMap');
   try{
@@ -1275,20 +1299,7 @@ async function refreshTrackerPositions(){
   boatIds.forEach(id=>{
     const p=latest[id];
     const colour=colourForBoat(id);
-    if(_trackerMarkers[id]){
-      _trackerMarkers[id].setLatLng([p.lat,p.lng]);
-    } else {
-      const icon=L.divIcon({
-        className:'',
-        // White border (not dark) — a dark border would disappear against the
-        // Dark Matter basemap's near-black water/land
-        // Dark border — Voyager's land/water are light, a white border would
-        // wash out against it (the opposite problem it solved on Dark Matter)
-        html:'<div style="width:14px;height:14px;border-radius:50%;background:'+colour+';border:2px solid #0a1628;box-shadow:0 0 0 2px '+colour+'55"></div>',
-        iconSize:[14,14], iconAnchor:[7,7]
-      });
-      _trackerMarkers[id]=L.marker([p.lat,p.lng],{icon}).addTo(_trackerMap);
-    }
+    upsertBoatMarker(id,p.lat,p.lng,p.heading,colour);
     _trackerMarkers[id].bindPopup('<b>'+nameFor(id)+'</b><br>'
       +(p.speed_kn!=null?p.speed_kn.toFixed(1)+' kn':'—')
       +(p.heading!=null?' · '+Math.round(p.heading)+'°':''));
@@ -1476,16 +1487,7 @@ function seekReplay(cursorMs){
   Object.keys(_replayData).forEach(id=>{
     const p=interpolatePosition(_replayData[id],t);
     const colour=colourForBoat(id);
-    if(_trackerMarkers[id]){
-      _trackerMarkers[id].setLatLng([p.lat,p.lng]);
-    } else {
-      const icon=L.divIcon({
-        className:'',
-        html:'<div style="width:14px;height:14px;border-radius:50%;background:'+colour+';border:2px solid #0a1628;box-shadow:0 0 0 2px '+colour+'55"></div>',
-        iconSize:[14,14], iconAnchor:[7,7]
-      });
-      _trackerMarkers[id]=L.marker([p.lat,p.lng],{icon}).addTo(_trackerMap);
-    }
+    upsertBoatMarker(id,p.lat,p.lng,p.heading,colour);
     _trackerMarkers[id].bindPopup('<b>'+nameFor(id)+'</b><br>'
       +(p.speed_kn!=null?p.speed_kn.toFixed(1)+' kn':'—')
       +(p.heading!=null?' · '+Math.round(p.heading)+'°':''));
