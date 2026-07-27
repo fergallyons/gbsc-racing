@@ -9413,6 +9413,13 @@ async function sbLoadSessionStats(){
 }
 
 const PROTEST_STATUSES=['Pending','Hearing Scheduled','Upheld','Dismissed','Withdrawn'];
+// The RO picks a status from a dropdown to drive the workflow forward — for
+// every other status the value reads fine as a choice, but "Hearing
+// Scheduled" reads like something that already happened. Only the RO's
+// select option gets the friendlier action label; the stored value (and
+// every status comparison, badge and filter keyed on it elsewhere) is
+// unchanged.
+const PROTEST_STATUS_OPT_LABELS={'Hearing Scheduled':'Schedule Hearing'};
 
 const RRS_RULES={
   'Rule 10':  'On Opposite Tacks — a port-tack boat shall keep clear of a starboard-tack boat.',
@@ -9837,7 +9844,7 @@ async function loadProtests(){
     const filedDate=new Date(p.filed_at).toLocaleDateString('en-IE',{day:'numeric',month:'short'});
     const rules=(p.rules_broken||[]).join(', ');
     const statusOpts=PROTEST_STATUSES.map(s=>
-      `<option value="${s}"${p.status===s?' selected':''}>${s}</option>`).join('');
+      `<option value="${s}"${p.status===s?' selected':''}>${PROTEST_STATUS_OPT_LABELS[s]||s}</option>`).join('');
     const waMsg=`Hi — regarding the ${typeLabel[type]||typeLabel.protest} filed for ${p.race_name}, please check the RaceOps app for details.`;
     const protestorWa=isRO&&protestor&&protestor.whatsapp?waLink(protestor.whatsapp,waMsg):'';
     const protesteeWa=isRO&&protestee&&protestee.whatsapp?waLink(protestee.whatsapp,waMsg):'';
