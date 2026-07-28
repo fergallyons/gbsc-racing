@@ -34,6 +34,11 @@ DROP POLICY IF EXISTS "race_finishes_select" ON race_finishes;
 -- row, so a result can't be forged or altered client-side.
 CREATE POLICY "race_finishes_select" ON race_finishes FOR SELECT USING (true);
 GRANT SELECT ON race_finishes TO anon;
+-- service_role bypasses RLS but NOT the base table grant — confirmed live
+-- (chat 2026-07-28): the scheduled function's insert got a flat 42501
+-- until this was added, despite using the service key correctly.
+GRANT INSERT ON race_finishes TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE race_finishes_id_seq TO service_role;
 
 INSERT INTO schema_migrations (filename) VALUES ('046_automated_finish_detection.sql')
 ON CONFLICT (filename) DO NOTHING;

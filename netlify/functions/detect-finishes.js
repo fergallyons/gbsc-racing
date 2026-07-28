@@ -23,7 +23,12 @@ const { findCrossing } = require('./_geometry');
 
 async function fetchJson(url, headers) {
   const r = await fetch(url, { headers });
-  if (!r.ok) throw new Error(url + ' -> HTTP ' + r.status + ': ' + (await r.text()).slice(0, 200));
+  if (!r.ok) {
+    const bodyText = await r.text();
+    const err = new Error(url + ' -> HTTP ' + r.status + ': ' + bodyText.slice(0, 200));
+    try { err.code = JSON.parse(bodyText).code; } catch (e) {}
+    throw err;
+  }
   return r.json();
 }
 
@@ -42,10 +47,16 @@ async function processClub(slug, clubConfig) {
   const serviceHeaders = { apikey: serviceKey, Authorization: 'Bearer ' + serviceKey, 'Content-Type': 'application/json' };
 
   const today = new Date().toISOString().split('T')[0];
-  const races = await fetchJson(
-    sbUrl + '/rest/v1/races?race_date=eq.' + today + '&automated=eq.true&active=eq.true&select=*',
-    anonHeaders,
-  );
+  let races;
+  try {
+    races = await fetchJson(
+      sbUrl + '/rest/v1/races?race_date=eq.' + today + '&automated=eq.true&active=eq.true&select=*',
+      anonHeaders,
+    );
+  } catch (e) {
+    if (e.code === '42703') { console.log('[' + slug + '] skip: migration 046 not applied here yet (races.automated missing)'); return { slug, skipped: 'migration 046 not applied' }; }
+    throw e;
+  }
   console.log('[' + slug + '] today=' + today + ' automated races found=' + races.length);
   if (!races.length) return { slug, races: 0 };
 

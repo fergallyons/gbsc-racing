@@ -681,6 +681,8 @@ ALTER TABLE race_finishes ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "race_finishes_select" ON race_finishes;
 CREATE POLICY "race_finishes_select" ON race_finishes FOR SELECT USING (true);
 GRANT SELECT ON race_finishes TO anon;
+GRANT INSERT ON race_finishes TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE race_finishes_id_seq TO service_role;
 
 ALTER TABLE registrations
   ADD COLUMN IF NOT EXISTS tracking_enabled boolean NOT NULL DEFAULT false;
