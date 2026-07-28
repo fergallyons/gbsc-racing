@@ -748,7 +748,8 @@ async function loadRaceSchedule(){
     const d=new Date(r.race_date+'T00:00:00'); // local midnight, no UTC shift
     d.setHours(r.start_hour||19, r.start_min||0, 0, 0);
     return {id:r.id, label:r.label, date:d, series:r.series||'',
-      protestDeadline: r.protest_deadline?new Date(r.protest_deadline):null};
+      protestDeadline: r.protest_deadline?new Date(r.protest_deadline):null,
+      automated: !!r.automated};
   });
   nextRace=getNextRace();
 }
@@ -1175,7 +1176,14 @@ function onTrackPosition(pos){
       race_key:raceKey(selectedRace),
       lat:c.latitude, lng:c.longitude,
       heading:(c.heading!=null&&!isNaN(c.heading))?c.heading:null,
-      speed_kn:(c.speed!=null&&!isNaN(c.speed))?+(c.speed*1.94384).toFixed(2):null // m/s -> knots
+      speed_kn:(c.speed!=null&&!isNaN(c.speed))?+(c.speed*1.94384).toFixed(2):null, // m/s -> knots
+      // The device's own GPS fix time (pos.timestamp, sibling of pos.coords)
+      // — overrides the column's DEFAULT now(), which is when the INSERT
+      // landed server-side and carries whatever network latency the POST
+      // hit on top of the real fix time. Matters for automatic finish
+      // detection, which interpolates a crossing instant between two
+      // pings and is only as accurate as their timestamps.
+      recorded_at:new Date(pos.timestamp).toISOString()
     })
   });
 }
@@ -3786,7 +3794,7 @@ async function renderRaceScheduleList(){
       const cancelled=!r.active;
       html+=`<div class="race-mgmt-row${cancelled?' cancelled':''}" data-id="${r.id}">
         <div class="race-mgmt-info">
-          <div class="race-mgmt-label">${r.label}</div>
+          <div class="race-mgmt-label">${r.automated?'🤖 ':''}${r.label}</div>
           <div class="race-mgmt-date">${dateStr} · ${hh}:${mm}</div>
         </div>
         <div class="race-mgmt-actions">
@@ -3821,6 +3829,7 @@ function openAddRaceForm(){
   document.getElementById('rf-series').value='';
   document.getElementById('rf-sort').value='99';
   document.getElementById('rf-protest-deadline').value='';
+  document.getElementById('rf-automated').checked=false;
   form.style.display='block';
   form.scrollIntoView({behavior:'smooth'});
 }
@@ -3841,6 +3850,7 @@ async function openEditRaceForm(id){
   document.getElementById('rf-sort').value=r.sort_order||0;
   document.getElementById('rf-protest-deadline').value=r.protest_deadline
     ?new Date(r.protest_deadline).toTimeString().slice(0,5):'';
+  document.getElementById('rf-automated').checked=!!r.automated;
   form.style.display='block';
   form.scrollIntoView({behavior:'smooth'});
 }
@@ -3859,9 +3869,10 @@ async function saveRace(){
   const series=document.getElementById('rf-series').value.trim();
   const sort=parseInt(document.getElementById('rf-sort').value,10)||0;
   const deadlineTime=document.getElementById('rf-protest-deadline').value;
+  const automated=document.getElementById('rf-automated').checked;
   if(!label||!date){alert('Race name and date are required');return;}
   const payload={label,race_date:date,start_hour:parseInt(hourStr,10),
-    start_min:parseInt(minStr,10),series,sort_order:sort,
+    start_min:parseInt(minStr,10),series,sort_order:sort,automated,
     // Combined with race_date since the input is just a clock time — RO
     // leaves this blank to fall back to RRS 60.3's default (2h after the
     // last boat finishes), which the app can't compute locally (finishes
@@ -11659,7 +11670,8 @@ function openStartTimer(){
 // title row, stops at the first blank Sail No) for upload once back in range.
 let _finishRecordRace=null;
 let _finishRecordBoats=[];
-let _finishRecords={}; // boatId -> {sailNumber, name, time:'HH:MM:SS'|null, status:''}
+let _finishRecords={}; // boatId -> {sailNumber, name, time:'HH:MM:SS'|null, status:'', auto:bool}
+let _autoFinishes={}; // boatId -> 'HH:MM:SS' — from race_finishes, refreshed each panel open; not persisted itself
 const FINISH_STATUSES=['OCS','RET','DNF','DSQ','DNS'];
 
 function _finishRecordKey(race){
@@ -11679,6 +11691,10 @@ function _saveFinishRecords(){
   updateFinishRecordTile();
 }
 
+let _autoFinishPollTimer=null;
+function stopAutoFinishPolling(){
+  if(_autoFinishPollTimer){ clearInterval(_autoFinishPollTimer); _autoFinishPollTimer=null; }
+}
 async function openFinishRecordPanel(){
   _finishRecordRace=selectedRace||nextRace;
   openPanel('roFinishPanel');
@@ -11697,7 +11713,37 @@ async function openFinishRecordPanel(){
   _finishRecordBoats.forEach(b=>{
     if(!_finishRecords[b.id]) _finishRecords[b.id]={sailNumber:b.sailNumber||'',name:b.name,time:null,status:''};
   });
+  await refreshAutoFinishes();
   renderFinishRecordList();
+  stopAutoFinishPolling();
+  if(_finishRecordRace.automated){
+    _autoFinishPollTimer=setInterval(async()=>{ await refreshAutoFinishes(); renderFinishRecordList(); },20000);
+  }
+}
+
+// Auto-detected finishes (races.automated) — a separate, unpersisted overlay
+// on top of _finishRecords, refreshed from race_finishes each time the
+// panel opens (or the RO taps Refresh). Kept apart from _finishRecords so
+// "detected but not yet reviewed" stays visually distinct from an RO's own
+// confirmed entry, and so re-opening the panel never silently overwrites
+// something the RO already accepted or corrected locally.
+async function refreshAutoFinishes(){
+  if(!_finishRecordRace) return;
+  const key=raceKey(_finishRecordRace);
+  const rows=await sbFetch('/rest/v1/race_finishes?race_key=eq.'+encodeURIComponent(key)+'&select=boat_id,finish_time');
+  _autoFinishes={};
+  (rows||[]).forEach(r=>{
+    if(r&&r.boat_id) _autoFinishes[r.boat_id]=new Date(r.finish_time).toTimeString().slice(0,8);
+  });
+}
+function acceptAllAutoFinishes(){
+  let n=0;
+  _finishRecordBoats.forEach(b=>{
+    const rec=_finishRecords[b.id];
+    const autoTime=_autoFinishes[b.id];
+    if(autoTime&&rec&&!rec.time&&!rec.status){ rec.time=autoTime; rec.auto=true; n++; }
+  });
+  if(n){ _saveFinishRecords(); renderFinishRecordList(); toast('✓ Accepted '+n+' detected finish'+(n===1?'':'es')); }
 }
 
 function renderFinishRecordList(){
@@ -11709,17 +11755,21 @@ function renderFinishRecordList(){
   const rowHtml=(b)=>{
     const rec=_finishRecords[b.id]||{time:null,status:''};
     const done=!!(rec.time||rec.status);
+    const pendingAuto=!done&&_autoFinishes[b.id]; // detected, not yet reviewed
     const statusBtns=FINISH_STATUSES.map(s=>
       `<button onclick="setFinishStatus('${b.id}','${s}')" style="flex:1;padding:9px 0;border-radius:7px;border:1px solid ${rec.status===s?'var(--danger)':'var(--border)'};background:${rec.status===s?'rgba(230,57,70,.18)':'transparent'};color:${rec.status===s?'#e63946':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;cursor:pointer">${s}</button>`
     ).join('');
-    return `<div style="background:var(--card);border:1px solid ${done?'var(--success)':'var(--border)'};border-radius:12px;padding:12px 14px;margin-bottom:10px">
+    const borderColour=done?'var(--success)':(pendingAuto?'var(--teal)':'var(--border)');
+    const timeColour=rec.time?'var(--success)':(pendingAuto?'var(--teal)':'var(--muted)');
+    const timeText=rec.time?((rec.auto?'🤖 ':'✓ ')+rec.time):(pendingAuto?('🤖 '+_autoFinishes[b.id]+' — tap to confirm'):(rec.status?'—':'Tap to finish'));
+    return `<div style="background:var(--card);border:1px solid ${borderColour};border-radius:12px;padding:12px 14px;margin-bottom:10px">
       <div onclick="recordFinish('${b.id}')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;gap:10px">
         <div style="min-width:0">
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.2rem;color:var(--white)">${escHtml(b.name)}</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.2rem;color:${b.sailNumber?'var(--gold)':'var(--muted)'}">${escHtml(b.sailNumber||'No sail number set')}</div>
         </div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;color:${rec.time?'var(--success)':'var(--muted)'};flex-shrink:0;text-align:right">
-          ${rec.time?('✓ '+rec.time):(rec.status?'—':'Tap to finish')}
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:${pendingAuto&&!rec.time?'1.05rem':'1.5rem'};font-weight:800;color:${timeColour};flex-shrink:0;text-align:right">
+          ${timeText}
         </div>
       </div>
       <div style="display:flex;gap:6px;margin-top:10px">${statusBtns}</div>
@@ -11728,7 +11778,9 @@ function renderFinishRecordList(){
   const finished=_finishRecordBoats.filter(b=>_finishRecords[b.id]&&_finishRecords[b.id].time);
   const nonFinishers=_finishRecordBoats.filter(b=>_finishRecords[b.id]&&_finishRecords[b.id].status);
   const remaining=_finishRecordBoats.filter(b=>!(_finishRecords[b.id]&&(_finishRecords[b.id].time||_finishRecords[b.id].status)));
+  const pendingCount=remaining.filter(b=>_autoFinishes[b.id]).length;
   let html='';
+  if(pendingCount>1) html+=`<button onclick="acceptAllAutoFinishes()" style="width:100%;padding:10px;margin-bottom:12px;background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.35);border-radius:10px;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer">🤖 Accept all ${pendingCount} detected finishes</button>`;
   if(remaining.length) html+=remaining.map(rowHtml).join('');
   if(finished.length) html+=`<div style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:16px 0 10px">Finished (${finished.length})</div>`+finished.map(rowHtml).join('');
   if(nonFinishers.length) html+=`<div style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:16px 0 10px">Not Finishing (${nonFinishers.length})</div>`+nonFinishers.map(rowHtml).join('');
@@ -11739,9 +11791,14 @@ function renderFinishRecordList(){
 function recordFinish(boatId){
   const rec=_finishRecords[boatId]; if(!rec) return;
   if(rec.time){
-    rec.time=null; // tap again to undo
+    rec.time=null; rec.auto=false; // tap again to undo
   } else {
-    rec.time=new Date().toTimeString().slice(0,8); // device clock, HH:MM:SS — matches HalSail's expected format directly
+    const autoTime=_autoFinishes[boatId];
+    // A pending auto-detected time gets accepted as-is (it's already the
+    // precise interpolated crossing instant) rather than overwritten with
+    // the device's own clock — that's the whole point of detecting it.
+    rec.time=autoTime||new Date().toTimeString().slice(0,8);
+    rec.auto=!!autoTime;
     rec.status=''; // a recorded finish supersedes any status
   }
   _saveFinishRecords();

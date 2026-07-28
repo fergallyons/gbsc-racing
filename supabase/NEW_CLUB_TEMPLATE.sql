@@ -394,6 +394,7 @@ CREATE TABLE IF NOT EXISTS races (
   series      text    NOT NULL DEFAULT '',
   active      boolean NOT NULL DEFAULT true,
   sort_order  int     NOT NULL DEFAULT 0,
+  automated   boolean NOT NULL DEFAULT false, -- run with no OD present — see race_finishes below
   created_at  timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS races_date_idx  ON races(race_date);
@@ -659,6 +660,28 @@ CREATE POLICY "race_positions_insert" ON race_positions FOR INSERT WITH CHECK (
 );
 GRANT SELECT, INSERT ON race_positions TO anon;
 GRANT USAGE, SELECT ON SEQUENCE race_positions_id_seq TO anon;
+
+-- ── race_finishes: automatic finish-time capture (races.automated) ──
+-- Read-only for anon by design — only the detect-finishes scheduled
+-- function (service role) ever writes here. See 046_automated_finish_
+-- detection.sql for full rationale.
+CREATE TABLE IF NOT EXISTS race_finishes (
+  id           bigint            GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  boat_id      text              NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  race_key     text              NOT NULL,
+  finish_time  timestamptz       NOT NULL,
+  source       text              NOT NULL DEFAULT 'auto' CHECK (source IN ('auto')),
+  crossing_lat double precision,
+  crossing_lng double precision,
+  detected_at  timestamptz       NOT NULL DEFAULT now(),
+  UNIQUE (boat_id, race_key)
+);
+CREATE INDEX IF NOT EXISTS race_finishes_race_key_idx ON race_finishes(race_key);
+ALTER TABLE race_finishes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "race_finishes_select" ON race_finishes;
+CREATE POLICY "race_finishes_select" ON race_finishes FOR SELECT USING (true);
+GRANT SELECT ON race_finishes TO anon;
+
 ALTER TABLE registrations
   ADD COLUMN IF NOT EXISTS tracking_enabled boolean NOT NULL DEFAULT false;
 GRANT UPDATE (tracking_enabled) ON registrations TO anon;
@@ -917,7 +940,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('042_admin_pin.sql'),
   ('043_race_starts_more_class_flags.sql'),
   ('044_rename_olympic_to_trapezoid.sql'),
-  ('045_fix_column_privilege_revokes.sql')
+  ('045_fix_column_privilege_revokes.sql'),
+  ('046_automated_finish_detection.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.

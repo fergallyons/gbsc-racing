@@ -1315,7 +1315,7 @@
 <!-- roFinishPanel — Finish Recording (offline-first, exports CSV for HalSail) -->
 <div class="panel-overlay" id="roFinishPanel" style="display:none">
   <div class="panel-header">
-    <button class="panel-back" onclick="closePanel('roFinishPanel')">‹</button>
+    <button class="panel-back" onclick="stopAutoFinishPolling();closePanel('roFinishPanel')">‹</button>
     <span class="panel-title">🏁 Finish Line</span>
   </div>
   <div class="panel-body">
@@ -1582,6 +1582,13 @@
       <div style="margin-bottom:14px">
         <label class="field-label">Protest Deadline (RRS 60.3 default is 2h after last boat finishes — leave blank to use that)</label>
         <input id="rf-protest-deadline" type="time" class="race-form-input" style="color-scheme:dark">
+      </div>
+      <div style="margin-bottom:14px;display:flex;align-items:flex-start;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 12px">
+        <input id="rf-automated" type="checkbox" style="margin-top:3px;width:16px;height:16px;flex-shrink:0">
+        <label for="rf-automated" style="font-size:.82rem;color:var(--white);line-height:1.4">
+          <div style="font-weight:700">🤖 Automated (no OD on duty)</div>
+          <div style="color:var(--muted);font-size:.78rem;margin-top:2px">Finish times are captured automatically from tracked boats crossing the finish line — only takes effect once the start sequence is run and boats have position sharing on.</div>
+        </label>
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveRace()">Save</button>

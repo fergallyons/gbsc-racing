@@ -3,6 +3,11 @@
   edge_functions = "netlify/edge-functions"
   command = "printf '{\"commit\":\"%s\",\"built\":\"%s\"}' \"$(echo $COMMIT_REF | cut -c1-7)\" \"$(TZ='Europe/Dublin' date '+%d %b %H:%M %Z')\" > version.json"
 
+# Automatic finish-time detection for races.automated — runs every minute.
+# The first scheduled function this app has needed (see detect-finishes.js).
+[functions."detect-finishes"]
+  schedule = "* * * * *"
+
 [[edge_functions]]
   path = "/club-config.js"
   function = "club-config"
