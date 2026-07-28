@@ -1269,7 +1269,7 @@ async function loadRaceTracker(){
   // Always reopen the panel fresh in Live mode — a half-finished replay
   // from a previous visit would be a confusing thing to land back on.
   _trackerMode='live';
-  document.getElementById('trackerReplayControls').style.display='none';
+  setTrackerReplayControlsDisplay('none');
   updateTrackerModeButtons();
   await refreshTrackerPositions();
   if(_trackerPollTimer) clearInterval(_trackerPollTimer);
@@ -1344,6 +1344,14 @@ function setTrackerEmptyState(show,title,body){
     if(b&&body) b.textContent=body;
   }
 }
+// Guards against a real caching failure mode seen live (Sentry, 2026-07-28):
+// a stale index.html paired with a fresh app.js served this element missing
+// entirely, throwing "Cannot read properties of null" and aborting whatever
+// tracker function called it. Null-safe regardless of root cause.
+function setTrackerReplayControlsDisplay(value){
+  const el=document.getElementById('trackerReplayControls');
+  if(el) el.style.display=value;
+}
 
 // ── Race Tracker: replay ─────────────────────────────────────────────────
 // Every position a boat ever posts is kept (see 039_race_positions.sql,
@@ -1382,7 +1390,7 @@ function setTrackerMode(mode){
   _trackerMarkers={};
   clearReplayTrails();
   if(mode==='live'){
-    document.getElementById('trackerReplayControls').style.display='none';
+    setTrackerReplayControlsDisplay('none');
     refreshTrackerPositions();
     if(_trackerPollTimer) clearInterval(_trackerPollTimer);
     _trackerPollTimer=setInterval(refreshTrackerPositions,15000);
@@ -1417,13 +1425,13 @@ async function loadReplayData(){
   const rows=await fetchAllRacePositions(key);
   if(!rows||!rows.length){
     _replayData=null;
-    document.getElementById('trackerReplayControls').style.display='none';
+    setTrackerReplayControlsDisplay('none');
     if(listEl) listEl.innerHTML='';
     setTrackerEmptyState(true,'Nothing to replay','No one shared their position for this race (or it\'s aged out after 72h).');
     return;
   }
   setTrackerEmptyState(false);
-  document.getElementById('trackerReplayControls').style.display='block';
+  setTrackerReplayControlsDisplay('block');
   setReplaySpeed(_replaySpeed);
   const byBoat={};
   rows.forEach(r=>{
@@ -3829,7 +3837,7 @@ function openAddRaceForm(){
   document.getElementById('rf-series').value='';
   document.getElementById('rf-sort').value='99';
   document.getElementById('rf-protest-deadline').value='';
-  document.getElementById('rf-automated').checked=false;
+  const automatedEl=document.getElementById('rf-automated'); if(automatedEl) automatedEl.checked=false;
   form.style.display='block';
   form.scrollIntoView({behavior:'smooth'});
 }
@@ -3850,7 +3858,7 @@ async function openEditRaceForm(id){
   document.getElementById('rf-sort').value=r.sort_order||0;
   document.getElementById('rf-protest-deadline').value=r.protest_deadline
     ?new Date(r.protest_deadline).toTimeString().slice(0,5):'';
-  document.getElementById('rf-automated').checked=!!r.automated;
+  const automatedEditEl=document.getElementById('rf-automated'); if(automatedEditEl) automatedEditEl.checked=!!r.automated;
   form.style.display='block';
   form.scrollIntoView({behavior:'smooth'});
 }
@@ -3869,7 +3877,7 @@ async function saveRace(){
   const series=document.getElementById('rf-series').value.trim();
   const sort=parseInt(document.getElementById('rf-sort').value,10)||0;
   const deadlineTime=document.getElementById('rf-protest-deadline').value;
-  const automated=document.getElementById('rf-automated').checked;
+  const automated=!!document.getElementById('rf-automated')?.checked;
   if(!label||!date){alert('Race name and date are required');return;}
   const payload={label,race_date:date,start_hour:parseInt(hourStr,10),
     start_min:parseInt(minStr,10),series,sort_order:sort,automated,
