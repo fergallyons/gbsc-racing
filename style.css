@@ -73,6 +73,10 @@ body.role-ro header{border-bottom-color:var(--ro);border-bottom-width:3px;}
 .boat-btn.reg:hover{border-color:var(--success);}
 .boat-btn-name{font-family:'Barlow Condensed',sans-serif;font-size:.88rem;font-weight:700;color:var(--white);line-height:1.2;}
 .boat-btn-reg-label{font-size:.8rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--success);margin-top:1px;}
+.boat-btn-login{margin-top:3px;width:24px;height:24px;flex-shrink:0;border-radius:50%;border:1px solid var(--border);
+  background:rgba(0,174,239,.08);color:var(--teal);font-size:.8rem;display:flex;align-items:center;
+  justify-content:center;cursor:pointer;transition:all .15s;padding:0;}
+.boat-btn-login:hover{background:rgba(0,174,239,.22);border-color:var(--teal);}
 .reg-pip{position:absolute;top:-3px;right:-6px;width:13px;height:13px;border-radius:50%;
   background:var(--success);color:var(--navy-dark);font-size:.78rem;font-weight:800;
   display:flex;align-items:center;justify-content:center;border:2px solid var(--navy);}

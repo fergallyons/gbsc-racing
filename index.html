@@ -75,9 +75,24 @@
       </div>
     </div>
     <div id="loginRaceLabel" style="font-size:.8rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;margin-bottom:10px;text-align:center;min-height:14px"></div>
-    <div class="login-label">Select your boat</div>
+    <div class="login-label">Tap a boat to view it, or 🔑 to log in as it</div>
     <div class="boat-grid" id="boatGrid"></div>
     <button class="btn btn-ghost" style="width:100%;padding:12px;margin-top:12px" onclick="closeSheet('loginSheet')">Close</button>
+  </div>
+</div>
+
+<!-- Boat Summary sheet — opened by tapping a boat card in the Login list
+     above. Read-only (photo/sail no./IRC/ECHO), reachable before logging
+     in as anything; login is now its own explicit action, both here and
+     via the small key button on each card, not the default tap. -->
+<div class="overlay" id="boatSummarySheet">
+  <div class="sheet" style="max-height:85vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div id="boatSummaryBody"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-ghost" style="flex:1;padding:12px" onclick="closeSheet('boatSummarySheet')">Close</button>
+      <button class="btn btn-primary" style="flex:1;padding:12px" onclick="loginFromBoatSummary()">🔑 Login as this boat</button>
+    </div>
   </div>
 </div>
 
