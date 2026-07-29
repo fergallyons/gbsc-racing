@@ -6926,15 +6926,54 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
 // ═══════════════════════════════════════════════════════════════
 let _bpLastNational=[], _bpLastHalEcho={current:{},next:{}}; // cached so the dashboard strip and panel don't both fetch
 
+// localStorage TTL cache for the two rating fetches below — separate from
+// halFetch's own cache:'no-store' (that stays untouched; the interactive
+// Results panel genuinely needs to see a just-published race immediately).
+// This is for the passive dashboard-summary/boat-profile use, which just
+// needs "not embarrassingly stale": IRC TCC changes maybe once a year,
+// HalSail's current ECHO only changes between races, so re-fetching both
+// on every single login/panel-open was pure waste. get() returns null on
+// a miss/expiry/corrupt-JSON — caller re-fetches exactly as before.
+function _ttlCacheGet(key,ttlMs){
+  try{
+    const raw=localStorage.getItem(key);
+    if(!raw) return null;
+    const {t,v}=JSON.parse(raw);
+    if(!t||Date.now()-t>ttlMs) return null;
+    return v;
+  }catch(e){ return null; }
+}
+function _ttlCacheSet(key,value){
+  try{ localStorage.setItem(key,JSON.stringify({t:Date.now(),v:value})); }catch(e){}
+}
+const NATIONAL_RATINGS_TTL_MS=24*3600*1000; // IRC TCC etc. — national register, changes rarely
+const HAL_ECHO_TTL_MS=4*3600*1000;          // HalSail's "current ECHO used" — changes between races, not every page load
+
 async function _fetchBoatRatingData(){
   const clubName=_C.name||''; // empty, not GBSC's real name — see _C.name fallback comment above loadHandicaps()
-  const [res,halEcho]=await Promise.all([
-    fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName)),
-    loadHalsailCurrentEcho()
-  ]);
-  const data=await res.json();
-  if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
-  _bpLastNational=data.boats||[]; _bpLastHalEcho=halEcho;
+  const clubKey=(window.CLUB&&window.CLUB.slug)||'club'; // keyed per club so a device that's ever viewed >1 club can't cross-contaminate
+  const nationalKey='__ratings_national_'+clubKey;
+  const haleKey='__ratings_halecho_'+clubKey;
+
+  let national=_ttlCacheGet(nationalKey,NATIONAL_RATINGS_TTL_MS);
+  let halEcho=_ttlCacheGet(haleKey,HAL_ECHO_TTL_MS);
+
+  const fetches=[];
+  if(national==null){
+    fetches.push((async()=>{
+      const res=await fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName));
+      const data=await res.json();
+      if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
+      national=data.boats||[];
+      _ttlCacheSet(nationalKey,national);
+    })());
+  }
+  if(halEcho==null){
+    fetches.push(loadHalsailCurrentEcho().then(v=>{ halEcho=v; _ttlCacheSet(haleKey,halEcho); }));
+  }
+  await Promise.all(fetches);
+
+  _bpLastNational=national; _bpLastHalEcho=halEcho;
   return {national:_bpLastNational, halEcho:_bpLastHalEcho};
 }
 
