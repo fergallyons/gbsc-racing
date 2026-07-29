@@ -611,7 +611,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON settings TO anon;
 -- ── boats: remaining columns ─────────────────────────────────
 ALTER TABLE boats
   ADD COLUMN IF NOT EXISTS stripe_link text NOT NULL DEFAULT '',
-  ADD COLUMN IF NOT EXISTS sail_number text NOT NULL DEFAULT '';
+  ADD COLUMN IF NOT EXISTS sail_number text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS bow_offset_m double precision;
+ALTER TABLE boats DROP CONSTRAINT IF EXISTS boats_bow_offset_m_check;
+ALTER TABLE boats ADD CONSTRAINT boats_bow_offset_m_check
+  CHECK (bow_offset_m IS NULL OR (bow_offset_m >= 0 AND bow_offset_m <= 30));
 
 
 -- ── registrations: remaining columns ────────────────────────
@@ -885,9 +889,9 @@ GRANT EXECUTE ON FUNCTION change_admin_pin(text,text) TO anon;
 -- 040/042's REVOKE (col) ... FROM anon statements above were no-ops.
 -- ============================================================
 REVOKE SELECT, UPDATE ON boats FROM anon;
-GRANT SELECT (id, name, icon, revolut_user, created_at, stripe_link, sail_number, photo_url, whatsapp)
+GRANT SELECT (id, name, icon, revolut_user, created_at, stripe_link, sail_number, photo_url, whatsapp, bow_offset_m)
   ON boats TO anon;
-GRANT UPDATE (icon, sail_number, photo_url, whatsapp) ON boats TO anon;
+GRANT UPDATE (icon, sail_number, photo_url, whatsapp, bow_offset_m) ON boats TO anon;
 
 REVOKE SELECT, UPDATE ON settings FROM anon;
 GRANT SELECT (
@@ -967,7 +971,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('044_rename_olympic_to_trapezoid.sql'),
   ('045_fix_column_privilege_revokes.sql'),
   ('046_automated_finish_detection.sql'),
-  ('047_ocs_detection.sql')
+  ('047_ocs_detection.sql'),
+  ('048_bow_offset.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.

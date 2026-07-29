@@ -36,7 +36,7 @@
 // override _club.js's resolveClubSlug() already supports, so no hostname
 // spoofing is needed to pick the right club from a request with no Host.
 
-const { findCrossing, isOnCourseSide, interpolateAtTime } = require('./_geometry');
+const { findCrossing, isOnCourseSide, interpolateAtTime, offsetToBow } = require('./_geometry');
 
 async function fetchJson(url, headers) {
   const r = await fetch(url, { headers });
@@ -52,6 +52,19 @@ async function fetchJson(url, headers) {
 function raceKeyFor(race) {
   // Mirrors app.js's raceKey() exactly — must stay in sync with it.
   return race.race_date + '_' + race.label.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 20);
+}
+
+// {boat_id: bow_offset_m} for every boat that has one set — fetched once
+// per race and shared between finish and OCS detection, both of which
+// need to project each ping forward to the bow before doing any
+// crossing/course-side check. Most boats won't have this set (null), and
+// offsetToBow already no-ops on a falsy offset, so this stays a cheap,
+// fully-backward-compatible lookup even before anyone configures it.
+async function fetchBoatOffsets(sbUrl, anonHeaders) {
+  const rows = await fetchJson(sbUrl + '/rest/v1/boats?select=id,bow_offset_m', anonHeaders);
+  const map = {};
+  rows.forEach((b) => { if (b.bow_offset_m) map[b.id] = b.bow_offset_m; });
+  return map;
 }
 
 async function processClub(slug, clubConfig) {
@@ -109,12 +122,16 @@ async function processRace(slug, sbUrl, anonHeaders, serviceHeaders, race) {
   if (startTime > Date.now()) { console.log('[' + label + '] skip: start_time ' + startRow.start_time + ' is in the future'); return { race: label, skipped: 'armed but hasn\'t fired yet' }; }
   console.log('[' + label + '] raceKey=' + raceKey + ' using start_time=' + startRow.start_time);
 
+  // Shared between finish and OCS detection below — both project each
+  // ping forward to the bow before any crossing/course-side check.
+  const boatOffsets = await fetchBoatOffsets(sbUrl, anonHeaders);
+
   // Independent of finish detection below — its own course/line lookup
   // (the start line, not the finish line), its own failure mode. A bad OCS
   // geometry lookup should never take down finish detection, or vice versa.
   let ocsResult;
   try {
-    ocsResult = await processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race, raceKey, label, startRow, startTime);
+    ocsResult = await processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race, raceKey, label, startRow, startTime, boatOffsets);
   } catch (e) {
     console.error('[' + label + '] OCS detection error:', e);
     ocsResult = { error: String(e.message || e) };
@@ -143,14 +160,15 @@ async function processRace(slug, sbUrl, anonHeaders, serviceHeaders, race) {
   const positions = await fetchJson(
     sbUrl + '/rest/v1/race_positions?race_key=eq.' + encodeURIComponent(raceKey)
       + '&recorded_at=gte.' + encodeURIComponent(startRow.start_time)
-      + '&order=boat_id.asc,recorded_at.asc&select=boat_id,lat,lng,recorded_at',
+      + '&order=boat_id.asc,recorded_at.asc&select=boat_id,lat,lng,heading,recorded_at',
     anonHeaders,
   );
   console.log('[' + label + '] positions since start: ' + positions.length + ', alreadyDone boats: ' + doneIds.size);
 
   const byBoat = {};
   positions.forEach((p) => {
-    (byBoat[p.boat_id] = byBoat[p.boat_id] || []).push({ lat: p.lat, lng: p.lng, t: new Date(p.recorded_at).getTime() });
+    const ping = offsetToBow({ lat: p.lat, lng: p.lng, heading: p.heading, t: new Date(p.recorded_at).getTime() }, boatOffsets[p.boat_id]);
+    (byBoat[p.boat_id] = byBoat[p.boat_id] || []).push(ping);
   });
   console.log('[' + label + '] boats with pings:', JSON.stringify(Object.fromEntries(Object.entries(byBoat).map(([k, v]) => [k, v.length]))));
 
@@ -196,7 +214,7 @@ async function processRace(slug, sbUrl, anonHeaders, serviceHeaders, race) {
 // set — windward_leeward/triangle/trapezoid, drawn by buildLaidCourseSvg
 // as a diagram) have no real GPS mark to orient against, so those races
 // are skipped entirely: real-mark/course-card races only, for now.
-async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race, raceKey, label, startRow, startTime) {
+async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race, raceKey, label, startRow, startTime, boatOffsets) {
   const GUN_GRACE_MS = 30000; // need at least one ping at/after the gun to bracket it
   if (Date.now() < startTime + GUN_GRACE_MS) {
     console.log('[' + label + '] OCS: skip, gun was too recent to bracket yet');
@@ -240,12 +258,13 @@ async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race,
   const positions = await fetchJson(
     sbUrl + '/rest/v1/race_positions?race_key=eq.' + encodeURIComponent(raceKey)
       + '&recorded_at=lte.' + encodeURIComponent(gunCutoff)
-      + '&order=boat_id.asc,recorded_at.asc&select=boat_id,lat,lng,recorded_at',
+      + '&order=boat_id.asc,recorded_at.asc&select=boat_id,lat,lng,heading,recorded_at',
     anonHeaders,
   );
   const byBoat = {};
   positions.forEach((p) => {
-    (byBoat[p.boat_id] = byBoat[p.boat_id] || []).push({ lat: p.lat, lng: p.lng, t: new Date(p.recorded_at).getTime() });
+    const ping = offsetToBow({ lat: p.lat, lng: p.lng, heading: p.heading, t: new Date(p.recorded_at).getTime() }, boatOffsets[p.boat_id]);
+    (byBoat[p.boat_id] = byBoat[p.boat_id] || []).push(ping);
   });
   console.log('[' + label + '] OCS: boats with pre-gun pings:', JSON.stringify(Object.fromEntries(Object.entries(byBoat).map(([k, v]) => [k, v.length]))));
 

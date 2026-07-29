@@ -166,7 +166,7 @@ async function sbFetch(path,opts={}){
 // migration 045, anon only has column-level (not table-level) SELECT on
 // these tables, and Postgres's bare `select=*` default fails outright (401)
 // rather than gracefully narrowing to the permitted columns.
-const BOATS_SELECT='id,name,icon,revolut_user,created_at,stripe_link,sail_number,photo_url,whatsapp';
+const BOATS_SELECT='id,name,icon,revolut_user,created_at,stripe_link,sail_number,photo_url,whatsapp,bow_offset_m';
 const SETTINGS_SELECT='id,stripe_link_member,stripe_link_student,stripe_link_visitor,'
   +'pre_race_window_hours,worldtides_key,ro_revolut_user,results_published_race_key,'
   +'updated_at,features,estella_url,logo_url,favicon_url,primary_color,ro_color,'
@@ -961,7 +961,7 @@ async function buildBoatGrid(){
   // rather than gracefully narrowing to the permitted columns.
   const sbBoats=await sbFetch('/rest/v1/boats?order=name.asc&select='+BOATS_SELECT);
   if(sbBoats&&sbBoats.length){
-    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||'',photoUrl:b.photo_url||''}));
+    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||'',photoUrl:b.photo_url||'',bowOffsetM:b.bow_offset_m||null}));
   } else {
     // Offline — fall back to localStorage cache
     boats=loadCustom();
@@ -8524,6 +8524,10 @@ async function buildPinMgmtList(){
         '<input type="text" value="'+escHtml(b.sailNumber||'')+'" placeholder="Sail No" title="Sail number — used for HalSail finish exports" '+
           'onchange="updateBoatSailNumber(\''+b.id+'\',this.value)" '+
           'style="width:64px;background:var(--navy-input);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:Barlow Condensed,sans-serif;font-size:.8rem;padding:3px 6px;text-align:center">'+
+        '<input type="number" min="0" max="30" step="0.5" value="'+(b.bowOffsetM!=null?b.bowOffsetM:'')+'" placeholder="Bow m" '+
+          'title="Distance from the tracked phone to the bow, in metres — projected forward using GPS heading for finish/OCS detection. Leave blank if unknown." '+
+          'onchange="updateBoatBowOffset(\''+b.id+'\',this.value)" '+
+          'style="width:56px;background:var(--navy-input);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:Barlow Condensed,sans-serif;font-size:.8rem;padding:3px 6px;text-align:center">'+
         '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">Reset PIN</button>'+
         '<button onclick="deleteBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">Delete</button>'+
       '</div>';
@@ -8563,6 +8567,25 @@ async function updateBoatSailNumber(id,value){
   if(!result||result._err){
     b.sailNumber=prev;
     toast('⚠ Could not save sail number — check connection');
+    buildPinMgmtList();
+  }
+}
+
+async function updateBoatBowOffset(id,value){
+  const b=boats.find(x=>x.id===id); if(!b) return;
+  const trimmed=(value||'').trim();
+  const offset=trimmed===''?null:parseFloat(trimmed);
+  if(offset!=null&&(isNaN(offset)||offset<0||offset>30)){
+    toast('⚠ Bow offset must be between 0 and 30 metres');
+    buildPinMgmtList(); // revert the input to the last-saved value
+    return;
+  }
+  const prev=b.bowOffsetM;
+  b.bowOffsetM=offset; // optimistic
+  const result=await sbSaveBoatConfig(id,{bow_offset_m:offset});
+  if(!result||result._err){
+    b.bowOffsetM=prev;
+    toast('⚠ Could not save bow offset — check connection');
     buildPinMgmtList();
   }
 }

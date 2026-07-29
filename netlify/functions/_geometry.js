@@ -80,4 +80,25 @@ function interpolateAtTime(pingA, pingB, targetT) {
   };
 }
 
-module.exports = { segmentCrossFraction, findCrossing, sideOfLine, isOnCourseSide, interpolateAtTime };
+// Estimates the bow's actual position from a GPS ping, given how far back
+// from the bow the phone sits (metres) and the ping's own course-over-
+// ground heading. RRS 29.1 and finish-line crossing both care about the
+// hull, not wherever the crew's phone happens to be — a phone in the
+// cockpit can trail the bow by several metres, enough to matter against a
+// line. Falls back to the raw ping unchanged when there's nothing to
+// project with: no configured offset, or no heading on this particular
+// ping — course-over-ground drops out at low speed (geolocation APIs
+// report null), which is exactly when a boat is luffing for position at
+// the line, so guessing a direction would be worse than not adjusting.
+// Flat-earth offset (111,320 m/degree latitude, longitude scaled by
+// cos(lat)) — plenty accurate at boat-length distances, no need for a
+// real geodesic calculation.
+function offsetToBow(ping, offsetMetres) {
+  if (!offsetMetres || ping.heading == null || isNaN(ping.heading)) return ping;
+  const rad = ping.heading * Math.PI / 180;
+  const dLat = (offsetMetres * Math.cos(rad)) / 111320;
+  const dLng = (offsetMetres * Math.sin(rad)) / (111320 * Math.cos(ping.lat * Math.PI / 180));
+  return { ...ping, lat: ping.lat + dLat, lng: ping.lng + dLng };
+}
+
+module.exports = { segmentCrossFraction, findCrossing, sideOfLine, isOnCourseSide, interpolateAtTime, offsetToBow };
