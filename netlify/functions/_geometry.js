@@ -37,4 +37,47 @@ function findCrossing(pingA, pingB, line) {
   };
 }
 
-module.exports = { segmentCrossFraction, findCrossing };
+// Signed area (cross product) of triangle C, D, P — same raw
+// lat/lng-as-x/y convention as segmentCrossFraction above. The sign tells
+// you which side of the *directed* line C→D point P falls on, and (for the
+// same reason segmentCrossFraction's t is) is invariant under the
+// independent positive per-axis scaling a true equirectangular projection
+// would apply, so which side wins comes out the same whether or not that
+// projection is actually done.
+function sideOfLine(P, C, D) {
+  const dx = D.lng - C.lng, dy = D.lat - C.lat;
+  const px = P.lng - C.lng, py = P.lat - C.lat;
+  return dx * py - dy * px;
+}
+
+// Was P on the course side of the start line at the gun? "Course side" is
+// not a fixed property of the line itself — it's whichever side the first
+// mark of the day's course is laid on — so this needs that mark's position
+// too, and compares signs against it. Line endpoint order doesn't matter:
+// swapping C/D flips both signs together, so the comparison is unaffected.
+// Returns null (caller should skip, not guess) if the mark is degenerate —
+// essentially on the line's own extension, which can't orient anything.
+function isOnCourseSide(P, line, firstMark) {
+  const C = { lat: line.lat1, lng: line.lng1 };
+  const D = { lat: line.lat2, lng: line.lng2 };
+  const markSide = sideOfLine(firstMark, C, D);
+  if (Math.abs(markSide) < 1e-12) return null;
+  return Math.sign(sideOfLine(P, C, D)) === Math.sign(markSide);
+}
+
+// Linearly interpolate {lat,lng} between two consecutive pings (each
+// {lat,lng,t}, t in ms-epoch) at a given target time. targetT is expected
+// to fall between pingA.t and pingB.t (the caller picks the bracketing
+// pair) — used to estimate where a boat actually was at an exact instant
+// (the starting signal) that fell between two GPS fixes, not at either fix
+// itself.
+function interpolateAtTime(pingA, pingB, targetT) {
+  const span = pingB.t - pingA.t;
+  const frac = span === 0 ? 0 : (targetT - pingA.t) / span;
+  return {
+    lat: pingA.lat + frac * (pingB.lat - pingA.lat),
+    lng: pingA.lng + frac * (pingB.lng - pingA.lng),
+  };
+}
+
+module.exports = { segmentCrossFraction, findCrossing, sideOfLine, isOnCourseSide, interpolateAtTime };

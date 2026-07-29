@@ -10618,6 +10618,32 @@ async function refreshStartSeqData(){
   }
   _scheduleStartSeqHorns(); // re-pin precise horn timers to the (possibly new) start time
   updatePubStartSeqSub();
+  checkOwnOcsAlert().catch(e=>console.error('checkOwnOcsAlert',e)); // never let this break the countdown poll
+}
+
+// Skipper-only: was MY boat detected on the course side at this start's gun
+// (RRS 29.1)? Rides the same 15s poll refreshStartSeqData already runs —
+// no separate timer needed. RO/public viewers have no currentBoat, so this
+// is a no-op for them; a push notification (server-side, detect-finishes.js)
+// is the backup channel for when this view isn't even open. Purely
+// informational — this never asserts a final result, since a boat can
+// clear an OCS by returning and restarting correctly.
+async function checkOwnOcsAlert(){
+  const wrap=document.getElementById('startSeqOcsAlert');
+  if(!wrap) return;
+  if(!currentBoat||!_startSeqActive||_startSeqActive.status!=='armed'){ wrap.style.display='none'; return; }
+  const startId=_startSeqActive.id;
+  const ackKey='ocsAck_'+startId+'_'+currentBoat.id;
+  if(localStorage.getItem(ackKey)){ wrap.style.display='none'; return; }
+  const r=await sbFetch('/rest/v1/race_ocs?start_id=eq.'+startId+'&boat_id=eq.'+encodeURIComponent(currentBoat.id)+'&select=id');
+  if(!r||r._err||!r.length){ wrap.style.display='none'; return; }
+  document.getElementById('startSeqOcsBoatName').textContent=currentBoat.name||'Your boat';
+  renderXFlagGraphic();
+  wrap.style.display='flex';
+}
+function dismissOcsAlert(){
+  if(_startSeqActive&&currentBoat) localStorage.setItem('ocsAck_'+_startSeqActive.id+'_'+currentBoat.id,'1');
+  document.getElementById('startSeqOcsAlert').style.display='none';
 }
 
 function updatePubStartSeqSub(){
@@ -10846,6 +10872,25 @@ function renderClassFlagGraphic(classFlag){
   el.style.clipPath=s.clipPath;
   el.style.background=s.background;
   el.style.border='';
+  el.innerHTML=s.html;
+}
+
+// X (X-ray) — the individual recall flag, flown/hailed after the start for
+// boats that were on the course side at the gun (RRS 29.1). White field,
+// blue St. George's Cross — a straight upright cross, not a diagonal
+// saltire (verified against the real ICS flag design, same precedent as
+// the class flags above). Square, unlike the 3:2 prep/class flags.
+function xFlagStyle(){
+  return {aspectRatio:'1/1', background:'#fff', html:
+    '<div style="position:absolute;inset:0 40% 0 40%;background:'+FLAG_BLUE+'"></div>'
+    +'<div style="position:absolute;inset:40% 0 40% 0;background:'+FLAG_BLUE+'"></div>'};
+}
+function renderXFlagGraphic(){
+  const el=document.getElementById('startSeqOcsFlag');
+  if(!el) return;
+  const s=xFlagStyle();
+  el.style.aspectRatio=s.aspectRatio;
+  el.style.background=s.background;
   el.innerHTML=s.html;
 }
 

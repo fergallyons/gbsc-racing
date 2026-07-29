@@ -823,6 +823,18 @@
     </div>
     <div id="startSeqNote" style="font-size:.76rem;color:var(--warn);text-align:center;padding:8px 24px;line-height:1.4;flex-shrink:0"></div>
   </div>
+
+  <!-- Skipper-only OCS alert — covers startSeqBody/startSeqEmpty when this
+       boat was detected over the line at the gun. No z-index needed: it
+       comes after them in DOM order so it paints on top, but the Close
+       button above has z-index:2 so it stays clickable regardless. -->
+  <div id="startSeqOcsAlert" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:var(--navy-dark);border:4px solid var(--danger);box-sizing:border-box;">
+    <div id="startSeqOcsFlag" style="width:min(70vw,40vh,300px);aspect-ratio:1/1;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.6);position:relative;overflow:hidden;flex-shrink:0"></div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--danger);margin-top:18px">Individual Recall</div>
+    <div id="startSeqOcsBoatName" style="font-family:'Barlow Condensed',sans-serif;font-size:2.2rem;font-weight:800;color:var(--white);margin-top:4px;line-height:1.1"></div>
+    <div style="font-size:.9rem;color:var(--white);opacity:.85;margin-top:14px;max-width:340px;line-height:1.4">You looked to be over the line at the start. Return and restart correctly.</div>
+    <button onclick="dismissOcsAlert()" style="margin-top:24px;background:rgba(255,255,255,.12);border:1px solid var(--border);color:var(--white);border-radius:8px;padding:10px 24px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.95rem;cursor:pointer;">Dismiss</button>
+  </div>
 </div>
 
 <!-- PDF Viewer Overlay -->

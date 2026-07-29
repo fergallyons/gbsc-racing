@@ -684,6 +684,29 @@ GRANT SELECT ON race_finishes TO anon;
 GRANT INSERT ON race_finishes TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE race_finishes_id_seq TO service_role;
 
+-- ── race_ocs: automatic OCS-at-the-gun detection (races.automated) ──
+-- Event log, not a result — see 047_ocs_detection.sql for full rationale.
+-- Read-only for anon; only the detect-finishes scheduled function (service
+-- role) ever writes here.
+CREATE TABLE IF NOT EXISTS race_ocs (
+  id          bigint            GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  boat_id     text              NOT NULL REFERENCES boats(id) ON DELETE CASCADE,
+  race_key    text              NOT NULL,
+  start_id    bigint            NOT NULL REFERENCES race_starts(id) ON DELETE CASCADE,
+  start_time  timestamptz       NOT NULL,
+  ocs_lat     double precision  NOT NULL,
+  ocs_lng     double precision  NOT NULL,
+  detected_at timestamptz       NOT NULL DEFAULT now(),
+  UNIQUE (boat_id, start_id)
+);
+CREATE INDEX IF NOT EXISTS race_ocs_start_id_idx ON race_ocs(start_id);
+ALTER TABLE race_ocs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "race_ocs_select" ON race_ocs;
+CREATE POLICY "race_ocs_select" ON race_ocs FOR SELECT USING (true);
+GRANT SELECT ON race_ocs TO anon;
+GRANT INSERT ON race_ocs TO service_role;
+GRANT USAGE, SELECT ON SEQUENCE race_ocs_id_seq TO service_role;
+
 ALTER TABLE registrations
   ADD COLUMN IF NOT EXISTS tracking_enabled boolean NOT NULL DEFAULT false;
 GRANT UPDATE (tracking_enabled) ON registrations TO anon;
@@ -943,7 +966,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('043_race_starts_more_class_flags.sql'),
   ('044_rename_olympic_to_trapezoid.sql'),
   ('045_fix_column_privilege_revokes.sql'),
-  ('046_automated_finish_detection.sql')
+  ('046_automated_finish_detection.sql'),
+  ('047_ocs_detection.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.

@@ -26,6 +26,7 @@
 //   { type: "protest_filed", boatIds: ["silver-fox"], boatName: "Wanderer" }
 //   { type: "protest_hearing_scheduled", boatIds: [...], hearingAt: "...", hearingLocation: "..." }
 //   { type: "protest_decision", boatIds: [...], status: "Upheld" }
+//   { type: "ocs_detected", boatIds: [...], boatName: "Silver Fox" }
 //
 // boatIds (optional): restricts delivery to those boats' own 'skipper'-role
 // subscription instead of broadcasting to every subscriber with a matching
@@ -46,6 +47,7 @@ const TARGET_ROLES = {
   protest_filed:              ['skipper'],
   protest_hearing_scheduled:  ['skipper'],
   protest_decision:           ['skipper'],
+  ocs_detected:               ['skipper'],
 };
 
 exports.handler = async (event) => {
@@ -104,7 +106,7 @@ exports.handler = async (event) => {
 
   webpush.setVapidDetails('mailto:noreply@example.com', vapidPublicKey, vapidPrivateKey);
 
-  const BOAT_SCOPED_TYPES = ['protest_filed', 'protest_hearing_scheduled', 'protest_decision'];
+  const BOAT_SCOPED_TYPES = ['protest_filed', 'protest_hearing_scheduled', 'protest_decision', 'ocs_detected'];
   if (boatIds.length > 0 && !roles.includes('skipper')) {
     // boatIds only makes sense for skipper-role notifications — nothing else
     // is boat-scoped. Guard so a bad request can't silently broadcast wider
@@ -139,6 +141,10 @@ exports.handler = async (event) => {
     protest_filed: { title: '🚩 Protest Filed', body: (boatName || 'A boat') + ' has filed a protest against you' + (raceLabel ? ' — ' + raceLabel : ''), tag: 'protest' },
     protest_hearing_scheduled: { title: '⚖ Hearing Scheduled', body: 'Protest hearing' + (hearingWhen ? ' ' + hearingWhen : '') + (hearingLocation ? ' at ' + hearingLocation : ''), tag: 'protest' },
     protest_decision: { title: '⚖ Protest Decision', body: 'Decision reached: ' + (status || 'see the app for details'), tag: 'protest' },
+    // Informational only, never a final ruling — worded as an alert to
+    // check the app, not a verdict. A boat can clear this by returning and
+    // restarting correctly (rule 30.1) before the RO ever gets involved.
+    ocs_detected: { title: '🚩 Individual Recall', body: (boatName || 'Your boat') + ' looked to be over the line at the start — check the app', tag: 'ocs' },
   };
   const payload = PAYLOADS[body.type];
 
