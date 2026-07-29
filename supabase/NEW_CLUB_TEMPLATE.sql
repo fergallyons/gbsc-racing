@@ -612,10 +612,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON settings TO anon;
 ALTER TABLE boats
   ADD COLUMN IF NOT EXISTS stripe_link text NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS sail_number text NOT NULL DEFAULT '',
-  ADD COLUMN IF NOT EXISTS bow_offset_m double precision;
+  ADD COLUMN IF NOT EXISTS bow_offset_m double precision NOT NULL DEFAULT 6;
 ALTER TABLE boats DROP CONSTRAINT IF EXISTS boats_bow_offset_m_check;
 ALTER TABLE boats ADD CONSTRAINT boats_bow_offset_m_check
-  CHECK (bow_offset_m IS NULL OR (bow_offset_m >= 0 AND bow_offset_m <= 30));
+  CHECK (bow_offset_m >= 0 AND bow_offset_m <= 30);
 
 
 -- ── registrations: remaining columns ────────────────────────
@@ -972,7 +972,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('045_fix_column_privilege_revokes.sql'),
   ('046_automated_finish_detection.sql'),
   ('047_ocs_detection.sql'),
-  ('048_bow_offset.sql')
+  ('048_bow_offset.sql'),
+  ('049_bow_offset_default.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.

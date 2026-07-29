@@ -961,7 +961,7 @@ async function buildBoatGrid(){
   // rather than gracefully narrowing to the permitted columns.
   const sbBoats=await sbFetch('/rest/v1/boats?order=name.asc&select='+BOATS_SELECT);
   if(sbBoats&&sbBoats.length){
-    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||'',photoUrl:b.photo_url||'',bowOffsetM:b.bow_offset_m||null}));
+    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||'',photoUrl:b.photo_url||'',bowOffsetM:(b.bow_offset_m!=null?b.bow_offset_m:6)}));
   } else {
     // Offline — fall back to localStorage cache
     boats=loadCustom();
@@ -3203,10 +3203,10 @@ function hasAnyStripeLink(){
   return !!(clubSettings.stripe_link_member||clubSettings.stripe_link_student||clubSettings.stripe_link_visitor);
 }
 function getRORevolutUser(){ return clubSettings.ro_revolut_user||''; }
-async function saveBoatSettings(revolut_user,whatsapp){
+async function saveBoatSettings(revolut_user,whatsapp,bowOffsetM){
   // revolut_user is gated by the pin verified at login (migration 040) —
   // payment-redirect field, not a plain anon-writable column anymore.
-  // whatsapp isn't sensitive, so it stays a direct field write.
+  // whatsapp/bow_offset_m aren't sensitive, so they stay direct field writes.
   if(!_currentBoatPin) return false;
   const ok=await sbRpc('set_boat_revolut_user',{p_boat_id:currentBoat.id,p_current_pin:_currentBoatPin,p_revolut_user:revolut_user});
   if(ok!==true) return false;
@@ -3219,7 +3219,8 @@ async function saveBoatSettings(revolut_user,whatsapp){
     obj.whatsapp=whatsapp;
     localStorage.setItem('cfg_'+currentBoat?.id,JSON.stringify(obj));
   }catch(e){}
-  await sbSaveBoatConfig(currentBoat.id,{whatsapp});
+  if(currentBoat) currentBoat.bowOffsetM=bowOffsetM; // optimistic — same object as the boats[] entry
+  await sbSaveBoatConfig(currentBoat.id,{whatsapp,bow_offset_m:bowOffsetM});
   return true;
 }
 async function saveClubSettingsFields(links){
@@ -3248,6 +3249,7 @@ async function checkNotifSupport(){
 async function openSettingsSheet(){
   document.getElementById('settings-revolut').value=getRevolutUser();
   document.getElementById('settings-whatsapp').value=getWhatsapp();
+  document.getElementById('settings-bow-offset').value=currentBoat?(currentBoat.bowOffsetM!=null?currentBoat.bowOffsetM:6):6;
   // Notification toggle state
   const supported=await checkNotifSupport();
   const row=document.getElementById('notif-row');
@@ -3602,7 +3604,13 @@ function toggleHelpSection(id){
 async function saveSettings(){
   const rev=document.getElementById('settings-revolut').value.trim().replace(/^@/,'');
   const wa=document.getElementById('settings-whatsapp').value.trim();
-  const ok=await saveBoatSettings(rev,wa);
+  const bowOffsetRaw=document.getElementById('settings-bow-offset').value.trim();
+  const bowOffset=bowOffsetRaw===''?6:parseFloat(bowOffsetRaw);
+  if(isNaN(bowOffset)||bowOffset<0||bowOffset>30){
+    toast('⚠ Bow offset must be between 0 and 30 metres');
+    return;
+  }
+  const ok=await saveBoatSettings(rev,wa,bowOffset);
   closeSheet('settingsSheet');
   toast(ok?'Settings saved ✓':'⚠ Could not save — try logging in again');
 }
@@ -8573,9 +8581,11 @@ async function updateBoatSailNumber(id,value){
 
 async function updateBoatBowOffset(id,value){
   const b=boats.find(x=>x.id===id); if(!b) return;
-  const trimmed=(value||'').trim();
-  const offset=trimmed===''?null:parseFloat(trimmed);
-  if(offset!=null&&(isNaN(offset)||offset<0||offset>30)){
+  // No "unset" state anymore — the column is NOT NULL DEFAULT 6 (migration
+  // 049), so a blank field is invalid input, not "clear it", same as any
+  // other out-of-range value: reject and revert to the last-saved number.
+  const offset=parseFloat((value||'').trim());
+  if(isNaN(offset)||offset<0||offset>30){
     toast('⚠ Bow offset must be between 0 and 30 metres');
     buildPinMgmtList(); // revert the input to the last-saved value
     return;
