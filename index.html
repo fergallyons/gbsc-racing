@@ -81,6 +81,22 @@
   </div>
 </div>
 
+<!-- Boat Summary sheet — opened by tapping a boat on the Crew tab's Starting
+     Line list (renderRegisteredTab). Read-only (photo/sail no./IRC/ECHO);
+     the small key button on each row (or the button here) is the login
+     shortcut instead, since the main use case there is "who am I racing
+     against today", not logging in as someone else's boat. -->
+<div class="overlay" id="boatSummarySheet">
+  <div class="sheet" style="max-height:85vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div id="boatSummaryBody"></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-ghost" style="flex:1;padding:12px" onclick="closeSheet('boatSummarySheet')">Close</button>
+      <button class="btn btn-primary" style="flex:1;padding:12px" onclick="loginFromBoatSummary()">🔑 Login as this boat</button>
+    </div>
+  </div>
+</div>
+
 <!-- PIN OVERLAY -->
 <div class="pin-overlay" id="pinOverlay">
   <div class="pin-box" id="pinBox">

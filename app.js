@@ -2120,14 +2120,75 @@ async function renderRegisteredTab(){
     const b=boats.find(x=>x.id===r.boat_id);
     return b?b:null;
   }).filter(Boolean);
+  // Default tap is "who is this" (openBoatSummary), not login — the real
+  // use case here is a crew member checking who else is racing today, not
+  // logging in as someone else's boat. Login stays available as a small,
+  // deliberate key-icon button (event.stopPropagation() so it doesn't also
+  // open the summary), and again inside the summary sheet itself.
   list.innerHTML=regBoats.map(b=>
-    '<div onclick="loginAs(\''+b.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.04);'+
+    '<div onclick="openBoatSummary(\''+b.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.04);'+
     'border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;">'+
     '<span style="font-size:1.4rem">'+b.icon+'</span>'+
     '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">'+b.name+'</span>'+
-    '<span style="margin-left:auto;font-size:.8rem;color:var(--muted)">Tap to log in →</span>'+
+    '<button class="row-login-btn" style="margin-left:auto" title="Login as '+escHtml(b.name)+'" onclick="event.stopPropagation();loginAs(\''+b.id+'\')">🔑</button>'+
     '</div>'
   ).join('');
+}
+
+// Read-only "who is this boat" view — default tap action on the Crew tab's
+// Starting Line list (renderRegisteredTab). Reuses _fetchBoatRatingData(),
+// the same cached national/HalSail lookup the (logged-in) Boat Profile
+// panel uses, so this is normally near-instant after the first fetch of
+// the day.
+let _boatSummaryId=null;
+function openBoatSummary(id){
+  const b=boats.find(x=>x.id===id); if(!b) return;
+  _boatSummaryId=id;
+  const body=document.getElementById('boatSummaryBody');
+  if(body) body.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading…</div></div>';
+  document.getElementById('boatSummarySheet').classList.add('open');
+  _fetchBoatRatingData()
+    .then(({national,halEcho})=>renderBoatSummaryBody(b,national,halEcho))
+    .catch(()=>renderBoatSummaryBody(b,[],{current:{},next:{}})); // ratings are a bonus here, not essential — still show name/photo/sail no. on failure
+}
+function renderBoatSummaryBody(b,nationalBoats,halEcho){
+  const body=document.getElementById('boatSummaryBody');
+  if(!body) return;
+  const byNorm={};
+  (nationalBoats||[]).forEach(x=>{ byNorm[normBoatName(x.boatName)]=x; });
+  const norm=normBoatName(b.name);
+  const match=byNorm[norm];
+  const irc=match&&match.ircTCC?match.ircTCC:'';
+  const nextEcho=halEcho&&halEcho.next?halEcho.next[norm]:null;
+  const isReg=registeredBoatIds.has(b.id);
+
+  const photoUrl=b.photoUrl||'';
+  const photoBox=photoUrl
+    ?'<div style="width:140px;height:140px;border-radius:12px;overflow:hidden;margin:0 auto 14px">'
+      +'<img src="'+escHtml(photoUrl)+'" alt="'+escHtml(b.name)+'" style="width:100%;height:100%;object-fit:contain;background:rgba(255,255,255,.04);display:block">'
+      +'</div>'
+    :'<div style="font-size:3rem;text-align:center;margin-bottom:8px">'+escHtml(b.icon||'⛵')+'</div>';
+
+  body.innerHTML=
+    photoBox
+    +'<div style="text-align:center;margin-bottom:16px">'
+      +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1.5rem;font-weight:800;color:var(--white)">'+escHtml(b.name)+'</div>'
+      +(b.sailNumber?'<div style="font-size:.85rem;color:var(--muted);margin-top:2px">'+escHtml(b.sailNumber)+'</div>':'')
+      +(isReg?'<div style="display:inline-block;margin-top:8px;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--success);background:rgba(45,198,83,.1);border:1px solid rgba(45,198,83,.3);border-radius:20px;padding:3px 12px">✓ Registered</div>':'')
+    +'</div>'
+    +'<div style="display:flex;gap:10px">'
+      +'<div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">'
+        +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1.6rem;font-weight:800;color:'+(irc?'var(--white)':'var(--muted)')+'">'+(irc||'—')+'</div>'
+        +'<div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">IRC TCC</div>'
+      +'</div>'
+      +'<div style="flex:1;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);border-radius:10px;padding:14px;text-align:center">'
+        +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1.6rem;font-weight:800;color:'+(nextEcho!=null?'var(--success)':'var(--muted)')+'">'+(nextEcho!=null?nextEcho:'—')+'</div>'
+        +'<div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">Next ECHO</div>'
+      +'</div>'
+    +'</div>';
+}
+function loginFromBoatSummary(){
+  if(_boatSummaryId) loginAs(_boatSummaryId);
 }
 // add boat
 function showAddBoatForm(){document.getElementById('addBoatForm').style.display='block';document.getElementById('addBoatBtn').style.display='none';document.getElementById('newBoatName').focus();}
