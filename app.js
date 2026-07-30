@@ -1109,7 +1109,11 @@ async function toggleLookingForCrew(){
 // DB flag and immediately stops the device's GPS watch.
 let trackingEnabled=false;
 let _trackWatchId=null;
-let _trackLastPost=0; // ms timestamp — throttles posts to at most 1 per 15s
+let _trackLastPost=0; // ms timestamp — throttles posts to at most 1 per 15s, also the staleness-watch baseline
+let _trackingWakeLock=null;
+let _trackStaleTimer=null;
+let _trackingStale=false;
+const TRACKING_STALE_MS=90000; // no successful post in 90s despite tracking being "on" -> the watch has likely been suspended (screen locked / app backgrounded), not just an unlucky dropped post
 
 async function sbToggleTracking(boatId,race,value){
   const key=raceKey(race);
@@ -1124,6 +1128,15 @@ async function sbToggleTracking(boatId,race,value){
 }
 async function toggleTracking(){
   if(!currentBoat||!selectedRace) return;
+  if(trackingEnabled&&_trackingStale){
+    // Already "on" per the DB, just not actually delivering fixes — a tap
+    // here means "try again", not "turn off": clean-restart the watch and
+    // wake lock rather than toggling the whole feature off.
+    stopPositionSharing();
+    startPositionSharing();
+    toast('📍 Retrying position sharing…');
+    return;
+  }
   const newVal=!trackingEnabled;
   const btn=document.getElementById('trackingBtn');
   if(btn){ btn.disabled=true; btn.textContent='⏳…'; }
@@ -1141,7 +1154,12 @@ async function toggleTracking(){
 function updateTrackingButton(){
   const btn=document.getElementById('trackingBtn');
   if(!btn) return;
-  if(trackingEnabled){
+  if(trackingEnabled&&_trackingStale){
+    btn.textContent='⚠ Tracking may have stopped — tap to retry';
+    btn.style.background='rgba(244,162,97,.15)';
+    btn.style.borderColor='var(--warn)';
+    btn.style.color='var(--warn)';
+  } else if(trackingEnabled){
     btn.textContent='📍 Sharing position — tap to stop';
     btn.style.background='rgba(39,174,96,.15)';
     btn.style.borderColor='var(--success)';
@@ -1153,20 +1171,73 @@ function updateTrackingButton(){
     btn.style.color='var(--muted)';
   }
 }
+// Screen Wake Lock — stops the OS idle timeout from locking the screen
+// while tracking is on (doesn't force full brightness or block normal
+// ambient-light dimming, just the inactivity-triggered lock). Mirrors
+// _acquireStartSeqWakeLock() exactly, but kept as its own independent
+// sentinel — tracking and the Start Sequence overlay have unrelated
+// lifecycles and can each be on/off regardless of the other.
+async function _acquireTrackingWakeLock(){
+  if(!('wakeLock' in navigator)) return;
+  try{
+    _trackingWakeLock=await navigator.wakeLock.request('screen');
+    _trackingWakeLock.addEventListener('release',()=>{ _trackingWakeLock=null; });
+  }catch(e){
+    _trackingWakeLock=null;
+  }
+}
+function _releaseTrackingWakeLock(){
+  if(_trackingWakeLock){ _trackingWakeLock.release().catch(()=>{}); _trackingWakeLock=null; }
+}
+// A wake lock alone doesn't help once the tab is actually backgrounded
+// (switched away from, not just screen-locked) — watchPosition callbacks
+// still get suspended by the browser regardless of the lock. This is the
+// safety net for that unfixable-on-the-web case: surface it instead of
+// failing silently, since post-race is too late to notice a multi-hour gap.
+function _startTrackingStaleWatch(){
+  if(_trackStaleTimer) clearInterval(_trackStaleTimer);
+  _trackStaleTimer=setInterval(()=>{
+    if(!trackingEnabled) return;
+    const stale=Date.now()-_trackLastPost>TRACKING_STALE_MS;
+    if(stale!==_trackingStale){ _trackingStale=stale; updateTrackingButton(); }
+  },15000);
+}
+function _stopTrackingStaleWatch(){
+  if(_trackStaleTimer){ clearInterval(_trackStaleTimer); _trackStaleTimer=null; }
+  _trackingStale=false;
+}
 function startPositionSharing(){
   if(!navigator.geolocation||_trackWatchId!=null) return;
   _trackWatchId=navigator.geolocation.watchPosition(onTrackPosition,
     (err)=>console.warn('Race Tracker geolocation error',err.message),
     {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+  _trackLastPost=Date.now(); // fresh baseline — don't flag stale before the first real fix has had a chance to arrive
+  _trackingStale=false;
+  _acquireTrackingWakeLock();
+  _startTrackingStaleWatch();
+  updateTrackingButton();
 }
 function stopPositionSharing(){
   if(_trackWatchId!=null){ navigator.geolocation.clearWatch(_trackWatchId); _trackWatchId=null; }
+  _releaseTrackingWakeLock();
+  _stopTrackingStaleWatch();
+  updateTrackingButton();
 }
+// The OS/browser force-releases the wake lock (and may fully suspend the
+// GPS watch) whenever the tab is hidden — neither reliably resumes on its
+// own once visible again, so re-establish both explicitly rather than
+// hoping. Cheap even when nothing was actually wrong.
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState!=='visible'||!trackingEnabled) return;
+  stopPositionSharing();
+  startPositionSharing();
+});
 function onTrackPosition(pos){
   const now=Date.now();
   if(now-_trackLastPost<15000) return; // throttle — at most one post per 15s
   if(!currentBoat||!selectedRace||!trackingEnabled) return;
   _trackLastPost=now;
+  if(_trackingStale){ _trackingStale=false; updateTrackingButton(); }
   const c=pos.coords;
   sbFetch('/rest/v1/race_positions',{
     method:'POST',
