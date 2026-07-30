@@ -1515,12 +1515,13 @@ function updateReplayUI(){
   const duration=Math.max(1,_replayEnd-_replayStart);
   if(scrubber){ scrubber.max=duration; scrubber.value=_replayCursor; }
   const label=document.getElementById('trackerTimeLabel');
-  if(label) label.textContent=fmtReplayElapsed(_replayCursor)+' / '+fmtReplayElapsed(duration);
+  if(label) label.textContent=fmtReplayClock(_replayStart+_replayCursor);
 }
-function fmtReplayElapsed(ms){
-  const totalSec=Math.floor(ms/1000);
-  const m=Math.floor(totalSec/60), s=totalSec%60;
-  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+// Actual wall-clock time at the current scrub position — replaced the old
+// elapsed/duration counter (00:00 / 12:34), which told you how far into
+// the *replay* you were but not what time it actually was in the race.
+function fmtReplayClock(epochMs){
+  return new Date(epochMs).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
 }
 function scrubReplay(value){
   pauseReplay();
