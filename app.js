@@ -7368,8 +7368,14 @@ function showSponsor(raceName){
   const sponsors=(clubSettings.sponsors||[]).map(s=>({...s, match:new RegExp(s.match,'i')}));
   const sponsor=sponsors.find(s=>s.match.test(raceName));
   if(!sponsor){widget.style.display='none';return;}
-  document.getElementById('sponsorLogo').src=sponsor.logo;
-  document.getElementById('sponsorLogo').alt=sponsor.name;
+  const logo=document.getElementById('sponsorLogo');
+  // The <img> starts with src="" in the HTML, which browsers treat as a
+  // failed load and fires onerror (this.style.display='none') immediately
+  // on page load, before any real sponsor is ever set — clear that inline
+  // override here or a genuinely successful load stays invisible forever.
+  logo.style.display='';
+  logo.src=sponsor.logo;
+  logo.alt=sponsor.name;
   document.getElementById('sponsorName').textContent=sponsor.name+(sponsor.tagline?' — '+sponsor.tagline:'');
   widget.href=sponsor.url;
   widget.style.display='flex';
