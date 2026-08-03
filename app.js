@@ -214,7 +214,7 @@ async function sbLoadClubSettings(){
   const fullSelect=
     'stripe_link_member,stripe_link_student,stripe_link_visitor,'
     +'pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,'
-    +'results_published_race_key,features,'
+    +'results_published_race_key,features,sponsors,'
     +'logo_url,favicon_url,primary_color,ro_color,'
     +'start_lat,start_lng,wind_lat,wind_lng,'
     +'tide_station,tide_odm_offset,'
@@ -7352,14 +7352,21 @@ function closeDoc(){
 // ═══════════════════════════════════════════════════════════════
 // SPONSORS
 // ═══════════════════════════════════════════════════════════════
-// Sponsors come from window.CLUB.sponsors — match strings are compiled to RegExp here.
-// Each entry: {match:"regex-string", name, tagline, logo, url}
-const SPONSORS=(_C.sponsors||[]).map(s=>({...s, match:new RegExp(s.match,'i')}));
-
+// Sponsors come from clubSettings.sponsors (settings.sponsors, DB) — match
+// strings are compiled to RegExp here. Each entry: {match:"regex-string",
+// name, tagline, logo, url}. Used to live in CLUB_CONFIG_<SLUG>.sponsors
+// (a Netlify env var) — moved to the DB after adding one sponsor there
+// pushed GBSC's combined env vars over AWS Lambda's 4KB total-size limit
+// and silently broke every subsequent deploy (chat 2026-08-03). Read
+// fresh from clubSettings each call rather than precomputed once, since
+// clubSettings loads asynchronously (unlike the old window.CLUB, which
+// was always ready before app.js even started) — see the two call sites
+// (buildBoatGrid + _settingsReady) for why it's called from both places.
 function showSponsor(raceName){
   const widget=document.getElementById('sponsorWidget');
   if(!raceName||!widget){return;}
-  const sponsor=SPONSORS.find(s=>s.match.test(raceName));
+  const sponsors=(clubSettings.sponsors||[]).map(s=>({...s, match:new RegExp(s.match,'i')}));
+  const sponsor=sponsors.find(s=>s.match.test(raceName));
   if(!sponsor){widget.style.display='none';return;}
   document.getElementById('sponsorLogo').src=sponsor.logo;
   document.getElementById('sponsorLogo').alt=sponsor.name;
@@ -12323,7 +12330,11 @@ loadWindWidget();
   }catch(e){}
 })();
 // Load club settings first so the pay page has stripe links available, then check hash
-const _settingsReady=loadClubSettings().then(()=>{updateEstellaLink();checkPayHash();});
+// Also re-populates the sponsor widget once settings actually arrive — unlike the old
+// window.CLUB.sponsors (always ready before app.js started), clubSettings.sponsors loads
+// async, so whichever of this or buildBoatGrid()'s own showSponsor() call finishes last
+// is the one that actually has both nextRace and sponsor data ready.
+const _settingsReady=loadClubSettings().then(()=>{updateEstellaLink();checkPayHash();if(nextRace) showSponsor(nextRace.label);});
 showTab('registeredTab', null);
 // Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
 loadRaceSchedule().then(()=>{

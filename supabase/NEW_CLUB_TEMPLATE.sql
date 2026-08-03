@@ -583,6 +583,7 @@ GRANT USAGE, SELECT ON SEQUENCE race_starts_id_seq TO anon;
 -- both via the Club Settings sheet (Location & Tides section) after login.
 ALTER TABLE settings
   ADD COLUMN IF NOT EXISTS features jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS sponsors jsonb NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS logo_url          text NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS favicon_url       text NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS primary_color     text NOT NULL DEFAULT '',
@@ -897,7 +898,7 @@ REVOKE SELECT, UPDATE ON settings FROM anon;
 GRANT SELECT (
   id, stripe_link_member, stripe_link_student, stripe_link_visitor,
   pre_race_window_hours, worldtides_key, ro_revolut_user,
-  results_published_race_key, updated_at, features, estella_url,
+  results_published_race_key, updated_at, features, sponsors, estella_url,
   logo_url, favicon_url, primary_color, ro_color,
   start_lat, start_lng, wind_lat, wind_lng, tide_station, tide_odm_offset,
   fee_full, fee_crew, fee_visitor, fee_student, fee_kid,
@@ -906,7 +907,7 @@ GRANT SELECT (
 ) ON settings TO anon;
 GRANT UPDATE (
   id, pre_race_window_hours, worldtides_key, results_published_race_key,
-  updated_at, features, estella_url, hal_club,
+  updated_at, features, sponsors, estella_url, hal_club,
   fee_full, fee_crew, fee_visitor, fee_student, fee_kid,
   visitor_max, crew_max_yrs, start_lat, start_lng, wind_lat, wind_lng,
   tide_station, tide_odm_offset, noticeboard_url, vapid_public_key, results_url
@@ -973,7 +974,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('046_automated_finish_detection.sql'),
   ('047_ocs_detection.sql'),
   ('048_bow_offset.sql'),
-  ('049_bow_offset_default.sql')
+  ('049_bow_offset_default.sql'),
+  ('050_settings_sponsors.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.
