@@ -303,6 +303,7 @@ const State = {
   maint: { tab: 'equipment', current: null },
   sops:  { catFilter: 'all', current: null },
   members: { tab: 'roster', statusFilter: 'all', current: null },
+  access:  { tab: 'logins' },
 };
 
 // ── App ────────────────────────────────────────────────────────
@@ -312,7 +313,7 @@ const App = {
     const authed = await _initAuth();
     if (!authed) return;
 
-    await Promise.all([App.cal.load(), App.maint.load(), App.sops.load(), App.members.load()]);
+    await Promise.all([App.cal.load(), App.maint.load(), App.sops.load(), App.members.load(), App.access.load()]);
 
     App.cal.render();
     App.events.render();
@@ -321,6 +322,7 @@ const App = {
     App.sops.render();
     App.members.renderRoster();
     App.members.renderTypes();
+    App.access.renderLogins();
     App.navigate('portal');
     const bid = document.getElementById('buildId');
     if (bid) bid.textContent = 'build ' + BUILD;
@@ -328,9 +330,9 @@ const App = {
 
   navigate(view, _noHistory = false) {
     const isPortal = view === 'portal';
-    const viewMap  = { portal:'portalView', calendar:'calendarView', events:'eventsView', maintenance:'maintenanceView', sops:'sopsView', members:'membersView' };
-    const addMap   = { calendar:'hAddCal', events:'hAddCal', maintenance:'hAddMaint', sops:'hAddSops', members:'hAddMembers' };
-    const titleMap = { calendar:'Calendar', events:'Events', maintenance:'Maintenance', sops:'SOPs', members:'Members' };
+    const viewMap  = { portal:'portalView', calendar:'calendarView', events:'eventsView', maintenance:'maintenanceView', sops:'sopsView', members:'membersView', access:'accessView' };
+    const addMap   = { calendar:'hAddCal', events:'hAddCal', maintenance:'hAddMaint', sops:'hAddSops', members:'hAddMembers', access:'hAddAccess' };
+    const titleMap = { calendar:'Calendar', events:'Events', maintenance:'Maintenance', sops:'SOPs', members:'Members', access:'Access' };
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(viewMap[view])?.classList.add('active');
     document.getElementById('headerBreadcrumb').classList.toggle('hidden', isPortal);
@@ -381,6 +383,7 @@ const App = {
     document.getElementById('pstat-maintenance').textContent = openIssues ? `${openIssues} open issue${openIssues!==1?'s':''}` : 'No open issues';
     document.getElementById('pstat-sops').textContent        = `${App.sops.data.length} document${App.sops.data.length!==1?'s':''}`;
     document.getElementById('pstat-members').textContent     = `${activeMembers} active member${activeMembers!==1?'s':''}`;
+    document.getElementById('pstat-access').textContent      = `${App.access.hubMembers.length} login${App.access.hubMembers.length!==1?'s':''}`;
 
     document.getElementById('portalLinksGrid').innerHTML = PORTAL_LINKS.map(l =>
       `<a class="portal-link-tile" href="${esc(l.url)}" target="_blank" rel="noopener">
@@ -1959,6 +1962,129 @@ const App = {
         btn.textContent = origText;
       } finally {
         btn.disabled = false;
+      }
+    },
+  },
+
+  // ── Access (hub login whitelist + account settings) ────────────
+  access: {
+    hubMembers: [],
+
+    async load() {
+      const rows = await sbGet('hub_members', 'order=name.asc&select=*');
+      if (rows && !rows._err) this.hubMembers = rows;
+    },
+
+    showTab(tab, btn) {
+      State.access.tab = tab;
+      document.querySelectorAll('#accessView .tab-btn').forEach(b => b.classList.remove('active'));
+      btn?.classList.add('active');
+      document.querySelectorAll('#accessView .tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(tab + 'Tab').classList.add('active');
+      if (tab === 'account') this.renderAccount();
+    },
+
+    renderLogins() {
+      document.getElementById('hubMembersList').innerHTML = this.hubMembers.length ? this.hubMembers.map(m => `
+        <div class="item-card" onclick="App.access.openEdit('${m.id}')">
+          <div class="item-card-header">
+            <div class="item-icon" style="background:rgba(0,174,239,.15);color:var(--teal)">${esc(((m.name||m.email||'?')[0]||'?').toUpperCase())}</div>
+            <div style="flex:1;min-width:0">
+              <div class="item-card-title">${esc(m.name || m.email || 'Unnamed')}</div>
+              ${m.name && m.email ? `<div class="item-card-meta">${esc(m.email)}</div>` : ''}
+            </div>
+            ${m.role ? `<div class="sop-cat-badge">${esc(m.role)}</div>` : ''}
+          </div>
+        </div>`).join('')
+        : '<div class="empty-state"><div class="empty-state-icon">🔐</div><div class="empty-state-text">No hub logins yet</div></div>';
+    },
+
+    renderAccount() {
+      document.getElementById('accountInfo').innerHTML =
+        `<strong>Name:</strong> ${esc(_member?.name || '—')}<br><strong>Email:</strong> ${esc(_session?.user?.email || '—')}`;
+      document.getElementById('pwNew').value = '';
+      document.getElementById('pwConfirm').value = '';
+      document.getElementById('pwError').classList.add('hidden');
+    },
+
+    openAdd() { this._hmForm(null); },
+    openEdit(id) { const m = this.hubMembers.find(x => x.id === id); if (m) this._hmForm(m); },
+
+    _hmForm(m) {
+      document.getElementById('hubMemberModalTitle').textContent = m ? 'Edit Login' : 'Add Login';
+      document.getElementById('hmId').value    = m?.id || '';
+      document.getElementById('hmName').value  = m?.name || '';
+      document.getElementById('hmEmail').value = m?.email || '';
+      document.getElementById('hmRole').value  = m?.role || '';
+      document.getElementById('hmDeleteBtn').classList.toggle('hidden', !m);
+      document.getElementById('hmError').classList.add('hidden');
+      openModal('hubMemberModal');
+    },
+
+    async saveHubMember() {
+      const id    = document.getElementById('hmId').value;
+      const name  = document.getElementById('hmName').value.trim();
+      const email = document.getElementById('hmEmail').value.trim().toLowerCase();
+      const role  = document.getElementById('hmRole').value.trim();
+      const errEl = document.getElementById('hmError');
+      if (!name)  { showFormError(errEl, 'Name is required'); return; }
+      if (!email || !email.includes('@')) { showFormError(errEl, 'A valid email is required'); return; }
+      const payload = { name, email, role: role || null };
+      const result = id ? await sbPatch('hub_members', 'id=eq.'+id, payload) : await sbPost('hub_members', payload);
+      if (result?._err) { showFormError(errEl, result._err); return; }
+      closeModal('hubMemberModal');
+      await this.load(); this.renderLogins(); App.renderPortal();
+      showToast(id ? 'Login updated' : 'Login added', 'success');
+    },
+
+    async deleteHubMember() {
+      const id = document.getElementById('hmId').value;
+      if (!id) return;
+      if (this.hubMembers.length <= 1) {
+        showToast("Can't remove the last hub login — add another first, or you'll lock everyone out.", 'error');
+        return;
+      }
+      const target = this.hubMembers.find(m => m.id === id);
+      const isSelf = !!(target?.email && _session?.user?.email && target.email.toLowerCase() === _session.user.email.toLowerCase());
+      const msg = isSelf
+        ? "This is YOUR login. Removing it signs you out immediately — you won't be able to sign back in unless someone else re-adds you. Continue?"
+        : 'Remove this login? They will no longer be able to access the hub.';
+      if (!confirm(msg)) return;
+      const r = await sbDelete('hub_members', 'id=eq.'+id);
+      if (r?._err) { showToast('Delete failed', 'error'); return; }
+      closeModal('hubMemberModal');
+      if (isSelf) {
+        showToast('Access removed — signing out…', 'success');
+        try { await fetch(`${SB_URL}/auth/v1/logout`, { method: 'POST', headers: { apikey: SB_KEY, Authorization: 'Bearer ' + _session.access_token } }); } catch {}
+        _clearSession(); _member = null;
+        document.getElementById('app').classList.add('hidden');
+        document.getElementById('loginScreen').classList.remove('hidden');
+        return;
+      }
+      await this.load(); this.renderLogins(); App.renderPortal();
+      showToast('Login removed', 'success');
+    },
+
+    async changePassword() {
+      const pw1 = document.getElementById('pwNew').value;
+      const pw2 = document.getElementById('pwConfirm').value;
+      const errEl = document.getElementById('pwError');
+      if (pw1.length < 8) { showFormError(errEl, 'Password must be at least 8 characters'); return; }
+      if (pw1 !== pw2)    { showFormError(errEl, 'Passwords do not match'); return; }
+      try {
+        const r = await fetch(`${SB_URL}/auth/v1/user`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'apikey': SB_KEY, 'Authorization': 'Bearer ' + _session.access_token },
+          body: JSON.stringify({ password: pw1 }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error_description || data.msg || 'Could not update password');
+        document.getElementById('pwNew').value = '';
+        document.getElementById('pwConfirm').value = '';
+        errEl.classList.add('hidden');
+        showToast('Password updated', 'success');
+      } catch (e) {
+        showFormError(errEl, e.message);
       }
     },
   },
