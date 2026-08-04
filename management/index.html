@@ -270,7 +270,12 @@
         </div>
 
         <div id="rosterTab" class="tab-panel active">
-          <input type="text" id="memberSearch" class="search-input" placeholder="Search name, email, membership #…" oninput="App.members.renderRoster()">
+          <div class="roster-filters-row">
+            <input type="text" id="memberSearch" class="search-input" placeholder="Search name, email, membership #…" oninput="App.members.renderRoster()">
+            <select id="memberTypeFilter" class="search-input" onchange="App.members.renderRoster()">
+              <option value="">All Types</option>
+            </select>
+          </div>
           <div class="filter-bar filter-bar-wrap">
             <button class="filter-btn active" onclick="App.members.filterStatus('all', this)">All</button>
             <button class="filter-btn" onclick="App.members.filterStatus('active', this)">Active</button>

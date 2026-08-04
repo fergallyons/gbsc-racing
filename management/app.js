@@ -1448,9 +1448,12 @@ const App = {
     renderRoster() {
       const q      = (document.getElementById('memberSearch')?.value || '').trim().toLowerCase();
       const status = State.members.statusFilter;
+      const typeF  = document.getElementById('memberTypeFilter')?.value || '';
       let rows = this.roster;
       if (status === 'arrears') rows = rows.filter(m => m.in_arrears);
       else if (status !== 'all') rows = rows.filter(m => m.status === status);
+      if (typeF === '__none__') rows = rows.filter(m => !m.membership_type_id);
+      else if (typeF) rows = rows.filter(m => m.membership_type_id === typeF);
       if (q) rows = rows.filter(m =>
         (m.first_name + ' ' + m.last_name).toLowerCase().includes(q) ||
         (m.email || '').toLowerCase().includes(q) ||
@@ -1466,7 +1469,7 @@ const App = {
             <div class="item-icon member-icon-${m.status}">${esc(this._initials(m))}</div>
             <div style="flex:1;min-width:0">
               <div class="item-card-title">${esc(m.first_name)} ${esc(m.last_name)}</div>
-              <div class="item-card-meta">${esc(this._typeName(m.membership_type_id) || 'No type')}${m.email ? ' &bull; ' + esc(m.email) : ''}</div>
+              <div class="item-card-meta"><span class="type-chip">${esc(this._typeName(m.membership_type_id) || 'No type')}</span>${m.email ? ' &bull; ' + esc(m.email) : ''}</div>
             </div>
             <div class="item-card-badge badge-${m.status}">${m.status}</div>
           </div>
@@ -1490,6 +1493,17 @@ const App = {
         </div>`).join('')
         : '<div class="empty-state"><div class="empty-state-icon">💳</div><div class="empty-state-text">No membership types yet</div></div>';
       this._populateTypeSelects();
+      this._populateTypeFilter();
+    },
+
+    _populateTypeFilter() {
+      const sel = document.getElementById('memberTypeFilter');
+      if (!sel) return;
+      const current = sel.value;
+      sel.innerHTML = '<option value="">All Types</option>' +
+        this.types.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('') +
+        '<option value="__none__">— No Type —</option>';
+      if ([...sel.options].some(o => o.value === current)) sel.value = current;
     },
 
     _populateTypeSelects() {
