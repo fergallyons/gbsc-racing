@@ -132,6 +132,14 @@ async function sbPatch(table, query, body) {
 async function sbDelete(table, query) {
   return sb('/rest/v1/' + table + '?' + query, { method: 'DELETE' });
 }
+// Insert-or-update-on-conflict, e.g. for CSV imports keyed on an external ref.
+async function sbUpsert(table, body, conflictCol) {
+  return sb('/rest/v1/' + table + '?on_conflict=' + conflictCol, {
+    method: 'POST',
+    headers: { ...SBH(), 'Prefer': 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify(body),
+  });
+}
 
 // ── Auth (Supabase Auth + Google OAuth, whitelist via hub_members) ─
 
@@ -294,6 +302,7 @@ const State = {
           filters: new Set(['cruisers','dinghys','regattas','social','external','other']) },
   maint: { tab: 'equipment', current: null },
   sops:  { catFilter: 'all', current: null },
+  members: { tab: 'roster', statusFilter: 'all', current: null },
 };
 
 // ── App ────────────────────────────────────────────────────────
@@ -303,13 +312,15 @@ const App = {
     const authed = await _initAuth();
     if (!authed) return;
 
-    await Promise.all([App.cal.load(), App.maint.load(), App.sops.load()]);
+    await Promise.all([App.cal.load(), App.maint.load(), App.sops.load(), App.members.load()]);
 
     App.cal.render();
     App.events.render();
     App.maint.renderEquipment();
     App.maint._updateIssuesTabBadge();
     App.sops.render();
+    App.members.renderRoster();
+    App.members.renderTypes();
     App.navigate('portal');
     const bid = document.getElementById('buildId');
     if (bid) bid.textContent = 'build ' + BUILD;
@@ -317,9 +328,9 @@ const App = {
 
   navigate(view, _noHistory = false) {
     const isPortal = view === 'portal';
-    const viewMap  = { portal:'portalView', calendar:'calendarView', events:'eventsView', maintenance:'maintenanceView', sops:'sopsView' };
-    const addMap   = { calendar:'hAddCal', events:'hAddCal', maintenance:'hAddMaint', sops:'hAddSops' };
-    const titleMap = { calendar:'Calendar', events:'Events', maintenance:'Maintenance', sops:'SOPs' };
+    const viewMap  = { portal:'portalView', calendar:'calendarView', events:'eventsView', maintenance:'maintenanceView', sops:'sopsView', members:'membersView' };
+    const addMap   = { calendar:'hAddCal', events:'hAddCal', maintenance:'hAddMaint', sops:'hAddSops', members:'hAddMembers' };
+    const titleMap = { calendar:'Calendar', events:'Events', maintenance:'Maintenance', sops:'SOPs', members:'Members' };
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(viewMap[view])?.classList.add('active');
     document.getElementById('headerBreadcrumb').classList.toggle('hidden', isPortal);
@@ -344,6 +355,8 @@ const App = {
     const overdue    = App.maint.records.filter(r => r.next_due_date && r.next_due_date < today).length;
     const upcoming   = App.cal.data.filter(ev => (ev.start_date?.slice(0,10)||'') >= today).length;
     const months     = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const activeMembers = App.members.roster.filter(m => m.status === 'active').length;
+    const inArrears      = App.members.roster.filter(m => m.status === 'active' && m.in_arrears).length;
 
     document.getElementById('portalSummary').innerHTML = `
       <div class="pstat-card" onclick="App.navigate('calendar')">
@@ -357,12 +370,17 @@ const App = {
       <div class="pstat-card${overdue ? ' pstat-warn' : ''}" onclick="App.navigate('maintenance');App.maint.showTab('upcoming',document.querySelectorAll('#maintenanceView .tab-btn')[2])">
         <div class="pstat-val">${overdue}</div>
         <div class="pstat-label">Maintenance overdue</div>
+      </div>
+      <div class="pstat-card${inArrears ? ' pstat-warn' : ''}" onclick="App.navigate('members');App.members.filterStatus('arrears',document.querySelector('#membersView .filter-btn:last-child'))">
+        <div class="pstat-val">${inArrears}</div>
+        <div class="pstat-label">Members in arrears</div>
       </div>`;
 
     document.getElementById('pstat-calendar').textContent    = `${evMonth} event${evMonth!==1?'s':''} this month`;
     document.getElementById('pstat-events').textContent      = `${upcoming} upcoming`;
     document.getElementById('pstat-maintenance').textContent = openIssues ? `${openIssues} open issue${openIssues!==1?'s':''}` : 'No open issues';
     document.getElementById('pstat-sops').textContent        = `${App.sops.data.length} document${App.sops.data.length!==1?'s':''}`;
+    document.getElementById('pstat-members').textContent     = `${activeMembers} active member${activeMembers!==1?'s':''}`;
 
     document.getElementById('portalLinksGrid').innerHTML = PORTAL_LINKS.map(l =>
       `<a class="portal-link-tile" href="${esc(l.url)}" target="_blank" rel="noopener">
@@ -1383,6 +1401,565 @@ const App = {
       closeModal('sopModal');
       await this.load(); this.render();
       showToast('SOP deleted','success');
+    },
+  },
+
+  // ── Members ──────────────────────────────────────────────────
+  members: {
+    roster: [],
+    types: [],
+    payments: [],
+    _import: null, // transient CSV-import wizard state
+
+    async load() {
+      const [roster, types, payments] = await Promise.all([
+        sbGet('hub_membership_roster', 'order=last_name.asc&select=*'),
+        sbGet('hub_membership_types', 'order=display_order.asc,name.asc&select=*'),
+        sbGet('hub_membership_payments', 'order=paid_at.desc&select=*'),
+      ]);
+      if (roster   && !roster._err)   this.roster = roster;
+      if (types    && !types._err)    this.types = types;
+      if (payments && !payments._err) this.payments = payments;
+    },
+
+    showTab(tab, btn) {
+      State.members.tab = tab;
+      document.querySelectorAll('#membersView .tab-btn').forEach(b => b.classList.remove('active'));
+      btn?.classList.add('active');
+      document.querySelectorAll('#membersView .tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(tab + 'Tab').classList.add('active');
+    },
+
+    filterStatus(status, btn) {
+      State.members.statusFilter = status;
+      document.querySelectorAll('#rosterTab .filter-btn').forEach(b => b.classList.remove('active'));
+      btn?.classList.add('active');
+      this.showTab('roster', document.querySelector('#membersView .tab-btn'));
+      this.renderRoster();
+    },
+
+    _typeName(id) { return this.types.find(t => t.id === id)?.name || ''; },
+    _memberName(id) { const m = this.roster.find(x => x.id === id); return m ? `${m.first_name} ${m.last_name}` : ''; },
+    _initials(m) { return ((m.first_name?.[0]||'') + (m.last_name?.[0]||'')).toUpperCase() || '?'; },
+
+    renderRoster() {
+      const q      = (document.getElementById('memberSearch')?.value || '').trim().toLowerCase();
+      const status = State.members.statusFilter;
+      let rows = this.roster;
+      if (status === 'arrears') rows = rows.filter(m => m.in_arrears);
+      else if (status !== 'all') rows = rows.filter(m => m.status === status);
+      if (q) rows = rows.filter(m =>
+        (m.first_name + ' ' + m.last_name).toLowerCase().includes(q) ||
+        (m.email || '').toLowerCase().includes(q) ||
+        (m.membership_number || '').toLowerCase().includes(q));
+      rows = [...rows].sort((a,b) => (a.last_name||'').localeCompare(b.last_name||'') || (a.first_name||'').localeCompare(b.first_name||''));
+
+      document.getElementById('rosterCount').textContent =
+        `${rows.length} of ${this.roster.length} member${this.roster.length!==1?'s':''}`;
+
+      document.getElementById('rosterList').innerHTML = rows.length ? rows.map(m => `
+        <div class="item-card" onclick="App.members.openDetail('${m.id}')">
+          <div class="item-card-header">
+            <div class="item-icon member-icon-${m.status}">${esc(this._initials(m))}</div>
+            <div style="flex:1;min-width:0">
+              <div class="item-card-title">${esc(m.first_name)} ${esc(m.last_name)}</div>
+              <div class="item-card-meta">${esc(this._typeName(m.membership_type_id) || 'No type')}${m.email ? ' &bull; ' + esc(m.email) : ''}</div>
+            </div>
+            <div class="item-card-badge badge-${m.status}">${m.status}</div>
+          </div>
+          ${m.in_arrears ? '<div class="item-card-meta" style="color:var(--danger)">⚠ In arrears</div>' : ''}
+        </div>`).join('')
+        : '<div class="empty-state"><div class="empty-state-icon">👥</div><div class="empty-state-text">No members found</div></div>';
+    },
+
+    renderTypes() {
+      document.getElementById('typesList').innerHTML = this.types.length ? this.types.map(t => `
+        <div class="item-card" onclick="App.members.openEditType('${t.id}')">
+          <div class="item-card-header">
+            <div class="item-icon" style="background:rgba(39,174,96,.15);color:var(--success)">€</div>
+            <div style="flex:1;min-width:0">
+              <div class="item-card-title">${esc(t.name)}</div>
+              <div class="item-card-meta">${this.roster.filter(m=>m.membership_type_id===t.id).length} member(s)</div>
+            </div>
+            <div class="item-card-badge ${t.active ? 'badge-ok' : 'badge-lapsed'}">${t.active ? 'Active' : 'Inactive'}</div>
+          </div>
+          <div class="item-card-meta">€${(t.annual_fee_cents/100).toFixed(2)} / year</div>
+        </div>`).join('')
+        : '<div class="empty-state"><div class="empty-state-icon">💳</div><div class="empty-state-text">No membership types yet</div></div>';
+      this._populateTypeSelects();
+    },
+
+    _populateTypeSelects() {
+      const sel = document.getElementById('memType');
+      if (sel) sel.innerHTML = '<option value="">— None —</option>' + this.types.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+    },
+
+    _populatePrimarySelect(excludeId) {
+      const sel = document.getElementById('memPrimary');
+      if (!sel) return;
+      const others = this.roster.filter(m => m.id !== excludeId)
+        .sort((a,b) => (a.last_name||'').localeCompare(b.last_name||''));
+      sel.innerHTML = '<option value="">— None (independent) —</option>' +
+        others.map(m => `<option value="${m.id}">${esc(m.first_name)} ${esc(m.last_name)}</option>`).join('');
+    },
+
+    // ── Member CRUD ────────────────────────────────────────────
+    openAdd() { this._memberForm(null); },
+    editCurrent() { if (State.members.current) { closeModal('memberDetailModal'); this._memberForm(State.members.current); } },
+
+    openDetail(id) {
+      const m = this.roster.find(x => x.id === id);
+      if (!m) return;
+      State.members.current = m;
+
+      document.getElementById('memberDetailTitle').textContent = `${m.first_name} ${m.last_name}`;
+      const type = this._typeName(m.membership_type_id) || '—';
+      const addrParts = [m.address_line1, m.address_line2, m.city, m.county, m.eircode].filter(Boolean).join(', ');
+      document.getElementById('memberDetailInfo').innerHTML = `
+        <strong>Type:</strong> ${esc(type)} &bull; <strong>Status:</strong> ${m.status}${m.in_arrears ? ' <span style="color:var(--danger)">(in arrears)</span>' : ''}<br>
+        ${m.email ? `<strong>Email:</strong> ${esc(m.email)}<br>` : ''}
+        ${m.mobile ? `<strong>Mobile:</strong> ${esc(m.mobile)}<br>` : ''}
+        ${m.phone  ? `<strong>Phone:</strong> ${esc(m.phone)}<br>` : ''}
+        ${addrParts ? `<strong>Address:</strong> ${esc(addrParts)}<br>` : ''}
+        ${m.joined_date  ? `<strong>Joined:</strong> ${fmtDateShort(m.joined_date)} &bull; ` : ''}${m.renewal_date ? `<strong>Renewal due:</strong> ${fmtDateShort(m.renewal_date)}` : ''}
+        ${m.membership_number ? `<br><strong>Membership #:</strong> ${esc(m.membership_number)}` : ''}
+        ${m.primary_member_id ? `<br><strong>Household head:</strong> ${esc(this._memberName(m.primary_member_id))}` : ''}
+        ${m.notes ? `<br><strong>Notes:</strong> ${esc(m.notes)}` : ''}
+      `;
+
+      const pays = this.payments.filter(p => p.member_id === id).sort((a,b) => b.period_year - a.period_year);
+      document.getElementById('memberDetailPayments').innerHTML = pays.length ? pays.map(p => `
+        <div class="maint-record" onclick="App.members.openEditPayment('${p.id}')">
+          <div class="maint-record-title">${p.period_year} &bull; €${(p.amount_cents/100).toFixed(2)}</div>
+          <div class="maint-record-meta">${p.method.replace('_',' ')} &bull; ${fmtDateShort(p.paid_at)}${p.notes ? ' &bull; ' + esc(p.notes) : ''}</div>
+        </div>`).join('')
+        : '<div style="color:var(--muted);font-size:.85rem;padding:8px 0">No payments logged</div>';
+
+      openModal('memberDetailModal');
+    },
+
+    _memberForm(m) {
+      document.getElementById('memberModalTitle').textContent = m ? 'Edit Member' : 'Add Member';
+      document.getElementById('memId').value        = m?.id || '';
+      document.getElementById('memFirstName').value = m?.first_name || '';
+      document.getElementById('memLastName').value  = m?.last_name || '';
+      document.getElementById('memEmail').value     = m?.email || '';
+      document.getElementById('memMobile').value    = m?.mobile || '';
+      document.getElementById('memPhone').value     = m?.phone || '';
+      this._populateTypeSelects();
+      document.getElementById('memType').value      = m?.membership_type_id || '';
+      document.getElementById('memStatus').value    = m?.status || 'active';
+      document.getElementById('memJoined').value    = m?.joined_date || '';
+      document.getElementById('memRenewal').value   = m?.renewal_date || '';
+      document.getElementById('memArrears').checked = !!m?.in_arrears;
+      this._populatePrimarySelect(m?.id || '');
+      document.getElementById('memPrimary').value   = m?.primary_member_id || '';
+      document.getElementById('memNumber').value    = m?.membership_number || '';
+      document.getElementById('memAddr1').value     = m?.address_line1 || '';
+      document.getElementById('memAddr2').value     = m?.address_line2 || '';
+      document.getElementById('memCity').value      = m?.city || '';
+      document.getElementById('memCounty').value    = m?.county || '';
+      document.getElementById('memEircode').value   = m?.eircode || '';
+      document.getElementById('memDob').value       = m?.date_of_birth || '';
+      document.getElementById('memEmName').value    = m?.emergency_contact_name || '';
+      document.getElementById('memEmPhone').value   = m?.emergency_contact_phone || '';
+      document.getElementById('memNotes').value     = m?.notes || '';
+      document.getElementById('memDeleteBtn').classList.toggle('hidden', !m);
+      document.getElementById('memError').classList.add('hidden');
+      openModal('memberModal');
+    },
+
+    async saveMember() {
+      const id        = document.getElementById('memId').value;
+      const firstName = document.getElementById('memFirstName').value.trim();
+      const lastName  = document.getElementById('memLastName').value.trim();
+      const errEl     = document.getElementById('memError');
+      if (!firstName || !lastName) { showFormError(errEl, 'First and last name are required'); return; }
+      const payload = {
+        first_name: firstName,
+        last_name:  lastName,
+        email:      document.getElementById('memEmail').value.trim() || null,
+        mobile:     document.getElementById('memMobile').value.trim() || null,
+        phone:      document.getElementById('memPhone').value.trim() || null,
+        membership_type_id: document.getElementById('memType').value || null,
+        status:     document.getElementById('memStatus').value,
+        joined_date:  document.getElementById('memJoined').value || null,
+        renewal_date: document.getElementById('memRenewal').value || null,
+        in_arrears: document.getElementById('memArrears').checked,
+        primary_member_id: document.getElementById('memPrimary').value || null,
+        membership_number: document.getElementById('memNumber').value.trim() || null,
+        address_line1: document.getElementById('memAddr1').value.trim() || null,
+        address_line2: document.getElementById('memAddr2').value.trim() || null,
+        city:          document.getElementById('memCity').value.trim() || null,
+        county:        document.getElementById('memCounty').value.trim() || null,
+        eircode:       document.getElementById('memEircode').value.trim() || null,
+        date_of_birth: document.getElementById('memDob').value || null,
+        emergency_contact_name:  document.getElementById('memEmName').value.trim() || null,
+        emergency_contact_phone: document.getElementById('memEmPhone').value.trim() || null,
+        notes: document.getElementById('memNotes').value.trim() || null,
+        updated_at: new Date().toISOString(),
+      };
+      if (id && payload.primary_member_id === id) { showFormError(errEl, 'A member cannot be their own household head'); return; }
+      const result = id ? await sbPatch('hub_membership_roster', 'id=eq.'+id, payload) : await sbPost('hub_membership_roster', payload);
+      if (result?._err) { showFormError(errEl, result._err); return; }
+      closeModal('memberModal');
+      await this.load(); this.renderRoster(); App.renderPortal();
+      showToast(id ? 'Member updated' : 'Member added', 'success');
+    },
+
+    async deleteMember() {
+      const id = document.getElementById('memId').value;
+      if (!id || !confirm('Delete this member and their payment history? This cannot be undone.')) return;
+      const r = await sbDelete('hub_membership_roster', 'id=eq.'+id);
+      if (r?._err) { showToast('Delete failed', 'error'); return; }
+      closeModal('memberModal');
+      closeModal('memberDetailModal');
+      await this.load(); this.renderRoster(); App.renderPortal();
+      showToast('Member deleted', 'success');
+    },
+
+    // ── Payments ────────────────────────────────────────────────
+    openLogPaymentForCurrent() { this._paymentForm(null, State.members.current?.id); },
+    openEditPayment(id) {
+      const p = this.payments.find(x => x.id === id);
+      if (p) this._paymentForm(p, p.member_id);
+    },
+
+    _paymentForm(p, memberId) {
+      document.getElementById('paymentModalTitle').textContent = p ? 'Edit Payment' : 'Log Payment';
+      document.getElementById('payId').value       = p?.id || '';
+      document.getElementById('payMemberId').value = memberId || '';
+      document.getElementById('payYear').value     = p?.period_year || new Date().getFullYear();
+      document.getElementById('payAmount').value   = p ? (p.amount_cents/100).toFixed(2) : '';
+      document.getElementById('payMethod').value   = p?.method || 'cash';
+      document.getElementById('payDate').value     = p ? p.paid_at.slice(0,10) : fmtDate(new Date());
+      document.getElementById('payNotes').value    = p?.notes || '';
+      document.getElementById('payDeleteBtn').classList.toggle('hidden', !p);
+      document.getElementById('payError').classList.add('hidden');
+      openModal('paymentModal');
+    },
+
+    async savePayment() {
+      const id       = document.getElementById('payId').value;
+      const memberId = document.getElementById('payMemberId').value;
+      const year     = parseInt(document.getElementById('payYear').value, 10);
+      const amount   = parseFloat(document.getElementById('payAmount').value);
+      const errEl    = document.getElementById('payError');
+      if (!memberId)             { showFormError(errEl, 'No member selected'); return; }
+      if (!year)                 { showFormError(errEl, 'Year is required'); return; }
+      if (isNaN(amount) || amount < 0) { showFormError(errEl, 'Enter a valid amount'); return; }
+      const member = this.roster.find(m => m.id === memberId);
+      const payload = {
+        member_id: memberId,
+        membership_type_id: member?.membership_type_id || null,
+        period_year: year,
+        amount_cents: Math.round(amount * 100),
+        method: document.getElementById('payMethod').value,
+        paid_at: document.getElementById('payDate').value ? document.getElementById('payDate').value + 'T12:00:00' : new Date().toISOString(),
+        notes: document.getElementById('payNotes').value.trim() || null,
+      };
+      const result = id ? await sbPatch('hub_membership_payments', 'id=eq.'+id, payload) : await sbPost('hub_membership_payments', payload);
+      if (result?._err) { showFormError(errEl, result._err); return; }
+      closeModal('paymentModal');
+      await this.load();
+      if (State.members.current) this.openDetail(State.members.current.id);
+      this.renderRoster();
+      showToast(id ? 'Payment updated' : 'Payment logged', 'success');
+    },
+
+    async deletePayment() {
+      const id = document.getElementById('payId').value;
+      if (!id || !confirm('Delete this payment record?')) return;
+      const r = await sbDelete('hub_membership_payments', 'id=eq.'+id);
+      if (r?._err) { showToast('Delete failed', 'error'); return; }
+      closeModal('paymentModal');
+      await this.load();
+      if (State.members.current) this.openDetail(State.members.current.id);
+      showToast('Payment deleted', 'success');
+    },
+
+    // ── Membership Types ────────────────────────────────────────
+    openAddType() { this._typeForm(null); },
+    openEditType(id) { const t = this.types.find(x => x.id === id); if (t) this._typeForm(t); },
+
+    _typeForm(t) {
+      document.getElementById('membershipTypeModalTitle').textContent = t ? 'Edit Membership Type' : 'Add Membership Type';
+      document.getElementById('mtId').value     = t?.id || '';
+      document.getElementById('mtName').value   = t?.name || '';
+      document.getElementById('mtFee').value    = t ? (t.annual_fee_cents/100).toFixed(2) : '';
+      document.getElementById('mtActive').checked = t ? !!t.active : true;
+      document.getElementById('mtDeleteBtn').classList.toggle('hidden', !t);
+      document.getElementById('mtError').classList.add('hidden');
+      openModal('membershipTypeModal');
+    },
+
+    async saveType() {
+      const id   = document.getElementById('mtId').value;
+      const name = document.getElementById('mtName').value.trim();
+      const fee  = parseFloat(document.getElementById('mtFee').value);
+      const errEl = document.getElementById('mtError');
+      if (!name) { showFormError(errEl, 'Name is required'); return; }
+      if (isNaN(fee) || fee < 0) { showFormError(errEl, 'Enter a valid fee'); return; }
+      const payload = { name, annual_fee_cents: Math.round(fee * 100), active: document.getElementById('mtActive').checked, updated_at: new Date().toISOString() };
+      const result = id ? await sbPatch('hub_membership_types', 'id=eq.'+id, payload) : await sbPost('hub_membership_types', payload);
+      if (result?._err) { showFormError(errEl, result._err); return; }
+      closeModal('membershipTypeModal');
+      await this.load(); this.renderTypes(); this.renderRoster();
+      showToast(id ? 'Type updated' : 'Type added', 'success');
+    },
+
+    async deleteType() {
+      const id = document.getElementById('mtId').value;
+      if (!id || !confirm('Delete this membership type? Members using it will be left with no type, not deleted.')) return;
+      const r = await sbDelete('hub_membership_types', 'id=eq.'+id);
+      if (r?._err) { showToast('Delete failed', 'error'); return; }
+      closeModal('membershipTypeModal');
+      await this.load(); this.renderTypes(); this.renderRoster();
+      showToast('Type deleted', 'success');
+    },
+
+    // ── CSV Import ──────────────────────────────────────────────
+    _importFields: [
+      { key: 'first_name',        label: 'First Name',          guesses: ['first_name','firstname','first'] },
+      { key: 'last_name',         label: 'Last Name',           guesses: ['last_name','lastname','surname','last'] },
+      { key: 'email',             label: 'Email',                guesses: ['email','e-mail'] },
+      { key: 'mobile',            label: 'Mobile',               guesses: ['mobile','cell'] },
+      { key: 'phone',             label: 'Phone (other)',        guesses: ['phone','telephone','tel'] },
+      { key: 'address_line1',     label: 'Address Line 1',       guesses: ['street','address1','address_line1','addr1'] },
+      { key: 'address_line2',     label: 'Address Line 2',       guesses: ['locality','address2','address_line2','addr2'] },
+      { key: 'city',              label: 'City / Town',          guesses: ['city','town'] },
+      { key: 'county',            label: 'County',               guesses: ['county','state'] },
+      { key: 'eircode',           label: 'Eircode / Postcode',   guesses: ['post_code','postcode','postal_code','eircode','zip'] },
+      { key: 'date_of_birth',     label: 'Date of Birth',        guesses: ['birthday','dob','date_of_birth'] },
+      { key: 'membership_number', label: 'Membership Number',    guesses: ['uid','membership_number','member_no','id'] },
+      { key: 'membership_type',   label: 'Membership Type',      guesses: ['membership_types','membership_type','type'] },
+      { key: 'status_source',     label: 'Status (for arrears)', guesses: ['membership_status','status'] },
+      { key: 'joined_date',       label: 'Joined Date',          guesses: ['membership_started','joined','join_date','start_date'] },
+      { key: 'renewal_date',      label: 'Renewal Date',         guesses: ['membership_ending','renewal','end_date','expiry'] },
+    ],
+
+    openImport() {
+      this._import = { headers: [], rows: [], mapping: {}, mapped: [], newTypes: [] };
+      document.getElementById('importFile').value = '';
+      document.getElementById('importPaste').value = '';
+      document.getElementById('importError1').classList.add('hidden');
+      document.getElementById('importStep1').classList.remove('hidden');
+      document.getElementById('importStep2').classList.add('hidden');
+      document.getElementById('importStep3').classList.add('hidden');
+      document.getElementById('importBackBtn').classList.add('hidden');
+      document.getElementById('importNextBtn').textContent = 'Parse File';
+      openModal('importModal');
+    },
+
+    importFileChosen(ev) {
+      const file = ev.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => { document.getElementById('importPaste').value = String(reader.result || ''); };
+      reader.readAsText(file);
+    },
+
+    _parseCSV(text) {
+      // Quote-aware CSV parser: handles "a,b" quoted fields, "" escaped quotes, \r\n.
+      const rows = [];
+      let row = [], field = '', inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i], next = text[i+1];
+        if (inQuotes) {
+          if (c === '"' && next === '"') { field += '"'; i++; }
+          else if (c === '"') { inQuotes = false; }
+          else { field += c; }
+        } else {
+          if (c === '"') inQuotes = true;
+          else if (c === ',') { row.push(field); field = ''; }
+          else if (c === '\r') { /* skip */ }
+          else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+          else field += c;
+        }
+      }
+      if (field.length || row.length) { row.push(field); rows.push(row); }
+      const filtered = rows.filter(r => r.some(f => f.trim() !== ''));
+      if (!filtered.length) return { headers: [], rows: [] };
+      const headers = filtered[0].map(h => h.trim());
+      return { headers, rows: filtered.slice(1) };
+    },
+
+    _guessColumn(headers, guesses) {
+      const lower = headers.map(h => h.toLowerCase());
+      for (const g of guesses) {
+        const i = lower.indexOf(g.toLowerCase());
+        if (i !== -1) return headers[i];
+      }
+      for (const g of guesses) {
+        const i = lower.findIndex(h => h.includes(g.toLowerCase()));
+        if (i !== -1) return headers[i];
+      }
+      return '';
+    },
+
+    _parseFlexDate(s) {
+      if (!s) return null;
+      s = s.trim();
+      if (!s) return null;
+      const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (iso) return iso[0].slice(0,10);
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) return fmtDate(d);
+      return null;
+    },
+
+    importNext() {
+      if (!document.getElementById('importStep1').classList.contains('hidden')) return this._importParseStep();
+      if (!document.getElementById('importStep2').classList.contains('hidden')) return this._importPreviewStep();
+      if (!document.getElementById('importStep3').classList.contains('hidden')) return this._importCommitStep();
+    },
+
+    importBack() {
+      if (!document.getElementById('importStep3').classList.contains('hidden')) {
+        document.getElementById('importStep3').classList.add('hidden');
+        document.getElementById('importStep2').classList.remove('hidden');
+        document.getElementById('importNextBtn').textContent = 'Preview';
+      } else if (!document.getElementById('importStep2').classList.contains('hidden')) {
+        document.getElementById('importStep2').classList.add('hidden');
+        document.getElementById('importStep1').classList.remove('hidden');
+        document.getElementById('importBackBtn').classList.add('hidden');
+        document.getElementById('importNextBtn').textContent = 'Parse File';
+      }
+    },
+
+    _importParseStep() {
+      const text = document.getElementById('importPaste').value;
+      const errEl = document.getElementById('importError1');
+      const { headers, rows } = this._parseCSV(text);
+      if (!headers.length || !rows.length) { showFormError(errEl, 'Could not find any rows — paste CSV text or choose a file first'); return; }
+      errEl.classList.add('hidden');
+      this._import.headers = headers;
+      this._import.rows = rows;
+
+      document.getElementById('importMapGrid').innerHTML = this._importFields.map(f => {
+        const guess = this._guessColumn(headers, f.guesses);
+        const opts = ['<option value="">— Skip —</option>']
+          .concat(headers.map(h => `<option value="${esc(h)}"${h === guess ? ' selected' : ''}>${esc(h)}</option>`));
+        return `<div class="form-group"><label>${esc(f.label)}</label><select data-field="${f.key}">${opts.join('')}</select></div>`;
+      }).join('');
+
+      document.getElementById('importStep1').classList.add('hidden');
+      document.getElementById('importStep2').classList.remove('hidden');
+      document.getElementById('importBackBtn').classList.remove('hidden');
+      document.getElementById('importNextBtn').textContent = 'Preview';
+    },
+
+    _importPreviewStep() {
+      const mapping = {};
+      document.querySelectorAll('#importMapGrid select').forEach(sel => { mapping[sel.dataset.field] = sel.value; });
+      this._import.mapping = mapping;
+
+      const idx = {};
+      this._import.headers.forEach((h, i) => { idx[h] = i; });
+      const col = (row, field) => { const h = mapping[field]; return h && idx[h] !== undefined ? (row[idx[h]] || '').trim() : ''; };
+
+      const mapped = this._import.rows.map(row => {
+        const statusSrc = col(row, 'status_source');
+        return {
+          first_name:  col(row, 'first_name'),
+          last_name:   col(row, 'last_name'),
+          email:       col(row, 'email') || null,
+          mobile:      col(row, 'mobile') || null,
+          phone:       col(row, 'phone') || null,
+          address_line1: col(row, 'address_line1') || null,
+          address_line2: col(row, 'address_line2') || null,
+          city:        col(row, 'city') || null,
+          county:      col(row, 'county') || null,
+          eircode:     col(row, 'eircode') || null,
+          date_of_birth: this._parseFlexDate(col(row, 'date_of_birth')),
+          membership_number: col(row, 'membership_number') || null,
+          membership_type_name: col(row, 'membership_type') || null,
+          status: 'active',
+          in_arrears: /arrears/i.test(statusSrc),
+          joined_date:  this._parseFlexDate(col(row, 'joined_date')),
+          renewal_date: this._parseFlexDate(col(row, 'renewal_date')),
+        };
+      }).filter(m => m.first_name || m.last_name);
+
+      const errEl = document.getElementById('importError2');
+      if (!mapped.length) { showFormError(errEl, 'No rows have a first or last name — check your column mapping'); return; }
+      errEl.classList.add('hidden');
+      this._import.mapped = mapped;
+
+      const newTypes = [...new Set(mapped.map(m => m.membership_type_name).filter(Boolean))]
+        .filter(name => !this.types.some(t => t.name.toLowerCase() === name.toLowerCase()));
+      this._import.newTypes = newTypes;
+
+      const arrearsCount = mapped.filter(m => m.in_arrears).length;
+      document.getElementById('importSummary').innerHTML =
+        `<strong>${mapped.length}</strong> members will be imported, all set to <strong>Active</strong> status` +
+        (arrearsCount ? ` (${arrearsCount} flagged in arrears)` : '') + '.' +
+        (newTypes.length ? `<br>${newTypes.length} new membership type(s) will be created: ${newTypes.map(esc).join(', ')} (fee €0 — set real fees under Fee Schedule afterward).` : '') +
+        `<br>Family/household links aren't set automatically — link a dependent to their household head afterward via Edit Member → Household Head.` +
+        (mapping.membership_number ? `<br>Rows with a Membership Number matching an existing member will be <strong>updated</strong> rather than duplicated.` : '');
+
+      const previewRows = mapped.slice(0, 10);
+      document.getElementById('importPreviewWrap').innerHTML = `
+        <div class="import-preview-scroll"><table class="import-preview-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Mobile</th><th>Type</th><th>Arrears</th></tr></thead>
+          <tbody>${previewRows.map(m => `<tr>
+            <td>${esc(m.first_name)} ${esc(m.last_name)}</td>
+            <td>${esc(m.email||'')}</td>
+            <td>${esc(m.mobile||'')}</td>
+            <td>${esc(m.membership_type_name||'')}</td>
+            <td>${m.in_arrears ? '⚠' : ''}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        ${mapped.length > previewRows.length ? `<div class="form-hint">…and ${mapped.length - previewRows.length} more</div>` : ''}`;
+
+      document.getElementById('importStep2').classList.add('hidden');
+      document.getElementById('importStep3').classList.remove('hidden');
+      document.getElementById('importNextBtn').textContent = `Import ${mapped.length} Member${mapped.length!==1?'s':''}`;
+    },
+
+    async _importCommitStep() {
+      const errEl = document.getElementById('importError3');
+      const btn = document.getElementById('importNextBtn');
+      btn.disabled = true;
+      const origText = btn.textContent;
+      btn.textContent = 'Importing…';
+      try {
+        // Create any new membership types first, then look up ids.
+        for (const name of this._import.newTypes) {
+          const r = await sbPost('hub_membership_types', { name, annual_fee_cents: 0, active: true });
+          if (r?._err) throw new Error('Creating type "' + name + '": ' + r._err);
+        }
+        if (this._import.newTypes.length) await this.load();
+        const typeByName = {};
+        this.types.forEach(t => { typeByName[t.name.toLowerCase()] = t.id; });
+
+        const toInsert = this._import.mapped.map(m => {
+          const { membership_type_name, ...rest } = m;
+          return { ...rest, membership_type_id: membership_type_name ? (typeByName[membership_type_name.toLowerCase()] || null) : null };
+        });
+
+        const withNumber    = toInsert.filter(m => m.membership_number);
+        const withoutNumber = toInsert.filter(m => !m.membership_number);
+        const chunk = (arr, n) => { const out = []; for (let i=0;i<arr.length;i+=n) out.push(arr.slice(i,i+n)); return out; };
+
+        for (const batch of chunk(withNumber, 200)) {
+          const r = await sbUpsert('hub_membership_roster', batch, 'membership_number');
+          if (r?._err) throw new Error(r._err);
+        }
+        for (const batch of chunk(withoutNumber, 200)) {
+          const r = await sbPost('hub_membership_roster', batch);
+          if (r?._err) throw new Error(r._err);
+        }
+
+        closeModal('importModal');
+        await this.load(); this.renderRoster(); this.renderTypes(); App.renderPortal();
+        showToast(`Imported ${toInsert.length} member${toInsert.length!==1?'s':''}`, 'success');
+      } catch (e) {
+        showFormError(errEl, String(e.message || e));
+        btn.textContent = origText;
+      } finally {
+        btn.disabled = false;
+      }
     },
   },
 };

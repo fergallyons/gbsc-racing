@@ -91,6 +91,11 @@
       <div id="hAddSops" class="h-add-group hidden">
         <button class="btn-add btn-sm" onclick="App.sops.openAdd()">+ SOP</button>
       </div>
+      <div id="hAddMembers" class="h-add-group hidden">
+        <button class="btn-secondary btn-sm" onclick="App.members.openImport()">Import CSV</button>
+        <button class="btn-issue btn-sm" onclick="App.members.openAddType()">+ Type</button>
+        <button class="btn-add btn-sm" onclick="App.members.openAdd()">+ Member</button>
+      </div>
       <button class="header-logout-btn" onclick="logout()" title="Lock / log out">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
@@ -147,6 +152,11 @@
             <div class="portal-tile-icon" style="background:rgba(254,224,30,.1);color:#c9a800">📄</div>
             <div class="portal-tile-name">SOPs</div>
             <div class="portal-tile-stat" id="pstat-sops">—</div>
+          </div>
+          <div class="portal-tile" onclick="App.navigate('members')">
+            <div class="portal-tile-icon" style="background:rgba(39,174,96,.12);color:#27ae60">👥</div>
+            <div class="portal-tile-name">Members</div>
+            <div class="portal-tile-stat" id="pstat-members">—</div>
           </div>
         </div>
 
@@ -240,6 +250,34 @@
           <button class="filter-btn" onclick="App.sops.filterCat('recovery', this)">Recovery</button>
         </div>
         <div id="sopsList" class="item-list"></div>
+      </div>
+    </section>
+
+    <!-- ── MEMBERS VIEW ── -->
+    <section id="membersView" class="view" data-view="members">
+      <div class="view-scroll">
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="App.members.showTab('roster', this)">Roster</button>
+          <button class="tab-btn" onclick="App.members.showTab('types', this)">Fee Schedule</button>
+        </div>
+
+        <div id="rosterTab" class="tab-panel active">
+          <input type="text" id="memberSearch" class="search-input" placeholder="Search name, email, membership #…" oninput="App.members.renderRoster()">
+          <div class="filter-bar filter-bar-wrap">
+            <button class="filter-btn active" onclick="App.members.filterStatus('all', this)">All</button>
+            <button class="filter-btn" onclick="App.members.filterStatus('active', this)">Active</button>
+            <button class="filter-btn" onclick="App.members.filterStatus('prospective', this)">Prospective</button>
+            <button class="filter-btn" onclick="App.members.filterStatus('lapsed', this)">Lapsed</button>
+            <button class="filter-btn" onclick="App.members.filterStatus('resigned', this)">Resigned</button>
+            <button class="filter-btn" onclick="App.members.filterStatus('arrears', this)">In Arrears</button>
+          </div>
+          <div id="rosterCount" class="form-hint"></div>
+          <div id="rosterList" class="item-list"></div>
+        </div>
+
+        <div id="typesTab" class="tab-panel">
+          <div id="typesList" class="item-list"></div>
+        </div>
       </div>
     </section>
 
@@ -599,6 +637,189 @@
       <button id="issueDeleteBtn" class="btn-danger hidden" onclick="App.maint.deleteIssue()">Delete</button>
       <button class="btn-ghost" onclick="closeModal('issueModal')">Cancel</button>
       <button class="btn-primary" onclick="App.maint.saveIssue()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Member Add/Edit -->
+<div id="memberModal" class="modal-overlay hidden" onclick="overlayClose(event,'memberModal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="memberModalTitle">
+    <div class="modal-header">
+      <h3 id="memberModalTitle">Add Member</h3>
+      <button class="modal-close" onclick="closeModal('memberModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="memId">
+      <div class="form-row">
+        <div class="form-group"><label>First Name *</label><input type="text" id="memFirstName" autocomplete="off"></div>
+        <div class="form-group"><label>Last Name *</label><input type="text" id="memLastName" autocomplete="off"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Email</label><input type="email" id="memEmail" autocomplete="off"></div>
+        <div class="form-group"><label>Mobile</label><input type="tel" id="memMobile" autocomplete="off"></div>
+      </div>
+      <div class="form-group"><label>Phone (other)</label><input type="tel" id="memPhone" autocomplete="off"></div>
+
+      <h4 class="section-subheading">Membership</h4>
+      <div class="form-row">
+        <div class="form-group"><label>Type</label><select id="memType"></select></div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="memStatus">
+            <option value="prospective">Prospective</option>
+            <option value="active" selected>Active</option>
+            <option value="lapsed">Lapsed</option>
+            <option value="resigned">Resigned</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Joined</label><input type="date" id="memJoined"></div>
+        <div class="form-group"><label>Renewal Due</label><input type="date" id="memRenewal"></div>
+      </div>
+      <div class="form-group form-check"><label><input type="checkbox" id="memArrears"> In arrears</label></div>
+      <div class="form-group">
+        <label>Household Head <span class="form-label-hint">(links family/junior members to the paying member)</span></label>
+        <select id="memPrimary"><option value="">— None (independent) —</option></select>
+      </div>
+      <div class="form-group"><label>Membership Number</label><input type="text" id="memNumber" placeholder="External ref, e.g. ClubMin ID" autocomplete="off"></div>
+
+      <h4 class="section-subheading">Address</h4>
+      <div class="form-group"><label>Address Line 1</label><input type="text" id="memAddr1" autocomplete="off"></div>
+      <div class="form-group"><label>Address Line 2</label><input type="text" id="memAddr2" autocomplete="off"></div>
+      <div class="form-row">
+        <div class="form-group"><label>City / Town</label><input type="text" id="memCity" autocomplete="off"></div>
+        <div class="form-group"><label>County</label><input type="text" id="memCounty" autocomplete="off"></div>
+      </div>
+      <div class="form-group"><label>Eircode</label><input type="text" id="memEircode" autocomplete="off"></div>
+
+      <h4 class="section-subheading">Other</h4>
+      <div class="form-group"><label>Date of Birth</label><input type="date" id="memDob"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Emergency Contact</label><input type="text" id="memEmName" autocomplete="off"></div>
+        <div class="form-group"><label>Emergency Phone</label><input type="tel" id="memEmPhone" autocomplete="off"></div>
+      </div>
+      <div class="form-group"><label>Notes</label><textarea id="memNotes" rows="2" placeholder="Optional"></textarea></div>
+      <div id="memError" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="memDeleteBtn" class="btn-danger hidden" onclick="App.members.deleteMember()">Delete</button>
+      <button class="btn-ghost" onclick="closeModal('memberModal')">Cancel</button>
+      <button class="btn-primary" onclick="App.members.saveMember()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Member Detail -->
+<div id="memberDetailModal" class="modal-overlay hidden" onclick="overlayClose(event,'memberDetailModal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="memberDetailTitle">
+    <div class="modal-header">
+      <h3 id="memberDetailTitle"></h3>
+      <button class="modal-close" onclick="closeModal('memberDetailModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <div id="memberDetailInfo" class="equip-detail-info"></div>
+      <h4 class="section-subheading">Payment History</h4>
+      <div id="memberDetailPayments"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="App.members.editCurrent()">Edit</button>
+      <button class="btn-primary" onclick="App.members.openLogPaymentForCurrent()">Log Payment</button>
+      <button class="btn-ghost" onclick="closeModal('memberDetailModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Add/Edit -->
+<div id="paymentModal" class="modal-overlay hidden" onclick="overlayClose(event,'paymentModal')">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="paymentModalTitle">
+    <div class="modal-header">
+      <h3 id="paymentModalTitle">Log Payment</h3>
+      <button class="modal-close" onclick="closeModal('paymentModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="payId">
+      <input type="hidden" id="payMemberId">
+      <div class="form-row">
+        <div class="form-group"><label>Year *</label><input type="number" id="payYear" min="2000" max="2100"></div>
+        <div class="form-group"><label>Amount (€) *</label><input type="number" id="payAmount" step="0.01" min="0"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Method</label>
+          <select id="payMethod">
+            <option value="cash">Cash</option>
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="stripe">Stripe</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Date Paid</label><input type="date" id="payDate"></div>
+      </div>
+      <div class="form-group"><label>Notes</label><textarea id="payNotes" rows="2" placeholder="Optional"></textarea></div>
+      <div id="payError" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="payDeleteBtn" class="btn-danger hidden" onclick="App.members.deletePayment()">Delete</button>
+      <button class="btn-ghost" onclick="closeModal('paymentModal')">Cancel</button>
+      <button class="btn-primary" onclick="App.members.savePayment()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Membership Type Add/Edit -->
+<div id="membershipTypeModal" class="modal-overlay hidden" onclick="overlayClose(event,'membershipTypeModal')">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="membershipTypeModalTitle">
+    <div class="modal-header">
+      <h3 id="membershipTypeModalTitle">Add Membership Type</h3>
+      <button class="modal-close" onclick="closeModal('membershipTypeModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mtId">
+      <div class="form-group"><label>Name *</label><input type="text" id="mtName" placeholder="e.g. Full" autocomplete="off"></div>
+      <div class="form-group"><label>Annual Fee (€) *</label><input type="number" id="mtFee" step="0.01" min="0"></div>
+      <div class="form-group form-check"><label><input type="checkbox" id="mtActive" checked> Active (offered to new/renewing members)</label></div>
+      <div id="mtError" class="form-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="mtDeleteBtn" class="btn-danger hidden" onclick="App.members.deleteType()">Delete</button>
+      <button class="btn-ghost" onclick="closeModal('membershipTypeModal')">Cancel</button>
+      <button class="btn-primary" onclick="App.members.saveType()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CSV Import Wizard -->
+<div id="importModal" class="modal-overlay hidden" onclick="overlayClose(event,'importModal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <div class="modal-header">
+      <h3 id="importModalTitle">Import Members from CSV</h3>
+      <button class="modal-close" onclick="closeModal('importModal')" aria-label="Close">&#215;</button>
+    </div>
+    <div class="modal-body">
+      <div id="importStep1">
+        <p class="form-hint">Paste the CSV export (e.g. ClubMin's Contacts export), or choose a file. Nothing is saved until you review and confirm the preview.</p>
+        <div class="form-group"><input type="file" id="importFile" accept=".csv,text/csv" onchange="App.members.importFileChosen(event)"></div>
+        <div class="form-group"><label>Or paste CSV text</label><textarea id="importPaste" rows="6" placeholder="uid,first_name,last_name,..."></textarea></div>
+        <div id="importError1" class="form-error hidden"></div>
+      </div>
+
+      <div id="importStep2" class="hidden">
+        <p class="form-hint">Map each field to a column from your file. Best-guess matches are pre-selected — check them over.</p>
+        <div id="importMapGrid" class="import-map-grid"></div>
+        <div id="importError2" class="form-error hidden"></div>
+      </div>
+
+      <div id="importStep3" class="hidden">
+        <div id="importSummary" class="form-hint"></div>
+        <div id="importPreviewWrap" class="import-preview-wrap"></div>
+        <div id="importError3" class="form-error hidden"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="importBackBtn" class="btn-ghost hidden" onclick="App.members.importBack()">Back</button>
+      <button class="btn-ghost" onclick="closeModal('importModal')">Cancel</button>
+      <button id="importNextBtn" class="btn-primary" onclick="App.members.importNext()">Parse File</button>
     </div>
   </div>
 </div>

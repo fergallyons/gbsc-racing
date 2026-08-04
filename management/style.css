@@ -865,6 +865,75 @@ body {
   opacity: .6;
 }
 
+/* ── Members ─────────────────────────────────────────────────── */
+.badge-active      { background: rgba(39,174,96,.15);   color: var(--success); }
+.badge-prospective { background: rgba(0,174,239,.15);   color: var(--teal);    }
+.badge-lapsed      { background: rgba(244,162,97,.2);   color: var(--warn);    }
+.badge-resigned    { background: rgba(125,164,204,.15); color: var(--muted);   }
+
+.member-icon-active, .member-icon-prospective, .member-icon-lapsed, .member-icon-resigned {
+  font-size: .8rem;
+  font-weight: 700;
+}
+.member-icon-active      { background: rgba(39,174,96,.15);   color: var(--success); }
+.member-icon-prospective { background: rgba(0,174,239,.15);   color: var(--teal);    }
+.member-icon-lapsed      { background: rgba(244,162,97,.2);   color: var(--warn);    }
+.member-icon-resigned    { background: rgba(125,164,204,.15); color: var(--muted);   }
+
+.search-input {
+  width: 100%;
+  background: var(--navy-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--white);
+  padding: 9px 12px;
+  font-size: .9rem;
+  margin-bottom: 10px;
+  -webkit-appearance: none;
+}
+.search-input:focus { outline: none; border-color: var(--teal); }
+
+.form-hint {
+  color: var(--muted);
+  font-size: .8rem;
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.import-map-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 14px;
+}
+@media (max-width: 560px) {
+  .import-map-grid { grid-template-columns: 1fr; }
+}
+
+.import-preview-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-top: 8px;
+}
+.import-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .8rem;
+  white-space: nowrap;
+}
+.import-preview-table th, .import-preview-table td {
+  padding: 6px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.import-preview-table th {
+  color: var(--muted);
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.import-preview-table tr:last-child td { border-bottom: none; }
+
 /* ── Equipment Detail ────────────────────────────────────────── */
 .equip-detail-info {
   background: var(--navy-input);
