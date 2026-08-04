@@ -2069,11 +2069,12 @@ const App = {
       document.getElementById('hmEmail').value = m?.email || '';
       document.getElementById('hmRole').value  = m?.role || '';
       document.getElementById('hmDeleteBtn').classList.toggle('hidden', !m);
+      document.getElementById('hmInviteBtn').classList.toggle('hidden', !!m); // invite only makes sense for a brand-new login
       document.getElementById('hmError').classList.add('hidden');
       openModal('hubMemberModal');
     },
 
-    async saveHubMember() {
+    async saveHubMember(sendInvite) {
       const id    = document.getElementById('hmId').value;
       const name  = document.getElementById('hmName').value.trim();
       const email = document.getElementById('hmEmail').value.trim().toLowerCase();
@@ -2081,12 +2082,33 @@ const App = {
       const errEl = document.getElementById('hmError');
       if (!name)  { showFormError(errEl, 'Name is required'); return; }
       if (!email || !email.includes('@')) { showFormError(errEl, 'A valid email is required'); return; }
+
+      if (sendInvite) {
+        const btn = document.getElementById('hmInviteBtn');
+        const origText = btn.textContent;
+        btn.disabled = true; btn.textContent = 'Sending…';
+        try {
+          const r = await fetch('/.netlify/functions/invite-hub-user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, redirectTo: window.location.origin + window.location.pathname }),
+          });
+          const data = await r.json().catch(() => ({}));
+          if (!r.ok) { showFormError(errEl, data.error || 'Could not send invite'); return; }
+        } catch (e) {
+          showFormError(errEl, 'Could not reach the invite service: ' + e.message);
+          return;
+        } finally {
+          btn.disabled = false; btn.textContent = origText;
+        }
+      }
+
       const payload = { name, email, role: role || null };
       const result = id ? await sbPatch('hub_members', 'id=eq.'+id, payload) : await sbPost('hub_members', payload);
       if (result?._err) { showFormError(errEl, result._err); return; }
       closeModal('hubMemberModal');
       await this.load(); this.renderLogins(); App.renderPortal();
-      showToast(id ? 'Login updated' : 'Login added', 'success');
+      showToast(sendInvite ? 'Login added — invite email sent' : (id ? 'Login updated' : 'Login added'), 'success');
     },
 
     async deleteHubMember() {
