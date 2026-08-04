@@ -284,7 +284,13 @@
             <button class="filter-btn" onclick="App.members.filterStatus('resigned', this)">Resigned</button>
             <button class="filter-btn" onclick="App.members.filterStatus('arrears', this)">In Arrears</button>
           </div>
-          <div id="rosterCount" class="form-hint"></div>
+          <div class="roster-toolbar">
+            <span id="rosterCount" class="form-hint" style="margin-bottom:0"></span>
+            <span class="roster-toolbar-actions">
+              <button class="btn-ghost btn-sm" onclick="App.members.copyEmails()">Copy Emails</button>
+              <button class="btn-secondary btn-sm" onclick="App.members.exportCSV()">Export CSV</button>
+            </span>
+          </div>
           <div id="rosterList" class="item-list"></div>
         </div>
 

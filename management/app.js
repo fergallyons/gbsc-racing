@@ -1445,7 +1445,9 @@ const App = {
     _memberName(id) { const m = this.roster.find(x => x.id === id); return m ? `${m.first_name} ${m.last_name}` : ''; },
     _initials(m) { return ((m.first_name?.[0]||'') + (m.last_name?.[0]||'')).toUpperCase() || '?'; },
 
-    renderRoster() {
+    // Shared by renderRoster() and the export/copy actions, so "export" always
+    // means exactly what's currently on screen (e.g. filter to Active first).
+    _filteredRoster() {
       const q      = (document.getElementById('memberSearch')?.value || '').trim().toLowerCase();
       const status = State.members.statusFilter;
       const typeF  = document.getElementById('memberTypeFilter')?.value || '';
@@ -1458,7 +1460,11 @@ const App = {
         (m.first_name + ' ' + m.last_name).toLowerCase().includes(q) ||
         (m.email || '').toLowerCase().includes(q) ||
         (m.membership_number || '').toLowerCase().includes(q));
-      rows = [...rows].sort((a,b) => (a.last_name||'').localeCompare(b.last_name||'') || (a.first_name||'').localeCompare(b.first_name||''));
+      return [...rows].sort((a,b) => (a.last_name||'').localeCompare(b.last_name||'') || (a.first_name||'').localeCompare(b.first_name||''));
+    },
+
+    renderRoster() {
+      const rows = this._filteredRoster();
 
       document.getElementById('rosterCount').textContent =
         `${rows.length} of ${this.roster.length} member${this.roster.length!==1?'s':''}`;
@@ -1476,6 +1482,38 @@ const App = {
           ${m.in_arrears ? '<div class="item-card-meta" style="color:var(--danger)">⚠ In arrears</div>' : ''}
         </div>`).join('')
         : '<div class="empty-state"><div class="empty-state-icon">👥</div><div class="empty-state-text">No members found</div></div>';
+    },
+
+    // Both act on whatever's currently filtered/searched — filter to Active
+    // (and a type, if you're segmenting) before using either of these.
+    exportCSV() {
+      const rows = this._filteredRoster().filter(m => m.email);
+      if (!rows.length) { showToast('No members with an email in the current view', 'error'); return; }
+      const csvField = v => { const s = String(v ?? ''); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const lines = ['first_name,last_name,email']
+        .concat(rows.map(m => [m.first_name, m.last_name, m.email].map(csvField).join(',')));
+      const blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gbsc-members-${fmtDate(new Date())}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${rows.length} member${rows.length!==1?'s':''}`, 'success');
+    },
+
+    async copyEmails() {
+      const emails = this._filteredRoster().map(m => m.email).filter(Boolean);
+      if (!emails.length) { showToast('No members with an email in the current view', 'error'); return; }
+      const text = emails.join(', ');
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(`Copied ${emails.length} email${emails.length!==1?'s':''}`, 'success');
+      } catch {
+        window.prompt(`Copy ${emails.length} email${emails.length!==1?'s':''}:`, text);
+      }
     },
 
     renderTypes() {

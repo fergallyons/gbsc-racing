@@ -905,6 +905,20 @@ body {
   .roster-filters-row { flex-direction: column; align-items: stretch; }
 }
 
+.roster-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.roster-toolbar-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .type-chip {
   display: inline-block;
   background: rgba(0,174,239,.12);
