@@ -76,6 +76,30 @@ async function processClub(slug, clubConfig) {
   const anonHeaders = { apikey: anonKey, Authorization: 'Bearer ' + anonKey };
   const serviceHeaders = { apikey: serviceKey, Authorization: 'Bearer ' + serviceKey, 'Content-Type': 'application/json' };
 
+  // Confirm migration 046 is actually applied here *before* ever querying
+  // races.automated, rather than finding out via a failed query. On a
+  // pre-046 database that query is a genuine Postgres "column does not
+  // exist" error, which PostgREST reports as a real 400 — Supabase logs
+  // that at the API level regardless of how gracefully the catch below
+  // handles the resulting exception, so a club that's behind on migrations
+  // sees a real error in its own dashboard every single run, forever, not
+  // just once. Confirmed live on HYC, 2026-08-05 (RCYC/MSC likely the same
+  // — none had migration 046 as of this session's last check of them).
+  let migrationCheck;
+  try {
+    migrationCheck = await fetchJson(
+      sbUrl + '/rest/v1/schema_migrations?filename=eq.046_automated_finish_detection.sql&select=filename',
+      anonHeaders,
+    );
+  } catch (e) {
+    console.log('[' + slug + '] skip: could not check schema_migrations (' + (e.message || e) + ')');
+    return { slug, skipped: 'schema_migrations check failed' };
+  }
+  if (!migrationCheck.length) {
+    console.log('[' + slug + '] skip: migration 046 not applied here yet (checked schema_migrations, no races query attempted)');
+    return { slug, skipped: 'migration 046 not applied' };
+  }
+
   const today = new Date().toISOString().split('T')[0];
   let races;
   try {
@@ -84,7 +108,10 @@ async function processClub(slug, clubConfig) {
       anonHeaders,
     );
   } catch (e) {
-    if (e.code === '42703') { console.log('[' + slug + '] skip: migration 046 not applied here yet (races.automated missing)'); return { slug, skipped: 'migration 046 not applied' }; }
+    // Migration IS applied (just confirmed above) — this is a genuinely
+    // unexpected error, but keep the same graceful skip as a defensive
+    // fallback rather than taking the whole club's run down over it.
+    if (e.code === '42703') { console.log('[' + slug + '] skip: races.automated missing despite 046 showing applied — schema drift?'); return { slug, skipped: 'races.automated missing unexpectedly' }; }
     throw e;
   }
   console.log('[' + slug + '] today=' + today + ' automated races found=' + races.length);
