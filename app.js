@@ -12563,12 +12563,42 @@ async function loadOutstandingReport(){
   body.innerHTML = '<div class="empty-state"><div class="icon">⏳</div>Loading…</div>';
   if(printBtn) printBtn.style.display = 'none';
 
-  // Fetch all race records that have an outstanding balance
-  const records = await sbFetch('/rest/v1/race_records?select=boat_id,race_key,total_due,total_paid,crew_snapshot,submitted_at&order=race_key.asc');
-  if(!records || records._err){
+  // race_records.total_paid is a snapshot saved only when the skipper is
+  // actively in the Race Fees panel (autoSaveRaceRecord/confirmSubmit). A
+  // crew member who pays afterwards via the public self-pay link never
+  // touches race_records — spConfirm() only writes self_payments — so that
+  // snapshot goes stale the moment anyone self-pays post-submission, and
+  // this report would show the balance as owing forever. Recompute "paid"
+  // live instead of trusting the stored total_paid — same reconciliation
+  // renderFeeStatement() already does.
+  const [records, selfPays, racePays] = await Promise.all([
+    sbFetch('/rest/v1/race_records?select=boat_id,race_key,total_due,total_paid,crew_snapshot,submitted_at&order=race_key.asc'),
+    sbFetch('/rest/v1/self_payments?select=boat_id,race_key,crew_id'),
+    sbFetch('/rest/v1/race_payments?select=boat_id,race_key,crew_id')
+  ]);
+  if(!records || records._err || !Array.isArray(selfPays) || !Array.isArray(racePays)){
     body.innerHTML = '<div style="color:#f87171;padding:16px;text-align:center">Could not load data — check connection.</div>';
     return;
   }
+
+  // A crew member counts as paid if EITHER the snapshot already said so at
+  // submission time (covers the older Collect Payments sheet — markPaidCollect/
+  // confirmPayNote — which marks the roster paid and relies on the eventual
+  // race_records submit to persist it, but never writes a race_payments row
+  // at all) OR a live payment row now exists for them (covers self-pay/
+  // rfMarkPaid, which can land after that submission). This only ever adds
+  // to what the snapshot recorded, never subtracts, so a fully-paid-but-
+  // never-logged-as-a-row race can't be flipped to "unpaid" by this pass.
+  const livePaidSet=new Set();
+  selfPays.forEach(p=>livePaidSet.add(p.boat_id+'|'+p.race_key+'|'+p.crew_id));
+  racePays.forEach(p=>livePaidSet.add(p.boat_id+'|'+p.race_key+'|'+p.crew_id));
+  records.forEach(r=>{
+    const snap=r.crew_snapshot||[];
+    r.total_paid=snap.reduce((sum,p)=>{
+      const isPaid=p.paid||livePaidSet.has(r.boat_id+'|'+r.race_key+'|'+p.id);
+      return sum+(isPaid?fee(p):0);
+    },0);
+  });
 
   // Filter to only records with outstanding balance
   const outstanding = records.filter(r => (r.total_due||0) - (r.total_paid||0) > 0);
