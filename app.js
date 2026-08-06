@@ -7285,16 +7285,30 @@ async function onBoatPhotoSelected(input){
   }
 }
 
+// Pulls a folder ID out of any of Drive's link formats — /drive/folders/<id>,
+// /drive/u/0/folders/<id>, embeddedfolderview?id=<id>, open?id=<id> — so a
+// club can paste whatever link Drive's own "Get link" button gives them and
+// still get the app's own card rendering, not just a raw iframe of Drive's UI.
+function extractDriveFolderId(url){
+  if(!url.includes('drive.google.com')) return null;
+  const m=url.match(/(?:\/folders\/|[?&]id=)([a-zA-Z0-9_-]{10,})/);
+  return m?m[1]:null;
+}
+
 async function loadAndRenderDocs(){
   const el=document.getElementById('docsList'); if(!el) return;
   const noticeboardUrl=(_C.noticeboardUrl||'').trim();
-  if(noticeboardUrl){
+  const driveFolderId=noticeboardUrl?extractDriveFolderId(noticeboardUrl):null;
+  if(noticeboardUrl && !driveFolderId){
+    // Not a recognizable Drive folder link — treat it as an arbitrary
+    // noticeboard page (e.g. a club's own site) and just embed it as-is.
     el.innerHTML=`<iframe src="${noticeboardUrl}" style="width:100%;height:calc(100vh - 200px);border:none;border-radius:10px;background:#fff"></iframe>`;
     return;
   }
   el.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading documents…</div></div>';
   try{
-    const res=await fetch('/.netlify/functions/drive-docs');
+    const qs=driveFolderId?('?folder='+encodeURIComponent(driveFolderId)):'';
+    const res=await fetch('/.netlify/functions/drive-docs'+qs);
     if(!res.ok) throw new Error('HTTP '+res.status);
     const files=await res.json();
     if(!Array.isArray(files)||!files.length){
