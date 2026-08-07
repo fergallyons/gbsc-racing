@@ -176,6 +176,10 @@ async function sbFetch(path,opts={}){
 // against schema_migrations at boot) confirms the column is actually there.
 const BOATS_SELECT='id,name,icon,revolut_user,created_at,stripe_link,sail_number,photo_url,whatsapp,bow_offset_m';
 function boatsSelect(){ return SCHEMA_HAS_FLEETS?BOATS_SELECT+',fleet_id':BOATS_SELECT; }
+// Same reasoning as boatsSelect() — requires_sail_number (056) doesn't
+// exist until after fleet_id (051) does, so it needs its own, later gate.
+const FLEETS_SELECT_BASE='id,name,colour,sort_order,active';
+function fleetsSelect(){ return SCHEMA_HAS_SAIL_NUMBER_REQ?FLEETS_SELECT_BASE+',requires_sail_number':FLEETS_SELECT_BASE; }
 const SETTINGS_SELECT='id,stripe_link_member,stripe_link_student,stripe_link_visitor,'
   +'pre_race_window_hours,worldtides_key,ro_revolut_user,results_published_race_key,'
   +'updated_at,features,estella_url,logo_url,favicon_url,primary_color,ro_color,'
@@ -331,13 +335,18 @@ function incrementVisitorOutings(){
   if(visitors.length) renderCrew();
 }
 
-async function sbRegisterBoat(boatId,race){
+async function sbRegisterBoat(boatId,race,sailNumber){
   const key=raceKey(race);
+  const body={boat_id:boatId,race_key:key,race_name:race.label,race_date:race.date.toISOString().split('T')[0],registered_at:new Date().toISOString()};
+  // Only sent once this club's DB has the column (migration 056) — sending
+  // it regardless would 404/400 the whole registration on any club that
+  // hasn't applied it yet, same reasoning as every other SCHEMA_HAS_* gate.
+  if(SCHEMA_HAS_SAIL_NUMBER_REQ&&sailNumber) body.sail_number=sailNumber;
   try{
     const r=await fetch(SB_URL+'/rest/v1/registrations?on_conflict=boat_id,race_key',{
       method:'POST',
       headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
-      body:JSON.stringify({boat_id:boatId,race_key:key,race_name:race.label,race_date:race.date.toISOString().split('T')[0],registered_at:new Date().toISOString()})
+      body:JSON.stringify(body)
     });
     if(!r.ok){
       const txt=await r.text();
@@ -369,7 +378,12 @@ async function autoRegisterAllBoats(race){
   // race just because it's chronologically "the next race." A race with
   // no fleet set (most clubs, always) still registers every boat, exactly
   // as before fleets existed.
-  const eligible=race.fleetId?boats.filter(b=>b.fleetId===race.fleetId):boats;
+  // Boats whose fleet requires a sail number are excluded — auto-register
+  // has no way to collect one, so it must never create a silently-
+  // incomplete registration nobody's prompted to fix. A race whose whole
+  // fleet requires sail numbers correctly no-ops here entirely.
+  const eligible=(race.fleetId?boats.filter(b=>b.fleetId===race.fleetId):boats)
+    .filter(b=>!fleetRequiresSailNumber(b));
   if(!eligible.length) return;
   const key=raceKey(race);
   const rows=eligible.map(b=>({boat_id:b.id,race_key:key,race_name:race.label,race_date:race.date.toISOString().split('T')[0]}));
@@ -755,9 +769,9 @@ const DECL_DOCS=Object.assign(
   _C.declarationDocs||{}
 );
 
-let boats=[], fleets=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
+let boats=[], fleets=[], raceAreas=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
 
-// Whether THIS club's DB actually has migrations 051/052/053 applied yet —
+// Whether THIS club's DB actually has migrations 051-056 applied yet —
 // checked once on boot so write payloads can omit a column PostgREST
 // doesn't recognize instead of a request failing outright (PGRST204
 // "column not found"). activeFleets().length>0 is NOT a safe proxy for
@@ -766,18 +780,29 @@ let boats=[], fleets=[], currentBoat=null, isRO=false, isGuest=false, currentSes
 // as unconfigured-looking as a club that hasn't run 051 at all, but the
 // first needs fleet_id:null actually sent (harmless, correct) while the
 // second needs the key omitted entirely (or the request 400s). Real,
-// live bug found 2026-08-xx: saveRace()/roArmStart() sent fleet_id/
+// live bug found 2026-08-07: saveRace()/roArmStart() sent fleet_id/
 // sequence_mins unconditionally the moment this code shipped, before
 // RCYC/HYC/IS had caught up on the migration — confirmed live against
-// RCYC's actual un-migrated races table before this fix.
-let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLEET=false;
-async function checkFleetSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql)&select=filename');
+// RCYC's actual un-migrated races table before this fix. Every table/
+// column added since (race_days, race_areas, requires_sail_number,
+// registrations.sail_number) gets the exact same treatment from the start.
+let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLEET=false,
+    SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false;
+async function checkSchemaCapabilities(){
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
   SCHEMA_HAS_SEQUENCE_MINS=names.has('052_race_starts_sequence_length.sql');
   SCHEMA_HAS_RACE_FLEET=names.has('053_races_fleet.sql');
+  SCHEMA_HAS_RACE_DAYS=names.has('054_race_days.sql');
+  SCHEMA_HAS_RACE_AREAS=names.has('055_race_areas.sql');
+  SCHEMA_HAS_SAIL_NUMBER_REQ=names.has('056_registration_sail_number.sql');
+  // Hide the Fleets Manager's "requires sail number" checkbox outright on
+  // any club that hasn't applied 056 — submitAddFleet() won't send the
+  // field either way, but showing a control with no effect is confusing.
+  const rsWrap=document.getElementById('fl-requires-sail-wrap');
+  if(rsWrap) rsWrap.style.display=SCHEMA_HAS_SAIL_NUMBER_REQ?'flex':'none';
 }
 let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
@@ -813,7 +838,7 @@ async function loadRaceSchedule(){
     d.setHours(r.start_hour||19, r.start_min||0, 0, 0);
     return {id:r.id, label:r.label, date:d, series:r.series||'',
       protestDeadline: r.protest_deadline?new Date(r.protest_deadline):null,
-      automated: !!r.automated, fleetId: r.fleet_id||null};
+      automated: !!r.automated, fleetId: r.fleet_id||null, raceDayId: r.race_day_id||null};
   });
   nextRace=getNextRace();
 }
@@ -1026,7 +1051,7 @@ async function buildBoatGrid(){
   // never populate this, which is the whole point: everything gated on
   // fleets.length stays a no-op for them.
   //
-  // checkFleetSchemaCapabilities() must resolve BEFORE the boats query
+  // checkSchemaCapabilities() must resolve BEFORE the boats query
   // below, though — its result decides whether fleet_id is even safe to
   // put in that query's select list (selecting a column PostgREST doesn't
   // recognize fails the WHOLE request, not just that field). This is not
@@ -1035,9 +1060,9 @@ async function buildBoatGrid(){
   // earlier version of this code that assumed the column always existed.
   // schema_migrations itself predates every club by a wide margin, so this
   // check is always safe to run first.
-  await checkFleetSchemaCapabilities();
+  await checkSchemaCapabilities();
 
-  const [sbBoats,sbFleets]=await Promise.all([
+  const [sbBoats,sbFleets,sbAreas]=await Promise.all([
     // Load all boats from Supabase — explicit select is required, not just
     // tidy: since migration 045, anon only has column-level (not table-level)
     // SELECT on boats, and Postgres's bare `select=*` default fails outright
@@ -1048,10 +1073,17 @@ async function buildBoatGrid(){
     // through activeFleets() to filter them back out. Skipped entirely
     // pre-051 — the table doesn't exist yet, no point asking.
     SCHEMA_HAS_FLEETS
-      ? sbFetch('/rest/v1/fleets?order=sort_order.asc,name.asc&select=id,name,colour,sort_order,active')
+      ? sbFetch('/rest/v1/fleets?order=sort_order.asc,name.asc&select='+fleetsSelect())
+      : Promise.resolve([]),
+    // Same reasoning as fleets, one migration later (055) — empty until an
+    // RO adds rows via the Areas Manager. Nothing pre-login consumes this
+    // yet; loaded here anyway purely for one consistent loading pattern.
+    SCHEMA_HAS_RACE_AREAS
+      ? sbFetch('/rest/v1/race_areas?order=sort_order.asc,name.asc&select=id,name,colour,sort_order,active')
       : Promise.resolve([])
   ]);
-  if(Array.isArray(sbFleets)) fleets=sbFleets.map(f=>({id:f.id,name:f.name,colour:f.colour||'#00b4d8',sortOrder:f.sort_order,active:f.active!==false}));
+  if(Array.isArray(sbFleets)) fleets=sbFleets.map(f=>({id:f.id,name:f.name,colour:f.colour||'#00b4d8',sortOrder:f.sort_order,active:f.active!==false,requiresSailNumber:!!f.requires_sail_number}));
+  if(Array.isArray(sbAreas)) raceAreas=sbAreas.map(a=>({id:a.id,name:a.name,colour:a.colour||'#00b4d8',sortOrder:a.sort_order,active:a.active!==false}));
   if(sbBoats&&sbBoats.length){
     boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||'',photoUrl:b.photo_url||'',bowOffsetM:(b.bow_offset_m!=null?b.bow_offset_m:6),fleetId:b.fleet_id||null}));
   } else {
@@ -1114,8 +1146,18 @@ async function registerForRace(){
     } else { toast('⚠ Could not update — try again'); }
   } else {
     // Register
+    let sailNumber;
+    if(fleetRequiresSailNumber(currentBoat)){
+      const sailInput=document.getElementById('sailNumberInput');
+      sailNumber=sailInput&&sailInput.value.trim();
+      if(!sailNumber){
+        toast('⚠ Sail number is required for this fleet');
+        if(sailInput) sailInput.focus();
+        return;
+      }
+    }
     btn.textContent='⏳ Registering…'; btn.disabled=true;
-    const ok=await sbRegisterBoat(currentBoat.id,selectedRace);
+    const ok=await sbRegisterBoat(currentBoat.id,selectedRace,sailNumber);
     if(ok){
       mySelectedRaceRegistered=true;
       if(isNextRace) registeredBoatIds.add(currentBoat.id);
@@ -1148,6 +1190,21 @@ function updateRegisterButton(){
   btn.textContent=isReg?'✓ Registered — Withdraw':'⛵ Register for This Race';
   if(isReg){btn.style.color='var(--success)';btn.style.borderColor='rgba(45,198,83,.4)';}
   else{btn.style.color='';btn.style.borderColor='';}
+  // Show/hide sail number field — unlike lookingForCrewRow/trackingRow
+  // below (post-registration toggles), this must appear BEFORE
+  // registering, since its value has to be part of the same request that
+  // creates the registration; it hides again once registered.
+  const sailRow=document.getElementById('sailNumberRow');
+  if(sailRow){
+    const needsSail=!isReg&&fleetRequiresSailNumber(currentBoat);
+    // Pre-fill only on the hidden→shown transition — this function runs
+    // from several places and must never clobber in-progress typing.
+    if(needsSail&&sailRow.style.display==='none'){
+      const sailInput=document.getElementById('sailNumberInput');
+      if(sailInput) sailInput.value=currentBoat.sailNumber||'';
+    }
+    sailRow.style.display=needsSail?'block':'none';
+  }
   // Show/hide crew wanted toggle
   const crewRow=document.getElementById('lookingForCrewRow');
   const crewBtn=document.getElementById('lookingForCrewBtn');
@@ -1745,6 +1802,16 @@ function openLoginSheet(){
 }
 async function enterApp(b,ro){
   currentBoat=b; isRO=ro;
+  // Reset the sail number field's leftover DOM state from whichever boat
+  // was logged in before — on a shared/kiosk device (the exact scenario
+  // this field exists for) two boats in a row can both require one, so
+  // updateRegisterButton()'s hidden→shown pre-fill guard alone wouldn't
+  // catch a same-visibility handoff between them and could leak the
+  // previous boat's sail number into this one's registration.
+  const sailInputReset=document.getElementById('sailNumberInput');
+  if(sailInputReset) sailInputReset.value='';
+  const sailRowReset=document.getElementById('sailNumberRow');
+  if(sailRowReset) sailRowReset.style.display='none';
   document.body.classList.remove('role-skipper','role-ro');
   document.body.classList.add(ro?'role-ro':'role-skipper');
   try{localStorage.setItem('gr_last',b.id);}catch(e){}
@@ -2284,7 +2351,10 @@ async function renderRegisteredTab(){
   }
   const regBoats=regs.map(r=>{
     const b=boats.find(x=>x.id===r.boat_id);
-    return b?b:null;
+    // Flag boats whose fleet requires a sail number but whose registration
+    // doesn't have one — a visual nudge only, per "worry about the specific
+    // processes later": nothing here blocks racing or forces a fix.
+    return b?{...b,_missingSail:fleetRequiresSailNumber(b)&&!r.sail_number}:null;
   }).filter(Boolean);
   // Default tap is "who is this" (openBoatSummary), not login — the real
   // use case here is a crew member checking who else is racing today, not
@@ -2296,6 +2366,7 @@ async function renderRegisteredTab(){
     'border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;">'+
     '<span style="font-size:1.4rem">'+b.icon+'</span>'+
     '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">'+b.name+'</span>'+
+    (b._missingSail?'<span title="No sail number on file" style="font-size:.85rem">⚠️</span>':'')+
     '<button class="row-login-btn" style="margin-left:auto" title="Login as '+escHtml(b.name)+'" onclick="event.stopPropagation();loginAs(\''+b.id+'\')">🔑</button>'+
     '</div>';
   if(!activeFleets().length){
@@ -2673,6 +2744,7 @@ function openPanel(id){
     }
     if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
     if(id==='roFleetsPanel'){ buildFleetsMgrList(); }
+    if(id==='roAreasPanel'){ buildAreasMgrList(); }
     if(id==='roCourseViewPanel') renderCourseDiagram('roCourseDisplay');
     if(id==='newSailorsPanel') renderNewSailorsPanel();
     if(id==='roNewsPanel') renderRONewsList();
@@ -4058,9 +4130,10 @@ async function renderRaceScheduleList(){
       const mm=String(r.start_min||0).padStart(2,'0');
       const cancelled=!r.active;
       const fleetName=r.fleet_id&&fleets.find(f=>f.id===r.fleet_id)?.name;
+      const areaName=r.race_area_id&&raceAreas.find(a=>a.id===r.race_area_id)?.name;
       html+=`<div class="race-mgmt-row${cancelled?' cancelled':''}" data-id="${r.id}">
         <div class="race-mgmt-info">
-          <div class="race-mgmt-label">${r.automated?'🤖 ':''}${fleetName?'🚩 '+escHtml(fleetName)+' — ':''}${r.label}</div>
+          <div class="race-mgmt-label">${r.automated?'🤖 ':''}${fleetName?'🚩 '+escHtml(fleetName)+' — ':''}${areaName?'📍 '+escHtml(areaName)+' — ':''}${r.label}</div>
           <div class="race-mgmt-date">${dateStr} · ${hh}:${mm}</div>
         </div>
         <div class="race-mgmt-actions">
@@ -4097,6 +4170,17 @@ function renderRfFleetOptions(selectedId){
   sel.innerHTML='<option value="">— None / all fleets —</option>'+
     active.map(f=>`<option value="${f.id}"${f.id===selectedId?' selected':''}>${escHtml(f.name)}</option>`).join('');
 }
+// Same pattern as renderRfFleetOptions() — a different axis (WHERE, not
+// WHO), same whole-wrapper-hidden-when-empty gating.
+function renderRfAreaOptions(selectedId){
+  const group=document.getElementById('rf-area-group');
+  const sel=document.getElementById('rf-area');
+  const active=activeRaceAreas();
+  if(!active.length){ group.style.display='none'; return; }
+  group.style.display='block';
+  sel.innerHTML='<option value="">— None / all areas —</option>'+
+    active.map(a=>`<option value="${a.id}"${a.id===selectedId?' selected':''}>${escHtml(a.name)}</option>`).join('');
+}
 
 function openAddRaceForm(){
   const form=document.getElementById('roRaceForm');
@@ -4106,6 +4190,7 @@ function openAddRaceForm(){
   document.getElementById('rf-date').value='';
   document.getElementById('rf-time').value='19:00';
   renderRfFleetOptions(null);
+  renderRfAreaOptions(null);
   document.getElementById('rf-series').value='';
   document.getElementById('rf-sort').value='99';
   document.getElementById('rf-protest-deadline').value='';
@@ -4127,6 +4212,7 @@ async function openEditRaceForm(id){
   const mm=String(r.start_min||0).padStart(2,'0');
   document.getElementById('rf-time').value=hh+':'+mm;
   renderRfFleetOptions(r.fleet_id||null);
+  renderRfAreaOptions(r.race_area_id||null);
   document.getElementById('rf-series').value=r.series||'';
   document.getElementById('rf-sort').value=r.sort_order||0;
   document.getElementById('rf-protest-deadline').value=r.protest_deadline
@@ -4165,6 +4251,19 @@ async function saveRace(){
   if(SCHEMA_HAS_RACE_FLEET){
     const fleetEl=document.getElementById('rf-fleet');
     payload.fleet_id=(fleetEl&&fleetEl.value)||null;
+  }
+  if(SCHEMA_HAS_RACE_AREAS){
+    const areaEl=document.getElementById('rf-area');
+    payload.race_area_id=(areaEl&&areaEl.value)||null;
+  }
+  if(SCHEMA_HAS_RACE_DAYS){
+    // Auto-upsert the day this race belongs to, so an RO never has to
+    // manage "race days" as a separate manual step. Non-fatal on failure —
+    // the race itself must always still save.
+    const dayRes=await sbFetch('/rest/v1/race_days?on_conflict=id',{
+      method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+      body:JSON.stringify({id:date})});
+    if(!(dayRes&&dayRes._err)) payload.race_day_id=date;
   }
   const r=id
     ? await sbFetch('/rest/v1/races?id=eq.'+id,{
@@ -9121,12 +9220,15 @@ async function loadRegistrations(){
     const boat=boats.find(b=>b.id===r.boat_id);
     const icon=boat?boat.icon:'⛵';
     const name=boat?boat.name:r.boat_id;
+    // Visual nudge only — a boat whose fleet requires a sail number but
+    // whose registration doesn't have one. Nothing here blocks racing.
+    const missingSail=fleetRequiresSailNumber(boat)&&!r.sail_number;
     const t=new Date(r.registered_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
     const row=document.createElement('div'); row.className='reg-row';
     row.innerHTML=
       '<div style="display:flex;align-items:center;gap:10px">'+
         '<span style="font-size:1.2rem">'+icon+'</span>'+
-        '<div><div class="reg-boat-name">'+name+'</div>'+
+        '<div><div class="reg-boat-name">'+name+(missingSail?' <span title="No sail number on file" style="font-size:.8rem">⚠️</span>':'')+'</div>'+
         '<div class="reg-meta">Registered '+t+'</div></div>'+
       '</div>'+
       '<div style="display:flex;align-items:center;gap:8px">'+
@@ -10676,6 +10778,23 @@ async function submitAddLine(){
 // Every other consumer (grouping, selectors) goes through activeFleets().
 function activeFleets(){ return fleets.filter(f=>f.active!==false); }
 
+// Checks the FULL fleets array, not activeFleets() — a disabled fleet's
+// sail-number requirement still binds its boats; disabling a fleet from
+// selectors is a different concern from waiving a safety-relevant
+// requirement. Returns false with no boat, no fleet, or before migration
+// 056 (fleets never carry requiresSailNumber at all in that case).
+function fleetRequiresSailNumber(boat){
+  if(!boat||!boat.fleetId) return false;
+  const f=fleets.find(x=>x.id===boat.fleetId);
+  return !!(f&&f.requiresSailNumber);
+}
+
+// Same shape as activeFleets() — raceAreas stays empty ([]) for any club
+// that hasn't applied migration 055 or hasn't added any areas yet, so this
+// safely no-ops (renderRfAreaOptions() hides its whole wrapper) rather
+// than needing its own SCHEMA_HAS_RACE_AREAS check here.
+function activeRaceAreas(){ return raceAreas.filter(a=>a.active!==false); }
+
 // Buckets a boat list by fleet, in the fleets table's own sort order, with
 // a trailing "Unassigned" group only if at least one boat actually has
 // none (or references a since-disabled fleet). Callers check
@@ -10690,8 +10809,8 @@ function groupBoatsByFleet(boatList){
 }
 
 async function loadFleets(){
-  const rows=await sbFetch('/rest/v1/fleets?order=sort_order.asc,name.asc&select=id,name,colour,sort_order,active');
-  if(Array.isArray(rows)) fleets=rows.map(f=>({id:f.id,name:f.name,colour:f.colour||'#00b4d8',sortOrder:f.sort_order,active:f.active!==false}));
+  const rows=await sbFetch('/rest/v1/fleets?order=sort_order.asc,name.asc&select='+fleetsSelect());
+  if(Array.isArray(rows)) fleets=rows.map(f=>({id:f.id,name:f.name,colour:f.colour||'#00b4d8',sortOrder:f.sort_order,active:f.active!==false,requiresSailNumber:!!f.requires_sail_number}));
   if(isRO) buildFleetsMgrList();
 }
 
@@ -10745,6 +10864,7 @@ function hideFleetAddForm(){
   document.getElementById('fleetAddBtn').style.display='block';
   ['fl-id','fl-name'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('fl-colour').value='#00b4d8';
+  const rsResetEl=document.getElementById('fl-requires-sail'); if(rsResetEl) rsResetEl.checked=false;
   document.getElementById('fl-id').readOnly=false;
   document.getElementById('fleetFormTitle').textContent='New Fleet';
   document.getElementById('fleetFormSubmitBtn').textContent='Add Fleet';
@@ -10757,6 +10877,7 @@ function openEditFleet(id){
   document.getElementById('fl-id').readOnly=true; // ID is the primary key — don't allow changing
   document.getElementById('fl-name').value=f.name;
   document.getElementById('fl-colour').value=f.colour||'#00b4d8';
+  const rsEditEl=document.getElementById('fl-requires-sail'); if(rsEditEl) rsEditEl.checked=!!f.requiresSailNumber;
   document.getElementById('fleetFormTitle').textContent='Edit Fleet';
   document.getElementById('fleetFormSubmitBtn').textContent='Save Changes';
   document.getElementById('fleetAddForm').style.display='block';
@@ -10781,26 +10902,153 @@ async function submitAddFleet(){
   const colour=document.getElementById('fl-colour').value;
   if(!id||!name){toast('Enter an ID and name');return;}
   if(!/^[a-z0-9_-]{1,60}$/.test(id)){toast('ID can only contain lowercase letters, numbers, - and _');return;}
+  // Only sent once this club's DB has the column (migration 056) — same
+  // reasoning as fleet_id/race_area_id: sending it regardless breaks the
+  // save outright on any club that hasn't applied it yet.
+  const requiresSailNumber=SCHEMA_HAS_SAIL_NUMBER_REQ&&!!document.getElementById('fl-requires-sail')?.checked;
 
   if(editingFleetId){
+    const payload={name,colour};
+    if(SCHEMA_HAS_SAIL_NUMBER_REQ) payload.requires_sail_number=requiresSailNumber;
     const r=await sbFetch('/rest/v1/fleets?id=eq.'+editingFleetId,{method:'PATCH',
       headers:{...SBH,'Prefer':'return=minimal'},
-      body:JSON.stringify({name,colour})});
+      body:JSON.stringify(payload)});
     if(!r||r._err){toast('⚠ Could not save changes: '+(r&&r._err||'network error'));return;}
     const f=fleets.find(x=>x.id===editingFleetId);
-    if(f) Object.assign(f,{name,colour});
+    if(f) Object.assign(f,{name,colour,requiresSailNumber});
     hideFleetAddForm();
     buildFleetsMgrList();
     toast('✅ '+name+' updated');
   } else {
     if(fleets.find(f=>f.id===id)){toast('Fleet ID already exists');return;}
+    const payload={id,name,colour,active:true,sort_order:99};
+    if(SCHEMA_HAS_SAIL_NUMBER_REQ) payload.requires_sail_number=requiresSailNumber;
     const r=await sbFetch('/rest/v1/fleets',{method:'POST',
       headers:{...SBH,'Prefer':'return=minimal'},
-      body:JSON.stringify({id,name,colour,active:true,sort_order:99})});
+      body:JSON.stringify(payload)});
     if(!r||r._err){toast('⚠ Could not save fleet: '+(r&&r._err||'network error'));return;}
     await loadFleets();
     hideFleetAddForm();
     if(isRO) buildPinMgmtList(); // each boat row's fleet dropdown needs to offer the new fleet
+    toast('✅ '+name+' added');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RACE AREAS — WHERE a race happens, distinct from fleet (WHO). One-to-one
+// clone of the Fleets Manager block above — same shape, same RLS/grant
+// pattern (see migration 055). Empty until an RO adds rows, so every club
+// that doesn't need this sees zero change.
+// ═══════════════════════════════════════════════════════════════
+async function loadRaceAreas(){
+  const rows=await sbFetch('/rest/v1/race_areas?order=sort_order.asc,name.asc&select=id,name,colour,sort_order,active');
+  if(Array.isArray(rows)) raceAreas=rows.map(a=>({id:a.id,name:a.name,colour:a.colour||'#00b4d8',sortOrder:a.sort_order,active:a.active!==false}));
+  if(isRO) buildAreasMgrList();
+}
+
+function buildAreasMgrList(){
+  const list=document.getElementById('areasMgrList');
+  if(!list)return;
+  if(!raceAreas.length){
+    list.innerHTML='<div style="font-size:.82rem;color:var(--muted);text-align:center;padding:10px 0">No areas yet — most clubs don\'t need this. Add one only if you run races in more than one location at once (e.g. a regatta with a harbour fleet and an offshore fleet).</div>';
+    return;
+  }
+  list.innerHTML='';
+  raceAreas.forEach(a=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;background:var(--navy);border-radius:10px;padding:9px 12px;';
+    row.innerHTML=
+      `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${a.colour};flex-shrink:0"></span>`+
+      `<div style="flex:1;min-width:0;">`+
+        `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${a.active?'':'opacity:.45'}">${escHtml(a.name)}</div>`+
+      `</div>`+
+      `<div style="display:flex;align-items:center;gap:5px">`+
+        `<button onclick="toggleAreaActive('${a.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        (a.active?'border:1px solid var(--teal);background:transparent;color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)')+`">`+
+        (a.active?'On':'Off')+`</button>`+
+        `<button onclick="openEditArea('${a.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteArea('${a.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
+      `</div>`;
+    list.appendChild(row);
+  });
+}
+
+async function toggleAreaActive(id){
+  const a=raceAreas.find(x=>x.id===id); if(!a)return;
+  const newActive=!a.active;
+  const r=await sbFetch('/rest/v1/race_areas?id=eq.'+id,{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({active:newActive})});
+  if(!r||r._err){toast('⚠ Could not update area: '+(r&&r._err||'network error'));return;}
+  a.active=newActive;
+  buildAreasMgrList();
+  toast(newActive?'✅ '+a.name+' active':'⛔ '+a.name+' disabled');
+}
+
+function showAreaAddForm(){
+  document.getElementById('areaAddForm').style.display='block';
+  document.getElementById('areaAddBtn').style.display='none';
+  document.getElementById('ra-id').focus();
+}
+let editingAreaId=null;
+function hideAreaAddForm(){
+  document.getElementById('areaAddForm').style.display='none';
+  document.getElementById('areaAddBtn').style.display='block';
+  ['ra-id','ra-name'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ra-colour').value='#00b4d8';
+  document.getElementById('ra-id').readOnly=false;
+  document.getElementById('areaFormTitle').textContent='New Area';
+  document.getElementById('areaFormSubmitBtn').textContent='Add Area';
+  editingAreaId=null;
+}
+function openEditArea(id){
+  const a=raceAreas.find(x=>x.id===id); if(!a)return;
+  editingAreaId=id;
+  document.getElementById('ra-id').value=a.id;
+  document.getElementById('ra-id').readOnly=true; // ID is the primary key — don't allow changing
+  document.getElementById('ra-name').value=a.name;
+  document.getElementById('ra-colour').value=a.colour||'#00b4d8';
+  document.getElementById('areaFormTitle').textContent='Edit Area';
+  document.getElementById('areaFormSubmitBtn').textContent='Save Changes';
+  document.getElementById('areaAddForm').style.display='block';
+  document.getElementById('areaAddBtn').style.display='none';
+  document.getElementById('ra-name').focus();
+}
+async function deleteArea(id){
+  const a=raceAreas.find(x=>x.id===id); if(!a)return;
+  if(!confirm('Delete '+a.name+'?\n\nRaces tagged with it become area-less. This cannot be undone.'))return;
+  const r=await sbFetch('/rest/v1/race_areas?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
+  if(!r||r._err){toast('⚠ Could not delete area: '+(r&&r._err||'network error'));return;}
+  raceAreas.splice(raceAreas.indexOf(a),1);
+  buildAreasMgrList();
+  toast('🗑 '+a.name+' deleted');
+}
+
+async function submitAddArea(){
+  const id=document.getElementById('ra-id').value.trim().toLowerCase();
+  const name=document.getElementById('ra-name').value.trim();
+  const colour=document.getElementById('ra-colour').value;
+  if(!id||!name){toast('Enter an ID and name');return;}
+  if(!/^[a-z0-9_-]{1,60}$/.test(id)){toast('ID can only contain lowercase letters, numbers, - and _');return;}
+
+  if(editingAreaId){
+    const r=await sbFetch('/rest/v1/race_areas?id=eq.'+editingAreaId,{method:'PATCH',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({name,colour})});
+    if(!r||r._err){toast('⚠ Could not save changes: '+(r&&r._err||'network error'));return;}
+    const a=raceAreas.find(x=>x.id===editingAreaId);
+    if(a) Object.assign(a,{name,colour});
+    hideAreaAddForm();
+    buildAreasMgrList();
+    toast('✅ '+name+' updated');
+  } else {
+    if(raceAreas.find(a=>a.id===id)){toast('Area ID already exists');return;}
+    const r=await sbFetch('/rest/v1/race_areas',{method:'POST',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({id,name,colour,active:true,sort_order:99})});
+    if(!r||r._err){toast('⚠ Could not save area: '+(r&&r._err||'network error'));return;}
+    await loadRaceAreas();
+    hideAreaAddForm();
     toast('✅ '+name+' added');
   }
 }

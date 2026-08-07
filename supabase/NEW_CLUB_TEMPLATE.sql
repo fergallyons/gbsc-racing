@@ -202,12 +202,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON marks TO anon;
 -- until an RO adds rows via the Fleets Manager. A club that never creates
 -- a fleet keeps its exact single-fleet, single-start behavior.
 CREATE TABLE IF NOT EXISTS fleets (
-  id         text PRIMARY KEY,
-  name       text NOT NULL,
-  colour     text NOT NULL DEFAULT '#00b4d8',
-  sort_order int NOT NULL DEFAULT 99,
-  active     boolean NOT NULL DEFAULT true,
-  created_at timestamptz DEFAULT now()
+  id                   text PRIMARY KEY,
+  name                 text NOT NULL,
+  colour               text NOT NULL DEFAULT '#00b4d8',
+  sort_order           int NOT NULL DEFAULT 99,
+  active               boolean NOT NULL DEFAULT true,
+  requires_sail_number boolean NOT NULL DEFAULT false, -- migration 056 — registration for this fleet must supply a sail number
+  created_at           timestamptz DEFAULT now()
 );
 ALTER TABLE fleets ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "fleets_select" ON fleets;
@@ -219,6 +220,54 @@ CREATE POLICY "fleets_insert" ON fleets FOR INSERT WITH CHECK (id ~ '^[a-z0-9_-]
 CREATE POLICY "fleets_update" ON fleets FOR UPDATE USING (true);
 CREATE POLICY "fleets_delete" ON fleets FOR DELETE USING (true);
 GRANT SELECT, INSERT, UPDATE, DELETE ON fleets TO anon;
+
+
+-- ── race_days ───────────────────────────────────────────────
+-- A calendar day's worth of racing (migration 054) — distinct from a
+-- `races` row (one start-to-finish contest). id is the date itself.
+-- Auto-populated by the app on every race save; an RO never manages this
+-- as a separate step.
+CREATE TABLE IF NOT EXISTS race_days (
+  id         date PRIMARY KEY,
+  name       text,
+  notes      text,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE race_days ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "race_days_select" ON race_days;
+DROP POLICY IF EXISTS "race_days_insert" ON race_days;
+DROP POLICY IF EXISTS "race_days_update" ON race_days;
+DROP POLICY IF EXISTS "race_days_delete" ON race_days;
+CREATE POLICY "race_days_select" ON race_days FOR SELECT USING (true);
+CREATE POLICY "race_days_insert" ON race_days FOR INSERT WITH CHECK (true);
+CREATE POLICY "race_days_update" ON race_days FOR UPDATE USING (true);
+CREATE POLICY "race_days_delete" ON race_days FOR DELETE USING (true);
+GRANT SELECT, INSERT, UPDATE, DELETE ON race_days TO anon;
+
+
+-- ── race_areas ──────────────────────────────────────────────
+-- WHERE a race happens (migration 055) — a different axis from fleet
+-- (WHO races together). Empty until an RO adds rows via the Areas
+-- Manager. Tags races only for now — published_courses/start_finish_lines
+-- stay club-wide singletons, not area-scoped (see 055's own comment).
+CREATE TABLE IF NOT EXISTS race_areas (
+  id         text PRIMARY KEY,
+  name       text NOT NULL,
+  colour     text NOT NULL DEFAULT '#00b4d8',
+  sort_order int NOT NULL DEFAULT 99,
+  active     boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE race_areas ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "race_areas_select" ON race_areas;
+DROP POLICY IF EXISTS "race_areas_insert" ON race_areas;
+DROP POLICY IF EXISTS "race_areas_update" ON race_areas;
+DROP POLICY IF EXISTS "race_areas_delete" ON race_areas;
+CREATE POLICY "race_areas_select" ON race_areas FOR SELECT USING (true);
+CREATE POLICY "race_areas_insert" ON race_areas FOR INSERT WITH CHECK (id ~ '^[a-z0-9_-]{1,60}$');
+CREATE POLICY "race_areas_update" ON race_areas FOR UPDATE USING (true);
+CREATE POLICY "race_areas_delete" ON race_areas FOR DELETE USING (true);
+GRANT SELECT, INSERT, UPDATE, DELETE ON race_areas TO anon;
 
 
 -- ── race_records ────────────────────────────────────────────
@@ -420,6 +469,8 @@ CREATE TABLE IF NOT EXISTS races (
   sort_order  int     NOT NULL DEFAULT 0,
   automated   boolean NOT NULL DEFAULT false, -- run with no OD present — see race_finishes below
   fleet_id    text REFERENCES fleets(id) ON DELETE SET NULL, -- NULL = no fleet distinction (migration 053)
+  race_day_id date REFERENCES race_days(id) ON DELETE SET NULL, -- migration 054, auto-populated by the app
+  race_area_id text REFERENCES race_areas(id) ON DELETE SET NULL, -- NULL = no area distinction (migration 055)
   created_at  timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS races_date_idx  ON races(race_date);
@@ -649,10 +700,13 @@ ALTER TABLE boats ADD CONSTRAINT boats_bow_offset_m_check
 
 -- ── registrations: remaining columns ────────────────────────
 ALTER TABLE registrations
-  ADD COLUMN IF NOT EXISTS looking_for_crew boolean NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS looking_for_crew boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS sail_number text; -- migration 056 — what THIS registration actually raced under, independent of boats.sail_number
 DROP POLICY IF EXISTS "anon_update_registrations" ON registrations;
 CREATE POLICY "anon_update_registrations" ON registrations FOR UPDATE USING (true) WITH CHECK (true);
 GRANT UPDATE (looking_for_crew) ON registrations TO anon;
+GRANT INSERT (sail_number) ON registrations TO anon;
+GRANT UPDATE (sail_number) ON registrations TO anon;
 
 
 -- ── boat-photos storage bucket ──────────────────────────────
@@ -1006,7 +1060,10 @@ INSERT INTO schema_migrations (filename) VALUES
   ('050_settings_sponsors.sql'),
   ('051_fleets.sql'),
   ('052_race_starts_sequence_length.sql'),
-  ('053_races_fleet.sql')
+  ('053_races_fleet.sql'),
+  ('054_race_days.sql'),
+  ('055_race_areas.sql'),
+  ('056_registration_sail_number.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.
