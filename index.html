@@ -967,6 +967,11 @@
       <div class="dash-card-label">Marks Manager</div>
       <div class="dash-card-sub">Toggle &amp; add marks</div>
     </div>
+    <div id="tile-ro-fleetsManager" class="dash-card ro-card admin-gated" onclick="requireAdmin(()=>openPanel('roFleetsPanel'))">
+      <div class="dash-card-icon">🚩</div>
+      <div class="dash-card-label">Fleets Manager</div>
+      <div class="dash-card-sub">Only needed for multiple fleets</div>
+    </div>
     <div id="tile-ro-halConfig" class="dash-card ro-card" onclick="openPanel('roHalConfigPanel');loadHalConfigPanel()">
       <div class="dash-card-icon">🏁</div>
       <div class="dash-card-label">Results Setup</div>
@@ -1282,21 +1287,27 @@
     <span class="panel-title">🚦 Start Sequence</span>
   </div>
   <div class="panel-body">
-    <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px;line-height:1.5">Arms a self-running flag &amp; countdown sequence that any crew member can view from the boat — for when there's no RO on the line. Standard timing: warning at 5 min, preparatory at 4 min, one-minute at 1 min, start at 0.</div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:16px;line-height:1.5">Arms a self-running flag &amp; countdown sequence that any crew member can view from the boat — for when there's no RO on the line.</div>
 
-    <div id="roStartActiveCard" style="display:none;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:12px;padding:14px;margin-bottom:20px">
-      <div id="roStartActiveLabel" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--success);margin-bottom:6px">Active Start</div>
-      <div id="roStartActiveDetail" style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px"></div>
-      <div id="roStartActiveSub" style="font-size:.78rem;color:var(--muted);margin-bottom:12px"></div>
-      <div style="display:flex;gap:8px">
-        <button id="roStartPostponeBtn" class="btn btn-ghost" style="flex:1;padding:10px;color:var(--warn);border-color:rgba(244,162,97,.4)" onclick="roPostponeStart()">⏸ Postpone (AP)</button>
-        <button class="btn btn-ghost" style="flex:1;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStart()">✕ Cancel</button>
-      </div>
+    <div class="form-group" id="roStartFleetGroup" style="display:none;margin-bottom:14px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Fleet</label>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap" id="roStartFleetBtns"></div>
     </div>
+
+    <div id="roStartsLog" style="margin-bottom:20px"></div>
 
     <div class="form-group" style="margin-bottom:14px">
       <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Start Time</label>
       <input type="time" id="ro-start-time" style="width:100%;margin-top:8px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:10px 12px;outline:none;box-sizing:border-box;">
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Sequence Length</label>
+      <div style="display:flex;gap:6px;margin-top:8px" id="roStartSeqLenBtns">
+        <button class="pr-type-btn active" data-val="5" onclick="roSelectSequenceMins(5)">5 min</button>
+        <button class="pr-type-btn" data-val="3" onclick="roSelectSequenceMins(3)">3 min</button>
+      </div>
+      <div id="roStartSeqLenNote" style="font-size:.75rem;color:var(--muted);margin-top:8px;line-height:1.4">Warning at 5 min, preparatory at 4 min, one-minute at 1 min, start at 0.</div>
     </div>
 
     <div class="form-group" style="margin-bottom:14px">
@@ -1566,6 +1577,47 @@
         + Add a line
       </button>
     </div>
+  </div>
+</div>
+
+<!-- roFleetsPanel — Fleets Manager -->
+<div class="panel-overlay" id="roFleetsPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roFleetsPanel')">‹</button>
+    <span class="panel-title">🚩 Fleets Manager</span>
+  </div>
+  <div class="panel-body">
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Most clubs don't need this. Add fleets only if you race more than one group of boats the same night with separate starts (e.g. Cruisers + a one-design class) — boats can then be grouped and given their own start sequence.</div>
+    <div id="fleetsMgrList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px"></div>
+    <div id="fleetAddForm" style="display:none;background:var(--navy);border-radius:10px;padding:12px;margin-bottom:8px;">
+      <div id="fleetFormTitle" style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">New Fleet</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end">
+        <div>
+          <label style="font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">ID</label>
+          <input id="fl-id" type="text" placeholder="e.g. cruisers" maxlength="40"
+            style="margin-top:4px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;padding:8px 10px;outline:none;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Name</label>
+          <input id="fl-name" type="text" placeholder="e.g. Cruisers"
+            style="margin-top:4px;width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:8px 10px;outline:none;box-sizing:border-box;">
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em">Colour</label>
+          <input id="fl-colour" type="color" value="#00b4d8"
+            style="margin-top:4px;width:44px;height:36px;border:1px solid var(--border);border-radius:8px;background:var(--navy-input);cursor:pointer;padding:2px;">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="fleetFormSubmitBtn" class="btn btn-primary" style="flex:1;padding:9px" onclick="submitAddFleet()">Add Fleet</button>
+        <button class="btn btn-ghost" style="padding:9px 14px" onclick="hideFleetAddForm()">Cancel</button>
+      </div>
+    </div>
+    <button id="fleetAddBtn" onclick="showFleetAddForm()"
+      style="width:100%;padding:9px;background:transparent;border:1px dashed rgba(0,174,239,.4);
+      border-radius:10px;color:var(--teal);font-family:'Barlow',sans-serif;font-size:.85rem;font-weight:500;cursor:pointer;">
+      + Add a fleet
+    </button>
   </div>
 </div>
 

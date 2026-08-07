@@ -166,7 +166,7 @@ async function sbFetch(path,opts={}){
 // migration 045, anon only has column-level (not table-level) SELECT on
 // these tables, and Postgres's bare `select=*` default fails outright (401)
 // rather than gracefully narrowing to the permitted columns.
-const BOATS_SELECT='id,name,icon,revolut_user,created_at,stripe_link,sail_number,photo_url,whatsapp,bow_offset_m';
+const BOATS_SELECT='id,name,icon,revolut_user,created_at,stripe_link,sail_number,photo_url,whatsapp,bow_offset_m,fleet_id';
 const SETTINGS_SELECT='id,stripe_link_member,stripe_link_student,stripe_link_visitor,'
   +'pre_race_window_hours,worldtides_key,ro_revolut_user,results_published_race_key,'
   +'updated_at,features,estella_url,logo_url,favicon_url,primary_color,ro_color,'
@@ -714,7 +714,7 @@ const DECL_DOCS=Object.assign(
   _C.declarationDocs||{}
 );
 
-let boats=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
+let boats=[], fleets=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
 let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225, forecastWindDeg=null;
@@ -955,13 +955,26 @@ async function buildBoatGrid(){
   const g=document.getElementById('boatGrid');
   if(g) g.innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--muted);font-size:.82rem;padding:16px">Loading boats…</div>';
 
-  // Load all boats from Supabase — explicit select is required, not just
-  // tidy: since migration 045, anon only has column-level (not table-level)
-  // SELECT on boats, and Postgres's bare `select=*` default fails outright
-  // rather than gracefully narrowing to the permitted columns.
-  const sbBoats=await sbFetch('/rest/v1/boats?order=name.asc&select='+BOATS_SELECT);
+  // Fleets load alongside boats, not before/after — nothing here depends on
+  // the other, and this is pre-login so every millisecond before the boat
+  // grid appears matters. Empty at every club until an RO adds rows via
+  // the Fleets Manager (see FLEETS MANAGER section) — most clubs will
+  // never populate this, which is the whole point: everything gated on
+  // fleets.length stays a no-op for them.
+  const [sbBoats,sbFleets]=await Promise.all([
+    // Load all boats from Supabase — explicit select is required, not just
+    // tidy: since migration 045, anon only has column-level (not table-level)
+    // SELECT on boats, and Postgres's bare `select=*` default fails outright
+    // rather than gracefully narrowing to the permitted columns.
+    sbFetch('/rest/v1/boats?order=name.asc&select='+BOATS_SELECT),
+    // All rows, active or not — the Fleets Manager needs to see disabled
+    // fleets too (to re-enable them); every other use of this array goes
+    // through activeFleets() to filter them back out.
+    sbFetch('/rest/v1/fleets?order=sort_order.asc,name.asc&select=id,name,colour,sort_order,active')
+  ]);
+  if(Array.isArray(sbFleets)) fleets=sbFleets.map(f=>({id:f.id,name:f.name,colour:f.colour||'#00b4d8',sortOrder:f.sort_order,active:f.active!==false}));
   if(sbBoats&&sbBoats.length){
-    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||'',photoUrl:b.photo_url||'',bowOffsetM:(b.bow_offset_m!=null?b.bow_offset_m:6)}));
+    boats=sbBoats.map(b=>({id:b.id,name:b.name,icon:b.icon||'⛵',sailNumber:b.sail_number||'',photoUrl:b.photo_url||'',bowOffsetM:(b.bow_offset_m!=null?b.bow_offset_m:6),fleetId:b.fleet_id||null}));
   } else {
     // Offline — fall back to localStorage cache
     boats=loadCustom();
@@ -2197,13 +2210,22 @@ async function renderRegisteredTab(){
   // logging in as someone else's boat. Login stays available as a small,
   // deliberate key-icon button (event.stopPropagation() so it doesn't also
   // open the summary), and again inside the summary sheet itself.
-  list.innerHTML=regBoats.map(b=>
+  const rowHtml=b=>
     '<div onclick="openBoatSummary(\''+b.id+'\')" style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:rgba(255,255,255,.04);'+
     'border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;">'+
     '<span style="font-size:1.4rem">'+b.icon+'</span>'+
     '<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">'+b.name+'</span>'+
     '<button class="row-login-btn" style="margin-left:auto" title="Login as '+escHtml(b.name)+'" onclick="event.stopPropagation();loginAs(\''+b.id+'\')">🔑</button>'+
-    '</div>'
+    '</div>';
+  if(!activeFleets().length){
+    list.innerHTML=regBoats.map(rowHtml).join('');
+    return;
+  }
+  // Grouped only once a club has actual fleets — subheading style matches
+  // loadAndRenderDocs()'s document categories for visual consistency.
+  list.innerHTML=groupBoatsByFleet(regBoats).map((g,i)=>
+    '<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;'+(i===0?'margin-bottom:8px':'margin:16px 0 8px')+'">'+escHtml(g.name)+'</div>'+
+    g.boats.map(rowHtml).join('')
   ).join('');
 }
 
@@ -2569,6 +2591,7 @@ function openPanel(id){
       if(!courseMarks.length) loadDraftIfExists();
     }
     if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
+    if(id==='roFleetsPanel'){ buildFleetsMgrList(); }
     if(id==='roCourseViewPanel') renderCourseDiagram('roCourseDisplay');
     if(id==='newSailorsPanel') renderNewSailorsPanel();
     if(id==='roNewsPanel') renderRONewsList();
@@ -2715,15 +2738,26 @@ function updateRODash(){
 async function refreshRoStartSeqTile(){
   const sub=document.getElementById('roStartSeqStatus');
   if(!sub) return;
-  const active=await sbLoadActiveStart();
-  const stale=active&&active.status==='armed'&&new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
-  if(!active||stale){
-    sub.textContent='Not armed';
-  } else if(active.status==='postponed'){
-    sub.textContent='Postponed (AP)';
-  } else {
-    sub.textContent='Armed · '+new Date(active.start_time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  if(!activeFleets().length){
+    // Unchanged code path — byte-identical to before fleets existed.
+    const active=await sbLoadActiveStart();
+    const stale=active&&active.status==='armed'&&new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
+    if(!active||stale){
+      sub.textContent='Not armed';
+    } else if(active.status==='postponed'){
+      sub.textContent='Postponed (AP)';
+    } else {
+      sub.textContent='Armed · '+new Date(active.start_time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    }
+    return;
   }
+  const rows=await sbLoadTodayStarts();
+  const stale=r=>r.status==='armed'&&new Date(r.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
+  const pending=rows.filter(r=>(r.status==='armed'||r.status==='postponed')&&!stale(r));
+  if(!pending.length){ sub.textContent='Not armed'; return; }
+  const armed=pending.filter(r=>r.status==='armed').length;
+  const postponed=pending.length-armed;
+  sub.textContent=[armed?armed+' armed':'',postponed?postponed+' postponed':''].filter(Boolean).join(', ');
 }
 function updateROChips(regsCount,protestsCount,coursePublished){
   const chips=document.getElementById('roDashChips');
@@ -8717,7 +8751,8 @@ async function buildPinMgmtList(){
   // PINs are hashed (migration 040) — can't be displayed anymore, only reset.
   // The RO's "PIN" button now resets to a new known value (reset_boat_pin RPC)
   // rather than showing the old one, same idea as any other password reset.
-  boats.forEach(b=>{
+  const active=activeFleets();
+  const boatRow=b=>{
     const row=document.createElement('div');
     row.id='pinrow-'+b.id;
     row.style.cssText='display:flex;align-items:center;justify-content:space-between;background:var(--navy);border-radius:10px;padding:9px 12px;margin-bottom:5px;';
@@ -8735,11 +8770,32 @@ async function buildPinMgmtList(){
           'title="Distance from the tracked phone to the bow, in metres — projected forward using GPS heading for finish/OCS detection. Leave blank if unknown." '+
           'onchange="updateBoatBowOffset(\''+b.id+'\',this.value)" '+
           'style="width:56px;background:var(--navy-input);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:Barlow Condensed,sans-serif;font-size:.8rem;padding:3px 6px;text-align:center">'+
+        (active.length?(
+          '<select onchange="updateBoatFleet(\''+b.id+'\',this.value)" title="Fleet" '+
+            'style="width:88px;background:var(--navy-input);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:Barlow Condensed,sans-serif;font-size:.8rem;padding:3px 4px">'+
+            '<option value=""'+(b.fleetId?'':' selected')+'>— Unassigned —</option>'+
+            active.map(f=>'<option value="'+f.id+'"'+(b.fleetId===f.id?' selected':'')+'>'+escHtml(f.name)+'</option>').join('')+
+          '</select>'
+        ):'')+
         '<button onclick="openChangePinForBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--teal);cursor:pointer">Reset PIN</button>'+
         '<button onclick="deleteBoat(\''+b.id+'\')" style="font-size:.8rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">Delete</button>'+
       '</div>';
-    list.appendChild(row);
-  });
+    return row;
+  };
+  if(!active.length){
+    boats.forEach(b=>list.appendChild(boatRow(b)));
+  } else {
+    // Grouped only once a club has actual fleets — subheading style
+    // matches loadAndRenderDocs()'s document categories, same as the
+    // Starting Line list above.
+    groupBoatsByFleet(boats).forEach((g,i)=>{
+      const heading=document.createElement('div');
+      heading.style.cssText='font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;'+(i===0?'margin-bottom:8px':'margin:16px 0 8px');
+      heading.textContent=g.name;
+      list.appendChild(heading);
+      g.boats.forEach(b=>list.appendChild(boatRow(b)));
+    });
+  }
   const roRow=document.createElement('div');
   roRow.style.cssText='display:flex;align-items:center;justify-content:space-between;background:rgba(254,224,30,.06);border:1px solid rgba(254,224,30,.2);border-radius:10px;padding:9px 12px;margin-top:4px;';
   roRow.innerHTML=
@@ -8797,6 +8853,22 @@ async function updateBoatBowOffset(id,value){
     toast('⚠ Could not save bow offset — check connection');
     buildPinMgmtList();
   }
+}
+
+async function updateBoatFleet(id,value){
+  const b=boats.find(x=>x.id===id); if(!b) return;
+  const fleetId=value||null;
+  const prev=b.fleetId;
+  b.fleetId=fleetId; // optimistic
+  const result=await sbSaveBoatConfig(id,{fleet_id:fleetId});
+  if(!result||result._err){
+    b.fleetId=prev;
+    toast('⚠ Could not save fleet — check connection');
+  }
+  // Unlike sail-number/bow-offset above, re-render on success too — a
+  // fleet change needs to visually move the boat to a different group,
+  // not just show a new value in the same place.
+  buildPinMgmtList();
 }
 
 function openIconPicker(boatId){
@@ -10486,6 +10558,150 @@ async function submitAddLine(){
 }
 
 // ═══════════════════════════════════════════════════════════════
+// FLEETS MANAGER
+// ═══════════════════════════════════════════════════════════════
+// Optional per-club grouping for boats and starts (migration 051) — same
+// list/add/edit/delete shape as the Marks Manager above, minus coordinates
+// (a fleet has no position). Most clubs never touch this; it exists so a
+// club that needs it (more than one fleet racing the same night, separate
+// starts — e.g. MSC's Cruisers + Ruffian 23) can turn it on themselves,
+// the same way they'd add a mark, rather than needing it hand-set up.
+//
+// `fleets` (global, loaded in buildBoatGrid) holds every row, active or
+// not — this manager needs to see disabled fleets to re-enable them.
+// Every other consumer (grouping, selectors) goes through activeFleets().
+function activeFleets(){ return fleets.filter(f=>f.active!==false); }
+
+// Buckets a boat list by fleet, in the fleets table's own sort order, with
+// a trailing "Unassigned" group only if at least one boat actually has
+// none (or references a since-disabled fleet). Callers check
+// activeFleets().length themselves first — this only ever runs once
+// there's something to group by, never for the 4 single-fleet clubs.
+function groupBoatsByFleet(boatList){
+  const active=activeFleets();
+  const groups=active.map(f=>({id:f.id,name:f.name,boats:boatList.filter(b=>b.fleetId===f.id)})).filter(g=>g.boats.length);
+  const unassigned=boatList.filter(b=>!b.fleetId||!active.find(f=>f.id===b.fleetId));
+  if(unassigned.length) groups.push({id:null,name:'Unassigned',boats:unassigned});
+  return groups;
+}
+
+async function loadFleets(){
+  const rows=await sbFetch('/rest/v1/fleets?order=sort_order.asc,name.asc&select=id,name,colour,sort_order,active');
+  if(Array.isArray(rows)) fleets=rows.map(f=>({id:f.id,name:f.name,colour:f.colour||'#00b4d8',sortOrder:f.sort_order,active:f.active!==false}));
+  if(isRO) buildFleetsMgrList();
+}
+
+function buildFleetsMgrList(){
+  const list=document.getElementById('fleetsMgrList');
+  if(!list)return;
+  if(!fleets.length){
+    list.innerHTML='<div style="font-size:.82rem;color:var(--muted);text-align:center;padding:10px 0">No fleets yet — most clubs don\'t need this. Add one only if you race more than one fleet a night with separate starts.</div>';
+    return;
+  }
+  list.innerHTML='';
+  fleets.forEach(f=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;background:var(--navy);border-radius:10px;padding:9px 12px;';
+    row.innerHTML=
+      `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${f.colour};flex-shrink:0"></span>`+
+      `<div style="flex:1;min-width:0;">`+
+        `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${f.active?'':'opacity:.45'}">${escHtml(f.name)}</div>`+
+      `</div>`+
+      `<div style="display:flex;align-items:center;gap:5px">`+
+        `<button onclick="toggleFleetActive('${f.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        (f.active?'border:1px solid var(--teal);background:transparent;color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)')+`">`+
+        (f.active?'On':'Off')+`</button>`+
+        `<button onclick="openEditFleet('${f.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteFleet('${f.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
+      `</div>`;
+    list.appendChild(row);
+  });
+}
+
+async function toggleFleetActive(id){
+  const f=fleets.find(x=>x.id===id); if(!f)return;
+  const newActive=!f.active;
+  const r=await sbFetch('/rest/v1/fleets?id=eq.'+id,{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({active:newActive})});
+  if(!r||r._err){toast('⚠ Could not update fleet: '+(r&&r._err||'network error'));return;}
+  f.active=newActive;
+  buildFleetsMgrList();
+  toast(newActive?'✅ '+f.name+' active':'⛔ '+f.name+' disabled');
+}
+
+function showFleetAddForm(){
+  document.getElementById('fleetAddForm').style.display='block';
+  document.getElementById('fleetAddBtn').style.display='none';
+  document.getElementById('fl-id').focus();
+}
+let editingFleetId=null;
+function hideFleetAddForm(){
+  document.getElementById('fleetAddForm').style.display='none';
+  document.getElementById('fleetAddBtn').style.display='block';
+  ['fl-id','fl-name'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fl-colour').value='#00b4d8';
+  document.getElementById('fl-id').readOnly=false;
+  document.getElementById('fleetFormTitle').textContent='New Fleet';
+  document.getElementById('fleetFormSubmitBtn').textContent='Add Fleet';
+  editingFleetId=null;
+}
+function openEditFleet(id){
+  const f=fleets.find(x=>x.id===id); if(!f)return;
+  editingFleetId=id;
+  document.getElementById('fl-id').value=f.id;
+  document.getElementById('fl-id').readOnly=true; // ID is the primary key — don't allow changing
+  document.getElementById('fl-name').value=f.name;
+  document.getElementById('fl-colour').value=f.colour||'#00b4d8';
+  document.getElementById('fleetFormTitle').textContent='Edit Fleet';
+  document.getElementById('fleetFormSubmitBtn').textContent='Save Changes';
+  document.getElementById('fleetAddForm').style.display='block';
+  document.getElementById('fleetAddBtn').style.display='none';
+  document.getElementById('fl-name').focus();
+}
+async function deleteFleet(id){
+  const f=fleets.find(x=>x.id===id); if(!f)return;
+  if(!confirm('Delete '+f.name+'?\n\nBoats assigned to it become Unassigned. This cannot be undone.'))return;
+  const r=await sbFetch('/rest/v1/fleets?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
+  if(!r||r._err){toast('⚠ Could not delete fleet: '+(r&&r._err||'network error'));return;}
+  fleets.splice(fleets.indexOf(f),1);
+  boats.forEach(b=>{ if(b.fleetId===id) b.fleetId=null; }); // mirrors the server's ON DELETE SET NULL
+  buildFleetsMgrList();
+  if(isRO) buildPinMgmtList();
+  toast('🗑 '+f.name+' deleted');
+}
+
+async function submitAddFleet(){
+  const id=document.getElementById('fl-id').value.trim().toLowerCase();
+  const name=document.getElementById('fl-name').value.trim();
+  const colour=document.getElementById('fl-colour').value;
+  if(!id||!name){toast('Enter an ID and name');return;}
+  if(!/^[a-z0-9_-]{1,60}$/.test(id)){toast('ID can only contain lowercase letters, numbers, - and _');return;}
+
+  if(editingFleetId){
+    const r=await sbFetch('/rest/v1/fleets?id=eq.'+editingFleetId,{method:'PATCH',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({name,colour})});
+    if(!r||r._err){toast('⚠ Could not save changes: '+(r&&r._err||'network error'));return;}
+    const f=fleets.find(x=>x.id===editingFleetId);
+    if(f) Object.assign(f,{name,colour});
+    hideFleetAddForm();
+    buildFleetsMgrList();
+    toast('✅ '+name+' updated');
+  } else {
+    if(fleets.find(f=>f.id===id)){toast('Fleet ID already exists');return;}
+    const r=await sbFetch('/rest/v1/fleets',{method:'POST',
+      headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({id,name,colour,active:true,sort_order:99})});
+    if(!r||r._err){toast('⚠ Could not save fleet: '+(r&&r._err||'network error'));return;}
+    await loadFleets();
+    hideFleetAddForm();
+    if(isRO) buildPinMgmtList(); // each boat row's fleet dropdown needs to offer the new fleet
+    toast('✅ '+name+' added');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
 // PROTESTS
 // ═══════════════════════════════════════════════════════════════
 async function checkForProtestsAgainstMe(){
@@ -10609,19 +10825,49 @@ async function sbArmStart(fields){
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify(fields)});
 }
-async function sbCancelAllArmedStarts(){
-  return sbFetch('/rest/v1/race_starts?status=in.(armed,postponed)',{method:'PATCH',
+// Cancels only a still-pending row (not yet fired) for the given fleet —
+// never a row whose gun has already gone. A fired start is a completed
+// race, permanent history, not a draft: arming a fleet's next start must
+// never retroactively mark that fleet's earlier, already-run race as
+// "cancelled". fleetId=null is the no-fleet/"all fleets" bucket, i.e.
+// every club that's never touched fleets keeps today's exact behavior —
+// there's only ever one pending row possible for them, so this is
+// equivalent to the old blanket cancel in every observable way.
+async function sbCancelArmedStartsForFleet(fleetId){
+  const fleetQ=fleetId?'&fleet_id=eq.'+encodeURIComponent(fleetId):'&fleet_id=is.null';
+  return sbFetch('/rest/v1/race_starts?status=in.(armed,postponed)'+fleetQ+'&start_time=gt.'+encodeURIComponent(new Date().toISOString()),{method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify({status:'cancelled'})});
 }
-async function sbPostponeActiveStart(){
-  return sbFetch('/rest/v1/race_starts?status=eq.armed',{method:'PATCH',
+async function sbPostponeStart(id){
+  return sbFetch('/rest/v1/race_starts?id=eq.'+id+'&status=eq.armed',{method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify({status:'postponed'})});
+}
+async function sbCancelStart(id){
+  return sbFetch('/rest/v1/race_starts?id=eq.'+id+'&status=in.(armed,postponed)',{method:'PATCH',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({status:'cancelled'})});
 }
 async function sbLoadActiveStart(){
   const r=await sbFetch('/rest/v1/race_starts?status=in.(armed,postponed)&order=start_time.desc&limit=1');
   return (r&&!r._err&&r.length)?r[0]:null;
+}
+// Same shape as sbLoadActiveStart() but scoped to one fleet (or the
+// null-fleet bucket) — used to resolve "my fleet's" start instead of
+// whichever fleet happened to arm most recently club-wide.
+async function sbLoadActiveStartForFleet(fleetId){
+  const fleetQ=fleetId?'&fleet_id=eq.'+encodeURIComponent(fleetId):'&fleet_id=is.null';
+  const r=await sbFetch('/rest/v1/race_starts?status=in.(armed,postponed)'+fleetQ+'&order=start_time.desc&limit=1');
+  return (r&&!r._err&&r.length)?r[0]:null;
+}
+// Every one of today's race_starts rows, any status/fleet — the RO's
+// "tonight's starts" log (the full annotated history, not just whatever's
+// currently live).
+async function sbLoadTodayStarts(){
+  const midnight=new Date(); midnight.setHours(0,0,0,0);
+  const r=await sbFetch('/rest/v1/race_starts?start_time=gte.'+encodeURIComponent(midnight.toISOString())+'&order=start_time.desc');
+  return (r&&!r._err)?r:[];
 }
 
 // A start sequence has no further value once well past the gun — stop treating
@@ -10636,56 +10882,128 @@ const START_FLAG_NOTES={
   U:     'U Flag — a boat OCS in the last minute is disqualified without a hearing, but not if the race is restarted or resailed (RRS 30.3).',
   Black: 'Black Flag — a boat OCS in the last minute, or in the triangle formed by the line and first mark, is disqualified without a hearing — even if the race is restarted or resailed (RRS 30.4).',
 };
-let _roStartFlagSystem='P', _roStartClassFlag='E';
+const START_SEQ_LEN_NOTE={
+  5:'Warning at 5 min, preparatory at 4 min, one-minute at 1 min, start at 0.',
+  3:'Warning at 3 min, preparatory at 2 min, one-minute at 1 min, start at 0.'
+};
+let _roStartFlagSystem='P', _roStartClassFlag='E', _roStartSequenceMins=5, _roStartFleet=null;
 
 async function openRoStartPanel(){
   openPanel('roStartPanel');
   renderFlagSelectorSwatches();
   roSelectFlagSystem('P');
   roSelectClassFlag('E');
+  roSelectSequenceMins(5);
   roSetStartOffset(5);
-  await refreshRoStartActiveCard();
+  renderRoStartFleetSelector();
+  await renderRoStartsLog();
 }
 
-async function refreshRoStartActiveCard(){
-  const card=document.getElementById('roStartActiveCard');
-  const active=await sbLoadActiveStart();
-  const stale=active&&active.status==='armed'&&new Date(active.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
-  if(!active||stale){
-    card.style.display='none';
+function roSelectSequenceMins(mins){
+  _roStartSequenceMins=mins;
+  document.querySelectorAll('#roStartSeqLenBtns .pr-type-btn').forEach(b=>b.classList.toggle('active',Number(b.dataset.val)===mins));
+  document.getElementById('roStartSeqLenNote').textContent=START_SEQ_LEN_NOTE[mins]||'';
+}
+
+// Hidden entirely for clubs with no active fleets — group + buttons only
+// appear once an RO has actually created a fleet via the Fleets Manager.
+function renderRoStartFleetSelector(){
+  const group=document.getElementById('roStartFleetGroup');
+  const wrap=document.getElementById('roStartFleetBtns');
+  const active=activeFleets();
+  if(!active.length){
+    group.style.display='none';
+    _roStartFleet=null;
     return;
   }
-  card.style.display='block';
-  const label=document.getElementById('roStartActiveLabel');
-  const postponeBtn=document.getElementById('roStartPostponeBtn');
-  const t=new Date(active.start_time);
-  if(active.status==='postponed'){
-    card.style.background='rgba(244,162,97,.1)';
-    card.style.borderColor='rgba(244,162,97,.35)';
-    label.style.color='var(--warn)';
-    label.textContent='Postponed (AP)';
-    document.getElementById('roStartActiveDetail').textContent='AP flying — no time set';
-    document.getElementById('roStartActiveSub').textContent='Set a new time below to resume, or cancel';
-    postponeBtn.style.display='none';
-  } else {
-    card.style.background='rgba(45,198,83,.08)';
-    card.style.borderColor='rgba(45,198,83,.3)';
-    label.style.color='var(--success)';
-    label.textContent='Active Start';
-    document.getElementById('roStartActiveDetail').textContent=
-      t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+active.flag_system+' flag · Class '+active.class_flag;
-    document.getElementById('roStartActiveSub').textContent=
-      t>new Date()?'Counting down…':'Started';
-    postponeBtn.style.display='';
-  }
+  group.style.display='block';
+  if(!_roStartFleet||!active.find(f=>f.id===_roStartFleet)) _roStartFleet=active[0].id;
+  wrap.innerHTML=active.map(f=>
+    '<button class="pr-type-btn'+(f.id===_roStartFleet?' active':'')+'" data-val="'+f.id+'" onclick="roSelectFleet(\''+f.id+'\')">'+escHtml(f.name)+'</button>'
+  ).join('');
+}
+function roSelectFleet(id){
+  _roStartFleet=id;
+  document.querySelectorAll('#roStartFleetBtns .pr-type-btn').forEach(b=>b.classList.toggle('active',b.dataset.val===id));
 }
 
-async function roPostponeStart(){
-  if(!confirm('Postpone the start? AP will fly until you set a new time or cancel.'))return;
-  await sbPostponeActiveStart();
+// Renders #roStartsLog. Two genuinely different outputs, not one output
+// styled two ways: with no active fleets, this reproduces the exact
+// single-card markup the old roStartActiveCard always rendered (same
+// classes, same copy, same Postpone/Cancel placement) so the 4 existing
+// clubs see zero visible change — just re-sourced from the same "today's
+// starts" query instead of a separate single-row fetch. With fleets, it
+// shows the full annotated list of tonight's starts across every fleet.
+async function renderRoStartsLog(){
+  const wrap=document.getElementById('roStartsLog');
+  if(!wrap) return;
+  const rows=await sbLoadTodayStarts();
+  const isStale=r=>r.status==='armed'&&new Date(r.start_time)<new Date(Date.now()-START_SEQ_STALE_MS);
+
+  if(!activeFleets().length){
+    const relevant=rows.find(r=>(r.status==='armed'||r.status==='postponed')&&!isStale(r));
+    if(!relevant){ wrap.innerHTML=''; return; }
+    const t=new Date(relevant.start_time);
+    if(relevant.status==='postponed'){
+      wrap.innerHTML=
+        '<div style="background:rgba(244,162,97,.1);border:1px solid rgba(244,162,97,.35);border-radius:12px;padding:14px">'+
+          '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--warn);margin-bottom:6px">Postponed (AP)</div>'+
+          '<div style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px">AP flying — no time set</div>'+
+          '<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Set a new time below to resume, or cancel</div>'+
+          '<button class="btn btn-ghost" style="width:100%;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+relevant.id+')">✕ Cancel</button>'+
+        '</div>';
+    } else {
+      wrap.innerHTML=
+        '<div style="background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:12px;padding:14px">'+
+          '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--success);margin-bottom:6px">Active Start</div>'+
+          '<div style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px">'+t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+relevant.flag_system+' flag · Class '+relevant.class_flag+'</div>'+
+          '<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">'+(t>new Date()?'Counting down…':'Started')+'</div>'+
+          '<div style="display:flex;gap:8px">'+
+            '<button class="btn btn-ghost" style="flex:1;padding:10px;color:var(--warn);border-color:rgba(244,162,97,.4)" onclick="roPostponeStartRow('+relevant.id+')">⏸ Postpone (AP)</button>'+
+            '<button class="btn btn-ghost" style="flex:1;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+relevant.id+')">✕ Cancel</button>'+
+          '</div>'+
+        '</div>';
+    }
+    return;
+  }
+
+  if(!rows.length){ wrap.innerHTML=''; return; }
+  const fleetName=id=>id?((fleets.find(f=>f.id===id)||{}).name||id):'All Fleets';
+  wrap.innerHTML='<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Tonight\'s Starts</div>'+
+    rows.map(r=>{
+      const t=new Date(r.start_time);
+      const pending=(r.status==='armed'||r.status==='postponed')&&!isStale(r);
+      const statusColor=r.status==='cancelled'?'var(--muted)':r.status==='postponed'?'var(--warn)':(t>new Date()?'var(--success)':'var(--white)');
+      const statusText=r.status==='cancelled'?'Cancelled':r.status==='postponed'?'Postponed (AP)':(t>new Date()?'Counting down':'Started');
+      const actions=pending?
+        '<div style="display:flex;gap:6px;margin-top:8px">'+
+          (r.status==='armed'?'<button class="btn btn-ghost" style="flex:1;padding:6px;font-size:.78rem;color:var(--warn);border-color:rgba(244,162,97,.4)" onclick="roPostponeStartRow('+r.id+')">⏸ Postpone</button>':'')+
+          '<button class="btn btn-ghost" style="flex:1;padding:6px;font-size:.78rem;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+r.id+')">✕ Cancel</button>'+
+        '</div>':'';
+      return '<div style="background:var(--navy);border-radius:10px;padding:10px 12px;margin-bottom:6px'+(pending?';border:1px solid rgba(45,198,83,.25)':'')+'">'+
+        '<div style="display:flex;justify-content:space-between;align-items:baseline">'+
+          '<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:.9rem;color:var(--white)">'+escHtml(fleetName(r.fleet_id))+'</span>'+
+          '<span style="font-size:.85rem;font-weight:700;color:'+statusColor+'">'+(r.status==='postponed'?'AP':t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}))+'</span>'+
+        '</div>'+
+        '<div style="font-size:.75rem;color:var(--muted);margin-top:2px">'+statusText+' · '+r.flag_system+' flag · Class '+r.class_flag+'</div>'+
+        actions+
+      '</div>';
+    }).join('');
+}
+
+async function roPostponeStartRow(id){
+  if(!confirm('Postpone this start? AP will fly until you set a new time or cancel.'))return;
+  await sbPostponeStart(id);
   toast('⏸ AP — start postponed');
-  document.getElementById('roStartSeqStatus').textContent='Postponed (AP)';
-  await refreshRoStartActiveCard();
+  await renderRoStartsLog();
+  refreshRoStartSeqTile();
+}
+async function roCancelStartRow(id){
+  if(!confirm('Cancel this start sequence?'))return;
+  await sbCancelStart(id);
+  toast('Start sequence cancelled');
+  await renderRoStartsLog();
+  refreshRoStartSeqTile();
 }
 
 // Used only to prefill a sensible default when the panel opens — the RO
@@ -10714,30 +11032,25 @@ function roSelectClassFlag(val){
 async function roArmStart(){
   const timeVal=document.getElementById('ro-start-time').value;
   if(!timeVal){toast('Set a start time');return;}
+  if(activeFleets().length&&!_roStartFleet){toast('Select a fleet');return;}
   const [hh,mm]=timeVal.split(':').map(Number);
   const startTime=new Date();
   startTime.setHours(hh,mm,0,0);
   if(startTime.getTime()<Date.now()-300000){toast('That time has already passed');return;}
 
-  await sbCancelAllArmedStarts();
+  await sbCancelArmedStartsForFleet(_roStartFleet);
   const r=await sbArmStart({
     start_time:startTime.toISOString(),
     flag_system:_roStartFlagSystem,
     class_flag:_roStartClassFlag,
+    fleet_id:_roStartFleet,
+    sequence_mins:_roStartSequenceMins,
     status:'armed'
   });
   if(r&&r._err){toast('⚠ Could not arm start — '+r._err.slice(0,60));return;}
   toast('🚦 Start sequence armed for '+startTime.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}));
-  document.getElementById('roStartSeqStatus').textContent='Armed · '+startTime.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-  await refreshRoStartActiveCard();
-}
-
-async function roCancelStart(){
-  if(!confirm('Cancel the active start sequence?'))return;
-  await sbCancelAllArmedStarts();
-  document.getElementById('roStartSeqStatus').textContent='Not armed';
-  toast('Start sequence cancelled');
-  await refreshRoStartActiveCard();
+  await renderRoStartsLog();
+  refreshRoStartSeqTile();
 }
 
 // ── Public start sequence viewer — full-screen, readable from a distance ──
@@ -10756,15 +11069,25 @@ function _clearStartSeqHornTimers(){
   _startSeqHornTimers.forEach(id=>clearTimeout(id));
   _startSeqHornTimers=[];
 }
+// Shared by both display (getStartPhase, below) and horn timing here — was
+// two independent hardcoded literal sets before race_starts.sequence_mins
+// existed, which is exactly the duplication that let a 3rd sequence length
+// slip out of sync if only one were ever updated. Only warning/preparatory
+// scale with sequence length; one-minute and the gun itself never move.
+function startSeqBoundarySecs(sequenceMins){
+  const n=sequenceMins||5;
+  return {warn:n*60, prep:(n-1)*60, oneMin:60, start:0};
+}
 function _scheduleStartSeqHorns(){
   _clearStartSeqHornTimers();
   if(!_startSeqActive||_startSeqActive.status!=='armed') return;
   const startMs=new Date(_startSeqActive.start_time).getTime();
+  const b=startSeqBoundarySecs(_startSeqActive.sequence_mins);
   const boundaries=[
-    {ms:startMs-300000, isLong:false}, // warning signal
-    {ms:startMs-240000, isLong:false}, // preparatory signal
-    {ms:startMs-60000,  isLong:true},  // one-minute — RRS 26: one LONG sound
-    {ms:startMs,         isLong:false} // starting signal
+    {ms:startMs-b.warn*1000,   isLong:false}, // warning signal
+    {ms:startMs-b.prep*1000,   isLong:false}, // preparatory signal
+    {ms:startMs-b.oneMin*1000, isLong:true},  // one-minute — RRS 26: one LONG sound
+    {ms:startMs-b.start*1000,  isLong:false}  // starting signal
   ];
   const now=Date.now();
   boundaries.forEach(b=>{
@@ -10833,7 +11156,12 @@ function closeStartSeq(){
 }
 
 async function refreshStartSeqData(){
-  const active=await sbLoadActiveStart();
+  // A logged-in boat resolves its OWN fleet's start (null fleetId — every
+  // boat at a club that's never touched fleets, always — matches the
+  // null-fleet/"all fleets" row exactly as before). A public/spectator
+  // viewer has no boat to scope by, so it keeps the old unscoped query —
+  // whichever fleet armed most recently club-wide, same as pre-fleets.
+  const active=currentBoat?await sbLoadActiveStartForFleet(currentBoat.fleetId||null):await sbLoadActiveStart();
   // Staleness only applies to a live countdown — a postponement has no fixed
   // time to measure "15 minutes past" from, and should persist until the RO
   // explicitly resolves it.
@@ -10891,11 +11219,12 @@ function updatePubStartSeqSub(){
   subs.forEach(sub=>{ sub.textContent=text; });
 }
 
-function getStartPhase(secsToStart){
-  if(secsToStart>300) return {phase:'waiting', label:'Waiting for Warning Signal', showClass:false, showPrep:false};
-  if(secsToStart>240) return {phase:'warning', label:'Warning Signal', showClass:true,  showPrep:false};
-  if(secsToStart>60)  return {phase:'prep',    label:'Preparatory Signal', showClass:true, showPrep:true};
-  if(secsToStart>0)   return {phase:'onemin',  label:'One Minute', showClass:true, showPrep:false};
+function getStartPhase(secsToStart,sequenceMins){
+  const b=startSeqBoundarySecs(sequenceMins);
+  if(secsToStart>b.warn)    return {phase:'waiting', label:'Waiting for Warning Signal', showClass:false, showPrep:false};
+  if(secsToStart>b.prep)    return {phase:'warning', label:'Warning Signal', showClass:true,  showPrep:false};
+  if(secsToStart>b.oneMin)  return {phase:'prep',    label:'Preparatory Signal', showClass:true, showPrep:true};
+  if(secsToStart>b.start)   return {phase:'onemin',  label:'One Minute', showClass:true, showPrep:false};
   if(secsToStart>-60) return {phase:'started', label:'Starting Signal — Go', showClass:false, showPrep:false};
   return {phase:'racing', label:'Racing', showClass:false, showPrep:false};
 }
@@ -10941,7 +11270,7 @@ function tickStartSeq(){
   }
   empty.style.display='none'; body.style.display='flex';
 
-  const phase=getStartPhase(secsToStart);
+  const phase=getStartPhase(secsToStart,_startSeqActive.sequence_mins);
 
   document.getElementById('startSeqPhaseLabel').textContent=phase.label;
   const clockEl=document.getElementById('startSeqClock');

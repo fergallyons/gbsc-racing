@@ -22,6 +22,15 @@
 // RO context and (b) push an informational alert to that boat's own
 // skipper; see 047_ocs_detection.sql.
 //
+// Fleet-aware gun resolution (051_fleets.sql/052): race_starts has no
+// linkage to `races` at all — which gun applies to a given boat is
+// resolved per-BOAT via that boat's own boats.fleet_id, matched against
+// the most recent FIRED race_starts row for that same fleet_id (null
+// fleet_id = the "all fleets" bucket every boat at a single-fleet club
+// sits in, which collapses this back to exactly one row — unchanged
+// behavior for every club that's never touched fleets). This mirrors
+// app.js's sbLoadActiveStartForFleet() resolution on the client side.
+//
 // No single request/hostname to resolve a club from here (unlike every
 // other function, which handles one HTTP request for one club) — this
 // walks every CLUB_CONFIG_<SLUG> env var itself instead.
@@ -54,17 +63,20 @@ function raceKeyFor(race) {
   return race.race_date + '_' + race.label.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 20);
 }
 
-// {boat_id: bow_offset_m} for every boat that has one set — fetched once
-// per race and shared between finish and OCS detection, both of which
-// need to project each ping forward to the bow before doing any
-// crossing/course-side check. Most boats won't have this set (null), and
-// offsetToBow already no-ops on a falsy offset, so this stays a cheap,
-// fully-backward-compatible lookup even before anyone configures it.
-async function fetchBoatOffsets(sbUrl, anonHeaders) {
-  const rows = await fetchJson(sbUrl + '/rest/v1/boats?select=id,bow_offset_m', anonHeaders);
-  const map = {};
-  rows.forEach((b) => { if (b.bow_offset_m) map[b.id] = b.bow_offset_m; });
-  return map;
+// {offsetById, fleetIdById} for every boat — fetched once per race and
+// shared between finish and OCS detection. offsetById only has entries for
+// boats with a bow offset actually set (offsetToBow no-ops on a falsy
+// offset); fleetIdById always has an entry (null for unassigned boats),
+// since it's used as a lookup key below, not just an optional adjustment.
+async function fetchBoatMeta(sbUrl, anonHeaders) {
+  const rows = await fetchJson(sbUrl + '/rest/v1/boats?select=id,bow_offset_m,fleet_id', anonHeaders);
+  const offsetById = {};
+  const fleetIdById = {};
+  rows.forEach((b) => {
+    if (b.bow_offset_m) offsetById[b.id] = b.bow_offset_m;
+    fleetIdById[b.id] = b.fleet_id || null;
+  });
+  return { offsetById, fleetIdById };
 }
 
 async function processClub(slug, clubConfig) {
@@ -134,31 +146,37 @@ async function processRace(slug, sbUrl, anonHeaders, serviceHeaders, race) {
   const raceKey = raceKeyFor(race);
   const label = race.label;
 
-  // Has the start sequence actually fired? Same "most recent non-cancelled
-  // start" resolution app.js's sbLoadActiveStart() uses — race_starts has
-  // no race linkage of its own (this app only ever runs one live start
-  // sequence at a time), so this is the authoritative gun time for
-  // whichever race is actually in progress right now.
-  const starts = await fetchJson(
-    sbUrl + '/rest/v1/race_starts?status=in.(armed,postponed)&order=start_time.desc&limit=1',
+  // Every fired armed/postponed start, across every fleet — was a single
+  // limit=1 global row before fleets existed. race_starts still has no
+  // linkage to `races` itself, so which gun applies to a given boat is
+  // resolved per-boat via that boat's own fleet_id below, not per-race.
+  const allStarts = await fetchJson(
+    sbUrl + '/rest/v1/race_starts?status=in.(armed,postponed)&order=start_time.desc&select=*',
     anonHeaders,
   );
-  const startRow = starts[0];
-  if (!startRow) { console.log('[' + label + '] skip: no start sequence row at all'); return { race: label, skipped: 'no start sequence run yet' }; }
-  const startTime = new Date(startRow.start_time).getTime();
-  if (startTime > Date.now()) { console.log('[' + label + '] skip: start_time ' + startRow.start_time + ' is in the future'); return { race: label, skipped: 'armed but hasn\'t fired yet' }; }
-  console.log('[' + label + '] raceKey=' + raceKey + ' using start_time=' + startRow.start_time);
+  const now = Date.now();
+  const startsByFleet = {}; // fleet_id||'__none__' -> most recent FIRED row for that fleet
+  allStarts.forEach((s) => {
+    if (new Date(s.start_time).getTime() > now) return; // hasn't fired yet
+    const key = s.fleet_id || '__none__';
+    if (!startsByFleet[key]) startsByFleet[key] = s; // first-seen wins — already ordered start_time desc
+  });
+  if (!Object.keys(startsByFleet).length) { console.log('[' + label + '] skip: no fleet has a fired start yet'); return { race: label, skipped: 'no fleet has a fired start yet' }; }
+  console.log('[' + label + '] raceKey=' + raceKey + ' fired starts by fleet:', JSON.stringify(Object.fromEntries(Object.entries(startsByFleet).map(([k, s]) => [k, s.start_time]))));
 
   // Shared between finish and OCS detection below — both project each
-  // ping forward to the bow before any crossing/course-side check.
-  const boatOffsets = await fetchBoatOffsets(sbUrl, anonHeaders);
+  // ping forward to the bow before any crossing/course-side check, and
+  // both need to know which fleet (and therefore which start) each boat
+  // belongs to.
+  const { offsetById, fleetIdById } = await fetchBoatMeta(sbUrl, anonHeaders);
+  const resolveBoatStart = (boatId) => startsByFleet[fleetIdById[boatId] || '__none__'] || null;
 
   // Independent of finish detection below — its own course/line lookup
   // (the start line, not the finish line), its own failure mode. A bad OCS
   // geometry lookup should never take down finish detection, or vice versa.
   let ocsResult;
   try {
-    ocsResult = await processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race, raceKey, label, startRow, startTime, boatOffsets);
+    ocsResult = await processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race, raceKey, label, startsByFleet, resolveBoatStart, offsetById);
   } catch (e) {
     console.error('[' + label + '] OCS detection error:', e);
     ocsResult = { error: String(e.message || e) };
@@ -184,17 +202,26 @@ async function processRace(slug, sbUrl, anonHeaders, serviceHeaders, race) {
   );
   const doneIds = new Set(alreadyDone.map((r) => r.boat_id));
 
+  // Widened to the EARLIEST fired gun across every fleet — a safe superset
+  // fetched once; each boat's own crossing scan below is still bounded by
+  // *its own* resolved start (see the pings[i+1].t < boatStartMs guard),
+  // so this bound only avoids under-fetching, never mixes fleets' results.
+  // Collapses to exactly the old single-start bound when only one fleet
+  // (or none) exists.
+  const earliestStart = Object.values(startsByFleet)
+    .map((s) => s.start_time)
+    .reduce((min, t) => (t < min ? t : min));
   const positions = await fetchJson(
     sbUrl + '/rest/v1/race_positions?race_key=eq.' + encodeURIComponent(raceKey)
-      + '&recorded_at=gte.' + encodeURIComponent(startRow.start_time)
+      + '&recorded_at=gte.' + encodeURIComponent(earliestStart)
       + '&order=boat_id.asc,recorded_at.asc&select=boat_id,lat,lng,heading,recorded_at',
     anonHeaders,
   );
-  console.log('[' + label + '] positions since start: ' + positions.length + ', alreadyDone boats: ' + doneIds.size);
+  console.log('[' + label + '] positions since earliest fired gun: ' + positions.length + ', alreadyDone boats: ' + doneIds.size);
 
   const byBoat = {};
   positions.forEach((p) => {
-    const ping = offsetToBow({ lat: p.lat, lng: p.lng, heading: p.heading, t: new Date(p.recorded_at).getTime() }, boatOffsets[p.boat_id]);
+    const ping = offsetToBow({ lat: p.lat, lng: p.lng, heading: p.heading, t: new Date(p.recorded_at).getTime() }, offsetById[p.boat_id]);
     (byBoat[p.boat_id] = byBoat[p.boat_id] || []).push(ping);
   });
   console.log('[' + label + '] boats with pings:', JSON.stringify(Object.fromEntries(Object.entries(byBoat).map(([k, v]) => [k, v.length]))));
@@ -202,8 +229,12 @@ async function processRace(slug, sbUrl, anonHeaders, serviceHeaders, race) {
   const detected = [];
   for (const [boatId, pings] of Object.entries(byBoat)) {
     if (doneIds.has(boatId)) { console.log('[' + label + '] ' + boatId + ' already has a finish, skipping'); continue; }
+    const boatStart = resolveBoatStart(boatId);
+    if (!boatStart) { console.log('[' + label + '] ' + boatId + ': no fired start for its fleet, skipping'); continue; }
+    const boatStartMs = new Date(boatStart.start_time).getTime();
     let crossed = false;
     for (let i = 0; i < pings.length - 1; i++) {
+      if (pings[i + 1].t < boatStartMs) continue; // this ping pair is entirely before THIS boat's own gun
       const crossing = findCrossing(pings[i], pings[i + 1], line);
       if (!crossing) continue;
       crossed = true;
@@ -241,10 +272,19 @@ async function processRace(slug, sbUrl, anonHeaders, serviceHeaders, race) {
 // set — windward_leeward/triangle/trapezoid, drawn by buildLaidCourseSvg
 // as a diagram) have no real GPS mark to orient against, so those races
 // are skipped entirely: real-mark/course-card races only, for now.
-async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race, raceKey, label, startRow, startTime, boatOffsets) {
+//
+// published_courses/start_finish_lines stay club-wide shared, deliberately
+// not fleet-scoped — correct for the rolling-start format this was built
+// for (multiple fleets starting off the same physical line minutes apart),
+// not a gap.
+async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race, raceKey, label, startsByFleet, resolveBoatStart, offsetById) {
   const GUN_GRACE_MS = 30000; // need at least one ping at/after the gun to bracket it
-  if (Date.now() < startTime + GUN_GRACE_MS) {
-    console.log('[' + label + '] OCS: skip, gun was too recent to bracket yet');
+  const now = Date.now();
+  // A fleet's gun only becomes OCS-checkable once GUN_GRACE_MS has passed
+  // — filter down to fleets whose fired start is far enough in the past.
+  const readyStarts = Object.values(startsByFleet).filter((s) => now >= new Date(s.start_time).getTime() + GUN_GRACE_MS);
+  if (!readyStarts.length) {
+    console.log('[' + label + '] OCS: skip, no fleet\'s gun is far enough in the past to bracket yet');
     return { skipped: 'gun too recent' };
   }
 
@@ -272,16 +312,19 @@ async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race,
   if (!line) { console.log('[' + label + '] OCS: skip, start line "' + startLineId + '" not found'); return { skipped: 'start line not found' }; }
 
   const alreadyDetected = await fetchJson(
-    sbUrl + '/rest/v1/race_ocs?start_id=eq.' + startRow.id + '&select=boat_id',
+    sbUrl + '/rest/v1/race_ocs?start_id=in.(' + readyStarts.map((s) => s.id).join(',') + ')&select=boat_id,start_id',
     anonHeaders,
   );
-  const doneIds = new Set(alreadyDetected.map((r) => r.boat_id));
+  const doneKeys = new Set(alreadyDetected.map((r) => r.boat_id + '|' + r.start_id));
 
   // Positions bracketing the gun — no lower bound (whichever ping came
-  // right before start_time, however long ago, still brackets it fine),
-  // upper-bounded just past the gun so this doesn't pull in the whole rest
-  // of the race.
-  const gunCutoff = new Date(startTime + GUN_GRACE_MS).toISOString();
+  // right before a boat's own start_time, however long ago, still
+  // brackets it fine), upper-bounded just past the LATEST gun-ready fleet's
+  // gun, a safe superset — each boat's own bracket search below still uses
+  // its own resolved start_time. Collapses to the old single-gun cutoff
+  // when only one fleet (or none) exists.
+  const latestReadyGun = Math.max(...readyStarts.map((s) => new Date(s.start_time).getTime()));
+  const gunCutoff = new Date(latestReadyGun + GUN_GRACE_MS).toISOString();
   const positions = await fetchJson(
     sbUrl + '/rest/v1/race_positions?race_key=eq.' + encodeURIComponent(raceKey)
       + '&recorded_at=lte.' + encodeURIComponent(gunCutoff)
@@ -290,7 +333,7 @@ async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race,
   );
   const byBoat = {};
   positions.forEach((p) => {
-    const ping = offsetToBow({ lat: p.lat, lng: p.lng, heading: p.heading, t: new Date(p.recorded_at).getTime() }, boatOffsets[p.boat_id]);
+    const ping = offsetToBow({ lat: p.lat, lng: p.lng, heading: p.heading, t: new Date(p.recorded_at).getTime() }, offsetById[p.boat_id]);
     (byBoat[p.boat_id] = byBoat[p.boat_id] || []).push(ping);
   });
   console.log('[' + label + '] OCS: boats with pre-gun pings:', JSON.stringify(Object.fromEntries(Object.entries(byBoat).map(([k, v]) => [k, v.length]))));
@@ -298,14 +341,18 @@ async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race,
   const detected = [];
   let degenerateGeometry = false;
   for (const [boatId, pings] of Object.entries(byBoat)) {
-    if (doneIds.has(boatId)) continue;
     if (degenerateGeometry) break;
+    const boatStart = resolveBoatStart(boatId);
+    if (!boatStart) continue; // this boat's fleet has no fired start at all
+    if (!readyStarts.find((s) => s.id === boatStart.id)) continue; // fired, but not gun-ready yet
+    if (doneKeys.has(boatId + '|' + boatStart.id)) continue;
 
+    const startTime = new Date(boatStart.start_time).getTime();
     let bracket = null;
     for (let i = 0; i < pings.length - 1; i++) {
       if (pings[i].t <= startTime && pings[i + 1].t >= startTime) { bracket = [pings[i], pings[i + 1]]; break; }
     }
-    if (!bracket) { console.log('[' + label + '] OCS: ' + boatId + ' has no pings bracketing the gun (' + pings.length + ' pings)'); continue; }
+    if (!bracket) { console.log('[' + label + '] OCS: ' + boatId + ' has no pings bracketing its gun (' + pings.length + ' pings)'); continue; }
 
     const atGun = interpolateAtTime(bracket[0], bracket[1], startTime);
     const onCourseSide = isOnCourseSide(atGun, line, firstMark);
@@ -319,8 +366,8 @@ async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race,
     const row = {
       boat_id: boatId,
       race_key: raceKey,
-      start_id: startRow.id,
-      start_time: startRow.start_time,
+      start_id: boatStart.id,
+      start_time: boatStart.start_time,
       ocs_lat: atGun.lat,
       ocs_lng: atGun.lng,
     };
@@ -339,7 +386,7 @@ async function processOcsForRace(slug, sbUrl, anonHeaders, serviceHeaders, race,
     }
   }
 
-  return { boatsChecked: Object.keys(byBoat).length, alreadyDetected: doneIds.size, detected };
+  return { boatsChecked: Object.keys(byBoat).length, alreadyDetected: doneKeys.size, detected };
 }
 
 // Fire-and-forget from the caller's point of view (wrapped in try/catch at

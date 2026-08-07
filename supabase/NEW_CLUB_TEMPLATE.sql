@@ -197,6 +197,30 @@ CREATE POLICY "marks_delete" ON marks FOR DELETE USING (true);
 GRANT SELECT, INSERT, UPDATE, DELETE ON marks TO anon;
 
 
+-- ── fleets ──────────────────────────────────────────────────
+-- Optional per-club grouping for boats and starts (migration 051) — empty
+-- until an RO adds rows via the Fleets Manager. A club that never creates
+-- a fleet keeps its exact single-fleet, single-start behavior.
+CREATE TABLE IF NOT EXISTS fleets (
+  id         text PRIMARY KEY,
+  name       text NOT NULL,
+  colour     text NOT NULL DEFAULT '#00b4d8',
+  sort_order int NOT NULL DEFAULT 99,
+  active     boolean NOT NULL DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+ALTER TABLE fleets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fleets_select" ON fleets;
+DROP POLICY IF EXISTS "fleets_insert" ON fleets;
+DROP POLICY IF EXISTS "fleets_update" ON fleets;
+DROP POLICY IF EXISTS "fleets_delete" ON fleets;
+CREATE POLICY "fleets_select" ON fleets FOR SELECT USING (true);
+CREATE POLICY "fleets_insert" ON fleets FOR INSERT WITH CHECK (id ~ '^[a-z0-9_-]{1,60}$');
+CREATE POLICY "fleets_update" ON fleets FOR UPDATE USING (true);
+CREATE POLICY "fleets_delete" ON fleets FOR DELETE USING (true);
+GRANT SELECT, INSERT, UPDATE, DELETE ON fleets TO anon;
+
+
 -- ── race_records ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS race_records (
   id                 bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -556,12 +580,14 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON news_items TO anon;
 -- ── race_starts ──────────────────────────────────────────────
 -- Start Sequence simulator (flags/countdown, no RO on the line)
 CREATE TABLE IF NOT EXISTS race_starts (
-  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  start_time  timestamptz NOT NULL,
-  flag_system text NOT NULL DEFAULT 'P' CHECK (flag_system IN ('P','U','Black','I','Z')),
-  class_flag  text NOT NULL DEFAULT 'E' CHECK (class_flag IN ('E','0','1','2','T','W')),
-  status      text NOT NULL DEFAULT 'armed' CHECK (status IN ('armed','cancelled','postponed')),
-  created_at  timestamptz DEFAULT now()
+  id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  start_time    timestamptz NOT NULL,
+  flag_system   text NOT NULL DEFAULT 'P' CHECK (flag_system IN ('P','U','Black','I','Z')),
+  class_flag    text NOT NULL DEFAULT 'E' CHECK (class_flag IN ('E','0','1','2','T','W')),
+  status        text NOT NULL DEFAULT 'armed' CHECK (status IN ('armed','cancelled','postponed')),
+  fleet_id      text REFERENCES fleets(id) ON DELETE SET NULL, -- NULL = all fleets (migration 051)
+  sequence_mins int NOT NULL DEFAULT 5 CHECK (sequence_mins IN (3,5)), -- migration 052
+  created_at    timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS race_starts_status_idx ON race_starts(status, start_time);
 ALTER TABLE race_starts ENABLE ROW LEVEL SECURITY;
@@ -613,7 +639,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON settings TO anon;
 ALTER TABLE boats
   ADD COLUMN IF NOT EXISTS stripe_link text NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS sail_number text NOT NULL DEFAULT '',
-  ADD COLUMN IF NOT EXISTS bow_offset_m double precision NOT NULL DEFAULT 6;
+  ADD COLUMN IF NOT EXISTS bow_offset_m double precision NOT NULL DEFAULT 6,
+  ADD COLUMN IF NOT EXISTS fleet_id text REFERENCES fleets(id) ON DELETE SET NULL; -- NULL = unassigned (migration 051)
 ALTER TABLE boats DROP CONSTRAINT IF EXISTS boats_bow_offset_m_check;
 ALTER TABLE boats ADD CONSTRAINT boats_bow_offset_m_check
   CHECK (bow_offset_m >= 0 AND bow_offset_m <= 30);
@@ -890,9 +917,9 @@ GRANT EXECUTE ON FUNCTION change_admin_pin(text,text) TO anon;
 -- 040/042's REVOKE (col) ... FROM anon statements above were no-ops.
 -- ============================================================
 REVOKE SELECT, UPDATE ON boats FROM anon;
-GRANT SELECT (id, name, icon, revolut_user, created_at, stripe_link, sail_number, photo_url, whatsapp, bow_offset_m)
+GRANT SELECT (id, name, icon, revolut_user, created_at, stripe_link, sail_number, photo_url, whatsapp, bow_offset_m, fleet_id)
   ON boats TO anon;
-GRANT UPDATE (icon, sail_number, photo_url, whatsapp, bow_offset_m) ON boats TO anon;
+GRANT UPDATE (icon, sail_number, photo_url, whatsapp, bow_offset_m, fleet_id) ON boats TO anon;
 
 REVOKE SELECT, UPDATE ON settings FROM anon;
 GRANT SELECT (
@@ -975,7 +1002,9 @@ INSERT INTO schema_migrations (filename) VALUES
   ('047_ocs_detection.sql'),
   ('048_bow_offset.sql'),
   ('049_bow_offset_default.sql'),
-  ('050_settings_sponsors.sql')
+  ('050_settings_sponsors.sql'),
+  ('051_fleets.sql'),
+  ('052_race_starts_sequence_length.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.
@@ -989,6 +1018,10 @@ ON CONFLICT (filename) DO NOTHING;
 --   marks     — add via the RO Marks Manager once you have {{CLUB_SHORT}}'s
 --               real course-buoy positions, or hand me a mark list and
 --               I'll write a seed script
+--   fleets    — only needed if {{CLUB_SHORT}} races more than one fleet a
+--               night (separate starts/grouping) — add via the RO Fleets
+--               Manager; leave empty otherwise, everything behaves exactly
+--               as a single-fleet club with zero setup
 --   settings.features — left at default '{}'; {{CLUB_SHORT}}'s declaration/
 --               courseCard/feeModel flags come from CLUB_CONFIG_{{CLUB_SLUG_UPPER}}
 --               in Netlify (window.CLUB.features), not this column
