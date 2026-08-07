@@ -419,6 +419,7 @@ CREATE TABLE IF NOT EXISTS races (
   active      boolean NOT NULL DEFAULT true,
   sort_order  int     NOT NULL DEFAULT 0,
   automated   boolean NOT NULL DEFAULT false, -- run with no OD present — see race_finishes below
+  fleet_id    text REFERENCES fleets(id) ON DELETE SET NULL, -- NULL = no fleet distinction (migration 053)
   created_at  timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS races_date_idx  ON races(race_date);
@@ -1004,7 +1005,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('049_bow_offset_default.sql'),
   ('050_settings_sponsors.sql'),
   ('051_fleets.sql'),
-  ('052_race_starts_sequence_length.sql')
+  ('052_race_starts_sequence_length.sql'),
+  ('053_races_fleet.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.

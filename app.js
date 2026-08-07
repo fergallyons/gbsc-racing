@@ -343,6 +343,34 @@ async function sbRegisterBoat(boatId,race){
     return false;
   }
 }
+// Some clubs have no "sign up for tonight" culture at all — every boat
+// that exists is assumed to be racing. Rather than leaving those clubs
+// with an empty Starting Line / no boats available to record a finish for
+// until someone manually registers each one, this silently ensures every
+// boat has a registrations row for the upcoming race whenever the app
+// resolves one. ignore-duplicates (not merge, like sbRegisterBoat above)
+// deliberately — this must never disturb a registration that's already
+// there for any reason (a real sign-up, looking_for_crew set, etc.), only
+// fill in the ones missing. Opt-in per club (FEAT.autoRegister, off by
+// default) — a no-op for every club that uses explicit registration.
+async function autoRegisterAllBoats(race){
+  if(!FEAT.autoRegister||!race||!boats.length) return;
+  // A fleet-tagged race only auto-registers that fleet's own boats — a
+  // Cruisers boat has no business being registered for tonight's Ruffian
+  // race just because it's chronologically "the next race." A race with
+  // no fleet set (most clubs, always) still registers every boat, exactly
+  // as before fleets existed.
+  const eligible=race.fleetId?boats.filter(b=>b.fleetId===race.fleetId):boats;
+  if(!eligible.length) return;
+  const key=raceKey(race);
+  const rows=eligible.map(b=>({boat_id:b.id,race_key:key,race_name:race.label,race_date:race.date.toISOString().split('T')[0]}));
+  const r=await sbFetch('/rest/v1/registrations?on_conflict=boat_id,race_key',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'resolution=ignore-duplicates,return=minimal'},
+    body:JSON.stringify(rows)
+  });
+  if(r&&r._err) console.error('autoRegisterAllBoats failed',r._err);
+}
 async function sbToggleLookingForCrew(boatId,race,value){
   const key=raceKey(race);
   try{
@@ -584,9 +612,10 @@ const CY=new Date().getFullYear();
 // Sourced from window.CLUB.features; safe defaults preserve existing GBSC behaviour.
 // Behaviour flags — env var sets the initial value; DB overrides via applyAllFeatureVisibility().
 const FEAT={
-  feeModel:    (_C.features&&_C.features.feeModel)||'per-race',  // 'per-race' | 'per-series'
-  declaration: !!(_C.features&&_C.features.declaration),         // true = skipper declaration gate
-  courseCard:  !!(_C.features&&_C.features.courseCard),          // true = RO course card picker
+  feeModel:     (_C.features&&_C.features.feeModel)||'per-race',  // 'per-race' | 'per-series'
+  declaration:  !!(_C.features&&_C.features.declaration),         // true = skipper declaration gate
+  courseCard:   !!(_C.features&&_C.features.courseCard),          // true = RO course card picker
+  autoRegister: !!(_C.features&&_C.features.autoRegister),        // true = every boat auto-registers for the next race, no sign-up needed
 };
 
 // Map from feature key → tile element IDs that applyAllFeatureVisibility() shows/hides.
@@ -638,14 +667,16 @@ const FEAT_DEFAULTS={
   raceSchedule:true, startSequence:true, finishRecording:true,
   raceTracker:false, // experimental — off by default, RO opts the club in first (Features panel)
   courseCard:false,
+  autoRegister:false, // opt-in — most clubs use explicit registration and must stay unaffected
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
   crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
 };
 // Feature catalog for the admin panel UI (rendered by renderFeaturesPanel).
 const FEAT_CATALOG=[
-  {key:'feeModel',    label:'Fee Model',               type:'select', options:['per-race','per-series'], group:'Behaviour'},
-  {key:'declaration', label:'Skipper Declaration Gate', type:'bool',                                     group:'Behaviour'},
+  {key:'feeModel',     label:'Fee Model',               type:'select', options:['per-race','per-series'], group:'Behaviour'},
+  {key:'declaration',  label:'Skipper Declaration Gate', type:'bool',                                     group:'Behaviour'},
+  {key:'autoRegister', label:'Auto-Register All Boats — no sign-up, every boat is assumed racing', type:'bool', group:'Behaviour'},
   {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
   {key:'courseCard',     label:'Course Card Picker',    type:'bool', group:'RO Tiles'},
   {key:'registrations',  label:'Registrations',         type:'bool', group:'RO Tiles'},
@@ -704,6 +735,7 @@ function liftVeil(){
     if(f.feeModel!==undefined) FEAT.feeModel=f.feeModel;
     if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
     if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
+    if(f.autoRegister!==undefined) FEAT.autoRegister=!!f.autoRegister;
   }catch(e){}
   liftVeil();
 })();
@@ -749,7 +781,7 @@ async function loadRaceSchedule(){
     d.setHours(r.start_hour||19, r.start_min||0, 0, 0);
     return {id:r.id, label:r.label, date:d, series:r.series||'',
       protestDeadline: r.protest_deadline?new Date(r.protest_deadline):null,
-      automated: !!r.automated};
+      automated: !!r.automated, fleetId: r.fleet_id||null};
   });
   nextRace=getNextRace();
 }
@@ -986,6 +1018,8 @@ async function buildBoatGrid(){
 
   // Cache to localStorage for offline fallback
   saveCustom(boats);
+
+  await autoRegisterAllBoats(nextRace); // no-op unless FEAT.autoRegister is on for this club
 
   renderBoatGrid();
   renderRegisteredTab(); // boats now loaded — starting line will resolve correctly
@@ -3314,6 +3348,7 @@ function applyAllFeatureVisibility(){
   if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
   if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
   else FEAT.courseCard=(FEAT_DEFAULTS.courseCard===true);
+  if(f.autoRegister!==undefined) FEAT.autoRegister=!!f.autoRegister;
   const feeLabel=document.getElementById('dc-fees-label');
   if(feeLabel) feeLabel.textContent=FEAT.feeModel==='per-series'?'Series Fees':'Fees';
   updateSectionVisibility('sk','payments');
@@ -3975,9 +4010,10 @@ async function renderRaceScheduleList(){
       const hh=String(r.start_hour||19).padStart(2,'0');
       const mm=String(r.start_min||0).padStart(2,'0');
       const cancelled=!r.active;
+      const fleetName=r.fleet_id&&fleets.find(f=>f.id===r.fleet_id)?.name;
       html+=`<div class="race-mgmt-row${cancelled?' cancelled':''}" data-id="${r.id}">
         <div class="race-mgmt-info">
-          <div class="race-mgmt-label">${r.automated?'🤖 ':''}${r.label}</div>
+          <div class="race-mgmt-label">${r.automated?'🤖 ':''}${fleetName?'🚩 '+escHtml(fleetName)+' — ':''}${r.label}</div>
           <div class="race-mgmt-date">${dateStr} · ${hh}:${mm}</div>
         </div>
         <div class="race-mgmt-actions">
@@ -4002,6 +4038,19 @@ async function toggleRaceCancelled(id,currentlyActive){
   await loadRaceSchedule(); // keep in-memory schedule in sync
 }
 
+// Populates the Fleet select from activeFleets() and shows/hides its whole
+// wrapper — hidden entirely for clubs with no fleets, same gating pattern
+// as the fleet selector on the Start Sequence panel.
+function renderRfFleetOptions(selectedId){
+  const group=document.getElementById('rf-fleet-group');
+  const sel=document.getElementById('rf-fleet');
+  const active=activeFleets();
+  if(!active.length){ group.style.display='none'; return; }
+  group.style.display='block';
+  sel.innerHTML='<option value="">— None / all fleets —</option>'+
+    active.map(f=>`<option value="${f.id}"${f.id===selectedId?' selected':''}>${escHtml(f.name)}</option>`).join('');
+}
+
 function openAddRaceForm(){
   const form=document.getElementById('roRaceForm');
   document.getElementById('roRaceFormTitle').textContent='Add Race';
@@ -4009,6 +4058,7 @@ function openAddRaceForm(){
   document.getElementById('rf-label').value='';
   document.getElementById('rf-date').value='';
   document.getElementById('rf-time').value='19:00';
+  renderRfFleetOptions(null);
   document.getElementById('rf-series').value='';
   document.getElementById('rf-sort').value='99';
   document.getElementById('rf-protest-deadline').value='';
@@ -4029,6 +4079,7 @@ async function openEditRaceForm(id){
   const hh=String(r.start_hour||19).padStart(2,'0');
   const mm=String(r.start_min||0).padStart(2,'0');
   document.getElementById('rf-time').value=hh+':'+mm;
+  renderRfFleetOptions(r.fleet_id||null);
   document.getElementById('rf-series').value=r.series||'';
   document.getElementById('rf-sort').value=r.sort_order||0;
   document.getElementById('rf-protest-deadline').value=r.protest_deadline
@@ -4053,9 +4104,11 @@ async function saveRace(){
   const sort=parseInt(document.getElementById('rf-sort').value,10)||0;
   const deadlineTime=document.getElementById('rf-protest-deadline').value;
   const automated=!!document.getElementById('rf-automated')?.checked;
+  const fleetEl=document.getElementById('rf-fleet');
+  const fleetId=(fleetEl&&fleetEl.value)||null;
   if(!label||!date){alert('Race name and date are required');return;}
   const payload={label,race_date:date,start_hour:parseInt(hourStr,10),
-    start_min:parseInt(minStr,10),series,sort_order:sort,automated,
+    start_min:parseInt(minStr,10),series,sort_order:sort,automated,fleet_id:fleetId,
     // Combined with race_date since the input is just a clock time — RO
     // leaves this blank to fall back to RRS 60.3's default (2h after the
     // last boat finishes), which the app can't compute locally (finishes
@@ -12360,6 +12413,13 @@ function acceptAllAutoFinishes(){
   if(n){ _saveFinishRecords(); renderFinishRecordList(); toast('✓ Accepted '+n+' detected finish'+(n===1?'':'es')); }
 }
 
+// Compact single-line card: tap the name/time area to record a finish (or
+// undo one), the status dropdown replaces what used to be 5 separate
+// OCS/RET/DNF/DSQ/DNS buttons — same statuses, one control instead of a
+// whole row, so meaningfully more boats fit on screen at once. Grouped by
+// fleet (reusing groupBoatsByFleet(), same helper/subheading style as
+// Starting Line and Boat Management) only once a club actually has
+// fleets — a flat list, unchanged, for every club that doesn't.
 function renderFinishRecordList(){
   const list=document.getElementById('finishRecordList'); if(!list) return;
   if(!_finishRecordBoats.length){
@@ -12370,24 +12430,37 @@ function renderFinishRecordList(){
     const rec=_finishRecords[b.id]||{time:null,status:''};
     const done=!!(rec.time||rec.status);
     const pendingAuto=!done&&_autoFinishes[b.id]; // detected, not yet reviewed
-    const statusBtns=FINISH_STATUSES.map(s=>
-      `<button onclick="setFinishStatus('${b.id}','${s}')" style="flex:1;padding:9px 0;border-radius:7px;border:1px solid ${rec.status===s?'var(--danger)':'var(--border)'};background:${rec.status===s?'rgba(230,57,70,.18)':'transparent'};color:${rec.status===s?'#e63946':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;cursor:pointer">${s}</button>`
-    ).join('');
     const borderColour=done?'var(--success)':(pendingAuto?'var(--teal)':'var(--border)');
     const timeColour=rec.time?'var(--success)':(pendingAuto?'var(--teal)':'var(--muted)');
-    const timeText=rec.time?((rec.auto?'🤖 ':'✓ ')+rec.time):(pendingAuto?('🤖 '+_autoFinishes[b.id]+' — tap to confirm'):(rec.status?'—':'Tap to finish'));
-    return `<div style="background:var(--card);border:1px solid ${borderColour};border-radius:12px;padding:12px 14px;margin-bottom:10px">
-      <div onclick="recordFinish('${b.id}')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:4px 0;gap:10px">
+    const timeText=rec.time?((rec.auto?'🤖 ':'✓ ')+rec.time):(pendingAuto?('🤖 '+_autoFinishes[b.id]):(rec.status?rec.status:'Tap to finish'));
+    const statusOpts=FINISH_STATUSES.map(s=>`<option value="${s}"${rec.status===s?' selected':''}>${s}</option>`).join('');
+    return `<div style="background:var(--card);border:1px solid ${borderColour};border-radius:10px;padding:8px 10px;margin-bottom:6px;display:flex;align-items:center;gap:8px">
+      <div onclick="recordFinish('${b.id}')" style="flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:8px">
         <div style="min-width:0">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.2rem;color:var(--white)">${escHtml(b.name)}</div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.2rem;color:${b.sailNumber?'var(--gold)':'var(--muted)'}">${escHtml(b.sailNumber||'No sail number set')}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1rem;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(b.name)}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;color:${b.sailNumber?'var(--gold)':'var(--muted)'}">${escHtml(b.sailNumber||'No sail no.')}</div>
         </div>
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:${pendingAuto&&!rec.time?'1.05rem':'1.5rem'};font-weight:800;color:${timeColour};flex-shrink:0;text-align:right">
-          ${timeText}
-        </div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:${pendingAuto&&!rec.time?'.85rem':'1.1rem'};font-weight:800;color:${timeColour};flex-shrink:0;text-align:right;white-space:nowrap">${timeText}</div>
       </div>
-      <div style="display:flex;gap:6px;margin-top:10px">${statusBtns}</div>
+      <select onclick="event.stopPropagation()" onchange="setFinishStatus('${b.id}',this.value)" title="Non-finish status (OCS/RET/DNF/DSQ/DNS)"
+        style="flex-shrink:0;width:58px;background:var(--navy-input);border:1px solid ${rec.status?'var(--danger)':'var(--border)'};border-radius:6px;color:${rec.status?'#e63946':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 2px;text-align:center;cursor:pointer">
+        <option value=""${rec.status?'':' selected'}>—</option>
+        ${statusOpts}
+      </select>
     </div>`;
+  };
+  const sectionHtml=(boatList,heading)=>{
+    if(!boatList.length) return '';
+    let html=heading?`<div style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:14px 0 8px">${heading}</div>`:'';
+    if(!activeFleets().length){
+      html+=boatList.map(rowHtml).join('');
+    } else {
+      html+=groupBoatsByFleet(boatList).map(g=>
+        `<div style="font-size:.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin:8px 0 4px">${escHtml(g.name)} (${g.boats.length})</div>`+
+        g.boats.map(rowHtml).join('')
+      ).join('');
+    }
+    return html;
   };
   const finished=_finishRecordBoats.filter(b=>_finishRecords[b.id]&&_finishRecords[b.id].time);
   const nonFinishers=_finishRecordBoats.filter(b=>_finishRecords[b.id]&&_finishRecords[b.id].status);
@@ -12395,9 +12468,9 @@ function renderFinishRecordList(){
   const pendingCount=remaining.filter(b=>_autoFinishes[b.id]).length;
   let html='';
   if(pendingCount>1) html+=`<button onclick="acceptAllAutoFinishes()" style="width:100%;padding:10px;margin-bottom:12px;background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.35);border-radius:10px;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer">🤖 Accept all ${pendingCount} detected finishes</button>`;
-  if(remaining.length) html+=remaining.map(rowHtml).join('');
-  if(finished.length) html+=`<div style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:16px 0 10px">Finished (${finished.length})</div>`+finished.map(rowHtml).join('');
-  if(nonFinishers.length) html+=`<div style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:16px 0 10px">Not Finishing (${nonFinishers.length})</div>`+nonFinishers.map(rowHtml).join('');
+  html+=sectionHtml(remaining,'');
+  html+=sectionHtml(finished,`Finished (${finished.length})`);
+  html+=sectionHtml(nonFinishers,`Not Finishing (${nonFinishers.length})`);
   list.innerHTML=html;
   updateFinishRecordTile();
 }
@@ -12421,7 +12494,9 @@ function recordFinish(boatId){
 
 function setFinishStatus(boatId,status){
   const rec=_finishRecords[boatId]; if(!rec) return;
-  rec.status=(rec.status===status)?'':status; // tap the active status again to clear it
+  // Dropdown always sets explicitly (no toggle semantics needed, unlike
+  // the old button row) — the "—" option (empty value) clears it.
+  rec.status=status;
   if(rec.status) rec.time=null; // status supersedes a recorded time
   _saveFinishRecords();
   renderFinishRecordList();
