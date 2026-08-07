@@ -166,7 +166,16 @@ async function sbFetch(path,opts={}){
 // migration 045, anon only has column-level (not table-level) SELECT on
 // these tables, and Postgres's bare `select=*` default fails outright (401)
 // rather than gracefully narrowing to the permitted columns.
-const BOATS_SELECT='id,name,icon,revolut_user,created_at,stripe_link,sail_number,photo_url,whatsapp,bow_offset_m,fleet_id';
+// fleet_id is deliberately NOT in this base list — it only exists once
+// migration 051 is applied, and unlike every other column here, its
+// absence is common right now (checked live, 2026-08: RCYC/HYC/IS all
+// predate it). Selecting a column PostgREST doesn't recognize fails the
+// ENTIRE query (HTTP 400), not just that field — this broke the whole
+// boat grid outright on those 3 clubs the moment fleet_id was added here.
+// boatsSelect() below appends it only once SCHEMA_HAS_FLEETS (checked
+// against schema_migrations at boot) confirms the column is actually there.
+const BOATS_SELECT='id,name,icon,revolut_user,created_at,stripe_link,sail_number,photo_url,whatsapp,bow_offset_m';
+function boatsSelect(){ return SCHEMA_HAS_FLEETS?BOATS_SELECT+',fleet_id':BOATS_SELECT; }
 const SETTINGS_SELECT='id,stripe_link_member,stripe_link_student,stripe_link_visitor,'
   +'pre_race_window_hours,worldtides_key,ro_revolut_user,results_published_race_key,'
   +'updated_at,features,estella_url,logo_url,favicon_url,primary_color,ro_color,'
@@ -747,6 +756,29 @@ const DECL_DOCS=Object.assign(
 );
 
 let boats=[], fleets=[], currentBoat=null, isRO=false, isGuest=false, currentSessionId=null;
+
+// Whether THIS club's DB actually has migrations 051/052/053 applied yet —
+// checked once on boot so write payloads can omit a column PostgREST
+// doesn't recognize instead of a request failing outright (PGRST204
+// "column not found"). activeFleets().length>0 is NOT a safe proxy for
+// this: a club can have 051 applied with zero fleets configured (every
+// no-fleet club that's current on migrations, e.g. GBSC) — that's exactly
+// as unconfigured-looking as a club that hasn't run 051 at all, but the
+// first needs fleet_id:null actually sent (harmless, correct) while the
+// second needs the key omitted entirely (or the request 400s). Real,
+// live bug found 2026-08-xx: saveRace()/roArmStart() sent fleet_id/
+// sequence_mins unconditionally the moment this code shipped, before
+// RCYC/HYC/IS had caught up on the migration — confirmed live against
+// RCYC's actual un-migrated races table before this fix.
+let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLEET=false;
+async function checkFleetSchemaCapabilities(){
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql)&select=filename');
+  if(!Array.isArray(rows)) return;
+  const names=new Set(rows.map(r=>r.filename));
+  SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
+  SCHEMA_HAS_SEQUENCE_MINS=names.has('052_race_starts_sequence_length.sql');
+  SCHEMA_HAS_RACE_FLEET=names.has('053_races_fleet.sql');
+}
 let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225, forecastWindDeg=null;
@@ -993,16 +1025,31 @@ async function buildBoatGrid(){
   // the Fleets Manager (see FLEETS MANAGER section) — most clubs will
   // never populate this, which is the whole point: everything gated on
   // fleets.length stays a no-op for them.
+  //
+  // checkFleetSchemaCapabilities() must resolve BEFORE the boats query
+  // below, though — its result decides whether fleet_id is even safe to
+  // put in that query's select list (selecting a column PostgREST doesn't
+  // recognize fails the WHOLE request, not just that field). This is not
+  // hypothetical: confirmed live 2026-08 that RCYC/HYC/IS (pre-051) had
+  // their entire boat grid — the login screen — broken outright by an
+  // earlier version of this code that assumed the column always existed.
+  // schema_migrations itself predates every club by a wide margin, so this
+  // check is always safe to run first.
+  await checkFleetSchemaCapabilities();
+
   const [sbBoats,sbFleets]=await Promise.all([
     // Load all boats from Supabase — explicit select is required, not just
     // tidy: since migration 045, anon only has column-level (not table-level)
     // SELECT on boats, and Postgres's bare `select=*` default fails outright
     // rather than gracefully narrowing to the permitted columns.
-    sbFetch('/rest/v1/boats?order=name.asc&select='+BOATS_SELECT),
+    sbFetch('/rest/v1/boats?order=name.asc&select='+boatsSelect()),
     // All rows, active or not — the Fleets Manager needs to see disabled
     // fleets too (to re-enable them); every other use of this array goes
-    // through activeFleets() to filter them back out.
-    sbFetch('/rest/v1/fleets?order=sort_order.asc,name.asc&select=id,name,colour,sort_order,active')
+    // through activeFleets() to filter them back out. Skipped entirely
+    // pre-051 — the table doesn't exist yet, no point asking.
+    SCHEMA_HAS_FLEETS
+      ? sbFetch('/rest/v1/fleets?order=sort_order.asc,name.asc&select=id,name,colour,sort_order,active')
+      : Promise.resolve([])
   ]);
   if(Array.isArray(sbFleets)) fleets=sbFleets.map(f=>({id:f.id,name:f.name,colour:f.colour||'#00b4d8',sortOrder:f.sort_order,active:f.active!==false}));
   if(sbBoats&&sbBoats.length){
@@ -4104,23 +4151,27 @@ async function saveRace(){
   const sort=parseInt(document.getElementById('rf-sort').value,10)||0;
   const deadlineTime=document.getElementById('rf-protest-deadline').value;
   const automated=!!document.getElementById('rf-automated')?.checked;
-  const fleetEl=document.getElementById('rf-fleet');
-  const fleetId=(fleetEl&&fleetEl.value)||null;
   if(!label||!date){alert('Race name and date are required');return;}
   const payload={label,race_date:date,start_hour:parseInt(hourStr,10),
-    start_min:parseInt(minStr,10),series,sort_order:sort,automated,fleet_id:fleetId,
+    start_min:parseInt(minStr,10),series,sort_order:sort,automated,
     // Combined with race_date since the input is just a clock time — RO
     // leaves this blank to fall back to RRS 60.3's default (2h after the
     // last boat finishes), which the app can't compute locally (finishes
     // are typically recorded downstream in HalSail, not stored here).
     protest_deadline: deadlineTime?new Date(date+'T'+deadlineTime).toISOString():null};
-  if(id){
-    await sbFetch('/rest/v1/races?id=eq.'+id,{
-      method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(payload)});
-  } else {
-    await sbFetch('/rest/v1/races',{
-      method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(payload)});
+  // Only send fleet_id once this club's DB actually has the column
+  // (migration 053) — sending it regardless breaks Add/Edit Race outright
+  // (PGRST204 "column not found") on any club that hasn't applied it yet.
+  if(SCHEMA_HAS_RACE_FLEET){
+    const fleetEl=document.getElementById('rf-fleet');
+    payload.fleet_id=(fleetEl&&fleetEl.value)||null;
   }
+  const r=id
+    ? await sbFetch('/rest/v1/races?id=eq.'+id,{
+        method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(payload)})
+    : await sbFetch('/rest/v1/races',{
+        method:'POST',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(payload)});
+  if(r&&r._err){ toast('⚠ Could not save race — '+r._err.slice(0,80)); return; }
   hideRaceForm();
   await renderRaceScheduleList();
   await loadRaceSchedule();
@@ -4360,7 +4411,7 @@ async function downloadDatabaseBackup(){
       // Backup intentionally uses the same anon-readable allowlist as the
       // rest of the app, not a raw dump — pin/pin_hash/ro_pin/admin_pin_hash
       // were never meant to be in a downloadable file anyway.
-      sbFetch('/rest/v1/boats?order=name.asc&select='+BOATS_SELECT),
+      sbFetch('/rest/v1/boats?order=name.asc&select='+boatsSelect()),
       sbFetch('/rest/v1/settings?select='+SETTINGS_SELECT),
       sbFetch('/rest/v1/crew?order=boat_id.asc,last.asc'),
       sbFetch('/rest/v1/registrations?order=race_date.desc'),
@@ -10887,7 +10938,11 @@ async function sbArmStart(fields){
 // there's only ever one pending row possible for them, so this is
 // equivalent to the old blanket cancel in every observable way.
 async function sbCancelArmedStartsForFleet(fleetId){
-  const fleetQ=fleetId?'&fleet_id=eq.'+encodeURIComponent(fleetId):'&fleet_id=is.null';
+  // Pre-051, race_starts has no fleet_id column at all — filtering on it
+  // fails the whole request (not just a no-op), so omit the filter
+  // entirely rather than send fleet_id=is.null. That correctly falls back
+  // to the exact old global behavior: cancel any pending row, unscoped.
+  const fleetQ=SCHEMA_HAS_FLEETS?(fleetId?'&fleet_id=eq.'+encodeURIComponent(fleetId):'&fleet_id=is.null'):'';
   return sbFetch('/rest/v1/race_starts?status=in.(armed,postponed)'+fleetQ+'&start_time=gt.'+encodeURIComponent(new Date().toISOString()),{method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify({status:'cancelled'})});
@@ -10910,7 +10965,9 @@ async function sbLoadActiveStart(){
 // null-fleet bucket) — used to resolve "my fleet's" start instead of
 // whichever fleet happened to arm most recently club-wide.
 async function sbLoadActiveStartForFleet(fleetId){
-  const fleetQ=fleetId?'&fleet_id=eq.'+encodeURIComponent(fleetId):'&fleet_id=is.null';
+  // Same pre-051 fallback as sbCancelArmedStartsForFleet() above — omit
+  // the filter entirely rather than reference a column that isn't there.
+  const fleetQ=SCHEMA_HAS_FLEETS?(fleetId?'&fleet_id=eq.'+encodeURIComponent(fleetId):'&fleet_id=is.null'):'';
   const r=await sbFetch('/rest/v1/race_starts?status=in.(armed,postponed)'+fleetQ+'&order=start_time.desc&limit=1');
   return (r&&!r._err&&r.length)?r[0]:null;
 }
@@ -11092,14 +11149,20 @@ async function roArmStart(){
   if(startTime.getTime()<Date.now()-300000){toast('That time has already passed');return;}
 
   await sbCancelArmedStartsForFleet(_roStartFleet);
-  const r=await sbArmStart({
+  const fields={
     start_time:startTime.toISOString(),
     flag_system:_roStartFlagSystem,
     class_flag:_roStartClassFlag,
-    fleet_id:_roStartFleet,
-    sequence_mins:_roStartSequenceMins,
     status:'armed'
-  });
+  };
+  // Each only sent once its own migration has actually landed here —
+  // race_starts.fleet_id (051) and .sequence_mins (052) are separate
+  // ALTER TABLEs, so a club can be current on one and not the other.
+  // Sending either against a DB that lacks the column fails the whole
+  // arm-start request (PGRST204), not just that field.
+  if(SCHEMA_HAS_FLEETS) fields.fleet_id=_roStartFleet;
+  if(SCHEMA_HAS_SEQUENCE_MINS) fields.sequence_mins=_roStartSequenceMins;
+  const r=await sbArmStart(fields);
   if(r&&r._err){toast('⚠ Could not arm start — '+r._err.slice(0,60));return;}
   toast('🚦 Start sequence armed for '+startTime.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}));
   await renderRoStartsLog();
