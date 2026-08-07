@@ -1,4 +1,4 @@
-const CACHE = 'gbsc-racing-v8'; // bumped 2026-07-23 to force-purge any cache holding pre-club-branding-fix content
+const CACHE = 'gbsc-racing-v9'; // bumped 2026-08-07 to force-purge any cache holding pre-race-days/areas/sail-number content
 const STATIC = ['/', '/index.html', '/app.js', '/style.css', '/favicon.svg', '/manifest.json'];
 
 // Install — cache static assets
