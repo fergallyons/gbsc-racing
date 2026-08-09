@@ -3553,7 +3553,21 @@ function applyAllFeatureVisibility(){
       if(el) el.style.display=on?'':'none';
     });
   });
+  // Every FEAT.* behavior flag set here must have an else-reset to its
+  // default, not just a set-when-present branch — applyLocalFeatures()
+  // (above) pre-populates FEAT from localStorage's '__features__' cache
+  // BEFORE this function ever runs, and that cache is NOT club-scoped
+  // (every club shares one origin, racing.gbsc.ie, differentiated only by
+  // ?club= — the same browser testing two clubs shares one localStorage).
+  // A flag left ON by a previous club's session with no reset here stays
+  // wrongly ON for this club forever, even though its own DB features
+  // column never set it. Real, live bug found 2026-08-09: GBSC picked up
+  // autoRegister=true this way from cross-club localStorage bleed while
+  // its own settings.features has no autoRegister key at all — courseCard
+  // already had this exact fix (from an earlier, unrecorded instance of
+  // the same bug); feeModel/declaration/autoRegister did not.
   if(f.feeModel!==undefined) FEAT.feeModel=f.feeModel;
+  else FEAT.feeModel='per-race'; // FEAT_DEFAULTS has no feeModel entry — this IS the default
   // Fee summary in crew panel is irrelevant when billing is per-series
   const crewTotals=document.getElementById('crewTotalsPanel');
   if(crewTotals) crewTotals.style.display=FEAT.feeModel==='per-series'?'none':'';
@@ -3564,9 +3578,11 @@ function applyAllFeatureVisibility(){
   const roOutstanding=document.getElementById('tile-ro-outstanding');
   if(roOutstanding) roOutstanding.style.display=FEAT.feeModel==='per-series'?'none':'';
   if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
+  else FEAT.declaration=false; // not in FEAT_DEFAULTS (that's tile-visibility only) — matches FEAT's own initial value above
   if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
   else FEAT.courseCard=(FEAT_DEFAULTS.courseCard===true);
   if(f.autoRegister!==undefined) FEAT.autoRegister=!!f.autoRegister;
+  else FEAT.autoRegister=(FEAT_DEFAULTS.autoRegister===true);
   const feeLabel=document.getElementById('dc-fees-label');
   if(feeLabel) feeLabel.textContent=FEAT.feeModel==='per-series'?'Series Fees':'Fees';
   updateSectionVisibility('sk','payments');
