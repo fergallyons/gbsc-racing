@@ -1128,6 +1128,16 @@
     <span class="panel-title">🗺 Course Builder</span>
   </div>
   <div class="panel-body">
+    <!-- Only shown once a club has per-race courses (migration 057) AND
+         more than one race to choose from — hidden entirely otherwise, so
+         a single-fleet club sees zero change. Picking a race here scopes
+         every Draft/Publish action below to that race's own course. -->
+    <div class="ro-row" id="roCourseRaceRow" style="display:none;margin-bottom:14px">
+      <label>Race</label>
+      <select id="roCourseRaceSelect" onchange="onRoCourseRaceSelect(this)"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+      </select>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <button type="button" class="pr-type-btn active" id="courseModeMarksBtn" onclick="setCourseMode('marks')" style="flex:1">📍 Marks-Based</button>
       <button type="button" class="pr-type-btn" id="courseModeLaidBtn" onclick="setCourseMode('laid')" style="flex:1">🌊 Laid Course</button>

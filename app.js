@@ -424,6 +424,19 @@ async function sbLoadRegistrations(race){
     const t=await r.text(); return t?JSON.parse(t):[];
   }catch(e){ return []; }
 }
+// Per-race courses (057) — the boat_ids of everyone registered for `race`,
+// used to scope a course-change push to just that race's boats instead of
+// broadcasting club-wide. Best-effort: an empty/failed lookup just means
+// notifyPush() gets an empty boatIds array, which send-push.js already
+// treats as "fall through to unscoped broadcast" rather than notifying
+// nobody — see course_updated's TARGET_ROLES entry.
+async function _pushCourseUpdateBoatIds(race){
+  if(!race) return [];
+  try{
+    const regs=await sbLoadRegistrations(race);
+    return (regs||[]).map(r=>r.boat_id).filter(Boolean);
+  }catch(e){ return []; }
+}
 async function sbSaveCourse(course){
   // marks is [{id,rounding}] — must be sent as jsonb
   const payload={
@@ -444,6 +457,10 @@ async function sbSaveCourse(course){
     course_type: course.courseType||null,
     laps: course.laps||null
   };
+  // Only sent once this club's DB has the column (migration 057) — sending
+  // it regardless would 400 the whole save on any club that hasn't applied
+  // it yet, same reasoning as every other SCHEMA_HAS_* gate.
+  if(SCHEMA_HAS_PER_RACE_COURSES) payload.race_id=course.raceId||null;
   try{
     const r=await fetch(SB_URL+'/rest/v1/published_courses',{
       method:'POST',
@@ -463,11 +480,11 @@ async function sbSaveCourse(course){
     return false;
   }
 }
-async function sbLoadCourse(){
-  const r=await sbFetch('/rest/v1/published_courses?id=eq.current&limit=1');
-  if(!r||!r.length) return null;
-  const row=r[0];
-  // Normalise: marks may come back as a jsonb array or a JSON string
+// Normalise a raw published_courses row into the shape the rest of the
+// app expects (marks/rounds may come back as a jsonb array or a JSON
+// string) — extracted so sbLoadCourse() and sbLoadCourseForRace() share
+// one implementation instead of drifting apart.
+function _normalizeCourseRow(row){
   let marks=row.marks||[];
   if(typeof marks==='string'){try{marks=JSON.parse(marks);}catch(e){marks=[];}}
   let rounds=row.rounds||null;
@@ -488,6 +505,20 @@ async function sbLoadCourse(){
     courseType: row.course_type||null,
     laps: row.laps||null
   };
+}
+async function sbLoadCourse(){
+  const r=await sbFetch('/rest/v1/published_courses?id=eq.current&limit=1');
+  return (r&&r.length)?_normalizeCourseRow(r[0]):null;
+}
+// Per-race courses (057) — loads the specific race's own published course
+// ('race_<id>') instead of the club-wide 'current' singleton. Falls back
+// to sbLoadCourse() whenever the flag's off or there's no race to scope
+// by, so this is a pure additive capability, never a behavior change for
+// anything that doesn't call it.
+async function sbLoadCourseForRace(race){
+  if(!SCHEMA_HAS_PER_RACE_COURSES||!race) return sbLoadCourse();
+  const r=await sbFetch('/rest/v1/published_courses?id=eq.'+encodeURIComponent('race_'+race.id)+'&limit=1');
+  return (r&&r.length)?_normalizeCourseRow(r[0]):null;
 }
 
 // ── Skipper declarations (RCYC feature) ──────────────────────────────────────
@@ -787,9 +818,10 @@ let boats=[], fleets=[], raceAreas=[], currentBoat=null, isRO=false, isGuest=fal
 // column added since (race_days, race_areas, requires_sail_number,
 // registrations.sail_number) gets the exact same treatment from the start.
 let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLEET=false,
-    SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false;
+    SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false,
+    SCHEMA_HAS_PER_RACE_COURSES=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -798,6 +830,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_RACE_DAYS=names.has('054_race_days.sql');
   SCHEMA_HAS_RACE_AREAS=names.has('055_race_areas.sql');
   SCHEMA_HAS_SAIL_NUMBER_REQ=names.has('056_registration_sail_number.sql');
+  SCHEMA_HAS_PER_RACE_COURSES=names.has('057_published_courses_per_race.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -809,6 +842,15 @@ let editingId=null, pnId=null, pnMethod=null;
 let windDeg=225, forecastWindDeg=null;
 let courseMarks=[];
 let publishedCourse=null;
+// Per-race courses (migration 057) — _roCourseRace is which race the RO is
+// currently building/publishing a course FOR (RO-side only; deliberately
+// not selectedRace, which is always null for RO sessions — see saveDraft()/
+// publishCourse()). myResolvedRace is the boat-side counterpart: which race
+// loadAndDrawCourseForBoat() resolved the currently-displayed course to.
+// Both stay null (and everything behaves exactly as today) on any club/
+// session that hasn't applied 057 or has no fleet-tagged races.
+let _roCourseRace=null;
+let myResolvedRace=null;
 let selectedStartLineId='club';   // id from LINES[]
 let selectedFinishLineId='club';  // can differ for destination-finish races
 // Laid Course — RO picks a course SHAPE instead of fixed marks, for races
@@ -989,6 +1031,27 @@ function getNextRace(){
   const next=allRaces.find(r=>r.date>now);
   if(next) return next;
   return allRaces[allRaces.length-1];
+}
+// Fleet-scoped sibling of getNextRace() — deliberately NOT a refactor of
+// it (getNextRace() has ~14 existing zero-argument call sites; changing
+// its signature risks all of them). Duplicates its exact 4-tier
+// date-window logic against a fleet-pre-filtered race list instead.
+// A race with no fleet tag is visible to every boat (matches today's
+// implicit single-fleet behavior); a boat with no fleet, or a club with
+// no fleet-tagged races at all, collapses to getNextRace()'s own result.
+function getNextRaceForBoat(boat){
+  if(!boat||!boat.fleetId) return getNextRace();
+  const scoped=allRaces.filter(r=>!r.fleetId||r.fleetId===boat.fleetId);
+  if(!scoped.length) return getNextRace();
+  const now=new Date();
+  const WINDOW_MS=48*3600*1000;
+  const upcoming=scoped.find(r=>r.date>now&&r.date-now<=WINDOW_MS);
+  if(upcoming) return upcoming;
+  const recent=[...scoped].reverse().find(r=>r.date<=now&&now-r.date<=WINDOW_MS);
+  if(recent) return recent;
+  const next=scoped.find(r=>r.date>now);
+  if(next) return next;
+  return scoped[scoped.length-1];
 }
 function raceKey(r){
   // Stable string key for a race — used as registration identifier
@@ -1877,7 +1940,7 @@ async function enterApp(b,ro){
       if(trackingEnabled) startPositionSharing(); // resume sharing across reloads/re-logins
     }).catch(()=>{});
   }
-  loadAndDrawCourse();
+  loadAndDrawCourseForBoat();
   renderCrew();
   updateSkipperDash();
   loadBoatSummaryStrip(); // sail no / IRC / next ECHO — boat-specific, not race-specific, so just once per login
@@ -2739,8 +2802,18 @@ function openPanel(id){
         if(sl) sl.value=forecastWindDeg;
         updateWind(forecastWindDeg);
       }
-      // Load any saved draft into the builder
-      if(!courseMarks.length) loadDraftIfExists();
+      const raceRow=document.getElementById('roCourseRaceRow');
+      if(raceRow) raceRow.style.display=SCHEMA_HAS_PER_RACE_COURSES?'flex':'none';
+      if(SCHEMA_HAS_PER_RACE_COURSES){
+        // Re-populates (and re-selects a default race) every time the
+        // panel opens, not just once — allRaces/nextRace can change
+        // between opens. This also handles the initial draft/current
+        // load for the default race, so the block below is skipped.
+        populateRoCourseRaceSelect();
+      } else if(!courseMarks.length){
+        // Legacy path — unchanged for any club without 057.
+        loadDraftIfExists();
+      }
     }
     if(id==='roMarksPanel'){ buildMarksMgrList(); buildLinesMgrList(); }
     if(id==='roFleetsPanel'){ buildFleetsMgrList(); }
@@ -2750,13 +2823,39 @@ function openPanel(id){
     if(id==='roNewsPanel') renderRONewsList();
     if(id==='roPaymentReportPanel') buildRoReportDropdown();
     if(id==='roOutstandingPanel') loadOutstandingReport();
+    // Skipper's own Course tab — was previously NOT in this dispatch list
+    // at all, so reopening it just redisplayed whatever was sitting in
+    // #courseDisplay since login. Refetch on open, then poll while it
+    // stays open so a mid-race course edit (per-race courses, 057) shows
+    // up without the skipper needing to log back in.
+    if(id==='coursePanel'&&!isRO&&!isGuest&&currentBoat){
+      loadAndDrawCourseForBoat();
+      _startCoursePoll();
+    }
   }));
 }
 function closePanel(id){
   const p=document.getElementById(id);if(!p)return;
   p.classList.remove('open');
   setTimeout(()=>{p.style.display='none';},300);
+  if(id==='coursePanel') _stopCoursePoll();
 }
+// Mirrors the Start Sequence's own 15s poll (openStartSeq/closeStartSeq) —
+// same cadence, same "only while a viewer has it open" shape. Re-fetches
+// via loadAndDrawCourseForBoat() itself, which is a no-op-safe bare read.
+let _coursePollTimer=null;
+function _startCoursePoll(){
+  if(_coursePollTimer) clearInterval(_coursePollTimer);
+  _coursePollTimer=setInterval(loadAndDrawCourseForBoat,15000);
+}
+function _stopCoursePoll(){
+  if(_coursePollTimer){ clearInterval(_coursePollTimer); _coursePollTimer=null; }
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible') return;
+  const p=document.getElementById('coursePanel');
+  if(p&&p.classList.contains('open')) loadAndDrawCourseForBoat();
+});
 
 // RO dashboard — collapsible tile sections (Race day / Payments / Club admin / Advanced).
 // Race day starts expanded (everything used live during a race); the rest
@@ -7815,21 +7914,46 @@ async function loadAndDrawCourse(){
   renderCourseDiagram();
 }
 
-function getCourseState(){
+// Skipper-side counterpart to loadAndDrawCourse() (left untouched above —
+// still used by the RO login branch and the pre-login guest boot, neither
+// of which has a specific boat to resolve a race for). Per-race courses
+// (057): resolves THIS boat's own current race via its fleet, then loads
+// THAT race's course instead of the club-wide 'current' one.
+async function loadAndDrawCourseForBoat(){
+  myResolvedRace=SCHEMA_HAS_PER_RACE_COURSES?getNextRaceForBoat(currentBoat):null;
+  const [c]=await Promise.all([sbLoadCourseForRace(myResolvedRace), loadMarks(), loadLines()]);
+  // Explicit reset (c||null), NOT loadAndDrawCourse()'s "only assign if
+  // truthy" — as a boat's resolved race rolls forward over time, leaving
+  // publishedCourse at its old value would show the PREVIOUS race's
+  // course under the new race's context. Harmless in the single-course
+  // model (only one durable row ever existed); a real bug once multiple
+  // race-scoped rows exist.
+  publishedCourse=c||null;
+  renderCourseDiagram('courseDisplay',undefined,myResolvedRace);
+}
+
+// course/race are optional (per-race courses, 057) — default to the exact
+// globals every existing bare call already used, so every zero-argument
+// call site (RO chips, home chips, roCourseViewPanel) stays byte-identical.
+// A boat-scoped caller (loadAndDrawCourseForBoat()) passes its own
+// resolved course/race instead.
+function getCourseState(course,race){
+  course=course!==undefined?course:publishedCourse;
+  race=race!==undefined?race:(myResolvedRace||nextRace);
   // Returns 'none' | 'pending' | 'stale' | 'live'
   // none    — no course has ever been published
   // pending — within pre-race window but course not yet published today
   // stale   — outside pre-race window, showing a previous course for reference
   // live    — course published within the pre-race window; treat as today's course
-  if(!publishedCourse) return 'none';
-  const hasMarks=publishedCourse.marks&&publishedCourse.marks.length;
-  const hasCourseCard=publishedCourse.courseNumber&&Array.isArray(publishedCourse.rounds)&&publishedCourse.rounds.length;
-  const hasLaidCourse=!!publishedCourse.courseType;
+  if(!course) return 'none';
+  const hasMarks=course.marks&&course.marks.length;
+  const hasCourseCard=course.courseNumber&&Array.isArray(course.rounds)&&course.rounds.length;
+  const hasLaidCourse=!!course.courseType;
   if(!hasMarks&&!hasCourseCard&&!hasLaidCourse) return 'none';
   const now=new Date();
   const windowMs=(clubSettings.pre_race_window_hours||12)*3600000;
-  const hoursToRace=nextRace?(nextRace.date-now):Infinity;
-  const hoursSincePublish=publishedCourse.published_at?(now-new Date(publishedCourse.published_at)):Infinity;
+  const hoursToRace=race?(race.date-now):Infinity;
+  const hoursSincePublish=course.published_at?(now-new Date(course.published_at)):Infinity;
   const withinWindow=hoursToRace>=0&&hoursToRace<=windowMs;  // race is coming up soon
   const publishedRecently=hoursSincePublish<=windowMs;         // published within the window period
   if(withinWindow&&!publishedRecently) return 'pending';       // race soon, no course yet
@@ -8456,9 +8580,16 @@ function buildLaidCourseSvg(courseType, wDeg, laps){
   return `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" xmlns="http://www.w3.org/2000/svg" style="max-width:100%;height:auto;display:block">${svgParts.join('\n')}</svg>`;
 }
 
-function renderCourseDiagram(targetId){
+// courseOverride/raceOverride are optional (per-race courses, 057) —
+// default to the exact globals every existing bare call already used, so
+// every existing call site (roCourseViewPanel's read-only view, and this
+// function's own re-render after publishCourse()) stays byte-identical.
+// loadAndDrawCourseForBoat() passes its own resolved course/race instead.
+function renderCourseDiagram(targetId,courseOverride,raceOverride){
   const wrap=document.getElementById(targetId||'courseDisplay');
-  const state=getCourseState();
+  const course=courseOverride!==undefined?courseOverride:publishedCourse;
+  const race=raceOverride!==undefined?raceOverride:(myResolvedRace||nextRace);
+  const state=getCourseState(course,race);
 
   if(state==='none'){
     wrap.innerHTML='<div class="no-course-state"><div class="icon">🗺</div><div>No course published yet</div></div>';
@@ -8466,13 +8597,13 @@ function renderCourseDiagram(targetId){
   }
 
   if(state==='pending'){
-    const raceTime=nextRace?nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'today';
+    const raceTime=race?race.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'today';
     wrap.innerHTML=
       '<div class="no-course-state" style="gap:10px">'+
         '<div class="icon">🕐</div>'+
         '<div style="font-size:1rem;font-weight:700;color:var(--white)">Course Not Yet Set</div>'+
         '<div style="font-size:.82rem;color:var(--muted);line-height:1.5;max-width:260px;text-align:center">'+
-          'The Race Officer will publish today\'s course before the '+(nextRace?nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'')+' start.<br>Check back closer to race time.'+
+          'The Race Officer will publish today\'s course before the '+(race?race.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'')+' start.<br>Check back closer to race time.'+
         '</div>'+
       '</div>';
     return;
@@ -8480,7 +8611,7 @@ function renderCourseDiagram(targetId){
 
   // stale or live — render the full diagram with a banner if stale
   const isStale=state==='stale';
-  const c=publishedCourse;
+  const c=course;
 
   // ── Course card (RCYC) rendering path — round-by-round text display ──────────
   const rounds=Array.isArray(c.rounds)&&c.rounds.length?c.rounds:null;
@@ -8806,6 +8937,36 @@ function populateLineSelects(){
   startSel.innerHTML=makeOpts(selectedStartLineId);
   finishSel.innerHTML=makeOpts(selectedFinishLineId);
 }
+// Per-race courses (057) — populates the RO's race selector from allRaces,
+// defaulting to nextRace. Index-based value, mirroring the same pattern
+// buildRoReportDropdown() already uses for its own "pick a race" selector.
+function populateRoCourseRaceSelect(){
+  const sel=document.getElementById('roCourseRaceSelect'); if(!sel) return;
+  sel.innerHTML='';
+  allRaces.forEach((r,i)=>{
+    const o=document.createElement('option');
+    o.value=i;
+    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' · '+r.label;
+    sel.appendChild(o);
+  });
+  const defaultRace=nextRace||allRaces[0];
+  const defaultIdx=defaultRace?allRaces.indexOf(defaultRace):-1;
+  if(defaultIdx>=0){
+    sel.value=defaultIdx;
+    onRoCourseRaceSelect(sel,true);
+  }
+}
+function onRoCourseRaceSelect(el,silent){
+  const i=parseInt(el.value,10); if(isNaN(i)||!allRaces[i]) return;
+  _roCourseRace=allRaces[i];
+  // Blank the builder on every race switch — without this, an RO who just
+  // built a course for one race could switch to a race with nothing
+  // published yet, not notice the previous race's marks are still on
+  // screen, and publish them under the wrong race's id.
+  clearCourse();
+  loadDraftIfExists();
+  if(!silent) toast('Building course for '+_roCourseRace.label);
+}
 function updateStartLine(id){
   selectedStartLineId=id;
   renderRoCoursePreview();
@@ -8819,15 +8980,24 @@ function _buildCoursePayload(id){
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
   const dir=dirs[Math.round(windDeg/22.5)%16];
   const notes=(document.getElementById('courseNotes')||{}).value||'';
+  // Per-race courses (057): once a race is picked in the RO builder, every
+  // save/publish targets THAT race's row ('race_<id>'/'draft_race_<id>')
+  // instead of the club-wide 'current'/'draft' singleton. _roCourseRace
+  // stays null (and this collapses to today's exact behavior) on any club
+  // that hasn't applied 057 or hasn't picked a race yet.
+  const race=SCHEMA_HAS_PER_RACE_COURSES?_roCourseRace:null;
+  const rowId=race?(id==='draft'?'draft_race_'+race.id:'race_'+race.id):id;
+  const raceLabel=race?race.label:(selectedRace?selectedRace.label:'');
   if(_laidCourseMode){
     const label=LAID_COURSE_LABELS[_laidCourseType]||'Laid Course';
     return{
-      id,
+      id:rowId,
+      raceId:race?race.id:null,
       name:label+' × '+_laidCourseLaps,
       marks:[],
       windDeg,
       windDir:dir,
-      race_name:selectedRace?selectedRace.label:'',
+      race_name:raceLabel,
       notes:notes.trim(),
       published_at:new Date().toISOString(),
       startLineId:selectedStartLineId,
@@ -8838,12 +9008,13 @@ function _buildCoursePayload(id){
   }
   const name='S/F – '+courseMarks.map(x=>{const m=MARKS.find(mk=>mk.id===x.id);return m?m.name:x.id;}).join(' – ')+' – Finish';
   return{
-    id,
+    id:rowId,
+    raceId:race?race.id:null,
     name,
     marks:courseMarks,
     windDeg,
     windDir:dir,
-    race_name:selectedRace?selectedRace.label:'',
+    race_name:raceLabel,
     notes:notes.trim(),
     published_at:new Date().toISOString(),
     startLineId:selectedStartLineId,
@@ -8852,6 +9023,7 @@ function _buildCoursePayload(id){
 }
 
 async function saveDraft(){
+  if(SCHEMA_HAS_PER_RACE_COURSES && !_roCourseRace){toast('Pick a race first');return;}
   if(_laidCourseMode){
     if(!_laidCourseType){toast('Pick a course shape first');return;}
   } else if(!courseMarks.length){toast('Add at least one mark first');return;}
@@ -8869,11 +9041,17 @@ async function saveDraft(){
 }
 
 async function loadDraftIfExists(){
-  // Prefer draft; fall back to the active published course
-  let r=await sbFetch('/rest/v1/published_courses?id=eq.draft&limit=1');
+  // Prefer draft; fall back to the active published course. Per-race
+  // (057): resolve against _roCourseRace's own row ids once a race is
+  // picked; otherwise the legacy club-wide 'draft'/'current' singleton,
+  // exactly as today.
+  const isPerRace=SCHEMA_HAS_PER_RACE_COURSES&&!!_roCourseRace;
+  const draftId=isPerRace?'draft_race_'+_roCourseRace.id:'draft';
+  const liveId=isPerRace?'race_'+_roCourseRace.id:'current';
+  let r=await sbFetch('/rest/v1/published_courses?id=eq.'+draftId+'&limit=1');
   const isDraft=r&&r.length>0;
   if(!isDraft){
-    r=await sbFetch('/rest/v1/published_courses?id=eq.current&limit=1');
+    r=await sbFetch('/rest/v1/published_courses?id=eq.'+liveId+'&limit=1');
   }
   if(!r||!r.length) return;
   const row=r[0];
@@ -8924,15 +9102,27 @@ async function loadDraftIfExists(){
 }
 
 async function publishCourse(){
+  if(SCHEMA_HAS_PER_RACE_COURSES && !_roCourseRace){toast('Pick a race first');return;}
   if(_laidCourseMode){
     if(!_laidCourseType){toast('Pick a course shape first');return;}
   } else if(!courseMarks.length){toast('Select at least one mark');return;}
   setSyncStatus('syncing');
   const course=_buildCoursePayload('current');
+  // Check whether this race already had a published course, BEFORE
+  // overwriting it — decides which push to send: a first-ever publish is
+  // a wider pre-race announcement, a later edit is a narrower "it changed"
+  // alert. Checked fresh at publish time (not cached) so it's correct even
+  // if another RO device already published for this race meanwhile.
+  let hadPriorPublish=false;
+  if(SCHEMA_HAS_PER_RACE_COURSES && _roCourseRace){
+    const existing=await sbFetch('/rest/v1/published_courses?id=eq.'+encodeURIComponent(course.id)+'&select=id&limit=1');
+    hadPriorPublish=!!(existing&&existing.length);
+  }
   const ok=await sbSaveCourse(course);
   if(ok){
     // Clear the draft row so it doesn't reload next time
-    sbFetch('/rest/v1/published_courses?id=eq.draft',{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}}).catch(()=>{});
+    const draftId=SCHEMA_HAS_PER_RACE_COURSES&&_roCourseRace?'draft_race_'+_roCourseRace.id:'draft';
+    sbFetch('/rest/v1/published_courses?id=eq.'+draftId,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}}).catch(()=>{});
     publishedCourse=course;
     setSyncStatus('ok');
     const bar=document.getElementById('draftStatusBar');
@@ -8942,7 +9132,15 @@ async function publishCourse(){
     updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
     updateHomeChips();
     toast('✅ Course published to all skippers!');
-    notifyPush('course_published',{raceLabel:selectedRace?selectedRace.label:''});
+    if(SCHEMA_HAS_PER_RACE_COURSES && _roCourseRace){
+      // Race-scoped push — only that race's registered boats (skipper-only,
+      // see _pushCourseUpdateBoatIds), not a club-wide broadcast.
+      _pushCourseUpdateBoatIds(_roCourseRace).then(boatIds=>{
+        notifyPush(hadPriorPublish?'course_updated':'course_published',{raceLabel:_roCourseRace.label,boatIds});
+      });
+    } else {
+      notifyPush('course_published',{raceLabel:selectedRace?selectedRace.label:''});
+    }
   } else {
     setSyncStatus('offline');
     toast('⚠ Could not save to database');

@@ -23,6 +23,7 @@
 // Request (POST, JSON):
 //   { type: "boat_registered", raceLabel: "Sat 25 Jul", boatName: "Silver Fox" }
 //   { type: "course_published", raceLabel: "Sat 25 Jul" }
+//   { type: "course_updated", raceLabel: "Sat 25 Jul", boatIds: ["silver-fox"] }
 //   { type: "protest_filed", boatIds: ["silver-fox"], boatName: "Wanderer" }
 //   { type: "protest_hearing_scheduled", boatIds: [...], hearingAt: "...", hearingLocation: "..." }
 //   { type: "protest_decision", boatIds: [...], status: "Upheld" }
@@ -44,6 +45,12 @@ const { resolveClubSlug, clubEnv } = require('./_club');
 const TARGET_ROLES = {
   boat_registered:           ['ro'],
   course_published:          ['crew', 'skipper'],
+  // Mid-race course edits (per-race courses, migration 057) — skipper-only
+  // and normally boatIds-scoped to just the affected race's boats, unlike
+  // course_published's club-wide crew+skipper broadcast. Deliberately not
+  // in BOAT_SCOPED_TYPES below: a race with no registrations yet should
+  // fall through to an unscoped broadcast, not fail the request outright.
+  course_updated:             ['skipper'],
   protest_filed:              ['skipper'],
   protest_hearing_scheduled:  ['skipper'],
   protest_decision:           ['skipper'],
@@ -138,6 +145,10 @@ exports.handler = async (event) => {
   const PAYLOADS = {
     boat_registered: { title: '⛵ New Registration', body: (boatName || 'A boat') + ' registered' + (raceLabel ? ' for ' + raceLabel : ''), tag: 'reg' },
     course_published: { title: '📋 Course Published', body: 'Today\'s course is up' + (raceLabel ? ' for ' + raceLabel : ''), tag: 'course' },
+    // Same tag as course_published on purpose — a second edit's OS
+    // notification replaces an unread "published" one rather than
+    // stacking two near-identical alerts.
+    course_updated: { title: '🔄 Course Updated', body: 'The course has changed' + (raceLabel ? ' for ' + raceLabel : '') + ' — check the app', tag: 'course' },
     protest_filed: { title: '🚩 Protest Filed', body: (boatName || 'A boat') + ' has filed a protest against you' + (raceLabel ? ' — ' + raceLabel : ''), tag: 'protest' },
     protest_hearing_scheduled: { title: '⚖ Hearing Scheduled', body: 'Protest hearing' + (hearingWhen ? ' ' + hearingWhen : '') + (hearingLocation ? ' at ' + hearingLocation : ''), tag: 'protest' },
     protest_decision: { title: '⚖ Protest Decision', body: 'Decision reached: ' + (status || 'see the app for details'), tag: 'protest' },

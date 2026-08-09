@@ -489,6 +489,20 @@ CREATE POLICY "races_delete" ON races FOR DELETE USING (true);
 GRANT SELECT, INSERT, UPDATE, DELETE ON races TO anon;
 
 
+-- ── published_courses: per-race courses (migration 057) ─────
+-- A race's course row doesn't exist until its first publish/draft-save —
+-- widen INSERT (was id='current' only) so 'race_<id>'/'draft_race_<id>'
+-- rows can be created, not just updated. Also adds a real DELETE policy
+-- (never existed despite the table-level GRANT since creation).
+ALTER TABLE published_courses ADD COLUMN IF NOT EXISTS race_id bigint REFERENCES races(id) ON DELETE SET NULL;
+DROP POLICY IF EXISTS "courses_insert" ON published_courses;
+CREATE POLICY "courses_insert" ON published_courses FOR INSERT WITH CHECK (
+  id = 'current' OR id = 'draft' OR id ~ '^(draft_)?race_[0-9]+$'
+);
+DROP POLICY IF EXISTS "courses_delete" ON published_courses;
+CREATE POLICY "courses_delete" ON published_courses FOR DELETE USING (true);
+
+
 -- ── skipper_declarations ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS skipper_declarations (
   id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1063,7 +1077,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('053_races_fleet.sql'),
   ('054_race_days.sql'),
   ('055_race_areas.sql'),
-  ('056_registration_sail_number.sql')
+  ('056_registration_sail_number.sql'),
+  ('057_published_courses_per_race.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.
