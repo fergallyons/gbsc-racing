@@ -9475,8 +9475,17 @@ async function roUnregisterBoat(boatId,boatName){
   if(!list.querySelector('.reg-row')){
     list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div><div>No boats registered yet</div></div>';
   }
-  // Update skipper's own registered pill if they're logged in
-  updateRegStatus();
+  // Update skipper's own registered pill if they're logged in as the boat
+  // just unregistered, and their dashboard is currently viewing this same
+  // race — mySelectedRaceRegistered tracks selectedRace, not nextRace,
+  // which can differ (skipper's own race dropdown can point elsewhere).
+  // updateRegStatus() never existed (confirmed via git log -S — broken
+  // since the original commit that added this function); this is the
+  // actual function/state it should have been driving all along.
+  if(currentBoat&&currentBoat.id===boatId&&selectedRace&&raceKey(selectedRace)===raceKey(nextRace)){
+    mySelectedRaceRegistered=false;
+  }
+  updateRegisterButton();
   toast(boatName+' unregistered');
 }
 
