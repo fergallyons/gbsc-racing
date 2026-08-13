@@ -1122,8 +1122,11 @@ async function buildBoatGrid(){
   // their entire boat grid — the login screen — broken outright by an
   // earlier version of this code that assumed the column always existed.
   // schema_migrations itself predates every club by a wide margin, so this
-  // check is always safe to run first.
-  await checkSchemaCapabilities();
+  // check is always safe to run first. Reuses the SAME in-flight request
+  // _schemaCapabilitiesReady already kicked off at the top of the boot
+  // script (shared with the guest-boot course-resolution chain) rather
+  // than calling checkSchemaCapabilities() a second time.
+  await _schemaCapabilitiesReady;
 
   const [sbBoats,sbFleets,sbAreas]=await Promise.all([
     // Load all boats from Supabase — explicit select is required, not just
@@ -1896,7 +1899,14 @@ async function enterApp(b,ro){
     updateRODash();
     buildMarksGrid();
     loadMarks();
-    loadAndDrawCourse();
+    // RO's own currentBoat is a placeholder ({id:'ro',...}, no fleetId) —
+    // getNextRaceForBoat() degrades to plain getNextRace() for it, so this
+    // resolves the club-wide next race exactly as loadAndDrawCourse() did,
+    // but now correctly checks THAT race's own published_courses row
+    // instead of the legacy club-wide 'current' singleton. Matters for the
+    // RO's own "is tonight's course published" status chip once per-race
+    // courses (057) are in use.
+    loadAndDrawCourseForBoat();
     loadRegistrations();
     buildPinMgmtList();
     loadProtests();
@@ -9149,11 +9159,27 @@ async function publishCourse(){
     updateHomeChips();
     toast('✅ Course published to all skippers!');
     if(SCHEMA_HAS_PER_RACE_COURSES && _roCourseRace){
-      // Race-scoped push — only that race's registered boats (skipper-only,
-      // see _pushCourseUpdateBoatIds), not a club-wide broadcast.
-      _pushCourseUpdateBoatIds(_roCourseRace).then(boatIds=>{
-        notifyPush(hadPriorPublish?'course_updated':'course_published',{raceLabel:_roCourseRace.label,boatIds});
-      });
+      const pushType=hadPriorPublish?'course_updated':'course_published';
+      if(_roCourseRace.fleetId){
+        // A genuine multi-fleet club (e.g. MSC) — scope to just this
+        // race's own fleet, so a Cruisers course change doesn't also
+        // notify Ruffians boats about a course that isn't theirs.
+        _pushCourseUpdateBoatIds(_roCourseRace).then(boatIds=>{
+          notifyPush(pushType,{raceLabel:_roCourseRace.label,boatIds});
+        });
+      } else {
+        // No fleet on this race — broadcast to everyone, exactly like the
+        // original pre-057 course_published call always did. Scoping by
+        // "currently registered boats" here would be a real regression:
+        // push_subscriptions.boat_id is only ever set for skipper-role
+        // rows, so boatIds-scoping silently excludes every crew
+        // subscriber, plus any boat that hasn't registered yet — for a
+        // club that never asked for per-race scoping in the first place.
+        // Root-caused live 2026-08-13: GBSC (no fleets at all) published
+        // a course successfully but other devices weren't getting
+        // notified, traced to this over-scoping.
+        notifyPush(pushType,{raceLabel:_roCourseRace.label});
+      }
     } else {
       notifyPush('course_published',{raceLabel:selectedRace?selectedRace.label:''});
     }
@@ -13294,13 +13320,37 @@ loadWindWidget();
 // is the one that actually has both nextRace and sponsor data ready.
 const _settingsReady=loadClubSettings().then(()=>{updateEstellaLink();checkPayHash();if(nextRace) showSponsor(nextRace.label);});
 showTab('registeredTab', null);
+// Kicked off here, shared by buildBoatGrid() below AND the guest-boot
+// chain's loadAndDrawCourseForBoat() call — both read SCHEMA_HAS_* flags
+// and must not run before this settles. Previously only buildBoatGrid()
+// awaited its own private call to this function; loadRaceSchedule() (a
+// single lightweight query) reliably resolves faster than buildBoatGrid()
+// (schema check + a 3-way Promise.all), so the guest-boot chain almost
+// always ran with every SCHEMA_HAS_* flag still at its false default —
+// silently falling back to legacy club-wide course resolution every time,
+// not just occasionally. Root-caused live 2026-08-13 reproducing exactly
+// this: a fresh, fully-up-to-date pre-login load kept resolving the
+// legacy 'current' row instead of the real per-race one. One shared
+// promise removes the ordering race entirely — whichever of the two
+// consumers awaits it first just waits for the same in-flight request.
+const _schemaCapabilitiesReady=checkSchemaCapabilities();
 // Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
-loadRaceSchedule().then(()=>{
+loadRaceSchedule().then(async()=>{
   if(!allRaces.length){ buildAllRaces(); nextRace=getNextRace(); }
   updateGuestDashCancellation();
   updateWeatherVisibility();
   startCountdown();
-  loadAndDrawCourse().then(()=>updateHomeChips());
+  // Pre-login/guest view has no logged-in boat (currentBoat is null here)
+  // — getNextRaceForBoat(null) degrades to plain getNextRace(), the same
+  // club-wide race this already resolved. Was left on the legacy
+  // loadAndDrawCourse() deliberately when per-race courses (057) shipped,
+  // on the reasoning "no boat to resolve a race by" — that reasoning was
+  // wrong, since resolving the race itself never needed a boat, only the
+  // FLEET-scoping nuance did. Root-caused live 2026-08-13: a club with a
+  // real per-race course published had guests/anyone-not-logged-in still
+  // checking the old club-wide 'current' row and seeing it as unpublished.
+  await _schemaCapabilitiesReady;
+  loadAndDrawCourseForBoat().then(()=>updateHomeChips());
   if(HAL_CLUB) patchRaceTimesFromHalsail(); // patch start times from Halsail in background
 });
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
