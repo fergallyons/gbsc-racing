@@ -8642,7 +8642,10 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
   // ── Course card (RCYC) rendering path — round-by-round text display ──────────
   const rounds=Array.isArray(c.rounds)&&c.rounds.length?c.rounds:null;
   if(rounds&&c.courseNumber){
-    const windDegDisp2=c.windDeg!=null?c.windDeg+'° '+c.windDir:'—';
+    // Live forecast wind if available; falls back to the RO's wind reading
+    // at publish time, which can be hours stale by race time.
+    const effectiveWind2=forecastWindDeg!=null?forecastWindDeg:c.windDeg;
+    const windDegDisp2=effectiveWind2!=null?effectiveWind2+'° '+wxCardinal(effectiveWind2):'—';
     const lastDist=rounds[rounds.length-1].distance_nm;
     const gwNote=rounds.some(r=>r.note)
       ?'<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.8rem;color:var(--gold)">'+
@@ -8756,14 +8759,16 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
 
   const markEntries=(c.marks||[]).map(m=>typeof m==='string'?{id:m,rounding:'port'}:m);
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  const windDir=c.windDeg!=null?dirs[Math.round(c.windDeg/22.5)%16]:'—';
-  const windDegDisp=c.windDeg!=null?c.windDeg+'° '+windDir:'—';
+  // Use live forecast wind if available; fall back to RO-set wind from publish time
+  const effectiveWind=forecastWindDeg!=null?forecastWindDeg:c.windDeg;
+  const windDir=effectiveWind!=null?dirs[Math.round(effectiveWind/22.5)%16]:'—';
+  const windDegDisp=effectiveWind!=null?effectiveWind+'° '+windDir:'—';
 
   const pubStartLine=getLineById(c.startLineId||'club');
   const pubFinishLine=getLineById(c.finishLineId||'club');
   const pubStartPos=lineMidpoint(pubStartLine);
   const pubFinishPos=lineMidpoint(pubFinishLine);
-  const svgEl=buildCourseSvg(markEntries, c.windDeg, pubStartLine, pubFinishLine);
+  const svgEl=buildCourseSvg(markEntries, effectiveWind, pubStartLine, pubFinishLine);
 
   // ── Leg table ──────────────────────────────────────────────────
   let legRows='';
@@ -10695,6 +10700,12 @@ async function loadWindWidget(){
     let idx=times.findIndex(t=>t>=targetTs);
     if(idx<0) idx=times.length-1;
     forecastWindDeg=Math.round(wx.hourly.wind_direction_10m[Math.min(Math.max(idx,0),times.length-1)]);
+    // Re-render course diagram with forecast wind now that it's available —
+    // renderCourseDiagram() often runs before this async fetch resolves,
+    // so the diagram's first paint otherwise falls through to the RO's
+    // (possibly hours-stale) wind reading from publish time.
+    try{renderCourseDiagram();}catch(e){}
+    try{renderCourseDiagram('roCourseDisplay');}catch(e){}
   }catch(e){ console.warn('Wind widget error:',e); }
 }
 
