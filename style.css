@@ -487,10 +487,6 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .ro-controls{display:flex;flex-direction:column;gap:10px;margin-top:12px;}
 .ro-row{display:flex;align-items:center;gap:10px;}
 .ro-row label{font-size:.78rem;color:var(--muted);font-weight:500;min-width:90px;}
-.wind-input{display:flex;align-items:center;gap:8px;}
-.wind-input input[type=range]{flex:1;accent-color:var(--teal);}
-.wind-deg{font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;
-  color:var(--white);min-width:42px;}
 .mark-toggle-rounding{display:flex;gap:4px;margin-top:6px;justify-content:center;}
 .rnd-btn{font-size:.75rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
   letter-spacing:.04em;padding:2px 7px;border-radius:6px;border:1px solid var(--border);

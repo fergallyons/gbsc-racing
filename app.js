@@ -670,6 +670,7 @@ const FEAT={
   declaration:  !!(_C.features&&_C.features.declaration),         // true = skipper declaration gate
   courseCard:   !!(_C.features&&_C.features.courseCard),          // true = RO course card picker
   autoRegister: !!(_C.features&&_C.features.autoRegister),        // true = every boat auto-registers for the next race, no sign-up needed
+  livePortWeather: !!(_C.features&&_C.features.livePortWeather),  // true = show live Port of Galway station data (GBSC-only hardware)
 };
 
 // Map from feature key → tile element IDs that applyAllFeatureVisibility() shows/hides.
@@ -722,6 +723,7 @@ const FEAT_DEFAULTS={
   raceTracker:false, // experimental — off by default, RO opts the club in first (Features panel)
   courseCard:false,
   autoRegister:false, // opt-in — most clubs use explicit registration and must stay unaffected
+  livePortWeather:false, // opt-in — GBSC-only hardware (Galway Port buoy); other clubs must stay unaffected
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
   crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
@@ -731,6 +733,7 @@ const FEAT_CATALOG=[
   {key:'feeModel',     label:'Fee Model',               type:'select', options:['per-race','per-series'], group:'Behaviour'},
   {key:'declaration',  label:'Skipper Declaration Gate', type:'bool',                                     group:'Behaviour'},
   {key:'autoRegister', label:'Auto-Register All Boats — no sign-up, every boat is assumed racing', type:'bool', group:'Behaviour'},
+  {key:'livePortWeather', label:'Live Port of Galway Weather (Race Weather tab)', type:'bool', group:'Behaviour'},
   {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
   {key:'courseCard',     label:'Course Card Picker',    type:'bool', group:'RO Tiles'},
   {key:'registrations',  label:'Registrations',         type:'bool', group:'RO Tiles'},
@@ -790,6 +793,7 @@ function liftVeil(){
     if(f.declaration!==undefined) FEAT.declaration=!!f.declaration;
     if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
     if(f.autoRegister!==undefined) FEAT.autoRegister=!!f.autoRegister;
+    if(f.livePortWeather!==undefined) FEAT.livePortWeather=!!f.livePortWeather;
   }catch(e){}
   liftVeil();
 })();
@@ -839,7 +843,7 @@ async function checkSchemaCapabilities(){
 }
 let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
-let windDeg=225, forecastWindDeg=null;
+let forecastWindDeg=null;
 let courseMarks=[];
 let publishedCourse=null;
 // Per-race courses (migration 057) — _roCourseRace is which race the RO is
@@ -2273,7 +2277,7 @@ async function publishFromCourseCard(){
     id:'current',
     name:'Course '+selectedCourseCardEntry.number+(selectedCourseCardEntry.name?' — '+selectedCourseCardEntry.name:''),
     marks:[],  // course card courses use text descriptions, not individual lat/lng marks
-    windDeg,
+    windDeg:resolveWindDeg(),
     windDir:selectedCourseCardEntry.wind_direction,
     race_name:selectedRace?selectedRace.label:'',
     notes:(document.getElementById('courseCardNotes')&&document.getElementById('courseCardNotes').value.trim())||'',
@@ -2807,11 +2811,11 @@ function openPanel(id){
     p.classList.add('open');
     if(id==='roCoursePanel'){
       populateLineSelects();
-      if(forecastWindDeg!=null){
-        const sl=document.getElementById('windSlider');
-        if(sl) sl.value=forecastWindDeg;
-        updateWind(forecastWindDeg);
-      }
+      // No manual wind slider anymore — resolveWindDeg() always reflects
+      // the current best-available wind, but the live preview still needs
+      // an explicit refresh on open (loadDraftIfExists() below only
+      // re-renders when courseMarks is empty).
+      renderRoCoursePreview();
       const raceRow=document.getElementById('roCourseRaceRow');
       if(raceRow) raceRow.style.display=SCHEMA_HAS_PER_RACE_COURSES?'flex':'none';
       if(SCHEMA_HAS_PER_RACE_COURSES){
@@ -3593,6 +3597,14 @@ function applyAllFeatureVisibility(){
   else FEAT.courseCard=(FEAT_DEFAULTS.courseCard===true);
   if(f.autoRegister!==undefined) FEAT.autoRegister=!!f.autoRegister;
   else FEAT.autoRegister=(FEAT_DEFAULTS.autoRegister===true);
+  if(f.livePortWeather!==undefined) FEAT.livePortWeather=!!f.livePortWeather;
+  else FEAT.livePortWeather=(FEAT_DEFAULTS.livePortWeather===true);
+  // If the Weather panel is already open when this flag flips (e.g. an RO
+  // toggles it live in Settings → Features), re-render it immediately
+  // rather than waiting for the next manual open — both loadRaceWeather()
+  // and loadLivePortWeather() are cheap/cached, not a raw re-fetch.
+  const weatherPanelEl=document.getElementById('weatherPanel');
+  if(weatherPanelEl&&weatherPanelEl.classList.contains('open')) loadRaceWeather();
   const feeLabel=document.getElementById('dc-fees-label');
   if(feeLabel) feeLabel.textContent=FEAT.feeModel==='per-series'?'Series Fees':'Fees';
   updateSectionVisibility('sk','payments');
@@ -5459,19 +5471,19 @@ async function loadRaceWeather(){
     // even on a full cache hit, since a stale small-craft warning is a real
     // safety issue and the licence requires them kept up to date.
     if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.tides!=null){
-      const warnings=await fetchMetWarnings();
-      renderWeather(c.wx,c.tides,warnings); return;
+      const [warnings,live]=await Promise.all([fetchMetWarnings(),loadLivePortWeather()]);
+      renderWeather(c.wx,c.tides,warnings,live); return;
     }
     if(cacheCoversRace&&Date.now()-c.ts<3600000&&c.wx){
       // wx is cached, fresh, and covers race date — only re-fetch tides + warnings
-      const [tides,warnings]=await Promise.all([fetchTideData(),fetchMetWarnings()]);
+      const [tides,warnings,live]=await Promise.all([fetchTideData(),fetchMetWarnings(),loadLivePortWeather()]);
       try{ localStorage.setItem('__race_weather_v3__',JSON.stringify({ts:c.ts,wx:c.wx,tides})); }catch(e){}
-      renderWeather(c.wx,tides,warnings); return;
+      renderWeather(c.wx,tides,warnings,live); return;
     }
   }catch(e){}
-  const [wx,tides,warnings]=await Promise.all([fetchRaceWeather(),fetchTideData(),fetchMetWarnings()]);
+  const [wx,tides,warnings,live]=await Promise.all([fetchRaceWeather(),fetchTideData(),fetchMetWarnings(),loadLivePortWeather()]);
   try{ localStorage.setItem('__race_weather_v3__',JSON.stringify({ts:Date.now(),wx,tides})); }catch(e){}
-  renderWeather(wx,tides,warnings);
+  renderWeather(wx,tides,warnings,live);
 }
 
 async function fetchOpenMeteo(){
@@ -5771,8 +5783,25 @@ function windArrowSvg(deg,color,px=24){
     +`</svg>`;
 }
 
+// Forecast/Current tab toggle — same .pr-type-btn/.active + display-toggle
+// idiom as setCourseMode() (Course Builder's Marks/Laid switch). Only
+// wired up when FEAT.livePortWeather is on; the buttons/sections it
+// targets don't exist in the DOM otherwise, hence the null guards.
+function setWeatherTab(tab){
+  const fBtn=document.getElementById('wxTabForecastBtn');
+  const cBtn=document.getElementById('wxTabCurrentBtn');
+  const fSec=document.getElementById('wxForecastSection');
+  const cSec=document.getElementById('wxCurrentSection');
+  if(fBtn) fBtn.classList.toggle('active',tab==='forecast');
+  if(cBtn) cBtn.classList.toggle('active',tab==='current');
+  if(fSec) fSec.style.display=tab==='forecast'?'':'none';
+  if(cSec) cSec.style.display=tab==='current'?'':'none';
+}
+
 // ── Main render ───────────────────────────────────────────────
-function renderWeather(wx,tides,warnings){
+// `live` is the Port of Galway reading from loadLivePortWeather() (or null
+// — unavailable, or FEAT.livePortWeather is off for this club).
+function renderWeather(wx,tides,warnings,live){
   const body=document.getElementById('weatherBody'); if(!body) return;
   if(!wx||!wx.hourly){
     body.innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)">
@@ -5904,6 +5933,83 @@ function renderWeather(wx,tides,warnings){
       </div>
     </div>`;
 
+  // ── LIVE (Port of Galway) BLOCK + Forecast/Current tab toggle ──
+  // GBSC-only (FEAT.livePortWeather) — tides and warnings stay outside this
+  // toggle in both cases: warnings are safety-critical (always shown),
+  // tide predictions have no forecast/current duality to split.
+  let liveBlock='', wxTabsBlock='', defaultTab='forecast';
+  if(FEAT.livePortWeather){
+    const PORT_WX_STALE_MS=30*60000; // generous over the source's ~5min cadence, tight enough to mean something
+    if(!live){
+      liveBlock=`<div style="text-align:center;padding:32px 20px;color:var(--muted)">
+        ⚠ Live buoy data unavailable — showing forecast only
+      </div>`;
+    } else {
+      const liveAgeMs=Date.now()-new Date(live.time).getTime();
+      const isStaleLive=liveAgeMs>PORT_WX_STALE_MS;
+      const lSpeed=Math.round(live.speed);
+      const lGust=Math.round(live.gust);
+      const lDir=Math.round(live.dir);
+      const lBf=wxBeaufort(lSpeed);
+      const lBfCol=wxBfColour(lBf.f);
+      const lTimeStr=new Date(live.time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      liveBlock=`
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:10px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
+              letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Live Now · Port of Galway</div>
+            ${isStaleLive?`<div style="font-size:.7rem;color:var(--gold);font-weight:600">⚠ Stale</div>`:''}
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+            ${windArrowSvg(lDir,lBfCol,52)}
+            <div>
+              <div style="display:flex;align-items:baseline;gap:6px">
+                <span style="font-family:'Barlow Condensed',sans-serif;font-size:3.5rem;font-weight:800;
+                  color:var(--white);line-height:1;letter-spacing:-.02em">${lSpeed}</span>
+                <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;
+                  font-weight:600;color:var(--muted)">kt</span>
+              </div>
+              <div style="display:flex;align-items:baseline;gap:8px;margin-top:2px">
+                <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;
+                  font-weight:800;color:var(--teal)">${lDir}°</span>
+                <span style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+                  color:var(--muted)">${wxCardinal(lDir)}</span>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:.9rem;color:var(--white);margin-bottom:16px">
+            Gusting <strong style="font-size:1.05rem">${lGust} kt</strong>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+            <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+              <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Air Temp</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+                color:var(--white);line-height:1.1">${Math.round(live.temp)}°C</div>
+            </div>
+            <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+              <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Pressure</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+                color:var(--white);line-height:1.1">${Math.round(live.pressure)}
+                <span style="font-size:.8rem;color:var(--muted);font-weight:400">hPa</span></div>
+            </div>
+          </div>
+          <div style="font-size:.78rem;color:${isStaleLive?'var(--gold)':'var(--muted)'}">
+            ${isStaleLive?'⚠ ':''}Reading from ${lTimeStr} · Humidity ${Math.round(live.humidity)}%
+          </div>
+        </div>`;
+    }
+    // Relevance shifts as race time approaches — default to whichever tab
+    // is more likely to matter right now, without hiding the other one.
+    const hoursToRace=(raceDate-now)/3600000;
+    defaultTab=hoursToRace<=2?'current':'forecast';
+    wxTabsBlock=`
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="pr-type-btn${defaultTab==='forecast'?' active':''}" id="wxTabForecastBtn" onclick="setWeatherTab('forecast')">📅 Forecast</button>
+        <button class="pr-type-btn${defaultTab==='current'?' active':''}" id="wxTabCurrentBtn" onclick="setWeatherTab('current')">📡 Current</button>
+      </div>`;
+  }
+  const forecastVisible=!FEAT.livePortWeather||defaultTab==='forecast';
+
   // ── TIDES BLOCK ──────────────────────────────────────────────
   let tidesBlock='';
   const tideSource=tides&&tides.source==='imi'?'IMI':tides&&tides.source==='wt'?'WorldTides':'IMI';
@@ -6006,11 +6112,14 @@ function renderWeather(wx,tides,warnings){
         color:var(--white)">${raceLabel}</div>
       <div style="font-size:.85rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
     </div>
-    ${windBlock}${condBlock}${tidesBlock}
+    ${wxTabsBlock}
+    <div id="wxForecastSection" style="display:${forecastVisible?'':'none'}">${windBlock}${condBlock}</div>
+    ${FEAT.livePortWeather?`<div id="wxCurrentSection" style="display:${defaultTab==='current'?'':'none'}">${liveBlock}</div>`:''}
+    ${tidesBlock}
     <div style="padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
         <span style="font-weight:600;color:var(--muted)">Model: ${wx._model||providerLabel}</span>
-        <button onclick="localStorage.removeItem('__race_weather_v3__');localStorage.removeItem('__race_tides__');loadRaceWeather()"
+        <button onclick="localStorage.removeItem('__race_weather_v3__');localStorage.removeItem('__race_tides__');localStorage.removeItem('__port_weather_v1__');loadRaceWeather()"
           style="font-size:.8rem;color:var(--teal);background:transparent;border:none;
           cursor:pointer;font-family:inherit;padding:0">↺ Refresh</button>
       </div>
@@ -8326,14 +8435,14 @@ function renderRoCoursePreview(){
       wrap.innerHTML='<div class="ro-preview-empty">Pick a course shape above to preview</div>';
       return;
     }
-    wrap.innerHTML=buildLaidCourseSvg(_laidCourseType, windDeg, _laidCourseLaps);
+    wrap.innerHTML=buildLaidCourseSvg(_laidCourseType, resolveWindDeg(), _laidCourseLaps);
     return;
   }
   if(!courseMarks.length){
     wrap.innerHTML='<div class="ro-preview-empty">Tap marks above to preview the course</div>';
     return;
   }
-  wrap.innerHTML=buildCourseSvg(courseMarks, windDeg,
+  wrap.innerHTML=buildCourseSvg(courseMarks, resolveWindDeg(),
     getLineById(selectedStartLineId), getLineById(selectedFinishLineId));
 }
 
@@ -8950,13 +9059,6 @@ function renderSelectedOrder(){
     '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;font-weight:700;color:var(--teal)">📏 '+totalNm+'nm</span>';
   list.appendChild(summary);
 }
-function updateWind(v){
-  windDeg=parseInt(v);
-  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  const dir=dirs[Math.round(windDeg/22.5)%16];
-  document.getElementById('windDegLabel').textContent=windDeg+'° '+dir;
-  renderRoCoursePreview();
-}
 // ── Line selector helpers ─────────────────────────────────────────────────
 function populateLineSelects(){
   const startSel=document.getElementById('startLineSelect');
@@ -9007,9 +9109,27 @@ function updateFinishLine(id){
   renderRoCoursePreview();
 }
 
+// Resolves the wind direction to use RIGHT NOW for course-building. The
+// manual wind slider is gone (redundant now live/forecast data exists) —
+// every former reader of the `windDeg` global resolves a fresh value here
+// instead. Preference order: live Galway Port buoy (GBSC-only, opt-in) >
+// hourly forecast > hardcoded last resort.
+//
+// Always returns a definite number, never null. buildCourseSvg()/
+// buildLaidCourseSvg() tolerate a null wDeg fine (they just omit the
+// arrow) — but the cardinal-direction lookup below does not: null/
+// undefined there silently resolves to "N" rather than failing loudly,
+// and that gets published to skippers. Hence the fallback constant.
+const WIND_FALLBACK_DEG=225; // SW — matches the old slider's default value
+function resolveWindDeg(){
+  if(FEAT.livePortWeather&&livePortWx&&livePortWx.dir!=null) return Math.round(livePortWx.dir);
+  if(forecastWindDeg!=null) return forecastWindDeg;
+  return WIND_FALLBACK_DEG;
+}
+
 function _buildCoursePayload(id){
-  const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  const dir=dirs[Math.round(windDeg/22.5)%16];
+  const wDeg=resolveWindDeg();
+  const dir=wxCardinal(wDeg);
   const notes=(document.getElementById('courseNotes')||{}).value||'';
   // Per-race courses (057): once a race is picked in the RO builder, every
   // save/publish targets THAT race's row ('race_<id>'/'draft_race_<id>')
@@ -9026,7 +9146,7 @@ function _buildCoursePayload(id){
       raceId:race?race.id:null,
       name:label+' × '+_laidCourseLaps,
       marks:[],
-      windDeg,
+      windDeg:wDeg,
       windDir:dir,
       race_name:raceLabel,
       notes:notes.trim(),
@@ -9043,7 +9163,7 @@ function _buildCoursePayload(id){
     raceId:race?race.id:null,
     name,
     marks:courseMarks,
-    windDeg,
+    windDeg:wDeg,
     windDir:dir,
     race_name:raceLabel,
     notes:notes.trim(),
@@ -9093,7 +9213,6 @@ async function loadDraftIfExists(){
     _laidCourseLaps=row.laps||1;
     const lapsInput=document.getElementById('laidLaps');
     if(lapsInput) lapsInput.value=_laidCourseLaps;
-    windDeg=row.wind_deg||0;
     if(row.notes){const n=document.getElementById('courseNotes');if(n)n.value=row.notes;}
     if(row.start_line_id) selectedStartLineId=row.start_line_id;
     if(row.finish_line_id) selectedFinishLineId=row.finish_line_id;
@@ -9110,7 +9229,6 @@ async function loadDraftIfExists(){
   // Restore into builder
   setCourseMode('marks');
   courseMarks=marks;
-  windDeg=row.wind_deg||0;
   if(row.notes){const n=document.getElementById('courseNotes');if(n)n.value=row.notes;}
   if(row.start_line_id) selectedStartLineId=row.start_line_id;
   if(row.finish_line_id) selectedFinishLineId=row.finish_line_id;
@@ -10681,7 +10799,9 @@ document.addEventListener('click',function(e){
 // fetchOpenMeteo uses _C.windLat/_C.windLng (or GBSC_LAT/GBSC_LNG fallback) — see above
 
 async function loadWindWidget(){
-  // Fetches forecast wind direction to pre-fill the RO course builder wind slider.
+  // Fetches forecast wind direction into forecastWindDeg — feeds resolveWindDeg()
+  // (the RO course builder's manual slider is gone; see resolveWindDeg() above
+  // _buildCoursePayload()) and the read-only published-course diagram.
   // The visible wind widget was removed from the summary card — use the Race Weather tab.
   try{
     let wx=null;
@@ -10707,6 +10827,45 @@ async function loadWindWidget(){
     try{renderCourseDiagram();}catch(e){}
     try{renderCourseDiagram('roCourseDisplay');}catch(e){}
   }catch(e){ console.warn('Wind widget error:',e); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PORT OF GALWAY LIVE WEATHER — GBSC's home-waters weather station
+// ═══════════════════════════════════════════════════════════════
+// Gated by FEAT.livePortWeather (GBSC-only hardware — opt-in per club via
+// Settings → Features, not a hardcoded club-slug check). A direct browser
+// fetch to the upstream API 503s from this app's real origin, so this
+// always goes through netlify/functions/port-galway-proxy.js — never
+// direct, unlike halFetch()'s try-direct-then-fallback pattern (the
+// port's block is a clean HTTP response, not a thrown network error, so a
+// direct-first attempt would just silently get an empty 503 every time).
+let livePortWx=null; // {speed,gust,dir,pressure,temp,humidity,time} or null
+async function fetchLivePortWeather(){
+  try{
+    const c=JSON.parse(localStorage.getItem('__port_weather_v1__')||'null');
+    // 4-min TTL, not the forecast's 1hr — the source itself refreshes ~every 5 min
+    if(c&&Date.now()-c.ts<240000) return c.data;
+  }catch(e){}
+  try{
+    const r=await fetch('/.netlify/functions/port-galway-proxy?type=weather&hours=1');
+    if(!r.ok) return null;
+    const arr=await r.json();
+    if(!Array.isArray(arr)||!arr.length) return null;
+    const latest=arr[arr.length-1]; // API returns oldest-first
+    const data={
+      speed:latest.wind_speed, gust:latest.wind_gust, dir:latest.wind_direction,
+      pressure:latest.air_pressure, temp:latest.air_temperature, humidity:latest.air_humidity,
+      time:latest.time,
+    };
+    try{ localStorage.setItem('__port_weather_v1__',JSON.stringify({ts:Date.now(),data})); }catch(e){}
+    return data;
+  }catch(e){ return null; }
+}
+async function loadLivePortWeather(){
+  if(!FEAT.livePortWeather) return null;
+  livePortWx=await fetchLivePortWeather();
+  try{renderRoCoursePreview();}catch(e){}
+  return livePortWx;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -13267,6 +13426,7 @@ function startCountdown(){
 // INIT — open directly to public view, no login gate
 // ═══════════════════════════════════════════════════════════════
 loadWindWidget();
+loadLivePortWeather();
 // Handle Stripe success redirect — auto-confirm Card payment without extra tap.
 // Two flows share this entry point:
 //   • Single-crew self-pay (sp_pending in sessionStorage) → writes self_payments row
