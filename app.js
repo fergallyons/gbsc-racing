@@ -5438,21 +5438,35 @@ function openWeatherPanel(){
   loadRaceWeather();
 }
 
+// Weather needs the next race that HASN'T happened yet. getNextRace()
+// deliberately keeps returning a just-finished race for up to 48h after it
+// ends (so post-race UI — protests, payments, results — has something to
+// point at), but a forecast for a race that's already over is meaningless.
+// Without this, the Weather tab went blank the moment a race ended and
+// stayed blank until the NEXT race came within getNextRace()'s own 48h
+// window — up to several days of "no forecast" even though a perfectly
+// well-defined future race existed the whole time. Always show weather for
+// whatever's genuinely next, however near or far; only fall through to
+// getNextRace()'s "last race of season" behaviour when nothing at all is
+// upcoming (true off-season).
+function getNextRaceForWeather(){
+  const next=allRaces.find(r=>r.date>new Date());
+  return next||getNextRace();
+}
+
 async function loadRaceWeather(){
   const body=document.getElementById('weatherBody'); if(!body) return;
 
-  // If the current race has already passed, don't show a (misleading) forecast
-  const race=nextRace||getNextRace();
+  // Only true off-season (no future race at all) blocks the forecast now —
+  // see getNextRaceForWeather() above for why this isn't just "has the
+  // most recently-relevant race passed".
+  const race=getNextRaceForWeather();
   if(race&&race.date<new Date()){
-    const nextFuture=allRaces.find(r=>r.date>new Date());
-    const hint=nextFuture
-      ? 'Next race: '+nextFuture.label+' · '+nextFuture.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})
-      : 'No upcoming race scheduled yet';
     body.innerHTML=`<div style="text-align:center;padding:60px 24px;color:var(--muted)">
       <div style="font-size:2rem;margin-bottom:12px">🌬️</div>
       <div style="font-size:1rem;font-weight:600;margin-bottom:8px">No forecast right now</div>
-      <div style="font-size:.88rem">${hint}</div>
-      <div style="font-size:.82rem;margin-top:6px;color:var(--muted)">Check back closer to race day</div>
+      <div style="font-size:.88rem">No upcoming race scheduled yet</div>
+      <div style="font-size:.82rem;margin-top:6px;color:var(--muted)">Check back once a race is on the calendar</div>
     </div>`;
     return;
   }
@@ -5496,7 +5510,7 @@ async function fetchOpenMeteo(){
     +'&daily=sunset'
     +'&wind_speed_unit=kn&timezone=Europe%2FDublin&timeformat=unixtime';
   // Days of forecast needed — enough to cover the next race, minimum 3
-  const race=nextRace||getNextRace();
+  const race=getNextRaceForWeather();
   const daysToRace=race?Math.ceil((race.date-new Date())/86400000)+1:3;
   const forecastDays=Math.max(3,Math.min(daysToRace,7));
 
@@ -5812,7 +5826,7 @@ function renderWeather(wx,tides,warnings,live){
     </div>`; return;
   }
 
-  const race=nextRace||getNextRace();
+  const race=getNextRaceForWeather();
   const raceDate=race?race.date:new Date();
   const now=new Date();
   const isToday=raceDate.toDateString()===now.toDateString();
