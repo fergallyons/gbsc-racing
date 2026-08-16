@@ -5797,21 +5797,6 @@ function windArrowSvg(deg,color,px=24){
     +`</svg>`;
 }
 
-// Forecast/Current tab toggle — same .pr-type-btn/.active + display-toggle
-// idiom as setCourseMode() (Course Builder's Marks/Laid switch). Only
-// wired up when FEAT.livePortWeather is on; the buttons/sections it
-// targets don't exist in the DOM otherwise, hence the null guards.
-function setWeatherTab(tab){
-  const fBtn=document.getElementById('wxTabForecastBtn');
-  const cBtn=document.getElementById('wxTabCurrentBtn');
-  const fSec=document.getElementById('wxForecastSection');
-  const cSec=document.getElementById('wxCurrentSection');
-  if(fBtn) fBtn.classList.toggle('active',tab==='forecast');
-  if(cBtn) cBtn.classList.toggle('active',tab==='current');
-  if(fSec) fSec.style.display=tab==='forecast'?'':'none';
-  if(cSec) cSec.style.display=tab==='current'?'':'none';
-}
-
 // ── Main render ───────────────────────────────────────────────
 // `live` is the Port of Galway reading from loadLivePortWeather() (or null
 // — unavailable, or FEAT.livePortWeather is off for this club).
@@ -5947,11 +5932,15 @@ function renderWeather(wx,tides,warnings,live){
       </div>
     </div>`;
 
-  // ── LIVE (Port of Galway) BLOCK + Forecast/Current tab toggle ──
-  // GBSC-only (FEAT.livePortWeather) — tides and warnings stay outside this
-  // toggle in both cases: warnings are safety-critical (always shown),
-  // tide predictions have no forecast/current duality to split.
-  let liveBlock='', wxTabsBlock='', defaultTab='forecast';
+  // ── LIVE (Port of Galway) BLOCK ─────────────────────────────
+  // GBSC-only (FEAT.livePortWeather). Forecast and Current render as two
+  // always-visible, equally-weighted sections rather than a tab you have
+  // to click between — both matter, just at different points before the
+  // race, so both stay in view with their own clearly labelled header
+  // rather than one being hidden behind the other by default. Tides and
+  // warnings stay separate from both: warnings are safety-critical
+  // (always shown), tide predictions have no forecast/current duality.
+  let liveBlock='';
   if(FEAT.livePortWeather){
     const PORT_WX_STALE_MS=30*60000; // generous over the source's ~5min cadence, tight enough to mean something
     if(!live){
@@ -5994,7 +5983,24 @@ function renderWeather(wx,tides,warnings,live){
           <div style="font-size:.9rem;color:var(--white);margin-bottom:16px">
             Gusting <strong style="font-size:1.05rem">${lGust} kt</strong>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          ${live.history&&live.history.length>1?`
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;
+            letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
+            Last 6 Hours · kt</div>
+          <div style="display:flex;gap:6px;margin-bottom:16px">${live.history.map(h=>{
+            const hr=new Date(h.time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+            const hw=Math.round(h.speed), hg=Math.round(h.gust), hd=Math.round(h.dir);
+            const hb=wxBeaufort(hw); const hbc=wxBfColour(hb.f);
+            return `<div style="flex:1;text-align:center;background:var(--navy);border-radius:10px;
+              padding:9px 4px;border:2px solid var(--border)">
+              <div style="font-size:.75rem;color:var(--muted);margin-bottom:5px">${hr}</div>
+              ${windArrowSvg(hd,hbc,20)}
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;
+                font-weight:800;color:${hbc};line-height:1">${hw}</div>
+              <div style="font-size:.75rem;color:var(--white);margin-top:1px">↑${hg}</div>
+            </div>`;
+          }).join('')}</div>`:''}
+          <div style="display:grid;grid-template-columns:${live.tide?'1fr 1fr 1fr':'1fr 1fr'};gap:10px;margin-bottom:12px">
             <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
               <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Air Temp</div>
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
@@ -6006,23 +6012,32 @@ function renderWeather(wx,tides,warnings,live){
                 color:var(--white);line-height:1.1">${Math.round(live.pressure)}
                 <span style="font-size:.8rem;color:var(--muted);font-weight:400">hPa</span></div>
             </div>
+            ${live.tide?`
+            <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+              <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Water Level</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+                color:var(--white);line-height:1.1">${live.tide.level.toFixed(1)}
+                <span style="font-size:.8rem;color:var(--muted);font-weight:400">m LAD</span></div>
+              <div style="font-size:.82rem;color:var(--white);margin-top:2px">${live.tide.trend}</div>
+            </div>`:''}
           </div>
           <div style="font-size:.78rem;color:${isStaleLive?'var(--gold)':'var(--muted)'}">
             ${isStaleLive?'⚠ ':''}Reading from ${lTimeStr} · Humidity ${Math.round(live.humidity)}%
           </div>
         </div>`;
     }
-    // Relevance shifts as race time approaches — default to whichever tab
-    // is more likely to matter right now, without hiding the other one.
-    const hoursToRace=(raceDate-now)/3600000;
-    defaultTab=hoursToRace<=2?'current':'forecast';
-    wxTabsBlock=`
-      <div style="display:flex;gap:8px;margin-bottom:10px">
-        <button class="pr-type-btn${defaultTab==='forecast'?' active':''}" id="wxTabForecastBtn" onclick="setWeatherTab('forecast')">📅 Forecast</button>
-        <button class="pr-type-btn${defaultTab==='current'?' active':''}" id="wxTabCurrentBtn" onclick="setWeatherTab('current')">📡 Current</button>
-      </div>`;
   }
-  const forecastVisible=!FEAT.livePortWeather||defaultTab==='forecast';
+
+  // Section headers — same eyebrow styling used inside every card in this
+  // panel (windBlock/condBlock/tidesBlock), promoted to section level with
+  // a rule so two different data sources read as clearly distinct at a
+  // glance, not just two widgets inside one card.
+  const sectionHeader=(icon,label)=>`
+    <div style="display:flex;align-items:center;gap:10px;margin:20px 0 10px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
+        letter-spacing:.1em;text-transform:uppercase;color:var(--teal);white-space:nowrap">${icon} ${label}</div>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>`;
 
   // ── TIDES BLOCK ──────────────────────────────────────────────
   let tidesBlock='';
@@ -6126,9 +6141,9 @@ function renderWeather(wx,tides,warnings,live){
         color:var(--white)">${raceLabel}</div>
       <div style="font-size:.85rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
     </div>
-    ${wxTabsBlock}
-    <div id="wxForecastSection" style="display:${forecastVisible?'':'none'}">${windBlock}${condBlock}</div>
-    ${FEAT.livePortWeather?`<div id="wxCurrentSection" style="display:${defaultTab==='current'?'':'none'}">${liveBlock}</div>`:''}
+    ${FEAT.livePortWeather?sectionHeader('📅','Forecast'):''}
+    ${windBlock}${condBlock}
+    ${FEAT.livePortWeather?sectionHeader('📡','Current Conditions · Port of Galway')+liveBlock:''}
     ${tidesBlock}
     <div style="padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
@@ -10853,7 +10868,12 @@ async function loadWindWidget(){
 // direct, unlike halFetch()'s try-direct-then-fallback pattern (the
 // port's block is a clean HTTP response, not a thrown network error, so a
 // direct-first attempt would just silently get an empty 503 every time).
-let livePortWx=null; // {speed,gust,dir,pressure,temp,humidity,time} or null
+// {speed,gust,dir,pressure,temp,humidity,time,history,tide} or null.
+// history: last ~6h of readings, downsampled to roughly hourly, oldest
+// first — {time,speed,gust,dir}. tide: {level (m, LAD datum),trend,time} or
+// null if the tide fetch failed (weather succeeding is the hard
+// requirement; tide is a bonus that degrades independently).
+let livePortWx=null;
 async function fetchLivePortWeather(){
   try{
     const c=JSON.parse(localStorage.getItem('__port_weather_v1__')||'null');
@@ -10868,15 +10888,62 @@ async function fetchLivePortWeather(){
     // flagging an old reading as stale — this window just needs to be wide
     // enough to actually find the last real one. 24h matches the proxy's
     // own clamp, so "truly nothing" only fires on a genuine day-long outage.
-    const r=await fetch('/.netlify/functions/port-galway-proxy?type=weather&hours=24');
-    if(!r.ok) return null;
-    const arr=await r.json();
-    if(!Array.isArray(arr)||!arr.length) return null;
-    const latest=arr[arr.length-1]; // API returns oldest-first
+    const [wxRes,tideRes]=await Promise.all([
+      fetch('/.netlify/functions/port-galway-proxy?type=weather&hours=24'),
+      fetch('/.netlify/functions/port-galway-proxy?type=tide&hours=24'),
+    ]);
+    if(!wxRes.ok) return null;
+    const wxArr=await wxRes.json();
+    if(!Array.isArray(wxArr)||!wxArr.length) return null;
+    const latest=wxArr[wxArr.length-1]; // API returns oldest-first
+
+    // Last 6h of data ENDING AT THE LATEST READING, not at wall-clock now —
+    // confirmed live 2026-08-16 the station can go quiet for 10+ hours, and
+    // anchoring to Date.now() made the window come up completely empty
+    // during a gap even though 6 real hours of history existed right
+    // before the outage started. Downsampled to ~hourly (last reading in
+    // each hour bucket) — the station reports every ~5min, so 6h raw would
+    // be ~72 points, too dense for a horizontal strip. Mirrors windBlock's
+    // own Race Window strip visually, just fed the recent past instead of
+    // a forecast.
+    const latestMs=new Date(latest.time).getTime();
+    const sixHoursBeforeLatestMs=latestMs-6*3600000;
+    const hourBuckets={};
+    wxArr.filter(r=>new Date(r.time).getTime()>=sixHoursBeforeLatestMs)
+      .forEach(r=>{ hourBuckets[Math.floor(new Date(r.time).getTime()/3600000)]=r; });
+    const history=Object.values(hourBuckets)
+      .sort((a,b)=>new Date(a.time)-new Date(b.time))
+      .map(r=>({time:r.time,speed:r.wind_speed,gust:r.wind_gust,dir:r.wind_direction}));
+
+    // Tide: live sensor reading (water_level_lad, metres above Lowest
+    // Astronomical Tide — the datum charts are drawn against, so this is
+    // directly "how much water is there right now over charted depth").
+    // water_level_id is the same physical reading on a different chart
+    // datum (a fixed offset apart in every sample checked) — not shown
+    // separately, would just be a near-duplicate number. Complements,
+    // doesn't replace, the existing High/Low predictions in tidesBlock.
+    let tide=null;
+    if(tideRes.ok){
+      try{
+        const tideArr=await tideRes.json();
+        if(Array.isArray(tideArr)&&tideArr.length){
+          const latestTide=tideArr[tideArr.length-1];
+          const cutoffMs=new Date(latestTide.time).getTime()-30*60000;
+          const prior=[...tideArr].reverse().find(r=>new Date(r.time).getTime()<=cutoffMs);
+          let trend='→ Steady';
+          if(prior&&latestTide.water_level_lad!=null&&prior.water_level_lad!=null){
+            const d=latestTide.water_level_lad-prior.water_level_lad;
+            trend=d>0.05?'↑ Rising':d<-0.05?'↓ Falling':'→ Steady';
+          }
+          if(latestTide.water_level_lad!=null) tide={level:latestTide.water_level_lad,time:latestTide.time,trend};
+        }
+      }catch(e){}
+    }
+
     const data={
       speed:latest.wind_speed, gust:latest.wind_gust, dir:latest.wind_direction,
       pressure:latest.air_pressure, temp:latest.air_temperature, humidity:latest.air_humidity,
-      time:latest.time,
+      time:latest.time, history, tide,
     };
     try{ localStorage.setItem('__port_weather_v1__',JSON.stringify({ts:Date.now(),data})); }catch(e){}
     return data;
