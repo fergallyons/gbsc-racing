@@ -6141,9 +6141,9 @@ function renderWeather(wx,tides,warnings,live){
         color:var(--white)">${raceLabel}</div>
       <div style="font-size:.85rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
     </div>
+    ${FEAT.livePortWeather?sectionHeader('📡','Current Conditions · Port of Galway')+liveBlock:''}
     ${FEAT.livePortWeather?sectionHeader('📅','Forecast'):''}
     ${windBlock}${condBlock}
-    ${FEAT.livePortWeather?sectionHeader('📡','Current Conditions · Port of Galway')+liveBlock:''}
     ${tidesBlock}
     <div style="padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
