@@ -10861,7 +10861,14 @@ async function fetchLivePortWeather(){
     if(c&&Date.now()-c.ts<240000) return c.data;
   }catch(e){}
   try{
-    const r=await fetch('/.netlify/functions/port-galway-proxy?type=weather&hours=1');
+    // hours=24, not 1 — confirmed live 2026-08-16 that the station itself
+    // has real gaps (observed ~10h with nothing newer), and a 1h window
+    // turned a genuinely-stale-but-real reading into a false "unavailable".
+    // The 30-min PORT_WX_STALE_MS check in renderWeather() already handles
+    // flagging an old reading as stale — this window just needs to be wide
+    // enough to actually find the last real one. 24h matches the proxy's
+    // own clamp, so "truly nothing" only fires on a genuine day-long outage.
+    const r=await fetch('/.netlify/functions/port-galway-proxy?type=weather&hours=24');
     if(!r.ok) return null;
     const arr=await r.json();
     if(!Array.isArray(arr)||!arr.length) return null;
