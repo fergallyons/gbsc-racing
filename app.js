@@ -2846,6 +2846,14 @@ function openPanel(id){
       loadAndDrawCourseForBoat();
       _startCoursePoll();
     }
+    // The Port of Galway feed has real, unpredictable outages (observed a
+    // ~13h gap once, a ~90min gap another time) — if the RO opens this
+    // panel mid-outage and the feed happens to recover while they're
+    // looking at it, a poll means they see it come back without having to
+    // remember to hit Refresh. 60s, not 15s like the course poll — wind
+    // doesn't need second-guessing that fast, and the 4-min cache in
+    // fetchLivePortWeather() absorbs most of these calls anyway.
+    if(id==='weatherPanel') _startWeatherPoll();
   }));
 }
 function closePanel(id){
@@ -2853,6 +2861,7 @@ function closePanel(id){
   p.classList.remove('open');
   setTimeout(()=>{p.style.display='none';},300);
   if(id==='coursePanel') _stopCoursePoll();
+  if(id==='weatherPanel') _stopWeatherPoll();
 }
 // Mirrors the Start Sequence's own 15s poll (openStartSeq/closeStartSeq) —
 // same cadence, same "only while a viewer has it open" shape. Re-fetches
@@ -2864,6 +2873,14 @@ function _startCoursePoll(){
 }
 function _stopCoursePoll(){
   if(_coursePollTimer){ clearInterval(_coursePollTimer); _coursePollTimer=null; }
+}
+let _weatherPollTimer=null;
+function _startWeatherPoll(){
+  if(_weatherPollTimer) clearInterval(_weatherPollTimer);
+  _weatherPollTimer=setInterval(loadRaceWeather,60000);
+}
+function _stopWeatherPoll(){
+  if(_weatherPollTimer){ clearInterval(_weatherPollTimer); _weatherPollTimer=null; }
 }
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState!=='visible') return;
@@ -5770,6 +5787,19 @@ function wxBeaufort(kts){
 function wxCardinal(deg){
   return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(deg/22.5)%16];
 }
+// Compact "how long ago" for live-reading timestamps — e.g. "12m ago",
+// "1h 30m ago". Distinct from the wall-clock "Reading from HH:MM" label
+// it sits next to: the clock time answers "when", this answers "does that
+// still matter" without the reader doing their own subtraction — matters
+// more here than most timestamps in this app since the Port of Galway
+// feed can be stale by anywhere from a few minutes to several hours.
+function relativeAgeStr(ms){
+  const mins=Math.round(ms/60000);
+  if(mins<1) return 'just now';
+  if(mins<60) return mins+'m ago';
+  const hrs=Math.floor(mins/60), rem=mins%60;
+  return hrs+'h'+(rem?' '+rem+'m':'')+' ago';
+}
 function wxCondition(code){
   if(code===0) return {icon:'☀️',label:'Clear'};
   if(code<=2)  return {icon:'🌤️',label:'Partly cloudy'};
@@ -5942,7 +5972,15 @@ function renderWeather(wx,tides,warnings,live){
   // (always shown), tide predictions have no forecast/current duality.
   let liveBlock='';
   if(FEAT.livePortWeather){
-    const PORT_WX_STALE_MS=30*60000; // generous over the source's ~5min cadence, tight enough to mean something
+    // Two tiers, not one — confirmed live over multiple days that this feed's
+    // gaps range from a few minutes to ~13h. A flat "stale after 30min" tag
+    // makes a 35-minute-old reading (still broadly representative — wind
+    // rarely swings hard in well under an hour) look as suspect as a
+    // 10-hour-old one (not representative at all). Mild: past the source's
+    // own ~5min cadence by enough to notice. Severe: stale enough that the
+    // reading shouldn't be trusted for tactical decisions.
+    const PORT_WX_STALE_MS=30*60000;
+    const PORT_WX_VERY_STALE_MS=2*3600000;
     if(!live){
       liveBlock=`<div style="text-align:center;padding:32px 20px;color:var(--muted)">
         ⚠ Live buoy data unavailable — showing forecast only
@@ -5950,6 +5988,8 @@ function renderWeather(wx,tides,warnings,live){
     } else {
       const liveAgeMs=Date.now()-new Date(live.time).getTime();
       const isStaleLive=liveAgeMs>PORT_WX_STALE_MS;
+      const isVeryStaleLive=liveAgeMs>PORT_WX_VERY_STALE_MS;
+      const staleColour=isVeryStaleLive?'var(--danger)':'var(--gold)';
       const lSpeed=Math.round(live.speed);
       const lGust=Math.round(live.gust);
       const lDir=Math.round(live.dir);
@@ -5961,7 +6001,7 @@ function renderWeather(wx,tides,warnings,live){
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
               letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Live Now · Port of Galway</div>
-            ${isStaleLive?`<div style="font-size:.7rem;color:var(--gold);font-weight:600">⚠ Stale</div>`:''}
+            ${isStaleLive?`<div style="font-size:.7rem;color:${staleColour};font-weight:600">⚠ ${isVeryStaleLive?'Long Gap':'Stale'}</div>`:''}
           </div>
           <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
             ${windArrowSvg(lDir,lBfCol,52)}
@@ -6021,8 +6061,8 @@ function renderWeather(wx,tides,warnings,live){
               <div style="font-size:.82rem;color:var(--white);margin-top:2px">${live.tide.trend}</div>
             </div>`:''}
           </div>
-          <div style="font-size:.78rem;color:${isStaleLive?'var(--gold)':'var(--muted)'}">
-            ${isStaleLive?'⚠ ':''}Reading from ${lTimeStr} · Humidity ${Math.round(live.humidity)}%
+          <div style="font-size:.78rem;color:${isStaleLive?staleColour:'var(--muted)'}">
+            ${isStaleLive?'⚠ ':''}Reading from ${lTimeStr} (${relativeAgeStr(liveAgeMs)}) · Humidity ${Math.round(live.humidity)}%
           </div>
         </div>`;
     }
