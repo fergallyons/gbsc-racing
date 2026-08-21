@@ -6253,6 +6253,16 @@ function renderWeather(wx,tides,warnings,live){
   const raceLabel=race?race.label:'Next race';
   const raceTimeStr=raceDate.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   const providerLabel=wx._source==='met-eireann'?'Met Éireann':'Open-Meteo';
+  // getNextRaceForWeather() isn't fleet-scoped at all — a boat racing in
+  // the second of two same-day races could otherwise read the first
+  // race's forecast/start-time as their own with no signal anything's
+  // off. Applies regardless of FEAT.livePortWeather — this is about the
+  // forecast resolution itself, not the live-station feature.
+  const sameDayRaces=race?getRacesForDay(race.date):[];
+  const sameDayNote=sameDayRaces.length>1
+    ?`<div style="font-size:.78rem;color:var(--muted);margin-top:4px">
+        +${sameDayRaces.length-1} more race${sameDayRaces.length>2?'s':''} today — showing conditions for ${escHtml(raceLabel)}</div>`
+    :'';
 
   body.innerHTML=`
     ${warningsBlock}
@@ -6260,6 +6270,7 @@ function renderWeather(wx,tides,warnings,live){
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:700;
         color:var(--white)">${raceLabel}</div>
       <div style="font-size:.85rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
+      ${sameDayNote}
     </div>
     ${FEAT.livePortWeather?sectionHeader('📡','Current Conditions · Port of Galway')+liveBlock:''}
     ${showForecast?(FEAT.livePortWeather?sectionHeader('📅','Forecast'):'')+windBlock+condBlock
