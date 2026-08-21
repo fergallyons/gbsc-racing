@@ -1386,6 +1386,12 @@
     <span class="panel-title">🏁 Finish Line</span>
   </div>
   <div class="panel-body">
+    <div class="ro-row" id="roFinishRaceRow" style="display:none;margin-bottom:14px">
+      <label>Race</label>
+      <select id="roFinishRaceSelect" onchange="onRoFinishRaceSelect(this)"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+      </select>
+    </div>
     <div class="race-bar" style="margin-bottom:14px">
       <div class="race-bar-icon">🏁</div>
       <div class="race-bar-text">

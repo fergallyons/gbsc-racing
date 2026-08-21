@@ -13349,13 +13349,47 @@ let _autoFinishPollTimer=null;
 function stopAutoFinishPolling(){
   if(_autoFinishPollTimer){ clearInterval(_autoFinishPollTimer); _autoFinishPollTimer=null; }
 }
-async function openFinishRecordPanel(){
-  _finishRecordRace=selectedRace||nextRace;
-  openPanel('roFinishPanel');
+// Same index-based <select> pattern as Course Builder's/Registrations'
+// race pickers. Shown whenever there's more than one race in the season
+// (not just same-day siblings) — lets the RO pull up any race's finish
+// list, matching the other two pickers' own scope.
+function populateRoFinishRaceSelect(){
+  const row=document.getElementById('roFinishRaceRow');
+  const sel=document.getElementById('roFinishRaceSelect');
+  if(!row||!sel) return;
+  row.style.display=allRaces.length>1?'flex':'none';
+  sel.innerHTML='';
+  allRaces.forEach((r,i)=>{
+    const o=document.createElement('option');
+    o.value=i;
+    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' '+
+      r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+r.label;
+    sel.appendChild(o);
+  });
+  const defaultRace=_finishRecordRace||selectedRace||nextRace||allRaces[0];
+  const defaultIdx=defaultRace?allRaces.indexOf(defaultRace):-1;
+  if(defaultIdx>=0){
+    sel.value=defaultIdx;
+    onRoFinishRaceSelect(sel,true);
+  }
+}
+async function onRoFinishRaceSelect(el,silent){
+  const i=parseInt(el.value,10); if(isNaN(i)||!allRaces[i]) return;
+  _finishRecordRace=allRaces[i];
+  await _loadFinishRecordDataForRace();
+  if(!silent) toast('Recording finishes for '+_finishRecordRace.label);
+}
+// Extracted from openFinishRecordPanel() so a race switch (onRoFinishRaceSelect)
+// can re-run the exact same load, not a hand-duplicated copy of it. Already
+// calls stopAutoFinishPolling() before conditionally starting a new poll —
+// that ordering is what stops two 20s auto-finish polls from ever running
+// concurrently across a race switch, not just across a fresh open.
+async function _loadFinishRecordDataForRace(){
   const nameEl=document.getElementById('finishRecordRaceName');
   if(nameEl) nameEl.textContent=_finishRecordRace?_finishRecordRace.label:'No upcoming race';
   if(!_finishRecordRace){
     document.getElementById('finishRecordList').innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🏁</div><div>No race scheduled</div></div>';
+    stopAutoFinishPolling();
     return;
   }
   _finishRecords=_loadFinishRecords(_finishRecordRace);
@@ -13373,6 +13407,10 @@ async function openFinishRecordPanel(){
   if(_finishRecordRace.automated){
     _autoFinishPollTimer=setInterval(async()=>{ await refreshAutoFinishes(); renderFinishRecordList(); },20000);
   }
+}
+async function openFinishRecordPanel(){
+  openPanel('roFinishPanel');
+  populateRoFinishRaceSelect();
 }
 
 // Auto-detected finishes (races.automated) — a separate, unpersisted overlay
