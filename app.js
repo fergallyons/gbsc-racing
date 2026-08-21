@@ -855,6 +855,10 @@ let publishedCourse=null;
 // session that hasn't applied 057 or has no fleet-tagged races.
 let _roCourseRace=null;
 let myResolvedRace=null;
+// Same idea as _roCourseRace, independent state — which race the RO's
+// Registrations panel is currently scoped to. null (the default) means
+// "whatever nextRace resolves to", same as before this picker existed.
+let _roRegsRace=null;
 let selectedStartLineId='club';   // id from LINES[]
 let selectedFinishLineId='club';  // can differ for destination-finish races
 // Laid Course — RO picks a course SHAPE instead of fixed marks, for races
@@ -2872,6 +2876,10 @@ function openPanel(id){
       loadAndDrawCourseForBoat();
       _startCoursePoll();
     }
+    // loadRegistrations() otherwise only ever ran once, at RO login —
+    // reopening this panel later showed whatever race was current back
+    // then, not whichever race allRaces/nextRace has since become.
+    if(id==='roRegsPanel') populateRoRegsRaceSelect();
     // The Port of Galway feed has real, unpredictable outages (observed a
     // ~13h gap once, a ~90min gap another time) — if the RO opens this
     // panel mid-outage and the feed happens to recover while they're
@@ -9677,12 +9685,45 @@ function clearCourse(){
   renderSelectedOrder();
   renderRoCoursePreview();
 }
-function shareRegistrationInvite(){
-  if(!nextRace){toast('No upcoming race found');return;}
+// Same index-based <select> pattern as populateRoCourseRaceSelect() —
+// deliberately not reinvented. Shown/hidden by allRaces.length>1 (no
+// schema-capability gate needed — multi-row-per-day has always been
+// legal at the DB level, since before migration 006 even).
+function populateRoRegsRaceSelect(){
+  const row=document.getElementById('roRegsRaceRow');
+  const sel=document.getElementById('roRegsRaceSelect');
+  if(!row||!sel) return;
+  row.style.display=allRaces.length>1?'flex':'none';
+  sel.innerHTML='';
+  allRaces.forEach((r,i)=>{
+    const o=document.createElement('option');
+    o.value=i;
+    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' '+
+      r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+r.label;
+    sel.appendChild(o);
+  });
+  const defaultRace=nextRace||allRaces[0];
+  const defaultIdx=defaultRace?allRaces.indexOf(defaultRace):-1;
+  if(defaultIdx>=0){
+    sel.value=defaultIdx;
+    onRoRegsRaceSelect(sel,true);
+  }
+}
+function onRoRegsRaceSelect(el,silent){
+  const i=parseInt(el.value,10); if(isNaN(i)||!allRaces[i]) return;
+  _roRegsRace=allRaces[i];
+  roHideForceRegForm(); // don't leave a stale "add missing boat" form open across a race switch
+  loadRegistrations();
+  if(!silent) toast('Showing registrations for '+_roRegsRace.label);
+}
 
-  const raceName=nextRace.label;
-  const raceDate=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
-  const raceTime=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+function shareRegistrationInvite(){
+  const race=_roRegsRace||nextRace;
+  if(!race){toast('No upcoming race found');return;}
+
+  const raceName=race.label;
+  const raceDate=race.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+  const raceTime=race.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   const appUrl=window.location.href.split('#')[0];
 
   const msg=
@@ -9706,16 +9747,26 @@ function shareRegistrationInvite(){
   }
 }
 
+// Only the dashboard's own count/chip is nextRace-scoped — that's what
+// the RO tile always means, regardless of what a picker elsewhere is
+// currently showing. Switching this panel's picker to a different same-day
+// race must not overwrite it with that other race's count.
+function _isDashboardScopedRace(race){
+  return !!(race&&nextRace&&raceKey(race)===raceKey(nextRace));
+}
 async function loadRegistrations(){
+  const race=_roRegsRace||nextRace;
   const list=document.getElementById('regList');
-  if(!nextRace){list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">⛵</div>No upcoming race found</div>';return;}
+  if(!race){list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">⛵</div>No upcoming race found</div>';return;}
   list.innerHTML='<div style="color:var(--muted);font-size:.82rem;padding:8px 0">Loading…</div>';
-  const regs=await sbLoadRegistrations(nextRace);
+  const regs=await sbLoadRegistrations(race);
   registeredBoatIds=new Set(regs.map(r=>r.boat_id));
   if(!regs.length){
     list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div><div>No boats registered yet</div></div>';
-    roDashRegsCount=0;
-    updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+    if(_isDashboardScopedRace(race)){
+      roDashRegsCount=0;
+      updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+    }
     return;
   }
   list.innerHTML='';
@@ -9744,13 +9795,16 @@ async function loadRegistrations(){
       '</div>';
     list.appendChild(row);
   });
-  roDashRegsCount=regs.length;
-  updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+  if(_isDashboardScopedRace(race)){
+    roDashRegsCount=regs.length;
+    updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+  }
 }
 
 async function roUnregisterBoat(boatId,boatName){
   if(!confirm('Remove '+boatName+' from this race?'))return;
-  await sbUnregisterBoat(boatId,nextRace);
+  const race=_roRegsRace||nextRace;
+  await sbUnregisterBoat(boatId,race);
   registeredBoatIds.delete(boatId);
   // Remove row from DOM immediately
   const list=document.getElementById('regList');
@@ -9761,8 +9815,10 @@ async function roUnregisterBoat(boatId,boatName){
     const badge=row.querySelector('.reg-status');
     if(badge) badge.textContent='#'+(i+1);
   });
-  roDashRegsCount=Math.max(0,roDashRegsCount-1);
-  updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+  if(_isDashboardScopedRace(race)){
+    roDashRegsCount=Math.max(0,roDashRegsCount-1);
+    updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+  }
   if(!list.querySelector('.reg-row')){
     list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon" style="font-size:1.6rem">⛵</div><div>No boats registered yet</div></div>';
   }
@@ -9773,7 +9829,7 @@ async function roUnregisterBoat(boatId,boatName){
   // updateRegStatus() never existed (confirmed via git log -S — broken
   // since the original commit that added this function); this is the
   // actual function/state it should have been driving all along.
-  if(currentBoat&&currentBoat.id===boatId&&selectedRace&&raceKey(selectedRace)===raceKey(nextRace)){
+  if(currentBoat&&currentBoat.id===boatId&&selectedRace&&race&&raceKey(selectedRace)===raceKey(race)){
     mySelectedRaceRegistered=false;
   }
   updateRegisterButton();
@@ -9806,7 +9862,7 @@ async function roForceRegister(){
   const boatId=sel.value;
   const boat=boats.find(b=>b.id===boatId);
   const name=boat?boat.name:boatId;
-  const race=nextRace;
+  const race=_roRegsRace||nextRace;
   if(!race){toast('No current race found');return;}
   const ok=await sbRegisterBoat(boatId,race);
   if(ok){
