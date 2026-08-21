@@ -5844,6 +5844,15 @@ function renderWeather(wx,tides,warnings,live){
   const race=getNextRaceForWeather();
   const raceDate=race?race.date:new Date();
   const now=new Date();
+  // A forecast for a race that's still days away is speculative — accuracy
+  // drops off sharply past a couple of days, and it's not yet actionable.
+  // Once there's live station data to show instead, prefer that over a
+  // long-range guess; only fall back to showing the forecast anyway when
+  // there's no live data available (feed down, or this club doesn't have
+  // FEAT.livePortWeather at all) — something is better than nothing.
+  const hoursToRace=race?(raceDate-now)/3600000:null;
+  const raceImminent=hoursToRace!=null&&hoursToRace<=48;
+  const showForecast=raceImminent||!(FEAT.livePortWeather&&live);
   const isToday=raceDate.toDateString()===now.toDateString();
   const targetTs=Math.floor((isToday?Math.max(now.getTime(),raceDate.getTime()):raceDate.getTime())/1000);
 
@@ -6182,8 +6191,9 @@ function renderWeather(wx,tides,warnings,live){
       <div style="font-size:.85rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
     </div>
     ${FEAT.livePortWeather?sectionHeader('📡','Current Conditions · Port of Galway')+liveBlock:''}
-    ${FEAT.livePortWeather?sectionHeader('📅','Forecast'):''}
-    ${windBlock}${condBlock}
+    ${showForecast?(FEAT.livePortWeather?sectionHeader('📅','Forecast'):'')+windBlock+condBlock
+      :(FEAT.livePortWeather?`<div style="text-align:center;padding:16px 20px;color:var(--muted);font-size:.82rem">
+        📅 Forecast will appear once your next race is within 48 hours</div>`:'')}
     ${tidesBlock}
     <div style="padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
