@@ -1072,6 +1072,17 @@ function getNextRaceForBoat(boat){
   if(next) return next;
   return scoped[scoped.length-1];
 }
+// Every race sharing date's calendar day (local time), sorted by start
+// time — purely additive, feeds "N races today" UI affordances. Does NOT
+// change what getNextRace()/getNextRaceForBoat()/getNextRaceForWeather()
+// themselves return; those still resolve to exactly one race each. "Same
+// day" uses .toDateString() to match this file's existing convention for
+// same-day comparisons (getRaceEyebrow, renderWeather's isToday, etc.)
+function getRacesForDay(date){
+  if(!date) return [];
+  const key=date.toDateString();
+  return allRaces.filter(r=>r.date.toDateString()===key).sort((a,b)=>a.date-b.date);
+}
 function raceKey(r){
   // Stable string key for a race — used as registration identifier
   return r.date.toISOString().split('T')[0]+'_'+r.label.replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,20);
