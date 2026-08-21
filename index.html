@@ -879,6 +879,15 @@
       <span class="dash-chip course-no">Course not set</span>
     </div>
   </div>
+  <!-- ── Today's Races ── collapsed by default, only rendered with content
+       when the resolved next race has same-day siblings (renderRoTodayRaces()).
+       Named "todayraces", NOT "raceday" — that id is already the unrelated
+       tile-group accordion just below. -->
+  <div class="ro-sec-head" id="roSecHead-todayraces" onclick="toggleRoSection('todayraces')" style="display:none">
+    <span class="ro-sec-title">📅 Today's Races</span>
+    <span class="ro-sec-chev" id="roSecChev-todayraces">▸</span>
+  </div>
+  <div id="roSecBody-todayraces" style="display:none"></div>
   <!-- ── Race Day ── (expanded by default — everything used live during a race) -->
   <div class="ro-sec-head" id="roSecHead-raceday" onclick="toggleRoSection('raceday')">
     <span class="ro-sec-title">🏁 Race day</span>

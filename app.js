@@ -2961,7 +2961,13 @@ function updateSkipperDash(){
   if(eyebrow){ eyebrow.textContent=getRaceEyebrow(r); eyebrow.classList.remove('cancelled'); }
   if(r){
     nameEl.textContent=r.label;
-    if(metaEl) metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+    if(metaEl){
+      metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+      // This card shows no time at all otherwise — a same-day sibling race
+      // would be invisible here even though "Change race" already lists it.
+      const sameDay=getRacesForDay(r.date);
+      if(sameDay.length>1) metaEl.textContent+=' · +'+(sameDay.length-1)+' more race'+(sameDay.length>2?'s':'')+' today';
+    }
     if(crewRaceName) crewRaceName.textContent=r.label;
   } else {
     nameEl.textContent='No upcoming race';
@@ -3043,6 +3049,29 @@ function updateRODash(){
   if(metaEl&&r){ metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'}); }
   updateROResultsStatus();
   refreshRoStartSeqTile();
+  renderRoTodayRaces();
+}
+// "Today's Races" accordion — hidden entirely (head + body) unless the
+// resolved next race actually has same-day siblings; populated but left
+// at whatever open/closed state the RO last set otherwise (only the
+// hide-entirely branch touches display, so re-render doesn't fight a
+// manual toggleRoSection('todayraces') click).
+function renderRoTodayRaces(){
+  const head=document.getElementById('roSecHead-todayraces');
+  const body=document.getElementById('roSecBody-todayraces');
+  if(!head||!body) return;
+  const today=nextRace?getRacesForDay(nextRace.date):[];
+  if(today.length<=1){ head.style.display='none'; body.style.display='none'; return; }
+  head.style.display='';
+  body.innerHTML=today.map(r=>{
+    const isNext=nextRace&&r.id===nextRace.id;
+    const timeStr=r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 2px;
+      border-bottom:1px solid var(--border)">
+      <span style="font-size:.88rem;font-weight:${isNext?'700':'500'};color:${isNext?'var(--teal)':'var(--white)'}">${isNext?'▸ ':''}${escHtml(r.label)}</span>
+      <span style="font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;color:${isNext?'var(--teal)':'var(--white)'}">${timeStr}</span>
+    </div>`;
+  }).join('');
 }
 async function refreshRoStartSeqTile(){
   const sub=document.getElementById('roStartSeqStatus');
@@ -3077,10 +3106,12 @@ function updateROChips(regsCount,protestsCount,coursePublished){
     cstate==='pending'?'<span class="dash-chip course-no">🕐 Course not set</span>':
     cstate==='stale'  ?'<span class="dash-chip course-no">⚠ Previous course</span>':
                        '<span class="dash-chip course-no">Course not set</span>';
+  const todayCount=nextRace?getRacesForDay(nextRace.date).length:1;
   chips.innerHTML=
     '<span class="dash-chip regs">⛵ '+regsCount+' registered</span>'+
     (protestsCount>0?'<span class="dash-chip protests">🚩 '+protestsCount+' protest'+(protestsCount>1?'s':'')+'</span>':'')+
-    courseChip;
+    courseChip+
+    (todayCount>1?'<span class="dash-chip" onclick="toggleRoSection(\'todayraces\')" style="cursor:pointer">📅 '+todayCount+' races today ▸</span>':'');
   const regsStatus=document.getElementById('roRegsStatus');
   const protestStatus=document.getElementById('roProtestsStatus');
   const courseStatus=document.getElementById('roCourseStatus');
@@ -3143,7 +3174,13 @@ function buildRaceDropdown(){
   allRaces.forEach((r,i)=>{
     const grp=r.series||'Other';
     if(!og[grp]){og[grp]=document.createElement('optgroup');og[grp].label=grp;}
-    const o=document.createElement('option');o.value=i;o.textContent=r.label;
+    const o=document.createElement('option');o.value=i;
+    // Date+time prefix, not just the label — otherwise two same-day races
+    // (or any two races sharing a generic label like "Wednesday Race")
+    // are indistinguishable in the list.
+    const dateStr=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+    const timeStr=r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    o.textContent=dateStr+' '+timeStr+' · '+r.label;
     og[grp].appendChild(o);
   });
   Object.values(og).forEach(g=>sel.appendChild(g));
@@ -13551,7 +13588,12 @@ function updateHomeChips(){
   let courseChip='';
   if(state==='live')  courseChip='<span class="dash-chip course-ok" style="cursor:pointer" onclick="openPanel(\'coursePanel\')">🟢 Course live</span>';
   else if(state==='pending') courseChip='<span class="dash-chip course-no">🕐 Course pending</span>';
-  chips.innerHTML=regChip+courseChip;
+  // Informational only — this card can't take race-scoped actions
+  // (registration happens on the skipper's own card), so no expansion,
+  // just awareness that there's more than one race today.
+  const todayCount=nextRace?getRacesForDay(nextRace.date).length:1;
+  const todayChip=todayCount>1?'<span class="dash-chip">📅 '+todayCount+' races today</span>':'';
+  chips.innerHTML=regChip+courseChip+todayChip;
   refreshStartSeqData();
 }
 
