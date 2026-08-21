@@ -886,6 +886,13 @@ async function loadRaceSchedule(){
       protestDeadline: r.protest_deadline?new Date(r.protest_deadline):null,
       automated: !!r.automated, fleetId: r.fleet_id||null, raceDayId: r.race_day_id||null};
   });
+  // The query above only orders by race_date+sort_order — sort_order
+  // defaults to 99 for every race, so it's not a reliable tie-breaker
+  // for which of two same-day races actually starts first. Re-sort by
+  // the full date+time so getNextRace()'s first-match .find() picks the
+  // earlier-starting race, not whatever order the DB happened to return.
+  // No-op for every single-race-per-day case (the overwhelming common one).
+  allRaces.sort((a,b)=>a.date-b.date);
   nextRace=getNextRace();
 }
 
@@ -970,6 +977,14 @@ async function patchRaceTimesFromHalsail(){
   allRaces.forEach(r=>{
     const hal=timeByDate[r.date.toDateString()];
     if(!hal) return;
+    // Skip auto-patching on a multi-race day. timeByDate only ever keeps
+    // the EARLIEST cruiser start per calendar date (see above) — safe as
+    // a stand-in for "the" race when a date has exactly one, but blindly
+    // applying it to every same-day race would collapse Race 2/3/4's time
+    // onto Race 1's and persist that corruption straight to the DB.
+    // Single-race days (every club, overwhelmingly) are unaffected.
+    const sameDayCount=allRaces.filter(x=>x.date.toDateString()===r.date.toDateString()).length;
+    if(sameDayCount>1) return;
     if(hal.getHours()!==r.date.getHours()||hal.getMinutes()!==r.date.getMinutes()){
       r.date=hal;
       patched=true;
