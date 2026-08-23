@@ -6078,6 +6078,28 @@ function renderWeather(wx,tides,warnings,live){
       const lBf=wxBeaufort(lSpeed);
       const lBfCol=wxBfColour(lBf.f);
       const lTimeStr=new Date(live.time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      // "Steady" alone doesn't say which turning point we're at — the tide
+      // curve flattens out at BOTH high and low water, so a flat reading is
+      // ambiguous without more context. Cross-reference the predicted
+      // High/Low extremes (already fetched for tidesBlock below) to say
+      // Full or Low specifically; only when actually rising/falling is a
+      // plain direction unambiguous on its own.
+      let tideTrendLabel='';
+      if(live.tide){
+        if(live.tide.direction==='rising') tideTrendLabel='↑ Rising';
+        else if(live.tide.direction==='falling') tideTrendLabel='↓ Falling';
+        else if(tides&&Array.isArray(tides.extremes)&&tides.extremes.length){
+          const tideTimeMs=new Date(live.tide.time).getTime();
+          let nearest=null,nearestDiff=Infinity;
+          tides.extremes.forEach(e=>{
+            const diff=Math.abs(new Date(e.date).getTime()-tideTimeMs);
+            if(diff<nearestDiff){ nearestDiff=diff; nearest=e; }
+          });
+          tideTrendLabel=nearest?(nearest.type==='High'?'▲ Full':'▼ Low'):'Steady';
+        } else {
+          tideTrendLabel='Steady'; // no predicted extremes to disambiguate against
+        }
+      }
       liveBlock=`
         <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:10px">
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
@@ -6140,7 +6162,7 @@ function renderWeather(wx,tides,warnings,live){
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
                 color:var(--white);line-height:1.1">${live.tide.level.toFixed(1)}
                 <span style="font-size:.8rem;color:var(--muted);font-weight:400">m LAD</span></div>
-              <div style="font-size:.82rem;color:var(--white);margin-top:2px">${live.tide.trend}</div>
+              <div style="font-size:.82rem;color:var(--white);margin-top:2px">${tideTrendLabel}</div>
             </div>`:''}
           </div>
           <div style="font-size:.78rem;color:${isStaleLive?staleColour:'var(--muted)'}">
@@ -6202,7 +6224,13 @@ function renderWeather(wx,tides,warnings,live){
   // ── MET ÉIREANN WARNINGS ────────────────────────────────────────
   // Displaying these (unmodified, kept current) is a condition of Met
   // Éireann's Custom Open Data Licence when using their forecast data
-  // above, not just a nice-to-have — see fetchMetWarnings().
+  // above, not just a nice-to-have — see fetchMetWarnings(). The licence
+  // requires they be shown, not that they lead the page — positioned
+  // below the actual conditions (see body.innerHTML assembly) since most
+  // active warnings aren't marine-relevant (the marine-category filter
+  // below only narrows what's ALREADY active; it doesn't stop an
+  // unrelated warning — e.g. agricultural — from being the only one
+  // active and landing here as the fallback).
   const WARN_COLOURS={yellow:'#f4a261',orange:'#e67e22',red:'var(--danger)'};
   function warningTimeWindow(w){
     if(!w.onset&&!w.expires) return '';
@@ -6267,7 +6295,6 @@ function renderWeather(wx,tides,warnings,live){
     :'';
 
   body.innerHTML=`
-    ${warningsBlock}
     <div style="margin-bottom:16px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:700;
         color:var(--white)">${raceLabel}</div>
@@ -6279,6 +6306,7 @@ function renderWeather(wx,tides,warnings,live){
       :(FEAT.livePortWeather?`<div style="text-align:center;padding:16px 20px;color:var(--muted);font-size:.82rem">
         📅 Forecast will appear once your next race is within 48 hours</div>`:'')}
     ${tidesBlock}
+    ${warningsBlock}
     <div style="padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
         <span style="font-weight:600;color:var(--muted)">Model: ${wx._model||providerLabel}</span>
@@ -11112,12 +11140,17 @@ async function fetchLivePortWeather(){
           const latestTide=tideArr[tideArr.length-1];
           const cutoffMs=new Date(latestTide.time).getTime()-30*60000;
           const prior=[...tideArr].reverse().find(r=>new Date(r.time).getTime()<=cutoffMs);
-          let trend='→ Steady';
+          // Raw direction only — 'steady' on its own doesn't say WHICH turning
+          // point we're at (full or low), and this function has no access to
+          // the predicted High/Low extremes (a separate fetch, only available
+          // where renderWeather() builds the display) to work that out. Kept
+          // as a plain direction string so renderWeather() can pick the label.
+          let direction='steady';
           if(prior&&latestTide.water_level_lad!=null&&prior.water_level_lad!=null){
             const d=latestTide.water_level_lad-prior.water_level_lad;
-            trend=d>0.05?'↑ Rising':d<-0.05?'↓ Falling':'→ Steady';
+            direction=d>0.05?'rising':d<-0.05?'falling':'steady';
           }
-          if(latestTide.water_level_lad!=null) tide={level:latestTide.water_level_lad,time:latestTide.time,trend};
+          if(latestTide.water_level_lad!=null) tide={level:latestTide.water_level_lad,time:latestTide.time,direction};
         }
       }catch(e){}
     }
