@@ -5818,9 +5818,22 @@ async function fetchTideData(){
     if(c&&c.src==='imi'&&Date.now()-c.ts<43200000) return c.data;
   }catch(e){}
   try{
+    // Window must cover BOTH today and the race day — they're often not
+    // the same date (a race booked days out is the normal case), and this
+    // data now also answers "is the live station's reading near today's
+    // High or Low" (renderWeather()'s tide-label cross-reference), not
+    // just "what will the tide be doing on race day" (tidesBlock). Anchor
+    // to whichever of the two is earlier so neither is ever left out;
+    // confirmed live 2026-08-23 that anchoring on raceDate alone (the
+    // original behaviour) left today's extremes completely unfetched
+    // whenever the next race was more than a couple of days out, causing
+    // the live tide to be compared against the wrong day's High/Low.
     const raceDate=nextRace?nextRace.date:new Date();
-    const from=new Date(raceDate); from.setHours(0,0,0,0);
-    const to=new Date(from); to.setDate(to.getDate()+2);
+    const today=new Date();
+    const earlier=raceDate<today?raceDate:today;
+    const later=raceDate<today?today:raceDate;
+    const from=new Date(earlier); from.setHours(0,0,0,0);
+    const to=new Date(later); to.setHours(0,0,0,0); to.setDate(to.getDate()+2);
     const fromStr=from.toISOString().split('.')[0]+'Z';
     const toStr=to.toISOString().split('.')[0]+'Z';
     const tideStation=_C.tideStation||_C.short||'Local';
