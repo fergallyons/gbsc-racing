@@ -6054,12 +6054,14 @@ function renderWeather(wx,tides,warnings,live){
   if(FEAT.livePortWeather){
     // Two tiers, not one — confirmed live over multiple days that this feed's
     // gaps range from a few minutes to ~13h. A flat "stale after 30min" tag
-    // makes a 35-minute-old reading (still broadly representative — wind
+    // made a 35-minute-old reading (still broadly representative — wind
     // rarely swings hard in well under an hour) look as suspect as a
-    // 10-hour-old one (not representative at all). Mild: past the source's
-    // own ~5min cadence by enough to notice. Severe: stale enough that the
-    // reading shouldn't be trusted for tactical decisions.
-    const PORT_WX_STALE_MS=30*60000;
+    // 10-hour-old one (not representative at all), and read as unfairly
+    // premature against a source that can normally go up to an hour between
+    // readings. Mild: past a full hour, not just past the source's typical
+    // cadence. Severe: stale enough that the reading shouldn't be trusted
+    // for tactical decisions.
+    const PORT_WX_STALE_MS=60*60000;
     const PORT_WX_VERY_STALE_MS=2*3600000;
     if(!live){
       liveBlock=`<div style="text-align:center;padding:32px 20px;color:var(--muted)">
@@ -11064,7 +11066,7 @@ async function fetchLivePortWeather(){
     // hours=24, not 1 — confirmed live 2026-08-16 that the station itself
     // has real gaps (observed ~10h with nothing newer), and a 1h window
     // turned a genuinely-stale-but-real reading into a false "unavailable".
-    // The 30-min PORT_WX_STALE_MS check in renderWeather() already handles
+    // The 1h PORT_WX_STALE_MS check in renderWeather() already handles
     // flagging an old reading as stale — this window just needs to be wide
     // enough to actually find the last real one. 24h matches the proxy's
     // own clamp, so "truly nothing" only fires on a genuine day-long outage.
