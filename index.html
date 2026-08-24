@@ -1923,6 +1923,17 @@
   <div class="panel-body" id="raceFeesBody"></div>
 </div>
 
+<!-- Fee Wizard — GBSC only, FEAT.feeWizard. Guided declare crew / collect
+     funds / review / submit flow, redirects here from login when there's
+     an outstanding day. Fully JS-driven, see renderFeeWizardPanel(). -->
+<div class="panel-overlay" id="feeWizardPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="feeWizardBack()">‹</button>
+    <span class="panel-title" id="feeWizardTitle">🧾 Crew &amp; Fees</span>
+  </div>
+  <div class="panel-body" id="feeWizardBody"></div>
+</div>
+
 <!-- ════════════════════════════════════════════════════════════
      SERIES FEES PANEL — per-series payment tracking (RCYC)
 ════════════════════════════════════════════════════════════ -->

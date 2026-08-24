@@ -685,6 +685,7 @@ const FEAT={
   courseCard:   !!(_C.features&&_C.features.courseCard),          // true = RO course card picker
   autoRegister: !!(_C.features&&_C.features.autoRegister),        // true = every boat auto-registers for the next race, no sign-up needed
   livePortWeather: !!(_C.features&&_C.features.livePortWeather),  // true = show live Port of Galway station data (GBSC-only hardware)
+  feeWizard: !!(_C.features&&_C.features.feeWizard),               // true = guided declare/collect/review/submit flow replaces the passive Race Fees panel (GBSC-only, needs SCHEMA_HAS_DAY_SCOPED_PAYMENTS too)
 };
 
 // Map from feature key → tile element IDs that applyAllFeatureVisibility() shows/hides.
@@ -738,6 +739,7 @@ const FEAT_DEFAULTS={
   courseCard:false,
   autoRegister:false, // opt-in — most clubs use explicit registration and must stay unaffected
   livePortWeather:false, // opt-in — GBSC-only hardware (Galway Port buoy); other clubs must stay unaffected
+  feeWizard:false, // opt-in — GBSC-only, needs migration 058 applied too; other clubs must stay unaffected
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
   crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
@@ -748,6 +750,7 @@ const FEAT_CATALOG=[
   {key:'declaration',  label:'Skipper Declaration Gate', type:'bool',                                     group:'Behaviour'},
   {key:'autoRegister', label:'Auto-Register All Boats — no sign-up, every boat is assumed racing', type:'bool', group:'Behaviour'},
   {key:'livePortWeather', label:'Live Port of Galway Weather (Race Weather tab)', type:'bool', group:'Behaviour'},
+  {key:'feeWizard', label:'Guided Fee Wizard — declare crew, collect funds, review, submit', type:'bool', group:'Behaviour'},
   {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
   {key:'courseCard',     label:'Course Card Picker',    type:'bool', group:'RO Tiles'},
   {key:'registrations',  label:'Registrations',         type:'bool', group:'RO Tiles'},
@@ -808,6 +811,7 @@ function liftVeil(){
     if(f.courseCard!==undefined) FEAT.courseCard=!!f.courseCard;
     if(f.autoRegister!==undefined) FEAT.autoRegister=!!f.autoRegister;
     if(f.livePortWeather!==undefined) FEAT.livePortWeather=!!f.livePortWeather;
+    if(f.feeWizard!==undefined) FEAT.feeWizard=!!f.feeWizard;
   }catch(e){}
   liftVeil();
 })();
@@ -2363,7 +2367,8 @@ async function publishFromCourseCard(){
 // ── Series Fees (RCYC) ────────────────────────────────────────────────────────
 // Routes the fee tile to the correct panel depending on feeModel.
 function openFeePanel(){
-  if(FEAT.feeModel==='per-series') openSeriesFeesPanel();
+  if(FEAT.feeWizard&&SCHEMA_HAS_DAY_SCOPED_PAYMENTS) openFeeWizard(nextRace?nextRace.date:new Date());
+  else if(FEAT.feeModel==='per-series') openSeriesFeesPanel();
   else openRaceFeesPanel();
 }
 
@@ -3713,6 +3718,8 @@ function applyAllFeatureVisibility(){
   else FEAT.autoRegister=(FEAT_DEFAULTS.autoRegister===true);
   if(f.livePortWeather!==undefined) FEAT.livePortWeather=!!f.livePortWeather;
   else FEAT.livePortWeather=(FEAT_DEFAULTS.livePortWeather===true);
+  if(f.feeWizard!==undefined) FEAT.feeWizard=!!f.feeWizard;
+  else FEAT.feeWizard=(FEAT_DEFAULTS.feeWizard===true);
   // If the Weather panel is already open when this flag flips (e.g. an RO
   // toggles it live in Settings → Features), re-render it immediately
   // rather than waiting for the next manual open — both loadRaceWeather()
@@ -5412,6 +5419,398 @@ function showRevolutQR(firstName,revLink,amt){
     </div>`;
   el.addEventListener('click',e=>{if(e.target===el)el.remove();});
   document.body.appendChild(el);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FEE WIZARD — guided declare-crew/collect-funds/review/submit flow
+// GBSC only (FEAT.feeWizard + SCHEMA_HAS_DAY_SCOPED_PAYMENTS). Reached
+// from the normal Fees tile once the flag is on (openFeePanel()'s third
+// branch) and — once Stage 5 wires it up — a login redirect for an
+// outstanding day. State machine modeled on selfPayState/
+// renderSelfPayPanel()/selfPayBack() (a real state object with a central
+// dispatcher + back-handler), not the dead _cpStep/openCrewPaySheet()
+// pattern. Declare-crew writes race_attendees across every race in the
+// day (attendance stays race-scoped for outings tracking even though the
+// fee doesn't); collect/review/submit are all day-scoped via
+// computeDayPaymentStatus() and the migration-058 tables.
+// ═══════════════════════════════════════════════════════════════
+let feeWizardState={step:'crew',day:null,races:[],guests:[],selfPays:[],racePays:[],otherDays:null};
+
+// "Current" outstanding day — reuses nextRace (the same resolver the
+// dashboard already anchors to) rather than inventing new recency logic,
+// per the plan's "focus on the current race" refinement. Only a
+// candidate once its race(s) have actually started.
+function getCurrentOutstandingDay(){
+  if(!nextRace||nextRace.date>new Date()) return null;
+  return nextRace.date;
+}
+
+// Login-hook check (wired into enterApp() in Stage 5) — returns true if
+// it opened the wizard, so the caller can sequence around it correctly.
+async function checkAndShowFeeWizard(){
+  if(!currentBoat||!FEAT.feeWizard||!SCHEMA_HAS_DAY_SCOPED_PAYMENTS) return false;
+  const day=getCurrentOutstandingDay();
+  if(!day) return false;
+  const existing=await sbFetch('/rest/v1/race_records?boat_id=eq.'+encodeURIComponent(currentBoat.id)+'&race_date=eq.'+dayDateStr(day)+'&select=id');
+  if(Array.isArray(existing)&&existing.length) return false; // already declared
+  openFeeWizard(day);
+  return true;
+}
+
+// All of a boat's past outstanding days (registered, day passed, no
+// race_records row yet) other than the one just resolved — shown as a
+// plain list on the wizard's last step, never auto-opened (per the
+// user's explicit "list, don't auto-chain" refinement).
+async function getOutstandingFeeDays(boatId,excludeDay){
+  const excludeDayStr=excludeDay?dayDateStr(excludeDay):null;
+  const todayStr=dayDateStr(new Date());
+  const [regs,records]=await Promise.all([
+    sbFetch('/rest/v1/registrations?boat_id=eq.'+encodeURIComponent(boatId)+'&select=race_date'),
+    sbFetch('/rest/v1/race_records?boat_id=eq.'+encodeURIComponent(boatId)+'&select=race_date')
+  ]);
+  if(!Array.isArray(regs)||!Array.isArray(records)) return [];
+  const recorded=new Set(records.map(r=>r.race_date));
+  return [...new Set(regs.map(r=>r.race_date))]
+    .filter(d=>d<todayStr&&d!==excludeDayStr&&!recorded.has(d))
+    .sort().reverse();
+}
+
+async function openFeeWizard(day){
+  if(!currentBoat) return;
+  feeWizardState={step:'crew',day,races:getRacesForDay(day),guests:[],selfPays:[],racePays:[],otherDays:null};
+  await fwSeedCrew();
+  renderFeeWizardPanel();
+  openPanel('feeWizardPanel');
+}
+
+function feeWizardBack(){
+  const s=feeWizardState.step;
+  if(s==='collect'){ feeWizardState.step='crew'; renderFeeWizardPanel(); }
+  else if(s==='review'){ feeWizardState.step='collect'; renderFeeWizardPanel(); }
+  else { closePanel('feeWizardPanel'); } // 'crew' (first step), 'done', 'other'
+}
+
+function renderFeeWizardPanel(){
+  const titles={crew:'🧾 Who Sailed?',collect:'💳 Collect Funds',review:'📋 Review',done:'✅ Submitted',other:'📋 Other Outstanding'};
+  const t=document.getElementById('feeWizardTitle'); if(t) t.textContent=titles[feeWizardState.step]||'🧾 Crew & Fees';
+  if(feeWizardState.step==='crew') fwRenderCrew();
+  else if(feeWizardState.step==='collect') fwRenderCollect();
+  else if(feeWizardState.step==='review') fwRenderReview();
+  else if(feeWizardState.step==='done') fwRenderDone();
+  else if(feeWizardState.step==='other') fwRenderOther();
+}
+
+// ── Step: Declare crew ──────────────────────────────────────────
+// Seeds .selected from the UNION of attendance across every race in
+// feeWizardState.races — a boat's crew for a multi-race day is declared
+// once, not once per race.
+async function fwSeedCrew(){
+  const races=feeWizardState.races;
+  if(!races.length||!currentBoat) return;
+  const [attendeeLists,guestCrew]=await Promise.all([
+    Promise.all(races.map(r=>sbLoadRaceAttendees(currentBoat.id,raceKey(r)))),
+    sbFetch('/rest/v1/crew?boat_id=eq.'+currentBoat.id+'&is_guest=eq.true')
+  ]);
+  const attendedIds=new Set();
+  attendeeLists.forEach(list=>{ if(Array.isArray(list)) list.forEach(a=>attendedIds.add(a.crew_id)); });
+  roster.forEach(p=>{ p.selected=attendedIds.has(p.id); });
+  feeWizardState.guests=(Array.isArray(guestCrew)?guestCrew:[]).filter(g=>attendedIds.has(g.id));
+}
+
+function fwRenderCrew(){
+  const body=document.getElementById('feeWizardBody'); if(!body) return;
+  const races=feeWizardState.races;
+  const dayLabel=races.length>1?(races[0].series||races[0].label)+' — '+races.length+' races today':(races[0]?races[0].label:'');
+  const rows=roster.map(p=>`
+    <div onclick="fwToggleCrew('${p.id}')" style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer">
+      <div style="width:22px;height:22px;border-radius:7px;border:1.5px solid var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center;${p.selected?'background:var(--teal);border-color:var(--teal)':''}">
+        ${p.selected?'<span style="color:var(--navy-dark);font-weight:900;font-size:.8rem">✓</span>':''}
+      </div>
+      <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
+      <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div></div>
+    </div>`).join('');
+  const guestRows=feeWizardState.guests.map(g=>`
+    <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)">
+      <div style="width:22px;height:22px;border-radius:7px;background:var(--teal);border-color:var(--teal);flex-shrink:0;display:flex;align-items:center;justify-content:center">
+        <span style="color:var(--navy-dark);font-weight:900;font-size:.8rem">✓</span>
+      </div>
+      <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(g)}</div>
+      <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(g.first)} ${escHtml(g.last)}</div><div style="font-size:.74rem;color:var(--muted)">Guest</div></div>
+      <button onclick="fwRemoveGuest('${g.id}')" style="background:transparent;border:none;color:var(--muted);font-size:.78rem;cursor:pointer">Remove</button>
+    </div>`).join('');
+  body.innerHTML=`
+    <div style="font-size:.8rem;color:var(--teal);font-weight:700;letter-spacing:.03em;margin-bottom:14px">${escHtml(dayLabel)}</div>
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:8px">Who sailed? Tap to change.</p>
+    ${rows}${guestRows}
+    <div onclick="fwShowGuestForm()" style="display:flex;align-items:center;gap:10px;padding:14px 0 4px;color:var(--teal);font-size:.86rem;font-weight:700;cursor:pointer">
+      <span style="width:22px;height:22px;border-radius:7px;border:1.5px dashed var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0">+</span>
+      Add someone else
+    </div>
+    <div id="fwGuestFormWrap" style="display:none;margin-top:10px;padding:14px;background:var(--navy-input);border:1px solid var(--border);border-radius:12px">
+      <input id="fwGuestFirst" placeholder="First name" style="width:100%;margin-bottom:8px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--navy-dark);color:var(--white);font-size:.88rem">
+      <input id="fwGuestLast" placeholder="Last name" style="width:100%;margin-bottom:8px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--navy-dark);color:var(--white);font-size:.88rem">
+      <select id="fwGuestType" style="width:100%;margin-bottom:10px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--navy-dark);color:var(--white);font-size:.88rem">
+        <option value="visitor">Visitor</option><option value="student">Student</option><option value="crew">Crew Member</option>
+      </select>
+      <button onclick="fwSubmitGuest()" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--teal);color:var(--navy-dark);font-weight:800;cursor:pointer">Add</button>
+    </div>
+    <button onclick="fwCrewNext()" style="width:100%;margin-top:20px;padding:14px;border-radius:12px;border:none;background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;cursor:pointer">Next</button>
+    <div id="fwCrewErr" style="display:none;color:var(--danger);font-size:.78rem;text-align:center;margin-top:8px">Select at least one person first.</div>`;
+}
+
+function fwToggleCrew(id){
+  const p=roster.find(r=>r.id===id); if(!p) return;
+  p.selected=!p.selected;
+  saveCrewSelection(currentBoat?.id);
+  sbSetCrewSelected(p.id,p.selected);
+  // race_attendees stays race-scoped — write/delete across every race that
+  // day so per-race attendance/outings tracking is unaffected by the
+  // wizard declaring once for the whole day.
+  feeWizardState.races.forEach(race=>{
+    const key=raceKey(race);
+    if(p.selected){
+      sbUpsertRaceAttendee(currentBoat.id,key,race.label,dayDateStr(race.date),p.id)
+        .then(r=>{if(r?._err) console.error('race_attendees upsert failed',r._err);});
+    } else {
+      sbDeleteRaceAttendee(currentBoat.id,key,p.id)
+        .then(r=>{if(r?._err) console.error('race_attendees delete failed',r._err);});
+    }
+  });
+  fwRenderCrew();
+}
+
+function fwShowGuestForm(){
+  const w=document.getElementById('fwGuestFormWrap'); if(w) w.style.display='block';
+}
+
+async function fwSubmitGuest(){
+  const firstEl=document.getElementById('fwGuestFirst'), lastEl=document.getElementById('fwGuestLast'), typeEl=document.getElementById('fwGuestType');
+  const first=firstEl.value.trim(), last=lastEl.value.trim(), type=typeEl.value;
+  if(!first){ toast('Enter a first name'); return; }
+  const id=newCrewId();
+  const guest={id,first,last,type,isGuest:true,selected:true};
+  await sbUpsertCrew(currentBoat.id,guest);
+  feeWizardState.guests.push(guest);
+  feeWizardState.races.forEach(race=>{
+    sbUpsertRaceAttendee(currentBoat.id,raceKey(race),race.label,dayDateStr(race.date),id)
+      .then(r=>{if(r?._err) console.error('race_attendees upsert failed',r._err);});
+  });
+  firstEl.value=''; lastEl.value=''; typeEl.value='visitor';
+  const w=document.getElementById('fwGuestFormWrap'); if(w) w.style.display='none';
+  fwRenderCrew();
+}
+
+function fwRemoveGuest(id){
+  feeWizardState.guests=feeWizardState.guests.filter(g=>g.id!==id);
+  feeWizardState.races.forEach(race=>{
+    sbDeleteRaceAttendee(currentBoat.id,raceKey(race),id)
+      .then(r=>{if(r?._err) console.error('race_attendees delete failed',r._err);});
+  });
+  fwRenderCrew();
+}
+
+async function fwCrewNext(){
+  const anySelected=roster.some(p=>p.selected)||feeWizardState.guests.length>0;
+  const err=document.getElementById('fwCrewErr');
+  if(!anySelected){ if(err) err.style.display='block'; return; }
+  if(err) err.style.display='none';
+  const status=await computeDayPaymentStatus(currentBoat.id,feeWizardState.day);
+  feeWizardState.selfPays=status.selfPays;
+  feeWizardState.racePays=status.racePays;
+  feeWizardState.step='collect';
+  renderFeeWizardPanel();
+}
+
+// ── Step: Collect funds ─────────────────────────────────────────
+// Combines the wizard's own declared crew+guests with live self_payments/
+// race_payments (fetched in fwCrewNext()/fwMarkPaid()) into one flat list
+// — someone who already self-paid via the QR link shows up pre-settled
+// rather than being asked again, the whole reason this step exists.
+function fwPeople(){
+  const crewPeople=roster.filter(p=>p.selected);
+  const guestPeople=feeWizardState.guests;
+  const selfIds=new Set(feeWizardState.selfPays.map(p=>p.crew_id));
+  const raceMethodById={};
+  feeWizardState.racePays.forEach(p=>{ raceMethodById[p.crew_id]=p.method; });
+  return [...crewPeople,...guestPeople].map(p=>({
+    ...p,
+    paidVia: selfIds.has(p.id)?'self':(raceMethodById[p.id]||null)
+  }));
+}
+
+function fwRenderCollect(){
+  const body=document.getElementById('feeWizardBody'); if(!body) return;
+  const people=fwPeople();
+  const revUser=getRevolutUser();
+  const due=people.reduce((a,p)=>a+fee(p),0);
+  const collected=people.filter(p=>p.paidVia).reduce((a,p)=>a+fee(p),0);
+  const rows=people.map(p=>{
+    if(p.paidVia==='self'){
+      return `<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)">
+        <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
+        <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div></div>
+        <span style="background:rgba(39,174,96,.14);border:1px solid rgba(39,174,96,.35);color:var(--success);font-size:.7rem;font-weight:700;padding:4px 9px;border-radius:20px;white-space:nowrap">Paid via app · €${fee(p)}</span>
+      </div>`;
+    }
+    if(p.paidVia){
+      return `<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)">
+        <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
+        <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div><div style="font-size:.78rem;color:var(--success)">✓ ${escHtml(p.paidVia)}</div></div>
+        <span style="font-weight:800;color:var(--success)">€${fee(p)}</span>
+        <button onclick="fwUnpay('${p.id}')" style="font-size:.72rem;font-weight:700;padding:4px 9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Undo</button>
+      </div>`;
+    }
+    const revBtn=revUser?`onclick="fwMarkPaid('${p.id}','Revolut')"`:`onclick="toast('Set your Revolut @username in Settings ⚙')"`;
+    return `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
+        <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div></div>
+        <span style="font-weight:800;color:var(--danger)">€${fee(p)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+        <button ${revBtn} style="padding:10px 4px;border-radius:9px;font-size:.78rem;font-weight:800;background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);color:#a78bfa;cursor:pointer">💜 Revolut</button>
+        <button onclick="fwMarkPaid('${p.id}','Cash')" style="padding:10px 4px;border-radius:9px;font-size:.78rem;font-weight:800;background:rgba(39,174,96,.12);border:1px solid rgba(39,174,96,.4);color:var(--success);cursor:pointer">💵 Cash</button>
+        <button onclick="fwMarkPaid('${p.id}','Card')" style="padding:10px 4px;border-radius:9px;font-size:.78rem;font-weight:800;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);color:var(--teal);cursor:pointer">💳 Card</button>
+      </div>
+    </div>`;
+  }).join('');
+  body.innerHTML=`
+    <p style="color:var(--muted);font-size:.85rem;margin-bottom:8px">Anyone who paid via the app link is already ticked off.</p>
+    ${rows}
+    <div style="display:flex;justify-content:space-between;background:var(--navy-input);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-top:14px;font-size:.8rem;color:var(--muted)">
+      <span>Collected so far</span><b style="color:var(--white);font-size:1.05rem">€${collected} of €${due}</b>
+    </div>
+    <button onclick="fwGoReview()" style="width:100%;margin-top:16px;padding:14px;border-radius:12px;border:none;background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;cursor:pointer">Next</button>`;
+}
+
+async function fwMarkPaid(id,method){
+  const person=roster.find(p=>p.id===id)||feeWizardState.guests.find(p=>p.id===id);
+  if(!person) return;
+  const anchor=feeWizardState.races[0];
+  const r=await sbUpsertRacePayment({
+    boat_id:currentBoat.id, crew_id:id,
+    race_key:raceKey(anchor), race_name:anchor.label, race_date:dayDateStr(feeWizardState.day),
+    method, amount:fee(person)
+  });
+  if(r&&r._err&&r._status===409){
+    // Someone else (self-pay via the QR link, or a near-simultaneous
+    // second tap) already recorded a payment for this person+day since
+    // the panel opened — not an error worth surfacing, just stale local
+    // state; refresh from the source of truth below.
+    toast('Already recorded — refreshing');
+  } else if(r&&r._err){
+    toast('⚠ Could not save — '+String(r._err).slice(0,60));
+    return;
+  }
+  const status=await computeDayPaymentStatus(currentBoat.id,feeWizardState.day);
+  feeWizardState.selfPays=status.selfPays;
+  feeWizardState.racePays=status.racePays;
+  fwRenderCollect();
+}
+
+async function fwUnpay(id){
+  await sbDeleteRacePayment(id,raceKey(feeWizardState.races[0]),dayDateStr(feeWizardState.day));
+  const status=await computeDayPaymentStatus(currentBoat.id,feeWizardState.day);
+  feeWizardState.selfPays=status.selfPays;
+  feeWizardState.racePays=status.racePays;
+  fwRenderCollect();
+}
+
+function fwGoReview(){
+  feeWizardState.step='review';
+  renderFeeWizardPanel();
+}
+
+// ── Step: Review ─────────────────────────────────────────────────
+function fwRenderReview(){
+  const body=document.getElementById('feeWizardBody'); if(!body) return;
+  const people=fwPeople();
+  const self=people.filter(p=>p.paidVia==='self').reduce((a,p)=>a+fee(p),0);
+  const cash=people.filter(p=>p.paidVia==='Cash').reduce((a,p)=>a+fee(p),0);
+  const card=people.filter(p=>p.paidVia==='Card').reduce((a,p)=>a+fee(p),0);
+  const revolut=people.filter(p=>p.paidVia==='Revolut').reduce((a,p)=>a+fee(p),0);
+  const owing=people.filter(p=>!p.paidVia);
+  const due=people.reduce((a,p)=>a+fee(p),0);
+  const total=self+cash+card+revolut;
+  body.innerHTML=`
+    <div style="background:var(--navy-input);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Self-paid via app</span><b style="color:var(--white)">€${self}</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Collected — cash</span><b style="color:var(--white)">€${cash}</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Collected — card</span><b style="color:var(--white)">€${card}</b></div>
+      <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Collected — Revolut</span><b style="color:var(--white)">€${revolut}</b></div>
+      <div style="height:1px;background:rgba(255,255,255,.08);margin:8px 0"></div>
+      <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Still owing</span><b style="color:${owing.length?'var(--warn)':'var(--success)'}">${owing.length?escHtml(owing.map(p=>p.first).join(', ')):'Nobody — all settled'}</b></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:.82rem;color:var(--muted)">Total in / due</span><span style="font-size:1.5rem;font-weight:800;color:var(--white)">€${total} / €${due}</span></div>
+    <button onclick="fwSubmit()" style="width:100%;margin-top:20px;padding:14px;border-radius:12px;border:none;background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;cursor:pointer">Submit declaration</button>`;
+}
+
+// ── Step: Submit ─────────────────────────────────────────────────
+// New, correctly-shaped save — modeled on autoSaveRaceRecord() (the live,
+// correct path), not confirmSubmit() (dead code, and its payload omits
+// race_key entirely). Unlike the old panel's per-tap silent autosave,
+// this is the one deliberate, awaited, error-surfaced write.
+async function fwSubmit(){
+  const people=fwPeople();
+  const anchor=feeWizardState.races[0]; // day's earliest race — informational only, see migration 058
+  const snapshot=people.map(p=>({
+    id:p.id,first:p.first,last:p.last,type:p.type,phone:p.phone||'',isGuest:!!p.isGuest,
+    outings:p.outings||0,joinYear:p.joinYear||null,selected:true,
+    paid:!!p.paidVia,payMethod:p.paidVia==='self'?'self-paid':(p.paidVia||'')
+  }));
+  const totalDue=people.reduce((a,p)=>a+fee(p),0);
+  const totalPaid=people.filter(p=>p.paidVia).reduce((a,p)=>a+fee(p),0);
+  const byMethod={};
+  people.filter(p=>p.paidVia&&p.paidVia!=='self').forEach(p=>{ byMethod[p.paidVia]=(byMethod[p.paidVia]||0)+fee(p); });
+  const r=await sbSaveRaceRecord({
+    boat_id:currentBoat.id, race_name:anchor.label, race_date:dayDateStr(feeWizardState.day),
+    race_key:raceKey(anchor), crew_snapshot:snapshot, total_due:totalDue, total_paid:totalPaid,
+    payment_methods:byMethod, settlement_methods:[...new Set(Object.keys(byMethod))]
+  });
+  if(r&&r._err){ toast('⚠ Could not submit — '+String(r._err).slice(0,60)); return; }
+  feeWizardState.step='done';
+  renderFeeWizardPanel();
+}
+
+function fwRenderDone(){
+  const body=document.getElementById('feeWizardBody'); if(!body) return;
+  body.innerHTML=`
+    <div style="text-align:center;padding:24px 0">
+      <div style="width:64px;height:64px;border-radius:50%;background:rgba(39,174,96,.14);border:2px solid var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:1.8rem;color:var(--success)">✓</div>
+      <h3 style="font-family:'Barlow Condensed',sans-serif;font-size:1.35rem;font-weight:800;color:var(--white);margin-bottom:6px">Declaration submitted</h3>
+      <p style="color:var(--muted);font-size:.85rem">Thanks — the RO can see who's aboard.</p>
+    </div>
+    <button onclick="fwShowOther()" style="width:100%;padding:13px;border-radius:12px;border:1px solid var(--border);background:transparent;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;cursor:pointer;margin-bottom:10px">Check other outstanding races</button>
+    <button onclick="closePanel('feeWizardPanel')" style="width:100%;padding:13px;border-radius:12px;border:none;background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:800;cursor:pointer">Done</button>`;
+}
+
+// ── Step: Other outstanding — list only, never auto-opened ───────
+async function fwShowOther(){
+  feeWizardState.step='other';
+  feeWizardState.otherDays=await getOutstandingFeeDays(currentBoat.id,feeWizardState.day);
+  renderFeeWizardPanel();
+}
+
+function fwRenderOther(){
+  const body=document.getElementById('feeWizardBody'); if(!body) return;
+  const days=feeWizardState.otherDays||[];
+  if(!days.length){
+    body.innerHTML=`<div class="empty-state"><div class="icon">✅</div><div>Nothing else outstanding — all caught up.</div></div>
+      <button onclick="closePanel('feeWizardPanel')" style="width:100%;margin-top:16px;padding:14px;border-radius:12px;border:none;background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;cursor:pointer">Done</button>`;
+    return;
+  }
+  const rows=days.map(d=>{
+    const dateObj=new Date(d+'T12:00:00');
+    const dayRaces=getRacesForDay(dateObj);
+    const label=dayRaces.length?(dayRaces[0].series||dayRaces[0].label):d;
+    const dateStr=dateObj.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
+      <div><div style="font-size:.92rem;font-weight:700">${escHtml(label)}</div><div style="font-size:.78rem;color:var(--muted)">${dateStr}</div></div>
+      <button onclick="openFeeWizard(new Date('${d}T12:00:00'))" style="font-size:.78rem;font-weight:700;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:rgba(0,174,239,.1);color:var(--teal);cursor:pointer">Resolve now</button>
+    </div>`;
+  }).join('');
+  body.innerHTML=`<p style="color:var(--muted);font-size:.85rem;margin-bottom:8px">${days.length} earlier day${days.length>1?'s':''} not yet declared.</p>${rows}
+    <button onclick="closePanel('feeWizardPanel')" style="width:100%;margin-top:16px;padding:14px;border-radius:12px;border:none;background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;cursor:pointer">Done for now</button>`;
 }
 
 // ════════════════════════════════════════════════════════════
