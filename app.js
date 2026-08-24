@@ -261,21 +261,33 @@ async function sbLoadCrew(id){const r=await sbFetch('/rest/v1/crew?boat_id=eq.'+
 async function sbUpsertCrew(bid,p){return sbFetch('/rest/v1/crew?on_conflict=id',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({id:p.id,boat_id:bid,first:p.first,last:p.last,type:p.type,is_guest:p.isGuest||false,join_year:p.joinYear||null,outings:p.outings||0,phone:p.phone||null,selected:p.selected||false})});}
 async function sbSetCrewSelected(crewId,selected){return sbFetch('/rest/v1/crew?id=eq.'+crewId,{method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify({selected})});}
 async function sbDeleteCrew(id){return sbFetch('/rest/v1/crew?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});}
-async function sbSaveRaceRecord(rec){return sbFetch('/rest/v1/race_records?on_conflict=boat_id,race_key',{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rec)});}
+async function sbSaveRaceRecord(rec){
+  // race_records is boat-scoped-per-day once 058 is applied — see
+  // SCHEMA_HAS_DAY_SCOPED_PAYMENTS (app.js, checkSchemaCapabilities()).
+  // rec always carries both race_key and race_date (autoSaveRaceRecord()/
+  // fwSubmit()), so no caller changes needed for this branch.
+  const conflictCols=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?'boat_id,race_date':'boat_id,race_key';
+  return sbFetch('/rest/v1/race_records?on_conflict='+conflictCols,{method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify(rec)});
+}
 async function sbUpsertRacePayment(data){
-  return sbFetch('/rest/v1/race_payments?on_conflict=crew_id,race_key',{
+  const conflictCols=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?'crew_id,race_date':'crew_id,race_key';
+  return sbFetch('/rest/v1/race_payments?on_conflict='+conflictCols,{
     method:'POST',
     headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
     body:JSON.stringify(data)
   });
 }
-async function sbDeleteRacePayment(crewId,raceKey){
-  return sbFetch('/rest/v1/race_payments?crew_id=eq.'+encodeURIComponent(crewId)+'&race_key=eq.'+encodeURIComponent(raceKey),{
+async function sbDeleteRacePayment(crewId,raceKeyVal,raceDateVal){
+  const col=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?'race_date':'race_key';
+  const val=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?raceDateVal:raceKeyVal;
+  return sbFetch('/rest/v1/race_payments?crew_id=eq.'+encodeURIComponent(crewId)+'&'+col+'=eq.'+encodeURIComponent(val),{
     method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}
   });
 }
-async function sbLoadRacePayments(boatId,raceKey){
-  return sbFetch('/rest/v1/race_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(raceKey));
+async function sbLoadRacePayments(boatId,raceKeyVal,raceDateVal){
+  const col=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?'race_date':'race_key';
+  const val=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?raceDateVal:raceKeyVal;
+  return sbFetch('/rest/v1/race_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&'+col+'=eq.'+encodeURIComponent(val));
 }
 async function sbLoadRaceAttendees(boatId,key){
   return sbFetch('/rest/v1/race_attendees?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(key));
@@ -292,8 +304,10 @@ async function sbDeleteRaceAttendee(boatId,key,crewId){
     method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}
   });
 }
-async function sbLoadRaceRecords(key){
-  const r=await sbFetch('/rest/v1/race_records?race_key=eq.'+encodeURIComponent(key)+'&order=submitted_at.asc');
+async function sbLoadRaceRecords(key,dayDate){
+  const col=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?'race_date':'race_key';
+  const val=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?dayDate:key;
+  const r=await sbFetch('/rest/v1/race_records?'+col+'=eq.'+encodeURIComponent(val)+'&order=submitted_at.asc');
   return Array.isArray(r)?r:[];
 }
 // Save race record whenever payment state changes — keeps total_paid accurate
@@ -823,9 +837,9 @@ let boats=[], fleets=[], raceAreas=[], currentBoat=null, isRO=false, isGuest=fal
 // registrations.sail_number) gets the exact same treatment from the start.
 let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLEET=false,
     SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false,
-    SCHEMA_HAS_PER_RACE_COURSES=false;
+    SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -835,6 +849,11 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_RACE_AREAS=names.has('055_race_areas.sql');
   SCHEMA_HAS_SAIL_NUMBER_REQ=names.has('056_registration_sail_number.sql');
   SCHEMA_HAS_PER_RACE_COURSES=names.has('057_published_courses_per_race.sql');
+  // Fee/payment identity (race_records/self_payments/race_payments) moves
+  // from per-race to per-day once 058 is applied — see the migration file
+  // for why (crews pay once per day regardless of race count). Nothing
+  // reads this flag yet; it's wired up incrementally in the stages after.
+  SCHEMA_HAS_DAY_SCOPED_PAYMENTS=names.has('058_day_scoped_race_payments.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -1090,6 +1109,13 @@ function getRacesForDay(date){
 function raceKey(r){
   // Stable string key for a race — used as registration identifier
   return r.date.toISOString().split('T')[0]+'_'+r.label.replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,20);
+}
+// Calendar-day string for a race's date — the day-scoped identity fee/
+// payment tables use once SCHEMA_HAS_DAY_SCOPED_PAYMENTS is on (migration
+// 058). Same UTC-day convention already used inline at every existing
+// race_date write site — not a new format, just a named helper for it.
+function dayDateStr(date){
+  return date.toISOString().split('T')[0];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -4794,11 +4820,12 @@ let raceFeesGuests=[];
 async function loadAndApplyPayments(race){
   if(!race||!currentBoat)return;
   const key=raceKey(race);
+  const dayDate=dayDateStr(race.date);
   const [selfPays,racePayments,guestCrew,attendees]=await Promise.all([
-    sbLoadSelfPayments(currentBoat.id,key),
-    sbLoadRacePayments(currentBoat.id,key),
+    sbLoadSelfPayments(currentBoat.id,key,dayDate),
+    sbLoadRacePayments(currentBoat.id,key,dayDate),
     sbFetch('/rest/v1/crew?boat_id=eq.'+currentBoat.id+'&is_guest=eq.true'),
-    sbLoadRaceAttendees(currentBoat.id,key)
+    sbLoadRaceAttendees(currentBoat.id,key) // race_attendees stays race-scoped — unchanged
   ]);
   roster.forEach(p=>{p.paid=false;p.payMethod='';});
   if(Array.isArray(selfPays)){
@@ -4826,6 +4853,33 @@ async function loadAndApplyPayments(race){
       return {id:g.id,first:g.first,last:g.last,type:g.type,paid:!!(rp||sp),payMethod:rp?rp.method:sp?(sp.method||'Paid')+' ✦ self-paid':''};
     });
   renderCrew();
+}
+
+// Reconciles a boat's live fee/payment state for one whole calendar day —
+// unions the submitted race_records snapshot's own .paid flags with any
+// self-pay/skipper-marked payment that's landed since (the same gap
+// loadOutstandingReport()'s own comment documents), so a crew member who
+// paid via the QR link after the skipper last submitted doesn't show as
+// still owing. Only ever called once SCHEMA_HAS_DAY_SCOPED_PAYMENTS is on
+// (the Fee Wizard is gated on the same flag) — at that point race_records/
+// self_payments/race_payments are all keyed by race_date, so a plain
+// boat_id+race_date filter covers the whole day in one shot regardless of
+// how many races it has. Used by the Fee Wizard's Collect/Review steps.
+async function computeDayPaymentStatus(boatId,day){
+  const dayStr=dayDateStr(day);
+  const [records,selfPays,racePays]=await Promise.all([
+    sbFetch('/rest/v1/race_records?boat_id=eq.'+encodeURIComponent(boatId)+'&race_date=eq.'+dayStr),
+    sbFetch('/rest/v1/self_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&race_date=eq.'+dayStr),
+    sbFetch('/rest/v1/race_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&race_date=eq.'+dayStr)
+  ]);
+  const record=(Array.isArray(records)&&records[0])||null;
+  const selfPaysArr=Array.isArray(selfPays)?selfPays:[];
+  const racePaysArr=Array.isArray(racePays)?racePays:[];
+  const livePaidIds=new Set([...selfPaysArr.map(p=>p.crew_id),...racePaysArr.map(p=>p.crew_id)]);
+  const crew=(record?.crew_snapshot||[]).map(p=>({...p,livePaid:p.paid||livePaidIds.has(p.id)}));
+  const totalDue=record?.total_due||0;
+  const totalPaid=crew.reduce((sum,p)=>sum+(p.livePaid?fee(p):0),0);
+  return {record,crew,totalDue,totalPaid,outstanding:totalDue-totalPaid,selfPays:selfPaysArr,racePays:racePaysArr};
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -5064,7 +5118,7 @@ function rfUnpay(id){
   p.paid=false; p.payMethod='';
   renderCrew(); renderRaceFeesPanel();
   const race=selectedRace||nextRace;
-  if(race){ sbDeleteRacePayment(id,raceKey(race)); autoSaveRaceRecord(); }
+  if(race){ sbDeleteRacePayment(id,raceKey(race),dayDateStr(race.date)); autoSaveRaceRecord(); }
 }
 // ── Guest equivalents — operate on raceFeesGuests, not roster ─
 function rfGuestMarkPaid(id,method){
@@ -5087,7 +5141,7 @@ function rfGuestUnpay(id){
   p.paid=false; p.payMethod='';
   renderCrew(); renderRaceFeesPanel();
   const race=selectedRace||nextRace;
-  if(race){ sbDeleteRacePayment(id,raceKey(race)); }
+  if(race){ sbDeleteRacePayment(id,raceKey(race),dayDateStr(race.date)); }
 }
 function rfGuestPayRevolut(id){ rfGuestMarkPaid(id,'Revolut'); }
 function rfGuestPayCard(id){ rfGuestMarkPaid(id,'Card'); }
@@ -6345,8 +6399,10 @@ async function sbSaveSelfPayment(data){
     body:JSON.stringify(data)
   });
 }
-async function sbLoadSelfPayments(boatId,raceKey){
-  return sbFetch('/rest/v1/self_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&race_key=eq.'+encodeURIComponent(raceKey));
+async function sbLoadSelfPayments(boatId,raceKeyVal,raceDateVal){
+  const col=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?'race_date':'race_key';
+  const val=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?raceDateVal:raceKeyVal;
+  return sbFetch('/rest/v1/self_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&'+col+'=eq.'+encodeURIComponent(val));
 }
 async function sbLoadAllBoatPayments(boatId){
   return sbFetch('/rest/v1/self_payments?boat_id=eq.'+encodeURIComponent(boatId)+'&order=race_date.desc');
@@ -7413,10 +7469,16 @@ async function generatePaymentReport(){
 
   statusEl.textContent='⏳ Loading report…';
 
+  // Minimum-viable day-scoping fix: records/self-pay resolve by day once
+  // 058 is applied, so a boat that sailed both of a multi-race day's races
+  // and paid once still shows up here. registrations stays race-scoped —
+  // deeper "one row per day" report reshaping is deliberately deferred.
+  const dayScopeCol=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?'race_date':'race_key';
+  const dayScopeVal=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?dayDateStr(race.date):raceKey(race);
   const [records, regs, selfPays]=await Promise.all([
-    sbLoadRaceRecords(raceKey(race)),
+    sbLoadRaceRecords(raceKey(race),dayDateStr(race.date)),
     sbLoadRegistrations(race),
-    sbFetch('/rest/v1/self_payments?race_key=eq.'+raceKey(race))
+    sbFetch('/rest/v1/self_payments?'+dayScopeCol+'=eq.'+encodeURIComponent(dayScopeVal))
   ]);
 
   statusEl.textContent='';
@@ -9968,19 +10030,26 @@ async function renderFeeStatement(){
     return;
   }
 
-  // Merge both payment sources — deduplicate by crew_id+race_key so a crew
-  // member recorded in both tables (self-pay + skipper-marked) counts only once.
-  // race_payments (skipper-confirmed) takes priority over self_payments.
+  // Merge both payment sources — deduplicate by crew_id+race_key (or
+  // +race_date once day-scoped, see SCHEMA_HAS_DAY_SCOPED_PAYMENTS) so a
+  // crew member recorded in both tables (self-pay + skipper-marked) counts
+  // only once. race_payments (skipper-confirmed) takes priority.
+  // Minimum-viable day-scoping fix: keying by race_date (instead of
+  // race_key) means BOTH of a multi-race day's registration rows find the
+  // same shared payment record below — still renders as two lines, not
+  // collapsed into one; that deeper reshape is deliberately deferred.
   const payMap={};
   const seenCrewRace=new Set();
+  const mapKey=p=>SCHEMA_HAS_DAY_SCOPED_PAYMENTS?p.race_date:p.race_key;
   const addToMap=p=>{
-    const dedupKey=`${p.crew_id}|${p.race_key}`;
+    const k=mapKey(p);
+    const dedupKey=`${p.crew_id}|${k}`;
     if(seenCrewRace.has(dedupKey)) return;
     seenCrewRace.add(dedupKey);
-    if(!payMap[p.race_key]) payMap[p.race_key]={total:0,methods:new Set(),count:0};
-    payMap[p.race_key].total+=(p.amount||0);
-    if(p.method) payMap[p.race_key].methods.add(p.method);
-    payMap[p.race_key].count++;
+    if(!payMap[k]) payMap[k]={total:0,methods:new Set(),count:0};
+    payMap[k].total+=(p.amount||0);
+    if(p.method) payMap[k].methods.add(p.method);
+    payMap[k].count++;
   };
   // Process race_payments first so they take priority in dedup
   racePays.forEach(addToMap);
@@ -10001,7 +10070,7 @@ async function renderFeeStatement(){
 
   let html='';
   for(const r of regs){
-    const pay=payMap[r.race_key];
+    const pay=payMap[SCHEMA_HAS_DAY_SCOPED_PAYMENTS?r.race_date:r.race_key];
     const dateStr=fmtDate(r.race_date);
     const clickAttr=clickable?`onclick="feeStmtOpenRace('${r.race_key}')" style="cursor:pointer"`:'';
     if(pay){
@@ -14103,10 +14172,17 @@ async function loadOutstandingReport(){
   // this report would show the balance as owing forever. Recompute "paid"
   // live instead of trusting the stored total_paid — same reconciliation
   // renderFeeStatement() already does.
+  // Identity column for the cross-table reconciliation below: race_date
+  // once SCHEMA_HAS_DAY_SCOPED_PAYMENTS is on (migration 058 — a boat's
+  // whole multi-race day is one record), race_key otherwise. See
+  // computeDayPaymentStatus() for the per-boat equivalent the Fee Wizard
+  // uses — this stays a bulk all-boats pass for efficiency (one query per
+  // table for the whole club, not one per boat).
+  const identCol=SCHEMA_HAS_DAY_SCOPED_PAYMENTS?'race_date':'race_key';
   const [records, selfPays, racePays] = await Promise.all([
-    sbFetch('/rest/v1/race_records?select=boat_id,race_key,total_due,total_paid,crew_snapshot,submitted_at&order=race_key.asc'),
-    sbFetch('/rest/v1/self_payments?select=boat_id,race_key,crew_id'),
-    sbFetch('/rest/v1/race_payments?select=boat_id,race_key,crew_id')
+    sbFetch('/rest/v1/race_records?select=boat_id,race_key,race_date,total_due,total_paid,crew_snapshot,submitted_at&order='+identCol+'.asc'),
+    sbFetch('/rest/v1/self_payments?select=boat_id,race_key,race_date,crew_id'),
+    sbFetch('/rest/v1/race_payments?select=boat_id,race_key,race_date,crew_id')
   ]);
   if(!records || records._err || !Array.isArray(selfPays) || !Array.isArray(racePays)){
     body.innerHTML = '<div style="color:#f87171;padding:16px;text-align:center">Could not load data — check connection.</div>';
@@ -14122,12 +14198,12 @@ async function loadOutstandingReport(){
   // to what the snapshot recorded, never subtracts, so a fully-paid-but-
   // never-logged-as-a-row race can't be flipped to "unpaid" by this pass.
   const livePaidSet=new Set();
-  selfPays.forEach(p=>livePaidSet.add(p.boat_id+'|'+p.race_key+'|'+p.crew_id));
-  racePays.forEach(p=>livePaidSet.add(p.boat_id+'|'+p.race_key+'|'+p.crew_id));
+  selfPays.forEach(p=>livePaidSet.add(p.boat_id+'|'+p[identCol]+'|'+p.crew_id));
+  racePays.forEach(p=>livePaidSet.add(p.boat_id+'|'+p[identCol]+'|'+p.crew_id));
   records.forEach(r=>{
     const snap=r.crew_snapshot||[];
     r.total_paid=snap.reduce((sum,p)=>{
-      const isPaid=p.paid||livePaidSet.has(r.boat_id+'|'+r.race_key+'|'+p.id);
+      const isPaid=p.paid||livePaidSet.has(r.boat_id+'|'+r[identCol]+'|'+p.id);
       return sum+(isPaid?fee(p):0);
     },0);
   });
@@ -14149,14 +14225,22 @@ async function loadOutstandingReport(){
     byBoat[r.boat_id].push(r);
   });
 
-  // Build a race label lookup from race_key (date prefix + allRaces match)
+  // Build a race label lookup from the identity value (race_key,
+  // YYYY-MM-DD_labelslug — or once day-scoped, a bare YYYY-MM-DD race_date
+  // covering the whole day, possibly several races).
   function raceLabel(key){
-    // race_key format: YYYY-MM-DD_labelslug
     const datePart = key.split('_')[0];
+    const d = new Date(datePart+'T00:00:00');
+    if(identCol==='race_date' && !isNaN(d)){
+      const dayRaces=getRacesForDay(d);
+      if(dayRaces.length){
+        const label=dayRaces.length>1?dayRaces[0].series+' ('+dayRaces.length+' races)':dayRaces[0].label;
+        return { label, date: dayRaces[0].date };
+      }
+    }
     const matched = allRaces.find(r => raceKey(r) === key);
     if(matched) return { label: matched.label, date: matched.date };
     // fallback: parse date from key
-    const d = new Date(datePart+'T00:00:00');
     return { label: key.replace(/_/g,' '), date: isNaN(d)?null:d };
   }
 
@@ -14173,7 +14257,7 @@ async function loadOutstandingReport(){
   // ── In-panel summary ──────────────────────────────────────
   body.innerHTML = boatTotals.map(({ boat, recs, totalOwed }) => {
     const raceRows = recs.map(r => {
-      const { label, date } = raceLabel(r.race_key);
+      const { label, date } = raceLabel(r[identCol]);
       const owed = (r.total_due||0) - (r.total_paid||0);
       const dateStr = date ? date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'}) : '';
       return `<div style="display:flex;justify-content:space-between;align-items:baseline;
@@ -14204,7 +14288,7 @@ async function loadOutstandingReport(){
   // ── Build print HTML ──────────────────────────────────────
   const printBoatSections = boatTotals.map(({ boat, recs, totalOwed }) => {
     const raceRows = recs.map(r => {
-      const { label, date } = raceLabel(r.race_key);
+      const { label, date } = raceLabel(r[identCol]);
       const owed = (r.total_due||0) - (r.total_paid||0);
       const dateStr = date ? date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'}) : '';
       // List unpaid crew from snapshot
