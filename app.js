@@ -5560,8 +5560,7 @@ function fwRenderCrew(){
       </select>
       <button onclick="fwSubmitGuest()" style="width:100%;padding:10px;border-radius:8px;border:none;background:var(--teal);color:var(--navy-dark);font-weight:800;cursor:pointer">Add</button>
     </div>
-    <button onclick="fwCrewNext()" style="width:100%;margin-top:20px;padding:14px;border-radius:12px;border:none;background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;cursor:pointer">Next</button>
-    <div id="fwCrewErr" style="display:none;color:var(--danger);font-size:.78rem;text-align:center;margin-top:8px">Select at least one person first.</div>`;
+    <button onclick="fwCrewNext()" style="width:100%;margin-top:20px;padding:14px;border-radius:12px;border:none;background:var(--teal);color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;cursor:pointer">Next</button>`;
 }
 
 function fwToggleCrew(id){
@@ -5617,9 +5616,11 @@ function fwRemoveGuest(id){
 
 async function fwCrewNext(){
   const anySelected=roster.some(p=>p.selected)||feeWizardState.guests.length>0;
-  const err=document.getElementById('fwCrewErr');
-  if(!anySelected){ if(err) err.style.display='block'; return; }
-  if(err) err.style.display='none';
+  // Matches openRaceFeesPanel()'s own toast for the identical situation
+  // ("Select crew in the Crew Roster first") — an inline div here was
+  // easy to miss entirely on a quick tap-through; a real boat with no
+  // attendance recorded yet for a given day starts with nobody checked.
+  if(!anySelected){ toast('Tap at least one crew member first'); return; }
   const status=await computeDayPaymentStatus(currentBoat.id,feeWizardState.day);
   feeWizardState.selfPays=status.selfPays;
   feeWizardState.racePays=status.racePays;
