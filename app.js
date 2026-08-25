@@ -5477,7 +5477,13 @@ async function getOutstandingFeeDays(boatId,excludeDay){
 
 async function openFeeWizard(day){
   if(!currentBoat) return;
-  feeWizardState={step:'crew',day,races:getRacesForDay(day),guests:[],selfPays:[],racePays:[],otherDays:null};
+  const races=getRacesForDay(day);
+  // A day with zero races (e.g. openFeePanel()'s fallback to new Date()
+  // when nothing resolved a nextRace at all) has nothing to declare —
+  // bail here rather than opening into a state that would throw the
+  // moment fwMarkPaid()/fwSubmit() tried races[0].date on undefined.
+  if(!races.length){ toast('No race scheduled that day'); return; }
+  feeWizardState={step:'crew',day,races,guests:[],selfPays:[],racePays:[],otherDays:null};
   await fwSeedCrew();
   renderFeeWizardPanel();
   openPanel('feeWizardPanel');
