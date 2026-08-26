@@ -841,9 +841,10 @@ let boats=[], fleets=[], raceAreas=[], currentBoat=null, isRO=false, isGuest=fal
 // registrations.sail_number) gets the exact same treatment from the start.
 let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLEET=false,
     SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false,
-    SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false;
+    SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
+    SCHEMA_HAS_PROTEST_ARCHIVE=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -858,6 +859,7 @@ async function checkSchemaCapabilities(){
   // for why (crews pay once per day regardless of race count). Nothing
   // reads this flag yet; it's wired up incrementally in the stages after.
   SCHEMA_HAS_DAY_SCOPED_PAYMENTS=names.has('058_day_scoped_race_payments.sql');
+  SCHEMA_HAS_PROTEST_ARCHIVE=names.has('059_protest_archive.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -2898,6 +2900,18 @@ function openPanel(id){
     if(id==='roNewsPanel') renderRONewsList();
     if(id==='roPaymentReportPanel') buildRoReportDropdown();
     if(id==='roOutstandingPanel') loadOutstandingReport();
+    if(id==='roProtestsPanel'){
+      const viewRow=document.getElementById('protestViewRow');
+      if(viewRow) viewRow.style.display=SCHEMA_HAS_PROTEST_ARCHIVE?'flex':'none';
+      // Always reopen onto Active — a club without 059 never sees the row
+      // at all, so this is a no-op there (loadProtests() ignores the
+      // archived param when the flag is off, exactly as it does today).
+      _protestView='active';
+      const tabActive=document.getElementById('protestTabActive'), tabArchived=document.getElementById('protestTabArchived');
+      if(tabActive) tabActive.classList.add('active');
+      if(tabArchived) tabArchived.classList.remove('active');
+      loadProtests();
+    }
     // Skipper's own Course tab — was previously NOT in this dispatch list
     // at all, so reopening it just redisplayed whatever was sitting in
     // #courseDisplay since login. Refetch on open, then poll while it
@@ -12365,8 +12379,14 @@ async function sbSaveProtest(p){
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify(p)});
 }
-async function sbLoadProtests(raceName){
-  const filter=raceName?'race_name=eq.'+encodeURIComponent(raceName)+'&':'';
+async function sbLoadProtests(raceName,archived){
+  let filter=raceName?'race_name=eq.'+encodeURIComponent(raceName)+'&':'';
+  // archived is only ever true/false (never undefined) once
+  // SCHEMA_HAS_PROTEST_ARCHIVE is on — omitted entirely otherwise, since
+  // the column doesn't exist yet on clubs that haven't applied 059.
+  if(SCHEMA_HAS_PROTEST_ARCHIVE&&archived!==undefined){
+    filter+='archived_at='+(archived?'not.is.null&':'is.null&');
+  }
   const r=await sbFetch('/rest/v1/protests?'+filter+'order=filed_at.desc');
   return r||[];
 }
@@ -13534,22 +13554,40 @@ async function submitProtest(){
   toast(meta.filedToast);
 }
 
+// Which tab the RO's Protests panel is showing — skippers never see
+// archived protests at all (their own "no longer relevant" filed
+// protests aren't useful to keep surfacing), so this only matters for RO.
+let _protestView='active';
+function setProtestView(view){
+  _protestView=view;
+  const tabActive=document.getElementById('protestTabActive'), tabArchived=document.getElementById('protestTabArchived');
+  if(tabActive) tabActive.classList.toggle('active',view==='active');
+  if(tabArchived) tabArchived.classList.toggle('active',view==='archived');
+  loadProtests();
+}
+
 async function loadProtests(){
   const list=document.getElementById('protestList');
   if(!list)return;
   list.innerHTML='<div style="color:var(--muted);font-size:.82rem;padding:8px">Loading…</div>';
+  const showingArchived=isRO&&_protestView==='archived';
 
-  // RO sees all protests across all races; skipper sees only their current race
-  const protests=await sbLoadProtests(isRO?null:nextRace?.label);
-  if(!protests.length){
-    list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>'+(isRO?'No protests filed yet':'No protests filed for this race')+'</div></div>';
-    roDashProtestsCount=0;
+  // RO sees all protests across all races (scoped by the Active/Archived
+  // toggle); skipper always sees just their current race's active protests.
+  const protests=await sbLoadProtests(isRO?null:nextRace?.label, isRO?showingArchived:false);
+  // The dashboard badge/count is always the ACTIVE total, regardless of
+  // which tab is currently open — don't let browsing Archived make it
+  // look like outstanding protests disappeared.
+  if(!showingArchived){
+    roDashProtestsCount=protests.length;
     updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
+  }
+  if(!protests.length){
+    const emptyMsg=showingArchived?'No archived protests':(isRO?'No protests filed yet':'No protests filed for this race');
+    list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>'+emptyMsg+'</div></div>';
     return;
   }
 
-  roDashProtestsCount=protests.length;
-  updateROChips(roDashRegsCount,roDashProtestsCount,roDashCoursePublished);
   _loadedProtests=protests;
   const typeLabel={protest:'🚩 Protest',redress:'⚖ Redress',scoring_enquiry:'📊 Scoring Enquiry'};
   list.innerHTML=protests.map(p=>{
@@ -13580,6 +13618,15 @@ async function loadProtests(){
           <button onclick="printProtest('${p.id}')" title="Print / PDF"
             style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);
             font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">🖨</button>
+          ${isRO&&SCHEMA_HAS_PROTEST_ARCHIVE?(p.archived_at
+            ?`<button onclick="unarchiveProtest('${p.id}')" title="Restore to active"
+                style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--teal);
+                font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">♻️</button>`
+            :(PROTEST_DECISION_STATUSES.includes(p.status)
+              ?`<button onclick="archiveProtest('${p.id}')" title="Archive — decided and no longer relevant"
+                  style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);
+                  font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">🗄</button>`
+              :'')):''}
           <button onclick="deleteProtest('${p.id}')" title="Delete protest"
             style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);
             font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">🗑</button>
@@ -13723,6 +13770,30 @@ async function deleteProtest(id){
     list.innerHTML='<div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>';
   }
   toast('Protest deleted');
+}
+
+// Archive/restore — the soft alternative to deleteProtest(), same "don't
+// destroy history, just get it out of the way" pattern this app already
+// uses for races (deactivate, never hard-delete). A protest can only be
+// archived once it's reached a decision (PROTEST_DECISION_STATUSES) —
+// the button itself is hidden otherwise, but the guard is repeated here
+// since nothing stops a stale/cached button from firing regardless.
+async function archiveProtest(id){
+  const p=_loadedProtests.find(x=>String(x.id)===String(id));
+  if(p&&!PROTEST_DECISION_STATUSES.includes(p.status)){
+    toast('⚠ Only decided protests (Upheld/Dismissed/Withdrawn) can be archived');
+    return;
+  }
+  const r=await sbUpdateProtest(id,{archived_at:new Date().toISOString()});
+  if(r===null){ toast('⚠ Could not archive protest'); return; }
+  toast('Protest archived');
+  loadProtests();
+}
+async function unarchiveProtest(id){
+  const r=await sbUpdateProtest(id,{archived_at:null});
+  if(r===null){ toast('⚠ Could not restore protest'); return; }
+  toast('Protest restored to active');
+  loadProtests();
 }
 
 // ═══════════════════════════════════════════════════════════════

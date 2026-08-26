@@ -1373,6 +1373,11 @@
     <span class="panel-title">🚩 Protests</span>
   </div>
   <div class="panel-body">
+    <!-- RO-only, needs migration 059 (SCHEMA_HAS_PROTEST_ARCHIVE) — hidden by openPanel()'s dispatch otherwise -->
+    <div id="protestViewRow" style="display:none;gap:8px;margin-bottom:14px">
+      <button id="protestTabActive" class="pr-type-btn active" onclick="setProtestView('active')">Active</button>
+      <button id="protestTabArchived" class="pr-type-btn" onclick="setProtestView('archived')">Archived</button>
+    </div>
     <div id="protestList">
       <div class="empty-state" style="padding:16px"><div class="icon">🚩</div><div>No protests filed for this race</div></div>
     </div>
