@@ -11333,7 +11333,11 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handic
       const isDiscard=pts.startsWith('(');
       const isOk=r.StatusString==='OK'||r.StatusString==='';
       const cls=isDiscard?'discarded':(!isOk?'dns':'ok');
-      return `<td class="num"><span class="race-pts ${cls}">${pts.replace(/[()]/g,'')}</span></td>`;
+      // Keep the (n) from Halsail as-is for discards — standard sailing
+      // results convention, matches the "Points in () are discards"
+      // caption below the table (previously stripped, leaving only the
+      // grey styling with nothing explaining what it meant).
+      return `<td class="num"><span class="race-pts ${cls}">${pts}</span></td>`;
     }).join('');
 
     return `<tr class="${isMe?'my-boat':''} ${podiumClass}">
