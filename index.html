@@ -2048,6 +2048,13 @@
         outline:none;box-sizing:border-box;">
       <div style="font-size:.8rem;color:var(--muted);margin-top:5px">How far back from the bow you usually carry your phone while racing — used to correct GPS-based finish and OCS detection, since the phone isn't the bow. Defaults to 6m if you're not sure.</div>
     </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        🛰 Reliable Background Tracking
+      </label>
+      <div style="font-size:.8rem;color:var(--muted);margin:6px 0 10px;line-height:1.4">A free companion app keeps sending your position even with your screen locked or RaceOps in the background — the browser can't do that reliably on its own.</div>
+      <button class="btn btn-ghost" style="width:100%;padding:10px" onclick="closeSheet('settingsSheet');openAgentSetupSheet()">Set up tracking agent (beta)</button>
+    </div>
     <!-- Notifications toggle -->
     <div class="form-group" style="margin-bottom:20px" id="notif-row">
       <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
@@ -2066,6 +2073,17 @@
       <button class="btn btn-primary" style="flex:1;padding:12px" onclick="saveSettings()">Save Settings</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="closeSheet('settingsSheet')">Cancel</button>
     </div>
+  </div>
+</div>
+
+<!-- Location Agent pairing sheet (Phase 0 pilot — Traccar Client) -->
+<div class="overlay" id="agentSetupSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🛰 Tracking Agent Setup</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;line-height:1.5">A free app that keeps sending your boat's position even when your screen is locked — piloting with <b>Traccar Client</b> (free, open source, no account needed).</div>
+    <div id="agentSetupBody"></div>
+    <button class="btn btn-ghost" style="width:100%;padding:12px;margin-top:16px" onclick="closeSheet('agentSetupSheet')">Close</button>
   </div>
 </div>
 

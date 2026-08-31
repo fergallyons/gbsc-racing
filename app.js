@@ -1542,6 +1542,125 @@ function onTrackPosition(pos){
   });
 }
 
+// ── Location Agent pairing (Phase 0 pilot) ───────────────────────────────
+// Mints/revokes the credential a native GPS-logger app (piloting with
+// Traccar Client — free, open source, already on both app stores) uses to
+// post into race_positions via netlify/functions/agent-ingest.js, so
+// tracking survives a locked screen or a backgrounded tab — see
+// startPositionSharing() above for exactly why the web platform can't do
+// that itself. agent_tokens has zero anon grants (060_agent_tracking.sql),
+// so — unlike almost everything else in this app — this can't go through
+// sbFetch(); it has to call netlify/functions/agent-pair.js instead.
+let _agentPairing=null; // {token, serverUrl} once issued this sheet-open
+
+function openAgentSetupSheet(){
+  _agentPairing=null;
+  renderAgentSetupBody();
+  document.getElementById('agentSetupSheet').classList.add('open');
+}
+function renderAgentSetupBody(){
+  const el=document.getElementById('agentSetupBody');
+  if(!el) return;
+  if(!currentBoat||!selectedRace){
+    el.innerHTML='<div style="font-size:.85rem;color:var(--muted)">Select today\'s race first, then come back here.</div>';
+    return;
+  }
+  if(!_agentPairing){
+    el.innerHTML='<button class="btn btn-primary" style="width:100%;padding:12px" onclick="issueAgentPairing()">Set up tracking agent for '+currentBoat.name+'</button>';
+    return;
+  }
+  const p=_agentPairing;
+  const stepLabel='font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px';
+  const fieldBox='flex:1;background:var(--navy);border:1px solid var(--border);border-radius:8px;color:var(--white);'+
+    'font-family:\'Barlow\',sans-serif;font-size:.8rem;padding:9px 10px;word-break:break-all;display:block';
+  el.innerHTML=
+    '<div style="'+stepLabel+'">1 · Install Traccar Client (free)</div>'+
+    '<div style="display:flex;gap:8px;margin-bottom:16px">'+
+      '<a class="btn btn-ghost" style="flex:1;text-align:center;padding:10px" href="https://apps.apple.com/app/id843156974" target="_blank" rel="noopener">iPhone</a>'+
+      '<a class="btn btn-ghost" style="flex:1;text-align:center;padding:10px" href="https://play.google.com/store/apps/details?id=org.traccar.client" target="_blank" rel="noopener">Android</a>'+
+    '</div>'+
+    '<div style="'+stepLabel+'">2 · In Traccar Client, set</div>'+
+    '<div style="margin-bottom:10px">'+
+      '<div style="font-size:.7rem;color:var(--muted);margin-bottom:3px">Device Identifier</div>'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
+        '<code id="agentToken" style="'+fieldBox+'">'+p.token+'</code>'+
+        '<button class="btn btn-ghost" style="padding:9px 12px;flex:none" onclick="copyAgentField(\'agentToken\')">Copy</button>'+
+      '</div>'+
+    '</div>'+
+    '<div style="margin-bottom:6px">'+
+      '<div style="font-size:.7rem;color:var(--muted);margin-bottom:3px">Server URL</div>'+
+      '<div style="display:flex;gap:6px;align-items:center">'+
+        '<code id="agentServerUrl" style="'+fieldBox+'">'+p.serverUrl+'</code>'+
+        '<button class="btn btn-ghost" style="padding:9px 12px;flex:none" onclick="copyAgentField(\'agentServerUrl\')">Copy</button>'+
+      '</div>'+
+    '</div>'+
+    '<div style="font-size:.8rem;color:var(--muted);margin:6px 0 16px">Frequency: 15s is a good default. Then tap Start in Traccar Client.</div>'+
+    '<div style="text-align:center;margin-bottom:16px">'+
+      '<div style="font-size:.7rem;color:var(--muted);margin-bottom:8px">Setting it up on a different phone? Scan the Device Identifier instead of typing it:</div>'+
+      '<div id="agentQr" style="display:inline-block;background:#fff;padding:10px;border-radius:8px;min-width:160px;min-height:160px"></div>'+
+    '</div>'+
+    '<button class="btn btn-ghost" style="width:100%;padding:10px;color:var(--muted)" onclick="revokeAgentPairing()">Revoke this pairing</button>';
+  renderAgentQr(p.token);
+}
+async function issueAgentPairing(){
+  try{
+    const res=await fetch('/.netlify/functions/agent-pair',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({boatId:currentBoat.id, raceKey:raceKey(selectedRace)})
+    });
+    if(!res.ok){ toast('⚠ Could not set up tracking agent — try again'); return; }
+    _agentPairing=await res.json();
+    renderAgentSetupBody();
+  }catch(e){ toast('⚠ Could not reach the server'); }
+}
+async function revokeAgentPairing(){
+  if(!_agentPairing) return;
+  if(!confirm('Stop this device from sending location? You can set up a new pairing any time.'))return;
+  try{
+    await fetch('/.netlify/functions/agent-pair',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'revoke', token:_agentPairing.token})
+    });
+  }catch(e){}
+  _agentPairing=null;
+  renderAgentSetupBody();
+  toast('Pairing revoked ✓');
+}
+function copyAgentField(elId){
+  const text=document.getElementById(elId).textContent;
+  navigator.clipboard.writeText(text).then(()=>toast('Copied ✓')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);
+    ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('Copied ✓');
+  });
+}
+// Tiny, dependency-free, client-side-only QR renderer (davidshimjs/qrcodejs)
+// — the token never leaves the device to generate this, unlike a
+// third-party "QR image API" that would need the token in the request URL.
+let _qrLibLoading=null;
+function ensureQrLib(){
+  if(window.QRCode) return Promise.resolve();
+  if(_qrLibLoading) return _qrLibLoading;
+  _qrLibLoading=new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+    script.onload=()=>resolve();
+    script.onerror=()=>reject(new Error('QR library failed to load'));
+    document.head.appendChild(script);
+  });
+  return _qrLibLoading;
+}
+async function renderAgentQr(text){
+  const el=document.getElementById('agentQr');
+  if(!el) return;
+  try{
+    await ensureQrLib();
+    el.innerHTML='';
+    new QRCode(el,{text:text, width:160, height:160, correctLevel:QRCode.CorrectLevel.M});
+  }catch(e){
+    el.innerHTML='<div style="font-size:.75rem;color:var(--muted);padding:20px;max-width:160px">QR code unavailable — use Copy above</div>';
+  }
+}
+
 // ── Race Tracker: live map (all roles) ───────────────────────────────────
 // Chart tiles from OpenStreetMap via Leaflet, loaded lazily — most sessions
 // never open this panel, so it isn't worth the weight on every page load.
@@ -11532,7 +11651,7 @@ function showMarkCoords(name,lat,lng){
   toast(`📍 ${name}  ${toDM(lat,'N','S')}  ${toDM(lng,'E','W')}`,4500);
 }
 document.addEventListener('click',function(e){
-  ['collectSheet','editSheet','pnSheet','shareSheet','settingsSheet','protestSheet','roClubSettingsSheet'].forEach(id=>{
+  ['collectSheet','editSheet','pnSheet','shareSheet','settingsSheet','protestSheet','roClubSettingsSheet','agentSetupSheet'].forEach(id=>{
     const el=document.getElementById(id);
     if(el&&el.classList.contains('open')&&e.target===el)closeSheet(id);
   });
