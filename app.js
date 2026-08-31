@@ -1729,10 +1729,16 @@ async function loadRaceTracker(){
     _trackerMap=L.map('trackerMap',{attributionControl:false}).setView([centerLat,centerLng],13);
     // CartoDB Voyager — Dark Matter was too minimal to make out coastline/
     // land against marks; Voyager keeps real detail (coast, terrain, labels)
-    // in a muted palette, free, retina-aware ({r}), and avoids leaning on
+    // in a muted palette, retina-aware ({r}), and avoids leaning on
     // tile.openstreetmap.org's own servers (strict usage policy, not meant
     // for production apps).
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+    // Carto's raster tiles started requiring a free API key partway through
+    // 2026 (watermarked "API KEY REQUIRED" tiles otherwise, confirmed live
+    // 2026-08-31) — key is domain-restricted at signup (carto.com/basemaps/
+    // apikey), not a secret, safe to ship client-side same as the URL
+    // itself. 5M tiles/month free-tier limit. If this ever needs a second
+    // club domain added, that's done on Carto's own dashboard, not here.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_2o5e_1_07d364989da39d26e40cbfbe',{
       maxZoom:20, subdomains:'abcd'
     }).addTo(_trackerMap);
     L.control.attribution({prefix:false}).addAttribution('© OpenStreetMap contributors © CARTO').addTo(_trackerMap);
