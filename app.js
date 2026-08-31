@@ -1594,7 +1594,11 @@ function renderAgentSetupBody(){
         '<button class="btn btn-ghost" style="padding:9px 12px;flex:none" onclick="copyAgentField(\'agentServerUrl\')">Copy</button>'+
       '</div>'+
     '</div>'+
-    '<div style="font-size:.8rem;color:var(--muted);margin:6px 0 16px">Frequency: 15s is a good default. Then tap Start in Traccar Client.</div>'+
+    '<div style="'+stepLabel+'">3 · Set two more fields, in this order</div>'+
+    '<div style="font-size:.8rem;color:var(--muted);margin-bottom:16px;line-height:1.6">'+
+      '<b style="color:var(--white)">Distance: 0</b> — important, set this first. Any non-zero value switches Traccar into movement-triggered mode and the time interval below stops applying at all, so a boat sitting still (e.g. pre-start) would stop sending updates entirely.<br>'+
+      '<b style="color:var(--white)">Interval (may be labelled Frequency): 15s</b> — this field may only appear once Distance is set to 0. Then tap Start.'+
+    '</div>'+
     '<div style="text-align:center;margin-bottom:16px">'+
       '<div style="font-size:.7rem;color:var(--muted);margin-bottom:8px">Setting it up on a different phone? Scan the Device Identifier instead of typing it:</div>'+
       '<div id="agentQr" style="display:inline-block;background:#fff;padding:10px;border-radius:8px;min-width:160px;min-height:160px"></div>'+
