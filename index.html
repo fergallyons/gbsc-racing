@@ -1941,7 +1941,18 @@
     <button class="panel-back" onclick="feeWizardBack()">‹</button>
     <span class="panel-title" id="feeWizardTitle">🧾 Crew &amp; Fees</span>
   </div>
-  <div class="panel-body" id="feeWizardBody"></div>
+  <div class="panel-body">
+    <!-- Static sibling of #feeWizardBody so it survives fwRender*()'s
+         innerHTML replacement — only shown on the Declare Crew step, see
+         renderFeeWizardPanel(). -->
+    <div class="ro-row" id="fwDayRow" style="display:none;margin-bottom:14px">
+      <label>Day</label>
+      <select id="fwDaySelect" onchange="onFwDaySelect(this)"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+      </select>
+    </div>
+    <div id="feeWizardBody"></div>
+  </div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════

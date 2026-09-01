@@ -316,18 +316,26 @@ function autoSaveRaceRecord(){
   const race=selectedRace||nextRace;
   if(!race||!currentBoat) return;
   const s=roster.filter(p=>p.selected);
-  if(!s.length) return;
-  const tot=s.reduce((a,p)=>a+fee(p),0);
-  const paid=s.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
+  // Guests were previously excluded from what actually gets persisted here
+  // — their $ shows in the live dashboard total (updateTotals() folds in
+  // raceFeesGuests separately) but never made it into the saved snapshot,
+  // so anything reading crew_snapshot later (the Payment Report) silently
+  // under-reported the boat's real total and never listed them by name.
+  // raceFeesGuests' own rows don't carry an isGuest field — tag it here.
+  const g=raceFeesGuests||[];
+  if(!s.length&&!g.length) return;
+  const all=[...s,...g.map(p=>({...p,isGuest:true}))];
+  const tot=all.reduce((a,p)=>a+fee(p),0);
+  const paid=all.filter(p=>p.paid).reduce((a,p)=>a+fee(p),0);
   const byMethod={};
-  s.filter(p=>p.paid).forEach(p=>{ const m=p.payMethod||'Unknown'; byMethod[m]=(byMethod[m]||0)+fee(p); });
-  const settlement=[...new Set(s.filter(p=>p.paid).map(p=>p.payMethod).filter(Boolean))];
+  all.filter(p=>p.paid).forEach(p=>{ const m=p.payMethod||'Unknown'; byMethod[m]=(byMethod[m]||0)+fee(p); });
+  const settlement=[...new Set(all.filter(p=>p.paid).map(p=>p.payMethod).filter(Boolean))];
   sbSaveRaceRecord({
     boat_id:currentBoat.id,
     race_name:race.label,
     race_date:race.date.toISOString().split('T')[0],
     race_key:raceKey(race),
-    crew_snapshot:s,
+    crew_snapshot:all,
     total_due:tot,
     total_paid:paid,
     payment_methods:byMethod,
@@ -3502,8 +3510,9 @@ function renderNewSailorsPanel(){
 function renderCrew(){
   const list=document.getElementById('crewList'); list.innerHTML='';
   const sel=roster.filter(p=>p.selected);
+  const guests=raceFeesGuests||[];
   document.getElementById('crewCount').textContent=sel.length+' selected';
-  if(!roster.length){list.innerHTML='<div class="empty-state"><div class="icon">👥</div>No crew yet — add people below</div>';updateTotals();return;}
+  if(!roster.length&&!guests.length){list.innerHTML='<div class="empty-state"><div class="icon">👥</div>No crew yet — add people below</div>';updateTotals();return;}
   roster.forEach(p=>{
     const warn=over(p)||vmax(p)||vnr(p);
     const c=document.createElement('div');
@@ -3536,6 +3545,33 @@ function renderCrew(){
       '</div>';
     list.appendChild(c);
   });
+  // Guests — never on the regular roster (toggleSel()/roster.filter(!isGuest)
+  // excludes them everywhere), but the skipper still needs to see who they
+  // are, not just their $ folded into a total. Visibility only here — no
+  // checkbox (nothing to toggle-select) and a read-only paid dot (payment
+  // actions live in Race Fees / the Fee Wizard, not this tab).
+  if(guests.length){
+    const h=document.createElement('div');
+    h.style.cssText='font-size:.72rem;color:var(--muted);font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:14px 0 6px';
+    h.textContent='🙋 Guests';
+    list.appendChild(h);
+    guests.forEach(p=>{
+      const typeLabel=p.type==='full'?'Full Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
+      const c=document.createElement('div');
+      c.className='crew-card selected';
+      c.innerHTML=
+        '<div class="cc-avatar">'+ini(p)+'</div>'+
+        '<div class="cc-info">'+
+          '<div class="cc-name">'+escHtml(p.first)+' '+escHtml(p.last)+'</div>'+
+          '<div class="cc-meta"><span class="tag">'+typeLabel+' · Guest</span></div>'+
+        '</div>'+
+        '<div class="cc-right">'+
+          '<div class="cc-fee">€'+fee(p)+'</div>'+
+          '<div class="pay-dot '+(p.paid?'paid':'unpaid')+'" title="'+(p.paid?'Paid':'Unpaid')+'"></div>'+
+        '</div>';
+      list.appendChild(c);
+    });
+  }
   updateTotals();
 }
 function updateTotals(){
@@ -5642,11 +5678,53 @@ function feeWizardBack(){
 function renderFeeWizardPanel(){
   const titles={crew:'🧾 Who Sailed?',collect:'💳 Collect Funds',review:'📋 Review',done:'✅ Submitted',other:'📋 Other Outstanding'};
   const t=document.getElementById('feeWizardTitle'); if(t) t.textContent=titles[feeWizardState.step]||'🧾 Crew & Fees';
+  // Day switcher only on the first step — once Collect/Review has started,
+  // switching days would silently discard in-progress-but-unsubmitted
+  // work. feeWizardBack() already returns to 'crew' first if a skipper
+  // needs to switch after starting, so this isn't a real limitation.
+  const dayRow=document.getElementById('fwDayRow');
+  if(feeWizardState.step==='crew'){ populateFwDaySelect(); }
+  else if(dayRow){ dayRow.style.display='none'; }
   if(feeWizardState.step==='crew') fwRenderCrew();
   else if(feeWizardState.step==='collect') fwRenderCollect();
   else if(feeWizardState.step==='review') fwRenderReview();
   else if(feeWizardState.step==='done') fwRenderDone();
   else if(feeWizardState.step==='other') fwRenderOther();
+}
+
+// Every distinct calendar day with a scheduled race, chronological
+// (allRaces is already sorted ascending) — the Fee Wizard is day-scoped,
+// so a 2-races-same-day date must collapse to one option here, unlike the
+// race-level pickers elsewhere (Registrations/Finish Recording).
+function fwDistinctDays(){
+  const days=[], seen=new Set();
+  allRaces.forEach(r=>{
+    const k=r.date.toDateString();
+    if(!seen.has(k)){ seen.add(k); days.push(r.date); }
+  });
+  return days;
+}
+function populateFwDaySelect(){
+  const row=document.getElementById('fwDayRow'), sel=document.getElementById('fwDaySelect');
+  if(!row||!sel) return;
+  const days=fwDistinctDays();
+  row.style.display=days.length>1?'flex':'none';
+  sel.innerHTML='';
+  days.forEach((d,i)=>{
+    const dr=getRacesForDay(d);
+    const label=dr.length>1?(dr[0].series||dr[0].label)+' ('+dr.length+' races)':(dr[0]?dr[0].label:'');
+    const o=document.createElement('option');
+    o.value=i;
+    o.textContent=d.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' · '+label;
+    sel.appendChild(o);
+  });
+  const idx=feeWizardState.day?days.findIndex(dd=>dd.toDateString()===feeWizardState.day.toDateString()):-1;
+  if(idx>=0) sel.value=idx;
+}
+function onFwDaySelect(el){
+  const day=fwDistinctDays()[parseInt(el.value,10)];
+  if(!day) return;
+  openFeeWizard(day); // full state reset — same pattern fwRenderOther()'s "Resolve now" already uses
 }
 
 // ── Step: Declare crew ──────────────────────────────────────────
@@ -5656,14 +5734,21 @@ function renderFeeWizardPanel(){
 async function fwSeedCrew(){
   const races=feeWizardState.races;
   if(!races.length||!currentBoat) return;
-  const [attendeeLists,guestCrew]=await Promise.all([
+  const [attendeeLists,allCrew]=await Promise.all([
     Promise.all(races.map(r=>sbLoadRaceAttendees(currentBoat.id,raceKey(r)))),
-    sbFetch('/rest/v1/crew?boat_id=eq.'+currentBoat.id+'&is_guest=eq.true')
+    // sbLoadCrew() (not a raw fetch) — a raw '/rest/v1/crew?...' response
+    // carries Postgres's snake_case columns (is_guest, join_year), not the
+    // isGuest/joinYear this file uses everywhere else. A guest seeded here
+    // from a prior attendance record would silently save with isGuest:
+    // false in fwSubmit()'s snapshot (found while adding the "· Guest" tag
+    // to the Payment Report — nothing upstream of this line was checking
+    // the field, so it went unnoticed).
+    sbLoadCrew(currentBoat.id)
   ]);
   const attendedIds=new Set();
   attendeeLists.forEach(list=>{ if(Array.isArray(list)) list.forEach(a=>attendedIds.add(a.crew_id)); });
   roster.forEach(p=>{ p.selected=attendedIds.has(p.id); });
-  feeWizardState.guests=(Array.isArray(guestCrew)?guestCrew:[]).filter(g=>attendedIds.has(g.id));
+  feeWizardState.guests=(Array.isArray(allCrew)?allCrew:[]).filter(g=>g.isGuest&&attendedIds.has(g.id));
 }
 
 function fwRenderCrew(){
@@ -8066,7 +8151,7 @@ async function generatePaymentReport(){
     Object.entries(methods).forEach(([m,a])=>{allMethods[m]=(allMethods[m]||0)+a;});
 
     const crewRows=crew.map(p=>{
-      const tl=p.type==='full'?'Full Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='kid'?'Junior':'Visitor';
+      const tl=(p.type==='full'?'Full Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='kid'?'Junior':'Visitor')+(p.isGuest?' · Guest':'');
       const statusCol=p.paid
         ?`<td style="color:#1a7a3a;font-weight:600">Paid €${fee(p)}</td><td style="color:#555">${p.payMethod||'—'}</td>`
         :`<td style="color:#c0392b;font-weight:600">Unpaid €${fee(p)}</td><td>—</td>`;
