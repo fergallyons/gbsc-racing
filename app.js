@@ -7708,8 +7708,12 @@ function rnliBack(){
   else { closePanel('rnliPanel'); }
 }
 function renderRnliPanel(){
-  const titles={amount:'🚢 Support the RNLI',pay:'🚢 Support the RNLI',awaitRevolut:'💜 Complete on Revolut',done:'✅ Thank You'};
-  const t=document.getElementById('rnliTitle'); if(t) t.textContent=titles[rnliState.step]||'🚢 Support the RNLI';
+  // The two "asking" steps carry the real RNLI mark; awaitRevolut/done are
+  // process-state screens (in progress / succeeded) where the distinct
+  // emoji is more useful at a glance than the brand mark would be.
+  const rnliLogo='<img src="logos/rnli-flag.svg" alt="" style="height:1.1em;width:auto;vertical-align:-2px;margin-right:6px;border-radius:1px">';
+  const titles={amount:rnliLogo+'Support the RNLI',pay:rnliLogo+'Support the RNLI',awaitRevolut:'💜 Complete on Revolut',done:'✅ Thank You'};
+  const t=document.getElementById('rnliTitle'); if(t) t.innerHTML=titles[rnliState.step]||(rnliLogo+'Support the RNLI');
   const body=document.getElementById('rnliBody'); if(!body) return;
   if(rnliState.step==='amount') body.innerHTML=rnliRenderAmount();
   else if(rnliState.step==='pay') body.innerHTML=rnliRenderPay();
@@ -7725,7 +7729,7 @@ function rnliRenderAmount(){
   ).join('');
   return `
     <div style="text-align:center;padding:10px 0 20px">
-      <div style="font-size:2.2rem;margin-bottom:10px">🚢</div>
+      <img src="logos/rnli-flag.svg" alt="RNLI" style="height:56px;width:auto;margin-bottom:12px;border-radius:3px;box-shadow:0 2px 10px rgba(0,0,0,.25)">
       <div style="font-size:.85rem;color:var(--muted);line-height:1.5">
         The RNLI save lives at sea around our coast, entirely funded by donations.
         Any amount helps.
