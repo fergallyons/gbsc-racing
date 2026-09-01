@@ -180,8 +180,13 @@ function boatsSelect(){ return SCHEMA_HAS_FLEETS?BOATS_SELECT+',fleet_id':BOATS_
 // exist until after fleet_id (051) does, so it needs its own, later gate.
 const FLEETS_SELECT_BASE='id,name,colour,sort_order,active';
 function fleetsSelect(){ return SCHEMA_HAS_SAIL_NUMBER_REQ?FLEETS_SELECT_BASE+',requires_sail_number':FLEETS_SELECT_BASE; }
+// rnli_revolut_user deliberately NOT in this select yet — added to the
+// schema by migration 061, not applied on every club's DB yet. PostgREST
+// 400s on an unknown column, which upstream callers here have no
+// per-column fallback for — add it back only once 061 is confirmed live
+// everywhere this select runs against (see SCHEMA_HAS_RNLI).
 const SETTINGS_SELECT='id,stripe_link_member,stripe_link_student,stripe_link_visitor,'
-  +'pre_race_window_hours,worldtides_key,ro_revolut_user,rnli_revolut_user,results_published_race_key,'
+  +'pre_race_window_hours,worldtides_key,ro_revolut_user,results_published_race_key,'
   +'updated_at,features,estella_url,logo_url,favicon_url,primary_color,ro_color,'
   +'start_lat,start_lng,wind_lat,wind_lng,tide_station,tide_odm_offset,'
   +'fee_full,fee_crew,fee_visitor,fee_student,fee_kid,visitor_max,crew_max_yrs,'
@@ -224,9 +229,15 @@ async function sbRpc(name,args){
 }
 async function sbLoadClubSettings(){
   // Full query including migration-020 columns
+  // rnli_revolut_user intentionally excluded here too — see the note on
+  // SETTINGS_SELECT above. Read via its own dedicated fallback-tolerant
+  // path once SCHEMA_HAS_RNLI is true, not folded into this all-or-nothing
+  // select (a single unknown column here fails the whole request and
+  // silently drops every other fullSelect-only field to the base-column
+  // fallback below — confirmed live 2026-09-02, not a hypothetical).
   const fullSelect=
     'stripe_link_member,stripe_link_student,stripe_link_visitor,'
-    +'pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,rnli_revolut_user,'
+    +'pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,'
     +'results_published_race_key,features,sponsors,'
     +'logo_url,favicon_url,primary_color,ro_color,'
     +'start_lat,start_lng,wind_lat,wind_lng,'
@@ -3970,6 +3981,17 @@ function hasAnyStripeLink(){
 }
 function getRORevolutUser(){ return clubSettings.ro_revolut_user||''; }
 function getRnliRevolutUser(){ return clubSettings.rnli_revolut_user||''; }
+// Loads rnli_revolut_user via its own small, isolated request rather than
+// folding it into SETTINGS_SELECT/sbLoadClubSettings()'s fullSelect — an
+// unknown column there 400s and drops the WHOLE select to a much narrower
+// legacy fallback, silently losing sponsors/branding/fees/etc. for every
+// club, confirmed live 2026-09-02. Safe to call unconditionally: no-ops
+// until SCHEMA_HAS_RNLI (migration 061) is true.
+async function loadRnliRevolutUser(){
+  if(!SCHEMA_HAS_RNLI) return;
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=rnli_revolut_user');
+  if(Array.isArray(r)&&r[0]) clubSettings.rnli_revolut_user=r[0].rnli_revolut_user||'';
+}
 async function saveBoatSettings(revolut_user,whatsapp,bowOffsetM){
   // revolut_user is gated by the pin verified at login (migration 040) —
   // payment-redirect field, not a plain anon-writable column anymore.
@@ -4480,20 +4502,26 @@ function saveROClubSettings(){
   const newStudentVal = studentVal !==''?studentVal :clubSettings.stripe_link_student||'';
   const newVisitorVal = visitorVal !==''?visitorVal :clubSettings.stripe_link_visitor||'';
   if(_currentRoPin){
-    sbRpc('set_ro_payment_settings',{
+    // set_ro_payment_settings only grew the p_rnli_revolut_user parameter in
+    // migration 061 — a club still on the old 5-arg DB function 404s
+    // (PGRST202) on a 6th named param with no fallback, breaking payment
+    // settings saves entirely, confirmed live 2026-09-02. Send the 6th arg
+    // only once SCHEMA_HAS_RNLI confirms this club's DB has caught up.
+    const roPayParams={
       p_current_pin:_currentRoPin,
       p_stripe_link_member:newMemberVal,
       p_stripe_link_student:newStudentVal,
       p_stripe_link_visitor:newVisitorVal,
-      p_ro_revolut_user:roRevolutVal,
-      p_rnli_revolut_user:rnliRevolutVal
-    }).then(ok=>{
+      p_ro_revolut_user:roRevolutVal
+    };
+    if(SCHEMA_HAS_RNLI) roPayParams.p_rnli_revolut_user=rnliRevolutVal;
+    sbRpc('set_ro_payment_settings',roPayParams).then(ok=>{
       if(ok!==true){ toast('⚠ Payment settings not saved — try logging in again'); return; }
       clubSettings.stripe_link_member=newMemberVal;
       clubSettings.stripe_link_student=newStudentVal;
       clubSettings.stripe_link_visitor=newVisitorVal;
       clubSettings.ro_revolut_user=roRevolutVal;
-      clubSettings.rnli_revolut_user=rnliRevolutVal;
+      if(SCHEMA_HAS_RNLI) clubSettings.rnli_revolut_user=rnliRevolutVal;
     });
   } else {
     toast('⚠ Payment settings not saved — try logging in again');
@@ -7655,6 +7683,12 @@ let rnliState={step:'amount',amount:0};
 const RNLI_PRESETS=[5,10,20,50];
 
 function openRnliPanel(){
+  // Belt-and-braces: FEAT_TILE_MAP's generic show/hide only reads FEAT.rnli,
+  // not SCHEMA_HAS_RNLI — so if the flag is ever toggled on before migration
+  // 061 is applied (it's an operator-visible Features checkbox, not just an
+  // internal flag), the tile itself could show early. Bail here rather than
+  // walk someone through "confirm your gift" only to have the write 404.
+  if(!SCHEMA_HAS_RNLI){ toast('RNLI giving isn\'t set up yet — check back soon'); return; }
   rnliState={step:'amount',amount:0};
   renderRnliPanel();
   openPanel('rnliPanel');
@@ -14872,11 +14906,13 @@ showTab('registeredTab', null);
 // promise removes the ordering race entirely — whichever of the two
 // consumers awaits it first just waits for the same in-flight request.
 const _schemaCapabilitiesReady=checkSchemaCapabilities();
-// RNLI running total — independent of the race-schedule chain below, just
-// needs FEAT.rnli (from _settingsReady) and SCHEMA_HAS_RNLI (from
-// _schemaCapabilitiesReady) both resolved; rnliRefreshTotals() itself
-// no-ops if either is still off, so this is safe to fire unconditionally.
-Promise.all([_schemaCapabilitiesReady,_settingsReady]).then(rnliRefreshTotals);
+// RNLI running total + Revolut handle — independent of the race-schedule
+// chain below, just needs FEAT.rnli (from _settingsReady) and
+// SCHEMA_HAS_RNLI (from _schemaCapabilitiesReady) both resolved; both
+// callees no-op while either is still off, so safe to fire unconditionally.
+Promise.all([_schemaCapabilitiesReady,_settingsReady]).then(()=>{
+  loadRnliRevolutUser().then(rnliRefreshTotals);
+});
 // Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
 loadRaceSchedule().then(async()=>{
   if(!allRaces.length){ buildAllRaces(); nextRace=getNextRace(); }
