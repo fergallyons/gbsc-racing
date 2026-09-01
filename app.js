@@ -181,7 +181,7 @@ function boatsSelect(){ return SCHEMA_HAS_FLEETS?BOATS_SELECT+',fleet_id':BOATS_
 const FLEETS_SELECT_BASE='id,name,colour,sort_order,active';
 function fleetsSelect(){ return SCHEMA_HAS_SAIL_NUMBER_REQ?FLEETS_SELECT_BASE+',requires_sail_number':FLEETS_SELECT_BASE; }
 const SETTINGS_SELECT='id,stripe_link_member,stripe_link_student,stripe_link_visitor,'
-  +'pre_race_window_hours,worldtides_key,ro_revolut_user,results_published_race_key,'
+  +'pre_race_window_hours,worldtides_key,ro_revolut_user,rnli_revolut_user,results_published_race_key,'
   +'updated_at,features,estella_url,logo_url,favicon_url,primary_color,ro_color,'
   +'start_lat,start_lng,wind_lat,wind_lng,tide_station,tide_odm_offset,'
   +'fee_full,fee_crew,fee_visitor,fee_student,fee_kid,visitor_max,crew_max_yrs,'
@@ -226,7 +226,7 @@ async function sbLoadClubSettings(){
   // Full query including migration-020 columns
   const fullSelect=
     'stripe_link_member,stripe_link_student,stripe_link_visitor,'
-    +'pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,'
+    +'pre_race_window_hours,estella_url,worldtides_key,ro_revolut_user,rnli_revolut_user,'
     +'results_published_race_key,features,sponsors,'
     +'logo_url,favicon_url,primary_color,ro_color,'
     +'start_lat,start_lng,wind_lat,wind_lng,'
@@ -694,6 +694,7 @@ const FEAT={
   autoRegister: !!(_C.features&&_C.features.autoRegister),        // true = every boat auto-registers for the next race, no sign-up needed
   livePortWeather: !!(_C.features&&_C.features.livePortWeather),  // true = show live Port of Galway station data (GBSC-only hardware)
   feeWizard: !!(_C.features&&_C.features.feeWizard),               // true = guided declare/collect/review/submit flow replaces the passive Race Fees panel (GBSC-only, needs SCHEMA_HAS_DAY_SCOPED_PAYMENTS too)
+  rnli: !!(_C.features&&_C.features.rnli),                         // true = crew-level RNLI contribution tiles (GBSC-only, needs SCHEMA_HAS_RNLI too)
 };
 
 // Map from feature key → tile element IDs that applyAllFeatureVisibility() shows/hides.
@@ -732,6 +733,7 @@ const FEAT_TILE_MAP={
   crewAvailable:  ['tile-sk-crewAvailable','tile-pub-crewAvailable'],
   newSailors:     ['tile-pub-newSailors'],
   handicaps:      ['tile-pub-handicaps','tile-sk-handicaps','tile-ro-handicaps'],
+  rnli:           ['tile-pub-rnli','tile-sk-rnli','tile-ro-rnli'],
   // Additive-only tiles (hidden by default, DB turns them on)
   courseCard:     ['roCourseCardTile'],
 };
@@ -748,6 +750,7 @@ const FEAT_DEFAULTS={
   autoRegister:false, // opt-in — most clubs use explicit registration and must stay unaffected
   livePortWeather:false, // opt-in — GBSC-only hardware (Galway Port buoy); other clubs must stay unaffected
   feeWizard:false, // opt-in — GBSC-only, needs migration 058 applied too; other clubs must stay unaffected
+  rnli:false, // opt-in — GBSC-only, needs migration 061 applied too; other clubs must stay unaffected
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
   crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
@@ -759,6 +762,7 @@ const FEAT_CATALOG=[
   {key:'autoRegister', label:'Auto-Register All Boats — no sign-up, every boat is assumed racing', type:'bool', group:'Behaviour'},
   {key:'livePortWeather', label:'Live Port of Galway Weather (Race Weather tab)', type:'bool', group:'Behaviour'},
   {key:'feeWizard', label:'Guided Fee Wizard — declare crew, collect funds, review, submit', type:'bool', group:'Behaviour'},
+  {key:'rnli', label:'RNLI Contributions — crew-level donate flow (Revolut + Card)', type:'bool', group:'Behaviour'},
   {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
   {key:'courseCard',     label:'Course Card Picker',    type:'bool', group:'RO Tiles'},
   {key:'registrations',  label:'Registrations',         type:'bool', group:'RO Tiles'},
@@ -820,6 +824,7 @@ function liftVeil(){
     if(f.autoRegister!==undefined) FEAT.autoRegister=!!f.autoRegister;
     if(f.livePortWeather!==undefined) FEAT.livePortWeather=!!f.livePortWeather;
     if(f.feeWizard!==undefined) FEAT.feeWizard=!!f.feeWizard;
+    if(f.rnli!==undefined) FEAT.rnli=!!f.rnli;
   }catch(e){}
   liftVeil();
 })();
@@ -850,9 +855,9 @@ let boats=[], fleets=[], raceAreas=[], currentBoat=null, isRO=false, isGuest=fal
 let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLEET=false,
     SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false,
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
-    SCHEMA_HAS_PROTEST_ARCHIVE=false;
+    SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -868,6 +873,7 @@ async function checkSchemaCapabilities(){
   // reads this flag yet; it's wired up incrementally in the stages after.
   SCHEMA_HAS_DAY_SCOPED_PAYMENTS=names.has('058_day_scoped_race_payments.sql');
   SCHEMA_HAS_PROTEST_ARCHIVE=names.has('059_protest_archive.sql');
+  SCHEMA_HAS_RNLI=names.has('061_rnli_contributions.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -3745,7 +3751,7 @@ function deleteCrew(){
 // In-memory cache loaded from DB on login, written back on change
 // localStorage used as fallback when offline
 let boatConfig={};    // {pin, revolut_user} for currentBoat
-let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:'',worldtides_key:'',ro_revolut_user:'',results_published_race_key:''};  // club-wide
+let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:'',worldtides_key:'',ro_revolut_user:'',rnli_revolut_user:'',results_published_race_key:''};  // club-wide
 
 async function loadBoatConfig(boatId){
   // Try DB first
@@ -3899,6 +3905,8 @@ function applyAllFeatureVisibility(){
   else FEAT.livePortWeather=(FEAT_DEFAULTS.livePortWeather===true);
   if(f.feeWizard!==undefined) FEAT.feeWizard=!!f.feeWizard;
   else FEAT.feeWizard=(FEAT_DEFAULTS.feeWizard===true);
+  if(f.rnli!==undefined) FEAT.rnli=!!f.rnli;
+  else FEAT.rnli=(FEAT_DEFAULTS.rnli===true);
   // If the Weather panel is already open when this flag flips (e.g. an RO
   // toggles it live in Settings → Features), re-render it immediately
   // rather than waiting for the next manual open — both loadRaceWeather()
@@ -3961,6 +3969,7 @@ function hasAnyStripeLink(){
   return !!(clubSettings.stripe_link_member||clubSettings.stripe_link_student||clubSettings.stripe_link_visitor);
 }
 function getRORevolutUser(){ return clubSettings.ro_revolut_user||''; }
+function getRnliRevolutUser(){ return clubSettings.rnli_revolut_user||''; }
 async function saveBoatSettings(revolut_user,whatsapp,bowOffsetM){
   // revolut_user is gated by the pin verified at login (migration 040) —
   // payment-redirect field, not a plain anon-writable column anymore.
@@ -4386,6 +4395,7 @@ async function openROClubSettings(){
   setVal('ro-results-url',clubSettings.results_url||'');
   setVal('ro-worldtides-key',clubSettings.worldtides_key||'');
   setVal('ro-revolut-user',clubSettings.ro_revolut_user||'');
+  setVal('ro-rnli-revolut-user',clubSettings.rnli_revolut_user||'');
   setVal('ro-hal-club',clubSettings.hal_club||'');
   setVal('ro-fee-full',clubSettings.fee_full??'');
   setVal('ro-fee-crew',clubSettings.fee_crew??'');
@@ -4457,6 +4467,7 @@ function saveROClubSettings(){
   const resultsUrlVal=getVal('ro-results-url');
   const tidesKeyVal=getVal('ro-worldtides-key');
   const roRevolutVal=getVal('ro-revolut-user').replace(/^@/,'');
+  const rnliRevolutVal=getVal('ro-rnli-revolut-user').replace(/^@/,'');
   const halClubVal=getVal('ro-hal-club');
   const noticeboardVal=getVal('ro-noticeboard-url');
   const tideStationVal=getVal('ro-tide-station');
@@ -4474,13 +4485,15 @@ function saveROClubSettings(){
       p_stripe_link_member:newMemberVal,
       p_stripe_link_student:newStudentVal,
       p_stripe_link_visitor:newVisitorVal,
-      p_ro_revolut_user:roRevolutVal
+      p_ro_revolut_user:roRevolutVal,
+      p_rnli_revolut_user:rnliRevolutVal
     }).then(ok=>{
       if(ok!==true){ toast('⚠ Payment settings not saved — try logging in again'); return; }
       clubSettings.stripe_link_member=newMemberVal;
       clubSettings.stripe_link_student=newStudentVal;
       clubSettings.stripe_link_visitor=newVisitorVal;
       clubSettings.ro_revolut_user=roRevolutVal;
+      clubSettings.rnli_revolut_user=rnliRevolutVal;
     });
   } else {
     toast('⚠ Payment settings not saved — try logging in again');
@@ -7626,6 +7639,211 @@ function spStep3(){
       color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
       font-weight:800;letter-spacing:.04em;cursor:pointer">Done ✓</button>
   </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RNLI CONTRIBUTIONS — crew-level, no login required. GBSC only
+// (FEAT.rnli + SCHEMA_HAS_RNLI). Deliberately no boat/crew picker, unlike
+// self-pay above — this isn't tied to fee accounting, just tap an amount
+// and give. Revolut uses its own dedicated account (getRnliRevolutUser(),
+// separate from the RO's own fee-forwarding one); Card reuses the club's
+// existing Stripe account via the same create-bulk-checkout function
+// race-fee bulk-pay already uses — a single "RNLI Contribution" line
+// item, no boat/race context required.
+// ═══════════════════════════════════════════════════════════════
+let rnliState={step:'amount',amount:0};
+const RNLI_PRESETS=[5,10,20,50];
+
+function openRnliPanel(){
+  rnliState={step:'amount',amount:0};
+  renderRnliPanel();
+  openPanel('rnliPanel');
+}
+function rnliBack(){
+  if(rnliState.step==='pay'||rnliState.step==='awaitRevolut'){ rnliState.step='amount'; renderRnliPanel(); }
+  else { closePanel('rnliPanel'); }
+}
+function renderRnliPanel(){
+  const titles={amount:'🚢 Support the RNLI',pay:'🚢 Support the RNLI',awaitRevolut:'💜 Complete on Revolut',done:'✅ Thank You'};
+  const t=document.getElementById('rnliTitle'); if(t) t.textContent=titles[rnliState.step]||'🚢 Support the RNLI';
+  const body=document.getElementById('rnliBody'); if(!body) return;
+  if(rnliState.step==='amount') body.innerHTML=rnliRenderAmount();
+  else if(rnliState.step==='pay') body.innerHTML=rnliRenderPay();
+  else if(rnliState.step==='awaitRevolut') body.innerHTML=rnliRenderAwaitRevolut();
+  else if(rnliState.step==='done') body.innerHTML=rnliRenderDone();
+}
+
+function rnliRenderAmount(){
+  const presetBtns=RNLI_PRESETS.map(n=>
+    `<button onclick="rnliChooseAmount(${n})" style="padding:16px 4px;border-radius:12px;
+      background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.3);color:var(--teal);
+      font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;cursor:pointer">€${n}</button>`
+  ).join('');
+  return `
+    <div style="text-align:center;padding:10px 0 20px">
+      <div style="font-size:2.2rem;margin-bottom:10px">🚢</div>
+      <div style="font-size:.85rem;color:var(--muted);line-height:1.5">
+        The RNLI save lives at sea around our coast, entirely funded by donations.
+        Any amount helps.
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">${presetBtns}</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="rnli-custom-amount" type="number" min="1" step="1" placeholder="Other amount (€)"
+        style="flex:1;background:var(--navy-input);border:1px solid var(--border);border-radius:10px;
+        color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:1rem;padding:12px;
+        outline:none" onkeydown="if(event.key==='Enter')rnliSubmitCustomAmount()">
+      <button onclick="rnliSubmitCustomAmount()" style="padding:12px 18px;border-radius:10px;
+        background:var(--teal);border:none;color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;
+        font-size:.95rem;font-weight:800;cursor:pointer">Give</button>
+    </div>`;
+}
+function rnliChooseAmount(n){
+  rnliState.amount=n;
+  rnliState.step='pay';
+  renderRnliPanel();
+}
+function rnliSubmitCustomAmount(){
+  const el=document.getElementById('rnli-custom-amount');
+  const n=parseInt(el?.value,10);
+  if(!n||n<=0){ toast('Enter an amount first'); return; }
+  rnliChooseAmount(n);
+}
+
+function rnliRenderPay(){
+  const amt=rnliState.amount;
+  const revUser=getRnliRevolutUser();
+  const revBtn=revUser
+    ?`<button onclick="rnliDoRevolut()" style="width:100%;display:flex;align-items:center;gap:14px;
+        padding:16px;border-radius:12px;background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);
+        color:#a78bfa;cursor:pointer;margin-bottom:10px;text-align:left">
+        <span style="font-size:1.6rem">💜</span>
+        <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Give by Revolut</div>
+        <div style="font-size:.78rem;opacity:.8">Send €${amt} directly</div></div></button>`
+    :`<button disabled style="width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;
+        background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;
+        cursor:default;margin-bottom:10px;text-align:left">
+        <span style="font-size:1.6rem">💜</span>
+        <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Revolut</div>
+        <div style="font-size:.78rem">Not configured yet</div></div></button>`;
+  const cardBtn=hasAnyStripeLink()
+    ?`<button onclick="rnliDoCard()" style="width:100%;display:flex;align-items:center;gap:14px;
+        padding:16px;border-radius:12px;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);
+        color:var(--teal);cursor:pointer;text-align:left">
+        <span style="font-size:1.6rem">💳</span>
+        <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Give by Card</div>
+        <div style="font-size:.78rem;opacity:.8">Secure online payment · €${amt}</div></div></button>`
+    :`<button disabled style="width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;
+        background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;
+        cursor:default;text-align:left">
+        <span style="font-size:1.6rem">💳</span>
+        <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Card</div>
+        <div style="font-size:.78rem">Not configured yet</div></div></button>`;
+  return `
+    <div style="text-align:center;margin-bottom:20px;padding:16px;border-radius:14px;background:var(--card);border:1px solid var(--border)">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Giving to the RNLI</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;color:var(--white)">€${amt}</div>
+    </div>
+    ${revBtn}${cardBtn}`;
+}
+
+function rnliDoRevolut(){
+  window.open('https://revolut.me/'+getRnliRevolutUser()+'?amount='+rnliState.amount+'&currency=EUR','_blank');
+  rnliState.step='awaitRevolut';
+  renderRnliPanel();
+}
+function rnliRenderAwaitRevolut(){
+  return `<div style="text-align:center;padding:30px 0">
+    <div style="font-size:2.5rem;margin-bottom:12px">💜</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:8px">Revolut opened</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-bottom:28px">Complete your €${rnliState.amount} contribution, then tap below to record it</div>
+    <button onclick="rnliConfirm('Revolut')" style="width:100%;padding:14px;border-radius:12px;background:var(--teal);
+      border:none;color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
+      letter-spacing:.04em;cursor:pointer;margin-bottom:10px">✅ I've given — record it</button>
+    <button onclick="rnliState.step='pay';renderRnliPanel()" style="width:100%;padding:12px;border-radius:12px;
+      background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;
+      font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700">← Back</button>
+  </div>`;
+}
+
+async function rnliConfirm(method,paymentRef){
+  await sbSaveRnliContribution({
+    amount:rnliState.amount, method,
+    boat_id:currentBoat?currentBoat.id:null,
+    payment_ref:paymentRef||null
+  });
+  rnliState.step='done';
+  renderRnliPanel();
+  rnliRefreshTotals();
+}
+function rnliRenderDone(){
+  return `<div style="text-align:center;padding:30px 0">
+    <div style="font-size:3.5rem;margin-bottom:12px">⚓</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;margin-bottom:8px">Thank you!</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:var(--success);margin-bottom:24px">€${rnliState.amount} to the RNLI</div>
+    <button onclick="closePanel('rnliPanel')" style="width:100%;padding:14px;border-radius:12px;background:var(--card);
+      border:1px solid var(--border);color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
+      font-weight:800;letter-spacing:.04em;cursor:pointer">Done ✓</button>
+  </div>`;
+}
+
+async function rnliDoCard(){
+  const amt=rnliState.amount;
+  const paymentRef=newCrewId(); // reuse the existing UUID helper — generic v4 generator
+  const pending={amount:amt,paymentRef,boatId:currentBoat?currentBoat.id:null};
+  try{ sessionStorage.setItem('rnli_pending',JSON.stringify(pending)); }catch(e){}
+  toast('⏳ Opening Stripe Checkout…');
+  try{
+    const origin=window.location.origin;
+    // Reuses the existing bulk-checkout function as-is — it already treats
+    // boatId/raceKey as optional and accepts an arbitrary item list, so a
+    // single "RNLI Contribution" line item with no race context needs no
+    // new backend code at all.
+    const r=await fetch('/.netlify/functions/create-bulk-checkout',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        items:[{name:'RNLI Contribution',amount_cents:amt*100,quantity:1}],
+        returnUrl:`${origin}/?stripe_success=1&rnli_ref=${encodeURIComponent(paymentRef)}`,
+        cancelUrl:origin+'/',
+        paymentRef,
+        description:'RNLI Contribution'
+      })
+    });
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok||!data.url){
+      sessionStorage.removeItem('rnli_pending');
+      toast('⚠ Stripe error: '+(data.error||('HTTP '+r.status)));
+      return;
+    }
+    window.location.href=data.url;
+  }catch(e){
+    sessionStorage.removeItem('rnli_pending');
+    toast('⚠ Could not reach payment service');
+    console.error('rnliDoCard',e);
+  }
+}
+
+async function sbSaveRnliContribution(fields){
+  return sbFetch('/rest/v1/rnli_contributions',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify(fields)
+  });
+}
+async function sbLoadRnliTotal(){
+  const r=await sbFetch('/rest/v1/rnli_contributions?select=amount');
+  if(!Array.isArray(r)) return 0;
+  return r.reduce((a,row)=>a+(row.amount||0),0);
+}
+async function rnliRefreshTotals(){
+  if(!FEAT.rnli||!SCHEMA_HAS_RNLI) return;
+  const total=await sbLoadRnliTotal();
+  const label='€'+total+' raised';
+  ['rnli-total-pub','rnli-total-sk','rnli-total-ro'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.textContent=label;
+  });
 }
 
 // ── Share payment link / QR (for whole crew) ─────────────────
@@ -14594,6 +14812,32 @@ loadLivePortWeather();
     return;
   }
 
+  // ── RNLI Card contribution return ───────────────────────────────
+  // Own distinguishing ref (not bulk_ref/sp_pending) so a Stripe return
+  // for a contribution is never mistaken for a race-fee payment, and vice
+  // versa, if both happened in the same tab session.
+  const rnliRef=params.get('rnli_ref');
+  if(rnliRef){
+    history.replaceState({},'',window.location.pathname);
+    (async()=>{
+      try{
+        const pending=JSON.parse(sessionStorage.getItem('rnli_pending')||'null');
+        if(!pending||pending.paymentRef!==rnliRef){
+          console.warn('RNLI return: no matching pending context');
+          return;
+        }
+        sessionStorage.removeItem('rnli_pending');
+        await sbSaveRnliContribution({
+          amount:pending.amount, method:'Card',
+          boat_id:pending.boatId||null, payment_ref:rnliRef
+        });
+        toast(`✅ Thank you — €${pending.amount} given to the RNLI`);
+        rnliRefreshTotals();
+      }catch(e){ console.error('RNLI return handler',e); }
+    })();
+    return;
+  }
+
   // ── Single-crew self-pay return (existing flow) ────────────────
   history.replaceState({},'',window.location.pathname);
   try{
@@ -14628,6 +14872,11 @@ showTab('registeredTab', null);
 // promise removes the ordering race entirely — whichever of the two
 // consumers awaits it first just waits for the same in-flight request.
 const _schemaCapabilitiesReady=checkSchemaCapabilities();
+// RNLI running total — independent of the race-schedule chain below, just
+// needs FEAT.rnli (from _settingsReady) and SCHEMA_HAS_RNLI (from
+// _schemaCapabilitiesReady) both resolved; rnliRefreshTotals() itself
+// no-ops if either is still off, so this is safe to fire unconditionally.
+Promise.all([_schemaCapabilitiesReady,_settingsReady]).then(rnliRefreshTotals);
 // Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
 loadRaceSchedule().then(async()=>{
   if(!allRaces.length){ buildAllRaces(); nextRace=getNextRace(); }
