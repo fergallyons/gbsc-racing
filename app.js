@@ -866,9 +866,9 @@ let boats=[], fleets=[], raceAreas=[], currentBoat=null, isRO=false, isGuest=fal
 let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLEET=false,
     SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false,
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
-    SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false;
+    SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -885,6 +885,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_DAY_SCOPED_PAYMENTS=names.has('058_day_scoped_race_payments.sql');
   SCHEMA_HAS_PROTEST_ARCHIVE=names.has('059_protest_archive.sql');
   SCHEMA_HAS_RNLI=names.has('061_rnli_contributions.sql');
+  SCHEMA_HAS_RNLI_BASE=names.has('062_rnli_base_amount.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -3762,7 +3763,7 @@ function deleteCrew(){
 // In-memory cache loaded from DB on login, written back on change
 // localStorage used as fallback when offline
 let boatConfig={};    // {pin, revolut_user} for currentBoat
-let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:'',worldtides_key:'',ro_revolut_user:'',rnli_revolut_user:'',results_published_race_key:''};  // club-wide
+let clubSettings={stripe_link_member:'',stripe_link_student:'',stripe_link_visitor:'',pre_race_window_hours:12,estella_url:'',worldtides_key:'',ro_revolut_user:'',rnli_revolut_user:'',rnli_base_amount:0,results_published_race_key:''};  // club-wide
 
 async function loadBoatConfig(boatId){
   // Try DB first
@@ -3991,6 +3992,15 @@ async function loadRnliRevolutUser(){
   if(!SCHEMA_HAS_RNLI) return;
   const r=await sbFetch('/rest/v1/settings?id=eq.club&select=rnli_revolut_user');
   if(Array.isArray(r)&&r[0]) clubSettings.rnli_revolut_user=r[0].rnli_revolut_user||'';
+}
+// Same isolated-request treatment, own migration (062) + own flag — a
+// starting "credible base" folded into the displayed running total
+// (rnliRefreshTotals()), never into rnli_contributions itself (that
+// table is a real per-gift ledger, a base figure isn't a real gift).
+async function loadRnliBaseAmount(){
+  if(!SCHEMA_HAS_RNLI_BASE) return;
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=rnli_base_amount');
+  if(Array.isArray(r)&&r[0]) clubSettings.rnli_base_amount=r[0].rnli_base_amount||0;
 }
 async function saveBoatSettings(revolut_user,whatsapp,bowOffsetM){
   // revolut_user is gated by the pin verified at login (migration 040) —
@@ -7872,7 +7882,11 @@ async function sbLoadRnliTotal(){
 }
 async function rnliRefreshTotals(){
   if(!FEAT.rnli||!SCHEMA_HAS_RNLI) return;
-  const total=await sbLoadRnliTotal();
+  // Displayed total = credible starting base (rnli_base_amount, real money
+  // already raised outside this app) + the real per-gift ledger sum.
+  // clubSettings.rnli_base_amount defaults to 0 until 062 is applied, so
+  // this degrades to ledger-only with no code change needed once it is.
+  const total=await sbLoadRnliTotal()+(clubSettings.rnli_base_amount||0);
   const label='€'+total+' raised';
   ['rnli-total-pub','rnli-total-sk','rnli-total-ro'].forEach(id=>{
     const el=document.getElementById(id);
@@ -14911,7 +14925,7 @@ const _schemaCapabilitiesReady=checkSchemaCapabilities();
 // SCHEMA_HAS_RNLI (from _schemaCapabilitiesReady) both resolved; both
 // callees no-op while either is still off, so safe to fire unconditionally.
 Promise.all([_schemaCapabilitiesReady,_settingsReady]).then(()=>{
-  loadRnliRevolutUser().then(rnliRefreshTotals);
+  Promise.all([loadRnliRevolutUser(),loadRnliBaseAmount()]).then(rnliRefreshTotals);
 });
 // Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
 loadRaceSchedule().then(async()=>{
