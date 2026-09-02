@@ -7690,7 +7690,7 @@ function spStep3(){
 // item, no boat/race context required.
 // ═══════════════════════════════════════════════════════════════
 let rnliState={step:'amount',amount:0};
-const RNLI_PRESETS=[5,10,20,50];
+const RNLI_PRESETS=[20,50,100];
 
 function openRnliPanel(){
   // Belt-and-braces: FEAT_TILE_MAP's generic show/hide only reads FEAT.rnli,
@@ -7735,7 +7735,7 @@ function rnliRenderAmount(){
         Any amount helps.
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">${presetBtns}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">${presetBtns}</div>
     <div style="display:flex;gap:8px;align-items:center">
       <input id="rnli-custom-amount" type="number" min="1" step="1" placeholder="Other amount (€)"
         style="flex:1;background:var(--navy-input);border:1px solid var(--border);border-radius:10px;
