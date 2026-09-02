@@ -7703,16 +7703,6 @@ function openRnliPanel(){
   renderRnliPanel();
   openPanel('rnliPanel');
 }
-// RO-only: a raw, timestamped list of contributions instead of the give
-// flow. Revolut giving carries no reference the RO could match against
-// their bank app (see rnliRenderPay()'s tip) — amount + exact time is the
-// best available correlation key, so this list is that record.
-function openRnliLedger(){
-  if(!SCHEMA_HAS_RNLI){ toast('RNLI giving isn\'t set up yet — check back soon'); return; }
-  rnliState={step:'ledger'};
-  renderRnliPanel();
-  openPanel('rnliPanel');
-}
 function rnliBack(){
   if(rnliState.step==='pay'||rnliState.step==='awaitRevolut'){ rnliState.step='amount'; renderRnliPanel(); }
   else { closePanel('rnliPanel'); }
@@ -7722,14 +7712,13 @@ function renderRnliPanel(){
   // process-state screens (in progress / succeeded) where the distinct
   // emoji is more useful at a glance than the brand mark would be.
   const rnliLogo='<img src="logos/rnli-flag.svg" alt="" style="height:1.1em;width:auto;vertical-align:-2px;margin-right:6px;border-radius:1px">';
-  const titles={amount:rnliLogo+'Support the RNLI',pay:rnliLogo+'Support the RNLI',awaitRevolut:'💜 Complete on Revolut',done:'✅ Thank You',ledger:'📋 RNLI Contributions'};
+  const titles={amount:rnliLogo+'Support the RNLI',pay:rnliLogo+'Support the RNLI',awaitRevolut:'💜 Complete on Revolut',done:'✅ Thank You'};
   const t=document.getElementById('rnliTitle'); if(t) t.innerHTML=titles[rnliState.step]||(rnliLogo+'Support the RNLI');
   const body=document.getElementById('rnliBody'); if(!body) return;
   if(rnliState.step==='amount') body.innerHTML=rnliRenderAmount();
   else if(rnliState.step==='pay') body.innerHTML=rnliRenderPay();
   else if(rnliState.step==='awaitRevolut') body.innerHTML=rnliRenderAwaitRevolut();
   else if(rnliState.step==='done') body.innerHTML=rnliRenderDone();
-  else if(rnliState.step==='ledger') rnliRenderLedger();
 }
 
 function rnliRenderAmount(){
@@ -7778,10 +7767,7 @@ function rnliRenderPay(){
         color:#a78bfa;cursor:pointer;margin-bottom:10px;text-align:left">
         <span style="font-size:1.6rem">💜</span>
         <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Give by Revolut</div>
-        <div style="font-size:.78rem;opacity:.8">Send €${amt} directly</div></div></button>
-      <div style="font-size:.72rem;color:var(--muted);margin:-4px 0 10px 4px;line-height:1.4">
-        Tip: if Revolut asks for a note, add "RNLI gift" — makes it easier to match up later.
-      </div>`
+        <div style="font-size:.78rem;opacity:.8">Send €${amt} directly</div></div></button>`
     :`<button disabled style="width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;
         background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;
         cursor:default;margin-bottom:10px;text-align:left">
@@ -7847,40 +7833,6 @@ function rnliRenderDone(){
       border:1px solid var(--border);color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
       font-weight:800;letter-spacing:.04em;cursor:pointer">Done ✓</button>
   </div>`;
-}
-
-async function rnliRenderLedger(){
-  const body=document.getElementById('rnliBody');
-  if(!body) return;
-  body.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">Loading…</div>';
-  const rows=await sbFetch('/rest/v1/rnli_contributions?select=amount,method,created_at&order=created_at.desc&limit=100');
-  if(rnliState.step!=='ledger') return; // panel navigated away while this was in flight
-  if(!Array.isArray(rows)){ body.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">Could not load — try again</div>'; return; }
-  const note=`<div style="font-size:.78rem;color:var(--muted);margin-bottom:14px;line-height:1.5;padding:10px 12px;
-    background:var(--card);border:1px solid var(--border);border-radius:10px">
-    Revolut links can't carry a reference, so a bank transfer alone won't say "RNLI app gift" —
-    match by amount + time against this list instead. Card gifts are already verified by Stripe.
-  </div>`;
-  if(!rows.length){ body.innerHTML=note+'<div style="text-align:center;padding:20px;color:var(--muted)">No contributions yet</div>'; return; }
-  const rowsHtml=rows.map(r=>{
-    const d=new Date(r.created_at);
-    const dateStr=d.toLocaleDateString('en-IE',{day:'numeric',month:'short'})+' · '+d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-    const icon=r.method==='Revolut'?'💜':'💳';
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border)">
-      <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:1.2rem">${icon}</span>
-        <div>
-          <div style="font-weight:700">€${r.amount}</div>
-          <div style="font-size:.72rem;color:var(--muted)">${r.method}</div>
-        </div>
-      </div>
-      <div style="font-size:.78rem;color:var(--muted)">${dateStr}</div>
-    </div>`;
-  }).join('');
-  const total=rows.reduce((a,r)=>a+(r.amount||0),0);
-  body.innerHTML=note+
-    `<div style="font-size:.75rem;color:var(--muted);margin-bottom:6px">Most recent ${rows.length} · €${total} shown here</div>`+
-    rowsHtml;
 }
 
 async function rnliDoCard(){
