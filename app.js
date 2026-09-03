@@ -4903,13 +4903,13 @@ function crewPaySelectSelf(idx){
     :`<div style="text-align:center;font-size:.9rem;color:var(--success);font-weight:700;margin-bottom:18px">No fee due ✓</div>`;
 
   const revBtn=rev&&amt
-    ?`<a href="https://revolut.me/${rev}" target="_blank" rel="noopener"
+    ?`<a href="https://revolut.me/${rev}?amount=${Math.round(amt*100)}&currency=EUR" target="_blank" rel="noopener"
         style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
         background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:14px;
         padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
         margin-bottom:6px;box-shadow:0 4px 24px rgba(110,64,216,.4);">
         <span style="font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">💜 Open Revolut</span>
-        <span style="font-size:.85rem;font-weight:400;opacity:.85">then enter <strong style="font-size:1rem;font-weight:800">€${amt}</strong> as the amount</span>
+        <span style="font-size:.85rem;font-weight:400;opacity:.85">€${amt} pre-filled — just confirm &amp; send</span>
       </a>
       <div style="text-align:center;font-size:.72rem;color:#a78bfa;margin-bottom:14px;letter-spacing:.02em">Send to <strong>@${rev}</strong></div>`
     :'';
@@ -5171,7 +5171,7 @@ function renderRaceFeesPanel(){
     const revAmt=paid.filter(p=>p.payMethod&&p.payMethod.startsWith('Revolut')).reduce((a,p)=>a+fee(p),0);
     const toSubmit=cashAmt+revAmt;
     const roRev=getRORevolutUser();
-    const roRevLink=roRev?`https://revolut.me/${roRev}`:'';
+    const roRevLink=roRev?`https://revolut.me/${roRev}?amount=${Math.round(revAmt*100)}&currency=EUR`:'';
     let submitLines='';
     if(cashAmt) submitLines+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
       <span>💵 Cash — hand envelope to RO</span><span style="font-weight:800">€${cashAmt}</span></div>`;
@@ -7590,7 +7590,8 @@ function spStep2(){
 // ── Payment action helpers ────────────────────────────────────
 function spDoRevolut(){
   const revUser=selfPayState.boatRevUser||'';
-  window.open('https://revolut.me/'+revUser,'_blank');
+  const amt=FEES[selfPayState.person.type]||0;
+  window.open('https://revolut.me/'+revUser+'?amount='+Math.round(amt*100)+'&currency=EUR','_blank');
   spShowAwaitConfirm('Revolut');
 }
 function spDoCard(){
@@ -7984,7 +7985,7 @@ function openCollectSheet_REMOVED(){
         '</div>';
     } else {
       // Payment buttons
-      const revLink=revUser?`https://revolut.me/${revUser}`:'';
+      const revLink=revUser?`https://revolut.me/${revUser}?amount=${Math.round(amt*100)}&currency=EUR`:'';
       const stripeLink=getStripeLink(p.type);
       // WhatsApp links — only when crew has a phone number
       const waRevLink=p.phone&&revLink
@@ -8158,7 +8159,7 @@ function showPayMethodExtras(m,p){
     const revUser=getRevolutUser();
     if(revUser&&p){
       if(isMobile()){
-        document.getElementById('pn-revolut-btn').href=`https://revolut.me/${revUser}`;
+        document.getElementById('pn-revolut-btn').href=`https://revolut.me/${revUser}?amount=${Math.round(fee(p)*100)}&currency=EUR`;
         revDiv.style.display='block';
       } else {
         revDiv.innerHTML=`<div style="background:rgba(110,64,216,.08);border:1px solid rgba(110,64,216,.25);
@@ -11955,7 +11956,7 @@ function showCrewPayPage(data){
   // ── Step 2: Personal payment screen ───────────────────────────
   window._cpStep2=function(idx){
     const c=data.crew[idx];
-    const revUrl=data.rev?`https://revolut.me/${data.rev}`:'';
+    const revUrl=data.rev?`https://revolut.me/${data.rev}?amount=${Math.round(c.a*100)}&currency=EUR`:'';
     // Prefer clubSettings (loaded at startup); fall back to embedded stripeLinks for old shared URLs
     const sl=data.stripeLinks||{};
     const stripeUrl=getStripeLink(c.t)||(c.t==='student'?sl.student:c.t==='visitor'?sl.visitor:sl.member)||data.stripe||'';
@@ -11967,7 +11968,7 @@ function showCrewPayPage(data){
         padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
         margin-bottom:6px;box-shadow:0 4px 24px rgba(110,64,216,.4);">
         <span style="font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">💜 Open Revolut</span>
-        <span style="font-size:.85rem;font-weight:400;opacity:.85">then enter <strong style="font-size:1rem;font-weight:800">€${c.a}</strong> as the amount</span>
+        <span style="font-size:.85rem;font-weight:400;opacity:.85">€${c.a} pre-filled — just confirm &amp; send</span>
       </a>
       <div style="text-align:center;font-size:.8rem;color:#a78bfa;margin-bottom:12px;letter-spacing:.02em">
         Send to <strong>@${data.rev}</strong>
