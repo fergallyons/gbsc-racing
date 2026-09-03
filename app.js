@@ -10963,9 +10963,9 @@ async function renderFeeStatement(){
     const dedupKey=`${p.crew_id}|${k}`;
     if(seenCrewRace.has(dedupKey)) return;
     seenCrewRace.add(dedupKey);
-    if(!payMap[k]) payMap[k]={total:0,methods:new Set(),count:0};
+    if(!payMap[k]) payMap[k]={total:0,byMethod:{},count:0};
     payMap[k].total+=(p.amount||0);
-    if(p.method) payMap[k].methods.add(p.method);
+    if(p.method) payMap[k].byMethod[p.method]=(payMap[k].byMethod[p.method]||0)+(p.amount||0);
     payMap[k].count++;
   };
   // Process race_payments first so they take priority in dedup
@@ -10992,7 +10992,10 @@ async function renderFeeStatement(){
     const clickAttr=clickable?`onclick="feeStmtOpenRace('${r.race_key}')" style="cursor:pointer"`:'';
     if(pay){
       totalPaid+=pay.total;
-      const methods=[...pay.methods].join(' / ')||'—';
+      // Per-method breakdown, not just a list of which methods were used —
+      // e.g. "Revolut €12, Card €16, Cash €4" so a mixed-method race (common
+      // once >1 crew member paid) shows exactly how much came in each way.
+      const methods=Object.entries(pay.byMethod).map(([m,amt])=>`${m} €${amt}`).join(', ')||'—';
       const crewNote=pay.count>1?` · ${pay.count} paid`:'';
       shareLines.push(`✓ ${r.race_name} (${dateStr}) — €${pay.total} ${methods}`);
       html+=`
