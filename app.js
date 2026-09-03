@@ -5536,8 +5536,11 @@ async function rfBulkPayConfirm(method){
   if(method==='Revolut'){
     const revUser=getRevolutUser();
     if(!revUser){ toast('Set your Revolut @username in Settings ⚙'); return; }
-    // Open Revolut with the summed amount
-    const url=`https://revolut.me/${revUser}?amount=${total}&currency=EUR`;
+    // Open Revolut with the summed amount. Revolut's amount param is in
+    // minor units (cents), like the rest of their API — passing a bare
+    // euro figure (e.g. 20 for €20) opens Revolut showing €0.20, confirmed
+    // live 2026-09-03 via the RNLI give flow's identical bug.
+    const url=`https://revolut.me/${revUser}?amount=${Math.round(total*100)}&currency=EUR`;
     window.open(url,'_blank');
     // Skipper confirms after the payment arrives in their Revolut
     if(!confirm(`Opening Revolut for €${total}. After the payment is received, tap OK to mark ${chosen.length} crew paid.`)) return;
@@ -7803,7 +7806,9 @@ function rnliRenderPay(){
 }
 
 function rnliDoRevolut(){
-  window.open('https://revolut.me/'+getRnliRevolutUser()+'?amount='+rnliState.amount+'&currency=EUR','_blank');
+  // amount param is minor units (cents) — confirmed live 2026-09-03 (user
+  // reported €20 opening Revolut showing €0.20). Same fix in rfBulkPayConfirm().
+  window.open('https://revolut.me/'+getRnliRevolutUser()+'?amount='+Math.round(rnliState.amount*100)+'&currency=EUR','_blank');
   rnliState.step='awaitRevolut';
   renderRnliPanel();
 }
