@@ -4542,9 +4542,16 @@ function saveROClubSettings(){
     estella_url: estellaVal,
     results_url: resultsUrlVal,
     worldtides_key: tidesKeyVal,
-    // Unlike fees/etc below, a blank HalSail ID is a real, valid state (no HalSail
-    // integration) — not something to fall back to the old value for.
-    hal_club: halClubVal!==''?(parseInt(halClubVal)||null):null,
+    // Blank keeps the existing value — same rule as every other field here.
+    // Previously deliberately nulled hal_club on a blank input on the theory
+    // that "no HalSail integration" is a real, valid state — in practice a
+    // blank input is far more likely to mean "field wasn't populated / got
+    // cleared by accident" than "deliberately disable HalSail", and this
+    // silently wiped a real, working hal_club to null in production
+    // (confirmed live 2026-09-03, root-caused via this exact line). If
+    // deliberately disabling HalSail is ever needed, it wants its own
+    // explicit action, not just an empty field + Save.
+    hal_club: numOrKeep('ro-hal-club', clubSettings.hal_club),
     fee_full:     numOrKeep('ro-fee-full',    clubSettings.fee_full),
     fee_crew:     numOrKeep('ro-fee-crew',    clubSettings.fee_crew),
     fee_visitor:  numOrKeep('ro-fee-visitor', clubSettings.fee_visitor),
