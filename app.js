@@ -7723,8 +7723,8 @@ function renderRnliPanel(){
   // process-state screens (in progress / succeeded) where the distinct
   // emoji is more useful at a glance than the brand mark would be.
   const rnliLogo='<img src="logos/rnli-flag.svg" alt="" style="height:1.1em;width:auto;vertical-align:-2px;margin-right:6px;border-radius:1px">';
-  const titles={amount:rnliLogo+'Support the RNLI',pay:rnliLogo+'Support the RNLI',awaitRevolut:'💜 Complete on Revolut',done:'✅ Thank You'};
-  const t=document.getElementById('rnliTitle'); if(t) t.innerHTML=titles[rnliState.step]||(rnliLogo+'Support the RNLI');
+  const titles={amount:rnliLogo+'RNLI Fundraiser',pay:rnliLogo+'RNLI Fundraiser',awaitRevolut:'💜 Complete on Revolut',done:'✅ Thank You'};
+  const t=document.getElementById('rnliTitle'); if(t) t.innerHTML=titles[rnliState.step]||(rnliLogo+'RNLI Fundraiser');
   const body=document.getElementById('rnliBody'); if(!body) return;
   if(rnliState.step==='amount') body.innerHTML=rnliRenderAmount();
   else if(rnliState.step==='pay') body.innerHTML=rnliRenderPay();
@@ -7742,8 +7742,9 @@ function rnliRenderAmount(){
     <div style="text-align:center;padding:10px 0 20px">
       <img src="logos/rnli-flag.svg" alt="RNLI" style="height:56px;width:auto;margin-bottom:12px;border-radius:3px;box-shadow:0 2px 10px rgba(0,0,0,.25)">
       <div style="font-size:.85rem;color:var(--muted);line-height:1.5">
-        The RNLI save lives at sea around our coast, entirely funded by donations.
-        Any amount helps.
+        GBSC's annual fundraiser for the RNLI. This year's donations go directly to the
+        <strong style="color:var(--white)">Aran Islands Lifeboat</strong> — in recognition of the
+        vital work they do, and with real appreciation from our club for their volunteer crew.
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">${presetBtns}</div>
