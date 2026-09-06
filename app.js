@@ -6892,7 +6892,7 @@ function renderWeather(wx,tides,warnings,live){
           ${live.history&&live.history.length>1?`
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;
             letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
-            Last 6 Hours · kt</div>
+            Last 3 Hours · kt</div>
           <div style="display:flex;gap:6px;margin-bottom:16px">${live.history.map(h=>{
             const hr=new Date(h.time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
             const hw=Math.round(h.speed), hg=Math.round(h.gust), hd=Math.round(h.dir);
@@ -12086,7 +12086,7 @@ async function loadWindWidget(){
 // port's block is a clean HTTP response, not a thrown network error, so a
 // direct-first attempt would just silently get an empty 503 every time).
 // {speed,gust,dir,pressure,temp,humidity,time,history,tide} or null.
-// history: last ~6h of readings, downsampled to roughly hourly, oldest
+// history: last ~3h of readings, downsampled to roughly hourly, oldest
 // first — {time,speed,gust,dir}. tide: {level (m, LAD datum),trend,time} or
 // null if the tide fetch failed (weather succeeding is the hard
 // requirement; tide is a bonus that degrades independently).
@@ -12114,19 +12114,19 @@ async function fetchLivePortWeather(){
     if(!Array.isArray(wxArr)||!wxArr.length) return null;
     const latest=wxArr[wxArr.length-1]; // API returns oldest-first
 
-    // Last 6h of data ENDING AT THE LATEST READING, not at wall-clock now —
+    // Last 3h of data ENDING AT THE LATEST READING, not at wall-clock now —
     // confirmed live 2026-08-16 the station can go quiet for 10+ hours, and
     // anchoring to Date.now() made the window come up completely empty
-    // during a gap even though 6 real hours of history existed right
+    // during a gap even though real recent history existed right
     // before the outage started. Downsampled to ~hourly (last reading in
-    // each hour bucket) — the station reports every ~5min, so 6h raw would
-    // be ~72 points, too dense for a horizontal strip. Mirrors windBlock's
+    // each hour bucket) — the station reports every ~5min, so 3h raw would
+    // be ~36 points, still too dense for a horizontal strip. Mirrors windBlock's
     // own Race Window strip visually, just fed the recent past instead of
     // a forecast.
     const latestMs=new Date(latest.time).getTime();
-    const sixHoursBeforeLatestMs=latestMs-6*3600000;
+    const threeHoursBeforeLatestMs=latestMs-3*3600000;
     const hourBuckets={};
-    wxArr.filter(r=>new Date(r.time).getTime()>=sixHoursBeforeLatestMs)
+    wxArr.filter(r=>new Date(r.time).getTime()>=threeHoursBeforeLatestMs)
       .forEach(r=>{ hourBuckets[Math.floor(new Date(r.time).getTime()/3600000)]=r; });
     const history=Object.values(hourBuckets)
       .sort((a,b)=>new Date(a.time)-new Date(b.time))
