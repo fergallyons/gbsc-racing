@@ -1596,7 +1596,7 @@ function renderAgentSetupBody(){
     return;
   }
   const p=_agentPairing;
-  const stepLabel='font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px';
+  const stepLabel='font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px';
   const fieldBox='flex:1;background:var(--navy);border:1px solid var(--border);border-radius:8px;color:var(--white);'+
     'font-family:\'Barlow\',sans-serif;font-size:.8rem;padding:9px 10px;word-break:break-all;display:block';
   el.innerHTML=
@@ -1607,14 +1607,14 @@ function renderAgentSetupBody(){
     '</div>'+
     '<div style="'+stepLabel+'">2 · In Traccar Client, set</div>'+
     '<div style="margin-bottom:10px">'+
-      '<div style="font-size:.7rem;color:var(--muted);margin-bottom:3px">Device Identifier</div>'+
+      '<div style="font-size:.85rem;color:var(--muted);margin-bottom:3px">Device Identifier</div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
         '<code id="agentToken" style="'+fieldBox+'">'+p.token+'</code>'+
         '<button class="btn btn-ghost" style="padding:9px 12px;flex:none" onclick="copyAgentField(\'agentToken\')">Copy</button>'+
       '</div>'+
     '</div>'+
     '<div style="margin-bottom:6px">'+
-      '<div style="font-size:.7rem;color:var(--muted);margin-bottom:3px">Server URL</div>'+
+      '<div style="font-size:.85rem;color:var(--muted);margin-bottom:3px">Server URL</div>'+
       '<div style="display:flex;gap:6px;align-items:center">'+
         '<code id="agentServerUrl" style="'+fieldBox+'">'+p.serverUrl+'</code>'+
         '<button class="btn btn-ghost" style="padding:9px 12px;flex:none" onclick="copyAgentField(\'agentServerUrl\')">Copy</button>'+
@@ -1626,7 +1626,7 @@ function renderAgentSetupBody(){
       '<b style="color:var(--white)">Interval (may be labelled Frequency): 15s</b> — this field may only appear once Distance is set to 0. Then tap Start.'+
     '</div>'+
     '<div style="text-align:center;margin-bottom:16px">'+
-      '<div style="font-size:.7rem;color:var(--muted);margin-bottom:8px">Setting it up on a different phone? Scan the Device Identifier instead of typing it:</div>'+
+      '<div style="font-size:.85rem;color:var(--muted);margin-bottom:8px">Setting it up on a different phone? Scan the Device Identifier instead of typing it:</div>'+
       '<div id="agentQr" style="display:inline-block;background:#fff;padding:10px;border-radius:8px;min-width:160px;min-height:160px"></div>'+
     '</div>'+
     '<button class="btn btn-ghost" style="width:100%;padding:10px;color:var(--muted)" onclick="revokeAgentPairing()">Revoke this pairing</button>';
@@ -1687,7 +1687,7 @@ async function renderAgentQr(text){
     el.innerHTML='';
     new QRCode(el,{text:text, width:160, height:160, correctLevel:QRCode.CorrectLevel.M});
   }catch(e){
-    el.innerHTML='<div style="font-size:.75rem;color:var(--muted);padding:20px;max-width:160px">QR code unavailable — use Copy above</div>';
+    el.innerHTML='<div style="font-size:.85rem;color:var(--muted);padding:20px;max-width:160px">QR code unavailable — use Copy above</div>';
   }
 }
 
@@ -1832,7 +1832,7 @@ async function refreshTrackerPositions(){
       return '<div class="tracker-fleet-row" data-boatid="'+id+'" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer">'
         +'<span style="width:10px;height:10px;border-radius:50%;background:'+colour+';flex-shrink:0"></span>'
         +'<span style="flex:1;font-weight:600">'+nameFor(id)+'</span>'
-        +'<span style="font-size:.78rem;color:var(--muted)">'+(p.speed_kn!=null?p.speed_kn.toFixed(1)+'kn · ':'')+ageSec+'s ago</span>'
+        +'<span style="font-size:.85rem;color:var(--muted)">'+(p.speed_kn!=null?p.speed_kn.toFixed(1)+'kn · ':'')+ageSec+'s ago</span>'
         +'</div>';
     }).join('');
     listEl.querySelectorAll('.tracker-fleet-row').forEach(el=>{
@@ -2246,7 +2246,7 @@ function renderFeaturesPanel(){
         const def=FEAT_DEFAULTS[item.key]!==undefined?FEAT_DEFAULTS[item.key]:true;
         const on=f[item.key]!==undefined?!!f[item.key]:def;
         html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
-          <span style="font-size:.9rem;color:var(--white)">${item.label}${!def?' <span style="font-size:.7rem;color:var(--muted)">(off by default)</span>':''}</span>
+          <span style="font-size:.9rem;color:var(--white)">${item.label}${!def?' <span style="font-size:.85rem;color:var(--muted)">(off by default)</span>':''}</span>
           <input type="checkbox" ${on?'checked':''} onchange="saveFeatureSetting('${item.key}',this.checked)"
             style="width:20px;height:20px;accent-color:#00aeef;cursor:pointer;flex-shrink:0">
         </div>`;
@@ -2379,7 +2379,7 @@ function renderCourseCardList(filter){
   });
   list.innerHTML=Object.entries(groups).map(([dir,courses])=>`
     <div style="margin-bottom:14px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px">
         ${dir} Wind
       </div>
       ${courses.map(c=>{
@@ -2391,7 +2391,7 @@ function renderCourseCardList(filter){
           onmouseover="this.style.borderColor='var(--teal)'" onmouseout="this.style.borderColor='var(--border)'">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.05rem;font-weight:800;color:var(--white)">
-              Course ${c.number}${c.name?' — '+c.name:''}${c.grassy_walk_note?'<span style="font-size:.7rem;color:var(--gold);margin-left:6px">**GW</span>':''}
+              Course ${c.number}${c.name?' — '+c.name:''}${c.grassy_walk_note?'<span style="font-size:.85rem;color:var(--gold);margin-left:6px">**GW</span>':''}
             </span>
             <span style="font-size:.8rem;color:var(--muted)">${lastDist} nm</span>
           </div>
@@ -2453,7 +2453,7 @@ function selectCourseCardCourse(number){
     :(typeof selectedCourseCardEntry.rounds==='string'?JSON.parse(selectedCourseCardEntry.rounds):[]);
   const lastDist=rounds.length?rounds[rounds.length-1].distance_nm:'—';
   const gwNote=selectedCourseCardEntry.grassy_walk_note
-    ?'<div style="font-size:.75rem;color:var(--gold);margin-top:6px">** When Grassy Walk line in use: insert Dosco (P) as Mark 1</div>':''
+    ?'<div style="font-size:.85rem;color:var(--gold);margin-top:6px">** When Grassy Walk line in use: insert Dosco (P) as Mark 1</div>':''
   ;
   const STAGE_COLORS=['#00b4d8','#fee01e','#ff8c42','#9b59b6','#5c9bd6','#e91e8c'];
   const {markEntries,unresolved}=parseCourseCardMarks(selectedCourseCardEntry);
@@ -2461,7 +2461,7 @@ function selectCourseCardCourse(number){
     ?buildCourseSvg(markEntries,null,getLineById(selectedStartLineId),getLineById(selectedFinishLineId))
     :'';
   const unresolvedNote=unresolved.length
-    ?`<div style="font-size:.75rem;color:var(--gold);margin-bottom:10px">⚠ Not shown on diagram (not in Marks Manager yet): ${unresolved.join(', ')}</div>`
+    ?`<div style="font-size:.85rem;color:var(--gold);margin-bottom:10px">⚠ Not shown on diagram (not in Marks Manager yet): ${unresolved.join(', ')}</div>`
     :'';
   preview.innerHTML=`
     ${diagramHtml?`<div style="background:var(--navy);border-radius:10px;padding:8px;margin-bottom:10px">${diagramHtml}</div>`:''}
@@ -2474,7 +2474,7 @@ function selectCourseCardCourse(number){
       ${rounds.map((r,i)=>`<div style="margin-bottom:5px">
         <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:${STAGE_COLORS[i%STAGE_COLORS.length]}">${r.label}:</span>
         <span style="font-size:.88rem;color:var(--fg)"> ${r.marks}</span>
-        <span style="font-size:.78rem;color:var(--muted)"> (${r.distance_nm} nm)</span>
+        <span style="font-size:.85rem;color:var(--muted)"> (${r.distance_nm} nm)</span>
       </div>`).join('')}
       ${gwNote}
     </div>
@@ -2551,12 +2551,12 @@ async function renderSeriesFeesPanel(){
   const paidSeriesNames=new Set(fees.map(f=>f.series_name));
   body.innerHTML=`
     <div style="margin-bottom:18px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">${CY} Series — Payment Status</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">${CY} Series — Payment Status</div>
       ${seriesNames.length?seriesNames.map(s=>`
         <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,.04);border:1px solid ${paidSeriesNames.has(s)?'rgba(45,198,83,.35)':'var(--border)'};border-radius:10px;padding:11px 14px;margin-bottom:6px">
           <div>
             <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.95rem;color:var(--white)">${s}</div>
-            ${paidSeriesNames.has(s)?'<div style="font-size:.75rem;color:var(--success)">✓ Paid</div>':'<div style="font-size:.75rem;color:var(--muted)">Not yet recorded</div>'}
+            ${paidSeriesNames.has(s)?'<div style="font-size:.85rem;color:var(--success)">✓ Paid</div>':'<div style="font-size:.85rem;color:var(--muted)">Not yet recorded</div>'}
           </div>
           ${paidSeriesNames.has(s)
             ?''
@@ -2572,12 +2572,12 @@ async function renderSeriesFeesPanel(){
     <div id="seriesPaymentFormDiv" style="display:none"></div>
     ${fees.length?`
       <div style="margin-top:10px">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Payment History</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Payment History</div>
         ${fees.map(f=>`
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
             <div>
               <div style="font-size:.88rem;color:var(--fg)">${f.series_name}</div>
-              <div style="font-size:.75rem;color:var(--muted)">${f.method} · ${new Date(f.paid_at).toLocaleDateString('en-IE')}</div>
+              <div style="font-size:.85rem;color:var(--muted)">${f.method} · ${new Date(f.paid_at).toLocaleDateString('en-IE')}</div>
             </div>
             <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--success)">€${Number(f.amount).toFixed(2)}</span>
           </div>
@@ -2671,7 +2671,7 @@ async function renderRegisteredTab(){
   // Grouped only once a club has actual fleets — subheading style matches
   // loadAndRenderDocs()'s document categories for visual consistency.
   list.innerHTML=groupBoatsByFleet(regBoats).map((g,i)=>
-    '<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;'+(i===0?'margin-bottom:8px':'margin:16px 0 8px')+'">'+escHtml(g.name)+'</div>'+
+    '<div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;'+(i===0?'margin-bottom:8px':'margin:16px 0 8px')+'">'+escHtml(g.name)+'</div>'+
     g.boats.map(rowHtml).join('')
   ).join('');
 }
@@ -2715,16 +2715,16 @@ function renderBoatSummaryBody(b,nationalBoats,halEcho){
     +'<div style="text-align:center;margin-bottom:16px">'
       +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1.5rem;font-weight:800;color:var(--white)">'+escHtml(b.name)+'</div>'
       +(b.sailNumber?'<div style="font-size:.85rem;color:var(--muted);margin-top:2px">'+escHtml(b.sailNumber)+'</div>':'')
-      +(isReg?'<div style="display:inline-block;margin-top:8px;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--success);background:rgba(45,198,83,.1);border:1px solid rgba(45,198,83,.3);border-radius:20px;padding:3px 12px">✓ Registered</div>':'')
+      +(isReg?'<div style="display:inline-block;margin-top:8px;font-size:.85rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--success);background:rgba(45,198,83,.1);border:1px solid rgba(45,198,83,.3);border-radius:20px;padding:3px 12px">✓ Registered</div>':'')
     +'</div>'
     +'<div style="display:flex;gap:10px">'
       +'<div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">'
         +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1.6rem;font-weight:800;color:'+(irc?'var(--white)':'var(--muted)')+'">'+(irc||'—')+'</div>'
-        +'<div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">IRC TCC</div>'
+        +'<div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">IRC TCC</div>'
       +'</div>'
       +'<div style="flex:1;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);border-radius:10px;padding:14px;text-align:center">'
         +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1.6rem;font-weight:800;color:'+(nextEcho!=null?'var(--success)':'var(--muted)')+'">'+(nextEcho!=null?nextEcho:'—')+'</div>'
-        +'<div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">Next ECHO</div>'
+        +'<div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">Next ECHO</div>'
       +'</div>'
     +'</div>';
 }
@@ -3570,7 +3570,7 @@ function renderCrew(){
   // actions live in Race Fees / the Fee Wizard, not this tab).
   if(guests.length){
     const h=document.createElement('div');
-    h.style.cssText='font-size:.72rem;color:var(--muted);font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:14px 0 6px';
+    h.style.cssText='font-size:.85rem;color:var(--muted);font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:14px 0 6px';
     h.textContent='🙋 Guests';
     list.appendChild(h);
     guests.forEach(p=>{
@@ -4807,8 +4807,8 @@ function _crewPayRenderBoats(){
   const raceName=nextRace?nextRace.label:'';
   content.innerHTML=
     (raceName
-      ?`<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;text-align:center">Select the boat you sailed on for<br><strong style="color:var(--white)">${raceName}</strong></div>`
-      :`<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;text-align:center">Select the boat you sailed on</div>`)+
+      ?`<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px;text-align:center">Select the boat you sailed on for<br><strong style="color:var(--white)">${raceName}</strong></div>`
+      :`<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px;text-align:center">Select the boat you sailed on</div>`)+
     boats.map(b=>
       `<div onclick="crewPaySelectBoat('${b.id}')"
         style="display:flex;align-items:center;gap:12px;padding:12px 14px;
@@ -4817,7 +4817,7 @@ function _crewPayRenderBoats(){
         <span style="font-size:1.4rem">${b.icon}</span>
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
           color:var(--white);flex:1">${b.name}</span>
-        <span style="font-size:.75rem;color:var(--teal);font-weight:700">Select →</span>
+        <span style="font-size:.85rem;color:var(--teal);font-weight:700">Select →</span>
       </div>`
     ).join('');
 }
@@ -4849,7 +4849,7 @@ async function crewPaySelectBoat(boatId){
     content.innerHTML=
       '<div class="empty-state"><div class="icon">⛵</div>'+
       '<div>No crew found for this boat.<br>'+
-      '<span style="font-size:.75rem;color:var(--muted)">Ask your skipper to set up the crew roster.</span></div></div>';
+      '<span style="font-size:.85rem;color:var(--muted)">Ask your skipper to set up the crew roster.</span></div></div>';
     return;
   }
 
@@ -4857,7 +4857,7 @@ async function crewPaySelectBoat(boatId){
   crewPaySelectBoat._crew=crew;
 
   content.innerHTML=
-    `<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;text-align:center">Select your name</div>`+
+    `<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px;text-align:center">Select your name</div>`+
     crew.map((c,i)=>{
       const amt=FEES[c.type]||0;
       const typeLabel=c.type==='visitor'?'Visitor':c.type==='student'?'Student':'Member';
@@ -4873,11 +4873,11 @@ async function crewPaySelectBoat(boatId){
         </div>
         <div style="flex:1;min-width:0;">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;color:var(--white)">${c.first} ${c.last||''}</div>
-          <div style="font-size:.7rem;color:var(--muted)">${typeLabel}</div>
+          <div style="font-size:.85rem;color:var(--muted)">${typeLabel}</div>
         </div>
         ${amt
           ?`<span style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--danger)">€${amt}</span>`
-          :`<span style="font-size:.75rem;color:var(--success);font-weight:700">No fee</span>`}
+          :`<span style="font-size:.85rem;color:var(--success);font-weight:700">No fee</span>`}
       </div>`;
     }).join('');
 }
@@ -4898,7 +4898,7 @@ function crewPaySelectSelf(idx){
     clubSettings.stripe_link_member)||'';
 
   const feeNote=amt
-    ?`<div style="text-align:center;font-size:.78rem;color:var(--muted);margin-bottom:8px">Your fee for ${nextRace?nextRace.label:'this race'}</div>
+    ?`<div style="text-align:center;font-size:.85rem;color:var(--muted);margin-bottom:8px">Your fee for ${nextRace?nextRace.label:'this race'}</div>
        <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:800;color:var(--danger);margin-bottom:18px">€${amt}</div>`
     :`<div style="text-align:center;font-size:.9rem;color:var(--success);font-weight:700;margin-bottom:18px">No fee due ✓</div>`;
 
@@ -4911,7 +4911,7 @@ function crewPaySelectSelf(idx){
         <span style="font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">💜 Open Revolut</span>
         <span style="font-size:.85rem;font-weight:400;opacity:.85">€${amt} pre-filled — just confirm &amp; send</span>
       </a>
-      <div style="text-align:center;font-size:.72rem;color:#a78bfa;margin-bottom:14px;letter-spacing:.02em">Send to <strong>@${rev}</strong></div>`
+      <div style="text-align:center;font-size:.85rem;color:#a78bfa;margin-bottom:14px;letter-spacing:.02em">Send to <strong>@${rev}</strong></div>`
     :'';
 
   const stripeBtn=stripeUrl&&amt
@@ -4929,7 +4929,7 @@ function crewPaySelectSelf(idx){
     ?`<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
         border-radius:12px;padding:16px;text-align:center;font-size:.85rem;color:var(--muted)">
         Payment links haven't been set up for this boat yet.<br>
-        <span style="font-size:.75rem">Ask your skipper to add their Revolut username in Settings.</span>
+        <span style="font-size:.85rem">Ask your skipper to add their Revolut username in Settings.</span>
       </div>`
     :'';
 
@@ -4951,7 +4951,7 @@ async function browseEstelaRaces(){
       '<div class="empty-state">'+
         '<div class="icon">⚠</div>'+
         '<div style="font-size:.9rem;color:var(--white);margin-bottom:6px">'+(isNotConfigured?'API key not yet set up':'Could not reach eStela')+'</div>'+
-        '<div style="font-size:.75rem;color:var(--muted);line-height:1.5;max-width:280px;text-align:center">'+
+        '<div style="font-size:.85rem;color:var(--muted);line-height:1.5;max-width:280px;text-align:center">'+
           (isNotConfigured
             ? 'Add <strong style="color:var(--white)">ESTELA_API_KEY</strong> to your Netlify environment variables, then redeploy.'
             : data.error.slice(0,120))+
@@ -4978,7 +4978,7 @@ async function browseEstelaRaces(){
           white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${race.name}</div>
         ${d?`<div style="font-size:.8rem;color:var(--muted);margin-top:2px">${d}</div>`:''}
       </div>
-      <span style="font-size:.75rem;color:var(--teal);font-weight:700;flex-shrink:0">Select →</span>
+      <span style="font-size:.85rem;color:var(--teal);font-weight:700;flex-shrink:0">Select →</span>
     </div>`;
   }).join('');
 }
@@ -5164,7 +5164,7 @@ function renderRaceFeesPanel(){
   let summary;
   if(outstanding>0){
     summary=`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${outstanding} outstanding</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${unpaid.length+unpaidGuests.length} of ${sel.length+guests.length} unpaid · ${race}</div>`;
+      <div style="font-size:.85rem;color:var(--muted);margin-top:2px">${unpaid.length+unpaidGuests.length} of ${sel.length+guests.length} unpaid · ${race}</div>`;
   } else {
     const paid=[...sel,...guests].filter(p=>p.paid);
     const cashAmt=paid.filter(p=>p.payMethod&&p.payMethod.startsWith('Cash')).reduce((a,p)=>a+fee(p),0);
@@ -5182,7 +5182,7 @@ function renderRaceFeesPanel(){
             padding:4px 10px;border-radius:6px;border:1px solid rgba(110,64,216,.5);
             background:rgba(110,64,216,.18);color:#a78bfa;text-decoration:none;white-space:nowrap">
             💜 Open Revolut</a>`
-        :'<span style="font-size:.78rem;color:var(--muted)">Send via Revolut</span>';
+        :'<span style="font-size:.85rem;color:var(--muted)">Send via Revolut</span>';
       submitLines+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0">
         <span>💜 Revolut — send €${revAmt} to RO</span>${revAction}</div>`;
     }
@@ -5191,9 +5191,9 @@ function renderRaceFeesPanel(){
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:800;color:var(--ro);letter-spacing:.04em;margin-bottom:6px">SUBMIT TO RACE OFFICER · €${toSubmit}</div>
           ${submitLines}
         </div>`
-      :`<div style="margin-top:10px;font-size:.78rem;color:var(--muted)">Card payments went directly to the club — nothing to submit.</div>`;
+      :`<div style="margin-top:10px;font-size:.85rem;color:var(--muted)">Card payments went directly to the club — nothing to submit.</div>`;
     summary=`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">All fees collected ✓</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-top:2px">${sel.length+guests.length} crew · ${race}</div>
+      <div style="font-size:.85rem;color:var(--muted);margin-top:2px">${sel.length+guests.length} crew · ${race}</div>
       ${submitCard}`;
   }
 
@@ -5229,11 +5229,11 @@ function renderRaceFeesPanel(){
         <div class="cc-avatar" style="width:36px;height:36px;font-size:.8rem;flex-shrink:0">${ini(p)}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:.92rem;font-weight:700">${p.first} ${p.last}</div>
-          <div style="font-size:.78rem;color:var(--success);font-weight:600">✓ ${p.payMethod||'Paid'}</div>
+          <div style="font-size:.85rem;color:var(--success);font-weight:600">✓ ${p.payMethod||'Paid'}</div>
         </div>
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:800;color:var(--success)">€${amt}</span>
         <button onclick="rfUnpay('${p.id}')"
-          style="font-size:.75rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+          style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
           padding:4px 10px;border-radius:6px;border:1px solid var(--border);
           background:transparent;color:var(--muted);cursor:pointer">Undo</button>
       </div>`;
@@ -5251,7 +5251,7 @@ function renderRaceFeesPanel(){
           <div class="cc-avatar" style="width:36px;height:36px;font-size:.8rem;flex-shrink:0">${ini(p)}</div>
           <div style="flex:1">
             <div style="font-size:.95rem;font-weight:700">${p.first} ${p.last}</div>
-            <div style="font-size:.78rem;color:var(--muted)">${typeLabel}</div>
+            <div style="font-size:.85rem;color:var(--muted)">${typeLabel}</div>
           </div>
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${amt}</span>
         </div>
@@ -5272,11 +5272,11 @@ function renderRaceFeesPanel(){
         <div class="cc-avatar" style="width:36px;height:36px;font-size:.8rem;flex-shrink:0">${ini(p)}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:.92rem;font-weight:700">${p.first} ${p.last}</div>
-          <div style="font-size:.78rem;color:var(--success);font-weight:600">✓ ${p.payMethod||'Paid'}</div>
+          <div style="font-size:.85rem;color:var(--success);font-weight:600">✓ ${p.payMethod||'Paid'}</div>
         </div>
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:800;color:var(--success)">€${amt}</span>
         <button onclick="rfGuestUnpay('${p.id}')"
-          style="font-size:.75rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+          style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
           padding:4px 10px;border-radius:6px;border:1px solid var(--border);
           background:transparent;color:var(--muted);cursor:pointer">Undo</button>
       </div>`;
@@ -5294,7 +5294,7 @@ function renderRaceFeesPanel(){
           <div class="cc-avatar" style="width:36px;height:36px;font-size:.8rem;flex-shrink:0">${ini(p)}</div>
           <div style="flex:1">
             <div style="font-size:.95rem;font-weight:700">${p.first} ${p.last}</div>
-            <div style="font-size:.78rem;color:var(--muted)">${typeLabel}</div>
+            <div style="font-size:.85rem;color:var(--muted)">${typeLabel}</div>
           </div>
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${amt}</span>
         </div>
@@ -5459,10 +5459,10 @@ function renderBulkPaySheet(){
     return `<label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer">
       <input type="checkbox" ${checked} onchange="rfBulkPayToggle('${p.id}')"
         style="width:20px;height:20px;accent-color:var(--teal);flex-shrink:0">
-      <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
+      <div class="cc-avatar" style="width:32px;height:32px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
       <div style="flex:1;min-width:0">
         <div style="font-size:.92rem;font-weight:700">${p.first} ${p.last}</div>
-        <div style="font-size:.76rem;color:var(--muted)">${typeLabel(p)}</div>
+        <div style="font-size:.85rem;color:var(--muted)">${typeLabel(p)}</div>
       </div>
       <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:var(--white)">€${fee(p)}</span>
     </label>`;
@@ -5647,11 +5647,11 @@ function showRevolutQR(firstName,revLink,amt){
     <div style="background:#112240;border:1px solid rgba(110,64,216,.4);border-radius:16px;padding:24px;max-width:300px;width:100%;text-align:center;">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#f0f4f8;margin-bottom:4px">💜 Revolut — ${firstName}</div>
       <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:4px">Ask them to scan with their camera</div>
-      <div style="font-size:.78rem;color:#a78bfa;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-weight:600">Amount: €${amt}</div>
+      <div style="font-size:.85rem;color:#a78bfa;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-weight:600">Amount: €${amt}</div>
       <div style="background:white;border-radius:10px;padding:12px;display:inline-block;margin-bottom:16px">
         <img src="${qrUrl}" style="width:200px;height:200px;display:block">
       </div>
-      <div style="font-size:.78rem;color:#7a8fa6;margin-bottom:14px">${revLink}</div>
+      <div style="font-size:.85rem;color:#7a8fa6;margin-bottom:14px">${revLink}</div>
       <button onclick="document.getElementById('_revolutQROverlay').remove()"
         style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
         border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
@@ -5821,7 +5821,7 @@ function fwRenderCrew(){
       <div style="width:22px;height:22px;border-radius:7px;border:1.5px solid var(--muted);flex-shrink:0;display:flex;align-items:center;justify-content:center;${p.selected?'background:var(--teal);border-color:var(--teal)':''}">
         ${p.selected?'<span style="color:var(--navy-dark);font-weight:900;font-size:.8rem">✓</span>':''}
       </div>
-      <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
+      <div class="cc-avatar" style="width:32px;height:32px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
       <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div></div>
     </div>`).join('');
   const guestRows=feeWizardState.guests.map(g=>`
@@ -5829,9 +5829,9 @@ function fwRenderCrew(){
       <div style="width:22px;height:22px;border-radius:7px;background:var(--teal);border-color:var(--teal);flex-shrink:0;display:flex;align-items:center;justify-content:center">
         <span style="color:var(--navy-dark);font-weight:900;font-size:.8rem">✓</span>
       </div>
-      <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(g)}</div>
-      <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(g.first)} ${escHtml(g.last)}</div><div style="font-size:.74rem;color:var(--muted)">Guest</div></div>
-      <button onclick="fwRemoveGuest('${g.id}')" style="background:transparent;border:none;color:var(--muted);font-size:.78rem;cursor:pointer">Remove</button>
+      <div class="cc-avatar" style="width:32px;height:32px;font-size:.85rem;flex-shrink:0">${ini(g)}</div>
+      <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(g.first)} ${escHtml(g.last)}</div><div style="font-size:.85rem;color:var(--muted)">Guest</div></div>
+      <button onclick="fwRemoveGuest('${g.id}')" style="background:transparent;border:none;color:var(--muted);font-size:.85rem;cursor:pointer">Remove</button>
     </div>`).join('');
   body.innerHTML=`
     <div style="font-size:.8rem;color:var(--teal);font-weight:700;letter-spacing:.03em;margin-bottom:14px">${escHtml(dayLabel)}</div>
@@ -5943,30 +5943,30 @@ function fwRenderCollect(){
   const rows=people.map(p=>{
     if(p.paidVia==='self'){
       return `<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)">
-        <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
+        <div class="cc-avatar" style="width:32px;height:32px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
         <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div></div>
-        <span style="background:rgba(39,174,96,.14);border:1px solid rgba(39,174,96,.35);color:var(--success);font-size:.7rem;font-weight:700;padding:4px 9px;border-radius:20px;white-space:nowrap">Paid via app · €${fee(p)}</span>
+        <span style="background:rgba(39,174,96,.14);border:1px solid rgba(39,174,96,.35);color:var(--success);font-size:.85rem;font-weight:700;padding:4px 9px;border-radius:20px;white-space:nowrap">Paid via app · €${fee(p)}</span>
       </div>`;
     }
     if(p.paidVia){
       return `<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)">
-        <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
-        <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div><div style="font-size:.78rem;color:var(--success)">✓ ${escHtml(p.paidVia)}</div></div>
+        <div class="cc-avatar" style="width:32px;height:32px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
+        <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div><div style="font-size:.85rem;color:var(--success)">✓ ${escHtml(p.paidVia)}</div></div>
         <span style="font-weight:800;color:var(--success)">€${fee(p)}</span>
-        <button onclick="fwUnpay('${p.id}')" style="font-size:.72rem;font-weight:700;padding:4px 9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Undo</button>
+        <button onclick="fwUnpay('${p.id}')" style="font-size:.85rem;font-weight:700;padding:4px 9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Undo</button>
       </div>`;
     }
     const revBtn=revUser?`onclick="fwMarkPaid('${p.id}','Revolut')"`:`onclick="toast('Set your Revolut @username in Settings ⚙')"`;
     return `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-        <div class="cc-avatar" style="width:32px;height:32px;font-size:.75rem;flex-shrink:0">${ini(p)}</div>
+        <div class="cc-avatar" style="width:32px;height:32px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
         <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div></div>
         <span style="font-weight:800;color:var(--danger)">€${fee(p)}</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-        <button ${revBtn} style="padding:10px 4px;border-radius:9px;font-size:.78rem;font-weight:800;background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);color:#a78bfa;cursor:pointer">💜 Revolut</button>
-        <button onclick="fwMarkPaid('${p.id}','Cash')" style="padding:10px 4px;border-radius:9px;font-size:.78rem;font-weight:800;background:rgba(39,174,96,.12);border:1px solid rgba(39,174,96,.4);color:var(--success);cursor:pointer">💵 Cash</button>
-        <button onclick="fwMarkPaid('${p.id}','Card')" style="padding:10px 4px;border-radius:9px;font-size:.78rem;font-weight:800;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);color:var(--teal);cursor:pointer">💳 Card</button>
+        <button ${revBtn} style="padding:10px 4px;border-radius:9px;font-size:.85rem;font-weight:800;background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);color:#a78bfa;cursor:pointer">💜 Revolut</button>
+        <button onclick="fwMarkPaid('${p.id}','Cash')" style="padding:10px 4px;border-radius:9px;font-size:.85rem;font-weight:800;background:rgba(39,174,96,.12);border:1px solid rgba(39,174,96,.4);color:var(--success);cursor:pointer">💵 Cash</button>
+        <button onclick="fwMarkPaid('${p.id}','Card')" style="padding:10px 4px;border-radius:9px;font-size:.85rem;font-weight:800;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);color:var(--teal);cursor:pointer">💳 Card</button>
       </div>
     </div>`;
   }).join('');
@@ -6101,8 +6101,8 @@ function fwRenderOther(){
     const label=dayRaces.length?(dayRaces[0].series||dayRaces[0].label):d;
     const dateStr=dateObj.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
-      <div><div style="font-size:.92rem;font-weight:700">${escHtml(label)}</div><div style="font-size:.78rem;color:var(--muted)">${dateStr}</div></div>
-      <button onclick="openFeeWizard(new Date('${d}T12:00:00'))" style="font-size:.78rem;font-weight:700;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:rgba(0,174,239,.1);color:var(--teal);cursor:pointer">Resolve now</button>
+      <div><div style="font-size:.92rem;font-weight:700">${escHtml(label)}</div><div style="font-size:.85rem;color:var(--muted)">${dateStr}</div></div>
+      <button onclick="openFeeWizard(new Date('${d}T12:00:00'))" style="font-size:.85rem;font-weight:700;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:rgba(0,174,239,.1);color:var(--teal);cursor:pointer">Resolve now</button>
     </div>`;
   }).join('');
   body.innerHTML=`<p style="color:var(--muted);font-size:.85rem;margin-bottom:8px">${days.length} earlier day${days.length>1?'s':''} not yet declared.</p>${rows}
@@ -6204,7 +6204,7 @@ async function loadAndRenderCrewAvailableList(){
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
         <div style="flex:1;min-width:0">
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;margin-bottom:4px">${r.name}</div>
-          <span style="display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;
+          <span style="display:inline-block;font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
             padding:2px 8px;border-radius:10px;border:1px solid ${expColour};color:${expColour};margin-bottom:6px">${expLabel}</span>
           ${r.notes?`<div style="font-size:.82rem;color:var(--muted);margin-top:4px;line-height:1.4">${r.notes}</div>`:''}
         </div>
@@ -6213,7 +6213,7 @@ async function loadAndRenderCrewAvailableList(){
             style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;
             color:#25d366;text-decoration:none;white-space:nowrap">💬 ${r.phone}</a>
           <button onclick="deactivateCrewAvailable(${r.id},this)"
-            style="font-size:.72rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
+            style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;
               padding:3px 8px;border-radius:6px;border:1px solid var(--border);
               background:transparent;color:var(--muted);cursor:pointer">Remove</button>
         </div>
@@ -6730,12 +6730,12 @@ function renderWeather(wx,tides,warnings,live){
     const isRace=i===idx;
     return `<div style="flex:1;text-align:center;background:var(--navy);border-radius:10px;
       padding:9px 4px;border:2px solid ${isRace?'rgba(0,174,239,.6)':'var(--border)'}">
-      <div style="font-size:.75rem;color:${isRace?'var(--teal)':'var(--muted)'};
+      <div style="font-size:.85rem;color:${isRace?'var(--teal)':'var(--muted)'};
         font-weight:${isRace?'700':'400'};margin-bottom:5px">${isRace?'🏁 Race':hr}</div>
       ${windArrowSvg(d,bc,20)}
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;
         font-weight:800;color:${bc};line-height:1">${w}</div>
-      <div style="font-size:.75rem;color:var(--white);margin-top:1px">↑${g}</div>
+      <div style="font-size:.85rem;color:var(--white);margin-top:1px">↑${g}</div>
     </div>`;
   }).join('');
 
@@ -6764,7 +6764,7 @@ function renderWeather(wx,tides,warnings,live){
       <div style="font-size:.9rem;color:var(--white);margin-bottom:16px">
         Gusting <strong style="font-size:1.05rem">${gust} kt</strong>
       </div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
         letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
         Race Window · kt</div>
       <div style="display:flex;gap:6px">${strip}</div>
@@ -6867,7 +6867,7 @@ function renderWeather(wx,tides,warnings,live){
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
               letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Live Now · Port of Galway</div>
-            ${isStaleLive?`<div style="font-size:.7rem;color:${staleColour};font-weight:600">⚠ ${isVeryStaleLive?'Long Gap':'Stale'}</div>`:''}
+            ${isStaleLive?`<div style="font-size:.85rem;color:${staleColour};font-weight:600">⚠ ${isVeryStaleLive?'Long Gap':'Stale'}</div>`:''}
           </div>
           <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
             ${windArrowSvg(lDir,lBfCol,52)}
@@ -6890,7 +6890,7 @@ function renderWeather(wx,tides,warnings,live){
             Gusting <strong style="font-size:1.05rem">${lGust} kt</strong>
           </div>
           ${live.history&&live.history.length>1?`
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
             letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
             Last 3 Hours · kt</div>
           <div style="display:flex;gap:6px;margin-bottom:16px">${live.history.map(h=>{
@@ -6899,11 +6899,11 @@ function renderWeather(wx,tides,warnings,live){
             const hb=wxBeaufort(hw); const hbc=wxBfColour(hb.f);
             return `<div style="flex:1;text-align:center;background:var(--navy);border-radius:10px;
               padding:9px 4px;border:2px solid var(--border)">
-              <div style="font-size:.75rem;color:var(--muted);margin-bottom:5px">${hr}</div>
+              <div style="font-size:.85rem;color:var(--muted);margin-bottom:5px">${hr}</div>
               ${windArrowSvg(hd,hbc,20)}
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;
                 font-weight:800;color:${hbc};line-height:1">${hw}</div>
-              <div style="font-size:.75rem;color:var(--white);margin-top:1px">↑${hg}</div>
+              <div style="font-size:.85rem;color:var(--white);margin-top:1px">↑${hg}</div>
             </div>`;
           }).join('')}</div>`:''}
           <div style="display:grid;grid-template-columns:${live.tide?'1fr 1fr 1fr':'1fr 1fr'};gap:10px;margin-bottom:12px">
@@ -6927,7 +6927,7 @@ function renderWeather(wx,tides,warnings,live){
               <div style="font-size:.82rem;color:var(--white);margin-top:2px">${tideTrendLabel}</div>
             </div>`:''}
           </div>
-          <div style="font-size:.78rem;color:${isStaleLive?staleColour:'var(--muted)'}">
+          <div style="font-size:.85rem;color:${isStaleLive?staleColour:'var(--muted)'}">
             ${isStaleLive?'⚠ ':''}Reading from ${lTimeStr} (${relativeAgeStr(liveAgeMs)}) · Humidity ${Math.round(live.humidity)}%
           </div>
         </div>`;
@@ -6976,7 +6976,7 @@ function renderWeather(wx,tides,warnings,live){
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
               letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Tides · ${_C.tideStation||_C.short||'Local'}</div>
-            ${tides.source==='imi'?`<div style="font-size:.7rem;color:var(--muted)">Irish Marine Institute</div>`:''}
+            ${tides.source==='imi'?`<div style="font-size:.85rem;color:var(--muted)">Irish Marine Institute</div>`:''}
           </div>
           ${rows}
         </div>`;
@@ -7030,7 +7030,7 @@ function renderWeather(wx,tides,warnings,live){
             return `<div style="${i<relevant.length-1?'margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(230,57,70,.2)':''}">
             <div style="display:flex;align-items:baseline;gap:0"><div style="font-size:.88rem;font-weight:700;color:var(--white)">${dot}${escHtml(w.title)}</div></div>
             <div style="font-size:.8rem;color:var(--muted);margin-top:2px">${escHtml(w.description)}</div>
-            ${timeStr?`<div style="font-size:.76rem;color:var(--teal);margin-top:3px;font-weight:600">${escHtml(timeStr)}</div>`:''}
+            ${timeStr?`<div style="font-size:.85rem;color:var(--teal);margin-top:3px;font-weight:600">${escHtml(timeStr)}</div>`:''}
           </div>`;
           }).join('')}
         </div>`;
@@ -7052,7 +7052,7 @@ function renderWeather(wx,tides,warnings,live){
   // forecast resolution itself, not the live-station feature.
   const sameDayRaces=race?getRacesForDay(race.date):[];
   const sameDayNote=sameDayRaces.length>1
-    ?`<div style="font-size:.78rem;color:var(--muted);margin-top:4px">
+    ?`<div style="font-size:.85rem;color:var(--muted);margin-top:4px">
         +${sameDayRaces.length-1} more race${sameDayRaces.length>2?'s':''} today — showing conditions for ${escHtml(raceLabel)}</div>`
     :'';
 
@@ -7069,7 +7069,7 @@ function renderWeather(wx,tides,warnings,live){
         📅 Forecast will appear once your next race is within 48 hours</div>`:'')}
     ${tidesBlock}
     ${warningsBlock}
-    <div style="padding:6px 0 2px;font-size:.75rem;color:var(--muted)">
+    <div style="padding:6px 0 2px;font-size:.85rem;color:var(--muted)">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px">
         <span style="font-weight:600;color:var(--muted)">Model: ${wx._model||providerLabel}</span>
         <button onclick="localStorage.removeItem('__race_weather_v3__');localStorage.removeItem('__race_tides__');localStorage.removeItem('__port_weather_v1__');loadRaceWeather()"
@@ -7172,7 +7172,7 @@ function spStep0(){
   const selIdx=race?recent.findIndex(r=>r.label===race.label):0;
   const raceSelector=recent.length>1?`
     <div style="margin-bottom:16px">
-      <div style="font-size:.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:4px">Race</div>
+      <div style="font-size:.85rem;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:4px">Race</div>
       <select onchange="spSelectRace(this.value)"
         style="width:100%;background:var(--navy);border:1px solid var(--border);border-radius:10px;
         color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;
@@ -7249,11 +7249,11 @@ function spStep1(){
       <div class="cc-avatar" style="width:38px;height:38px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
       <div style="flex:1">
         <div style="font-weight:700;font-size:.95rem;color:var(--white)">${p.first} ${p.last}</div>
-        <div style="font-size:.78rem;color:var(--muted)">${typeLabel}</div>
+        <div style="font-size:.85rem;color:var(--muted)">${typeLabel}</div>
       </div>
       ${amt>0
         ?`<span style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;color:var(--teal)">€${amt}</span>`
-        :`<span style="font-size:.78rem;color:var(--success);font-weight:600">Free</span>`}
+        :`<span style="font-size:.85rem;color:var(--success);font-weight:600">Free</span>`}
     </button>`;
   });
   return html;
@@ -7275,7 +7275,7 @@ function spGuestForm(){
     border-radius:10px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
     font-weight:700;padding:13px;margin-bottom:10px;outline:none"
     onkeydown="if(event.key==='Enter')spSubmitGuest()">
-  <div style="font-size:.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:4px">Fee category</div>
+  <div style="font-size:.85rem;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:4px">Fee category</div>
   <select id="sp-guest-type"
     style="width:100%;background:var(--navy);border:1px solid var(--border);border-radius:10px;
     color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;
@@ -7340,7 +7340,7 @@ function renderSpHistory(body){
     <div class="cc-avatar" style="width:40px;height:40px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
     <div style="flex:1">
       <div style="font-weight:800;font-size:1rem;color:var(--white)">${p.first} ${p.last}</div>
-      <div style="font-size:.78rem;color:var(--muted)">${typeLabel} · ${b.name}</div>
+      <div style="font-size:.85rem;color:var(--muted)">${typeLabel} · ${b.name}</div>
     </div>
   </div>`;
 
@@ -7385,19 +7385,19 @@ function renderSpHistory(body){
   const statsHtml=`<div style="display:flex;gap:10px;margin-bottom:16px">
     <div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--white)">${onBoardCount}</div>
-      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Races</div>
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Races</div>
     </div>
     <div style="flex:1;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">${paidCount}</div>
-      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Paid</div>
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Paid</div>
     </div>
     ${unpaidOnBoard.length?`<div style="flex:1;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--warn)">${unpaidOnBoard.length}</div>
-      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Unpaid</div>
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Unpaid</div>
     </div>`:''}
     ${totalPaid>0?`<div style="flex:1;background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--teal)">€${totalPaid}</div>
-      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Total paid</div>
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Total paid</div>
     </div>`:''}
   </div>`;
 
@@ -7407,7 +7407,7 @@ function renderSpHistory(body){
     <span style="font-size:1.2rem;flex-shrink:0">⚠️</span>
     <div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:800;color:var(--warn);letter-spacing:.04em;text-transform:uppercase">No payment recorded</div>
-      <div style="font-size:.78rem;color:rgba(255,255,255,.65);margin-top:3px;line-height:1.45">
+      <div style="font-size:.85rem;color:rgba(255,255,255,.65);margin-top:3px;line-height:1.45">
         You were listed on board for ${unpaidOnBoard.length} race${unpaidOnBoard.length>1?'s':''} with no payment found:
         <strong style="color:var(--warn)">${unpaidOnBoard.map(r=>r.label).join(', ')}</strong>
       </div>
@@ -7423,24 +7423,24 @@ function renderSpHistory(body){
       const src=r.paySource==='skipper'?'Skipper confirmed':'Self-recorded';
       statusHtml=`<div style="text-align:right;flex-shrink:0">
         <div style="font-size:.8rem;font-weight:700;color:var(--success)">✓ Paid ${r.payAmount?'€'+r.payAmount:''}</div>
-        <div style="font-size:.7rem;color:var(--muted)">${r.payMethod||''} · ${src}</div>
+        <div style="font-size:.85rem;color:var(--muted)">${r.payMethod||''} · ${src}</div>
       </div>`;
     } else if(isUnpaidOnBoard){
       statusHtml=`<div style="text-align:right;flex-shrink:0">
         <div style="font-size:.8rem;font-weight:700;color:var(--warn)">⚠ Unpaid</div>
-        <div style="font-size:.7rem;color:var(--teal)">Tap to pay →</div>
+        <div style="font-size:.85rem;color:var(--teal)">Tap to pay →</div>
       </div>`;
     } else {
       statusHtml=`<div style="text-align:right;flex-shrink:0">
-        <div style="font-size:.78rem;color:var(--success)">✓ Paid ${r.payAmount?'€'+r.payAmount:''}</div>
-        <div style="font-size:.7rem;color:var(--muted)">${r.payMethod||''}</div>
+        <div style="font-size:.85rem;color:var(--success)">✓ Paid ${r.payAmount?'€'+r.payAmount:''}</div>
+        <div style="font-size:.85rem;color:var(--muted)">${r.payMethod||''}</div>
       </div>`;
     }
     const rowClick=isUnpaidOnBoard?`onclick="spPayForRace('${r.key}')" style="cursor:pointer"`:'style=""';
     return `<div ${rowClick} style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);${isUnpaidOnBoard?'background:rgba(251,191,36,.04);margin:0 -4px;padding-left:4px;padding-right:4px;border-radius:6px':''}">
       <div style="flex:1;min-width:0">
         <div style="font-size:.88rem;font-weight:700;color:${isUnpaidOnBoard?'var(--warn)':'var(--white)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.label)}</div>
-        ${dateStr?`<div style="font-size:.72rem;color:var(--muted)">${dateStr}</div>`:''}
+        ${dateStr?`<div style="font-size:.85rem;color:var(--muted)">${dateStr}</div>`:''}
       </div>
       ${statusHtml}
     </div>`;
@@ -7462,7 +7462,7 @@ function renderSpHistory(body){
   </div>`:'';
 
   body.innerHTML = headerHtml + statsHtml + alertHtml +
-    `<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Race History</div>`+
+    `<div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Race History</div>`+
     `<div style="max-height:280px;overflow-y:auto;-webkit-overflow-scrolling:touch">${historyRows}</div>`+
     payCtaHtml;
 }
@@ -7502,7 +7502,7 @@ function spStep2(){
       <div class="cc-avatar" style="width:42px;height:42px;font-size:.9rem;flex-shrink:0">${ini(p)}</div>
       <div style="flex:1">
         <div style="font-weight:700;font-size:1rem;color:var(--white)">${p.first} ${p.last}</div>
-        <div style="font-size:.78rem;color:var(--muted)">${typeLabel} · ${b.name} · ${raceLabel}</div>
+        <div style="font-size:.85rem;color:var(--muted)">${typeLabel} · ${b.name} · ${raceLabel}</div>
       </div>
       ${amt>0
         ?`<span style="font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;color:var(--danger)">€${amt}</span>`
@@ -7545,14 +7545,14 @@ function spStep2(){
         <span style="font-size:1.6rem">💜</span>
         <div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay by Revolut</div>
-          <div style="font-size:.78rem;opacity:.8">Send €${amt} to @${revUser}</div>
+          <div style="font-size:.85rem;opacity:.8">Send €${amt} to @${revUser}</div>
         </div>
       </button>`
     :`<button disabled style="${btnBase};background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default">
         <span style="font-size:1.6rem">💜</span>
         <div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Revolut</div>
-          <div style="font-size:.78rem">Not configured — ask skipper</div>
+          <div style="font-size:.85rem">Not configured — ask skipper</div>
         </div>
       </button>`;
 
@@ -7562,14 +7562,14 @@ function spStep2(){
         <span style="font-size:1.6rem">💳</span>
         <div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay by Card</div>
-          <div style="font-size:.78rem;opacity:.8">Secure online payment · €${amt}</div>
+          <div style="font-size:.85rem;opacity:.8">Secure online payment · €${amt}</div>
         </div>
       </button>`
     :`<button disabled style="${btnBase};background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default">
         <span style="font-size:1.6rem">💳</span>
         <div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Card</div>
-          <div style="font-size:.78rem">Not configured — ask skipper</div>
+          <div style="font-size:.85rem">Not configured — ask skipper</div>
         </div>
       </button>`;
 
@@ -7578,7 +7578,7 @@ function spStep2(){
       <span style="font-size:1.6rem">💵</span>
       <div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay Cash</div>
-        <div style="font-size:.78rem;opacity:.8">I'll hand €${amt} to the skipper</div>
+        <div style="font-size:.85rem;opacity:.8">I'll hand €${amt} to the skipper</div>
       </div>
     </button>`;
 
@@ -7678,7 +7678,7 @@ function spStep3(){
     </div>
     <div style="font-size:.85rem;color:var(--muted);margin-bottom:4px">${p.first} ${p.last} · ${b.name}</div>
     ${amt>0?`<div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;color:var(--success);margin-bottom:4px">€${amt} · ${method}</div>`:''}
-    <div style="font-size:.78rem;color:var(--muted);margin-bottom:24px">${race?race.label:''}</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-bottom:24px">${race?race.label:''}</div>
     <div style="padding:14px;border-radius:12px;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.25);
       font-size:.82rem;color:var(--success);margin-bottom:24px;text-align:left">
       ✓ Your payment has been recorded.<br>Your skipper will see it when they open Race Fees.
@@ -7779,29 +7779,29 @@ function rnliRenderPay(){
         color:#a78bfa;cursor:pointer;margin-bottom:10px;text-align:left">
         <span style="font-size:1.6rem">💜</span>
         <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Give by Revolut</div>
-        <div style="font-size:.78rem;opacity:.8">Send €${amt} directly</div></div></button>`
+        <div style="font-size:.85rem;opacity:.8">Send €${amt} directly</div></div></button>`
     :`<button disabled style="width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;
         background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;
         cursor:default;margin-bottom:10px;text-align:left">
         <span style="font-size:1.6rem">💜</span>
         <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Revolut</div>
-        <div style="font-size:.78rem">Not configured yet</div></div></button>`;
+        <div style="font-size:.85rem">Not configured yet</div></div></button>`;
   const cardBtn=hasAnyStripeLink()
     ?`<button onclick="rnliDoCard()" style="width:100%;display:flex;align-items:center;gap:14px;
         padding:16px;border-radius:12px;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);
         color:var(--teal);cursor:pointer;text-align:left">
         <span style="font-size:1.6rem">💳</span>
         <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Give by Card</div>
-        <div style="font-size:.78rem;opacity:.8">Secure online payment · €${amt}</div></div></button>`
+        <div style="font-size:.85rem;opacity:.8">Secure online payment · €${amt}</div></div></button>`
     :`<button disabled style="width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;
         background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;
         cursor:default;text-align:left">
         <span style="font-size:1.6rem">💳</span>
         <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Card</div>
-        <div style="font-size:.78rem">Not configured yet</div></div></button>`;
+        <div style="font-size:.85rem">Not configured yet</div></div></button>`;
   return `
     <div style="text-align:center;margin-bottom:20px;padding:16px;border-radius:14px;background:var(--card);border:1px solid var(--border)">
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:4px">Giving to the RNLI</div>
+      <div style="font-size:.85rem;color:var(--muted);margin-bottom:4px">Giving to the RNLI</div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;color:var(--white)">€${amt}</div>
     </div>
     ${revBtn}${cardBtn}`;
@@ -7932,7 +7932,7 @@ function openSharePayLink(){
   const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(link);
   document.getElementById('shareQR').innerHTML=
     '<img src="'+qrUrl+'" style="width:180px;height:180px;border-radius:8px;" alt="QR Code">'+
-    '<div style="margin-top:8px;font-size:.78rem;color:#333;font-family:Barlow Condensed,sans-serif;font-weight:700">'+
+    '<div style="margin-top:8px;font-size:.85rem;color:#333;font-family:Barlow Condensed,sans-serif;font-weight:700">'+
     currentBoat.name+' · €'+tot+' outstanding</div>';
   document.getElementById('shareSheet').classList.add('open');
 }
@@ -7973,15 +7973,15 @@ function openCollectSheet_REMOVED(){
       row.innerHTML=
         '<div style="display:flex;align-items:center;justify-content:space-between;padding:2px 0">'+
           '<div style="display:flex;align-items:center;gap:10px">'+
-            '<div class="cc-avatar" style="width:34px;height:34px;font-size:.78rem">'+ini(p)+'</div>'+
+            '<div class="cc-avatar" style="width:34px;height:34px;font-size:.85rem">'+ini(p)+'</div>'+
             '<div>'+
               '<div style="font-size:.95rem;font-weight:700">'+p.first+' '+p.last+'</div>'+
-              '<div style="font-size:.78rem;color:var(--success);font-weight:600">✓ '+(p.payMethod||'Paid')+'</div>'+
+              '<div style="font-size:.85rem;color:var(--success);font-weight:600">✓ '+(p.payMethod||'Paid')+'</div>'+
             '</div>'+
           '</div>'+
           '<div style="display:flex;align-items:center;gap:10px">'+
             '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.3rem;font-weight:800;color:var(--success)">€'+amt+'</span>'+
-            '<button onclick="unpayCrewCollect(\''+p.id+'\')" style="font-size:.75rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;letter-spacing:.03em;">Undo</button>'+
+            '<button onclick="unpayCrewCollect(\''+p.id+'\')" style="font-size:.85rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;letter-spacing:.03em;">Undo</button>'+
           '</div>'+
         '</div>';
     } else {
@@ -8001,15 +8001,15 @@ function openCollectSheet_REMOVED(){
       const btnLabel=(text,sub,color)=>
         '<span style="font-family:Barlow Condensed,sans-serif;font-size:.9rem;font-weight:800;'+
         'letter-spacing:.04em;text-transform:uppercase;color:'+color+'">'+text+'</span>'+
-        '<span style="font-size:.78rem;color:'+color+';opacity:.75;letter-spacing:.02em">'+sub+'</span>';
+        '<span style="font-size:.85rem;color:'+color+';opacity:.75;letter-spacing:.02em">'+sub+'</span>';
       row.innerHTML=
         // ── Name / amount header ──────────────────────────────
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
           '<div style="display:flex;align-items:center;gap:10px">'+
-            '<div class="cc-avatar" style="width:34px;height:34px;font-size:.78rem">'+ini(p)+'</div>'+
+            '<div class="cc-avatar" style="width:34px;height:34px;font-size:.85rem">'+ini(p)+'</div>'+
             '<div>'+
               '<div style="font-size:.95rem;font-weight:700">'+p.first+' '+p.last+'</div>'+
-              '<div style="font-size:.78rem;color:var(--muted)">'+(p.type==='visitor'?'Visitor':'Member')+'</div>'+
+              '<div style="font-size:.85rem;color:var(--muted)">'+(p.type==='visitor'?'Visitor':'Member')+'</div>'+
             '</div>'+
           '</div>'+
           '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.5rem;font-weight:800;color:var(--danger)">€'+amt+'</span>'+
@@ -8169,11 +8169,11 @@ function showPayMethodExtras(m,p){
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;color:#a78bfa;margin-bottom:3px">
             Revolut — Mobile Only
           </div>
-          <div style="font-size:.75rem;color:var(--muted)">
+          <div style="font-size:.85rem;color:var(--muted)">
             Ask the crew member to open Revolut on their phone,<br>
             or use the QR Pay Link instead.
           </div>
-          <div style="font-size:.78rem;color:#a78bfa;margin-top:6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em">
+          <div style="font-size:.85rem;color:#a78bfa;margin-top:6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em">
             revolut.me/@${revUser} · enter €${fee(p)} in the app
           </div>
         </div>`;
@@ -8231,7 +8231,7 @@ function showRevolutQR(firstName, revLink, amt){
     <div style="background:#112240;border:1px solid rgba(110,64,216,.4);border-radius:16px;padding:24px;max-width:300px;width:100%;text-align:center;">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#f0f4f8;margin-bottom:4px">💜 Revolut — ${firstName}</div>
       <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:4px">Ask them to scan with their camera</div>
-      <div style="font-size:.75rem;color:#a78bfa;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-weight:600">Amount: €${amt}</div>
+      <div style="font-size:.85rem;color:#a78bfa;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-weight:600">Amount: €${amt}</div>
       <div style="background:white;border-radius:10px;padding:12px;display:inline-block;margin-bottom:16px">
         <img src="${qrUrl}" style="width:200px;height:200px;display:block">
       </div>
@@ -8273,7 +8273,7 @@ function openSharePayLink(){
   const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data='+encodeURIComponent(link);
   document.getElementById('shareQR').innerHTML=
     '<img src="'+qrUrl+'" style="width:180px;height:180px;border-radius:8px;" alt="QR Code">'+
-    '<div style="margin-top:8px;font-size:.78rem;color:#333;font-family:Barlow Condensed,sans-serif;font-weight:700">'+
+    '<div style="margin-top:8px;font-size:.85rem;color:#333;font-family:Barlow Condensed,sans-serif;font-weight:700">'+
     currentBoat.name+' · '+tot+' EUR outstanding</div>';
 
   document.getElementById('shareSheet').classList.add('open');
@@ -8659,15 +8659,15 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
   const summaryHtml=`<div style="display:flex;gap:10px;margin-bottom:16px">
     <div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--white)">${rows.length}</div>
-      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Boats</div>
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Boats</div>
     </div>
     <div style="flex:1;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">${rows.length-missing.length}</div>
-      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Rated</div>
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Rated</div>
     </div>
     ${missing.length?`<div style="flex:1;background:rgba(230,57,70,.08);border:1px solid rgba(230,57,70,.3);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">${missing.length}</div>
-      <div style="font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">No Rating</div>
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">No Rating</div>
     </div>`:''}
   </div>`;
 
@@ -8679,32 +8679,32 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
     return `<div style="display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);${!r.found?'background:rgba(230,57,70,.05);margin:0 -4px;padding-left:4px;padding-right:4px;border-radius:6px':''}">
       <div style="flex:1;min-width:0">
         <div style="font-size:.88rem;font-weight:700;color:${r.found?'var(--white)':'var(--danger)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.boat.name)}</div>
-        ${r.match?`<div style="font-size:.72rem;color:var(--muted)">${escHtml(r.match.model||'')}${r.match.sailNo?' · '+escHtml(r.match.sailNo):''}</div>`
-          :`<div style="font-size:.72rem;color:var(--danger)">⚠ No rating found</div>`}
+        ${r.match?`<div style="font-size:.85rem;color:var(--muted)">${escHtml(r.match.model||'')}${r.match.sailNo?' · '+escHtml(r.match.sailNo):''}</div>`
+          :`<div style="font-size:.85rem;color:var(--danger)">⚠ No rating found</div>`}
       </div>
       <div style="text-align:right;flex-shrink:0;min-width:46px">
-        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Base ECHO</div>
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Base ECHO</div>
         <div style="font-size:.82rem;font-weight:700;color:${baseEcho?'var(--white)':'var(--muted)'}">${baseEcho||'—'}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;min-width:46px">
-        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Current</div>
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Current</div>
         <div style="font-size:.82rem;font-weight:700;color:${curEcho!=null?'var(--teal)':'var(--muted)'}">${curEcho!=null?curEcho:'—'}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;min-width:46px">
-        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Next</div>
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Next</div>
         <div style="font-size:.82rem;font-weight:700;color:${nextEcho!=null?'var(--success)':'var(--muted)'}">${nextEcho!=null?nextEcho:'—'}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;min-width:46px">
-        <div style="font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">IRC</div>
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">IRC</div>
         <div style="font-size:.82rem;font-weight:700;color:${irc?'var(--white)':'var(--muted)'}">${irc||'—'}</div>
       </div>
     </div>`;
   }).join(''):'<div style="text-align:center;padding:24px 0;color:var(--muted);font-size:.85rem">No boats registered yet.</div>';
 
   body.innerHTML=summaryHtml+
-    `<div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Boats (${rows.length})</div>`+
+    `<div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Boats (${rows.length})</div>`+
     rowsHtml+
-    `<div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is the handicap used in each boat's most recent race; Next is Halsail's own "Hcap for next race" figure from that race's ECHO analysis — the number that will actually apply next time out. Both are blank for boats that haven't raced under Halsail scoring yet this season.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE')+')':''} · Halsail</div>`;
+    `<div style="font-size:.85rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is the handicap used in each boat's most recent race; Next is Halsail's own "Hcap for next race" figure from that race's ECHO analysis — the number that will actually apply next time out. Both are blank for boats that haven't raced under Halsail scoring yet this season.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE')+')':''} · Halsail</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -8841,14 +8841,14 @@ function renderBoatProfile(nationalBoats,halEcho){
         cursor:pointer;position:relative;margin:0 auto 16px">
         <img src="${escHtml(photoUrl)}" alt="${escHtml(currentBoat.name)}" style="width:100%;height:100%;object-fit:contain;background:rgba(255,255,255,.04);display:block">
         <div style="position:absolute;bottom:4px;right:4px;background:rgba(8,21,41,.75);border-radius:6px;
-          padding:3px 7px;font-size:.62rem;font-weight:700;color:var(--white);font-family:'Barlow Condensed',sans-serif;
+          padding:3px 7px;font-size:.85rem;font-weight:700;color:var(--white);font-family:'Barlow Condensed',sans-serif;
           letter-spacing:.03em">📷 Change</div>
       </div>`
     :`<div onclick="triggerBoatPhotoUpload()" style="width:180px;height:180px;border-radius:12px;
         border:1px dashed var(--border);cursor:pointer;margin:0 auto 16px;
         display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--muted)">
         <div style="font-size:1.5rem">📷</div>
-        <div style="font-size:.72rem;font-weight:700;font-family:'Barlow Condensed',sans-serif">Add a photo</div>
+        <div style="font-size:.85rem;font-weight:700;font-family:'Barlow Condensed',sans-serif">Add a photo</div>
       </div>`;
 
   body.innerHTML=`
@@ -8861,7 +8861,7 @@ function renderBoatProfile(nationalBoats,halEcho){
     </div>
 
     <div class="form-group" style="margin-bottom:18px">
-      <label style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Sail Number</label>
+      <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Sail Number</label>
       <input type="text" id="bp-sail-number" value="${escHtml(currentBoat.sailNumber||'')}" placeholder="e.g. IRL 1234"
         style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
         color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:10px 12px;
@@ -8871,16 +8871,16 @@ function renderBoatProfile(nationalBoats,halEcho){
     <div style="display:flex;gap:10px;margin-bottom:8px">
       <div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:${irc?'var(--white)':'var(--muted)'}">${irc||'—'}</div>
-        <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">IRC TCC</div>
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">IRC TCC</div>
       </div>
       <div style="flex:1;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);border-radius:10px;padding:14px;text-align:center">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;color:${nextEcho!=null?'var(--success)':'var(--muted)'}">${nextEcho!=null?nextEcho:'—'}</div>
-        <div style="font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">Next ECHO</div>
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">Next ECHO</div>
       </div>
     </div>
-    ${currentEcho!=null?`<div style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:4px">Current ECHO: ${currentEcho}</div>`:''}
-    ${!match?`<div style="text-align:center;font-size:.78rem;color:var(--danger);margin-top:16px">⚠ No Irish Sailing rating found for this boat name — check it matches the national register spelling.</div>`:''}
-    <div style="font-size:.7rem;color:var(--muted);text-align:center;margin-top:20px;line-height:1.5">IRC TCC from Irish Sailing's national register; Next ECHO from Halsail's own race-by-race analysis (see the Handicaps tile for the full explanation).</div>
+    ${currentEcho!=null?`<div style="text-align:center;font-size:.85rem;color:var(--muted);margin-top:4px">Current ECHO: ${currentEcho}</div>`:''}
+    ${!match?`<div style="text-align:center;font-size:.85rem;color:var(--danger);margin-top:16px">⚠ No Irish Sailing rating found for this boat name — check it matches the national register spelling.</div>`:''}
+    <div style="font-size:.85rem;color:var(--muted);text-align:center;margin-top:20px;line-height:1.5">IRC TCC from Irish Sailing's national register; Next ECHO from Halsail's own race-by-race analysis (see the Handicaps tile for the full explanation).</div>
   `;
 }
 
@@ -8975,15 +8975,15 @@ async function loadAndRenderDocs(){
     const other=files.filter(f=>!/sailing.instruct|notice.of.race/i.test(f.name));
     let html='';
     if(si.length){
-      html+='<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Always Available</div>';
+      html+='<div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Always Available</div>';
       si.forEach(f=>{ html+=docCard({id:f.id,title:f.name.replace(/\.pdf$/i,''),subtitle:'Applies to all Wednesday & KOTB races'},'📋'); });
     }
     if(nor.length){
-      html+='<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Notice of Race</div>';
+      html+='<div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Notice of Race</div>';
       nor.forEach(f=>{ html+=docCard({id:f.id,title:f.name.replace(/\.pdf$/i,''),subtitle:'Wednesday Series'},'🏁'); });
     }
     if(other.length){
-      html+='<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Other Documents</div>';
+      html+='<div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 8px">Other Documents</div>';
       other.forEach(f=>{ html+=docCard({id:f.id,title:f.name.replace(/\.pdf$/i,''),subtitle:''},'📄'); });
     }
     el.innerHTML=html;
@@ -9078,7 +9078,7 @@ async function loadCalendarIfNeeded(){
     calLoaded=false;
     document.getElementById('calendarContent').innerHTML=
       '<div class="empty-state"><div class="icon">⚠</div>'+
-      '<div>Could not load schedule<br><span style="font-size:.75rem;color:var(--muted)">'+(raw&&raw._err?raw._err:'No data')+'</span></div>'+
+      '<div>Could not load schedule<br><span style="font-size:.85rem;color:var(--muted)">'+(raw&&raw._err?raw._err:'No data')+'</span></div>'+
       '<button class="btn btn-ghost" style="padding:8px 16px;margin-top:10px" onclick="calLoaded=false;loadCalendarIfNeeded()">Try Again</button></div>';
     return;
   }
@@ -9099,8 +9099,8 @@ async function loadCalendarIfNeeded(){
 
 function setCalView(v){
   calView=v;
-  const activeStyle='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--teal);background:var(--teal);color:var(--navy-dark);';
-  const inactiveStyle='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);';
+  const activeStyle='font-family:Barlow Condensed,sans-serif;font-size:.85rem;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--teal);background:var(--teal);color:var(--navy-dark);';
+  const inactiveStyle='font-family:Barlow Condensed,sans-serif;font-size:.85rem;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);';
   document.getElementById('calSeriesBtn').style.cssText=v==='series'?activeStyle:inactiveStyle;
   document.getElementById('calDateBtn').style.cssText=v==='date'?activeStyle:inactiveStyle;
   renderCalendar();
@@ -9954,22 +9954,22 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
       ?buildCourseSvg(cardMarkEntries,c.windDeg,getLineById(c.startLineId||'club'),getLineById(c.finishLineId||'club'))
       :'';
     const cardUnresolvedNote=cardUnresolved.length
-      ?`<div style="margin-top:8px;font-size:.75rem;color:var(--gold)">⚠ Not shown on diagram (not in Marks Manager yet): ${cardUnresolved.join(', ')}</div>`
+      ?`<div style="margin-top:8px;font-size:.85rem;color:var(--gold)">⚠ Not shown on diagram (not in Marks Manager yet): ${cardUnresolved.join(', ')}</div>`
       :'';
     wrap.innerHTML=`
       <div class="course-diagram-wrap">
         ${isStale?`
         <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.35);border-radius:10px;margin-bottom:12px">
           <span>⚠️</span><div>
-            <div style="font-size:.75rem;font-weight:700;color:var(--gold);text-transform:uppercase">Previous Course — For Reference Only</div>
-            <div style="font-size:.78rem;color:var(--muted)">Today's course has not been published yet.</div>
+            <div style="font-size:.85rem;font-weight:700;color:var(--gold);text-transform:uppercase">Previous Course — For Reference Only</div>
+            <div style="font-size:.85rem;color:var(--muted)">Today's course has not been published yet.</div>
           </div>
         </div>`:''}
         <div class="course-header">
           <div>
             <div class="course-title-label">${isStale?'Last Published Course':'Course'}</div>
             <div class="course-name-text">${c.name||'Course '+c.courseNumber}</div>
-            <div style="font-size:.78rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
+            <div style="font-size:.85rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
               ${c.published_at?'Set '+new Date(c.published_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}
             </div>
           </div>
@@ -9984,11 +9984,11 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
         <div style="margin-top:14px;${isStale?'opacity:0.6':''}">
           ${rounds.map((r,i)=>`
             <div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px">
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;color:${STAGE_COLORS[i%STAGE_COLORS.length]};letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;color:${STAGE_COLORS[i%STAGE_COLORS.length]};letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">
                 ${r.label} · ${r.distance_nm} nm
               </div>
               <div style="font-size:.95rem;color:var(--white);line-height:1.5">${r.marks}</div>
-              ${r.note?`<div style="font-size:.75rem;color:var(--gold);margin-top:5px">ℹ ${r.note}</div>`:''}
+              ${r.note?`<div style="font-size:.85rem;color:var(--gold);margin-top:5px">ℹ ${r.note}</div>`:''}
             </div>
           `).join('')}
         </div>
@@ -10025,21 +10025,21 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
         ${isStale?`
         <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.35);border-radius:10px;margin-bottom:12px">
           <span>⚠️</span><div>
-            <div style="font-size:.75rem;font-weight:700;color:var(--gold);text-transform:uppercase">Previous Course — For Reference Only</div>
-            <div style="font-size:.78rem;color:var(--muted)">Today's course has not been published yet.</div>
+            <div style="font-size:.85rem;font-weight:700;color:var(--gold);text-transform:uppercase">Previous Course — For Reference Only</div>
+            <div style="font-size:.85rem;color:var(--muted)">Today's course has not been published yet.</div>
           </div>
         </div>`:''}
         <div class="course-header">
           <div>
             <div class="course-title-label">${isStale?'Last Published Course':'Course'}</div>
             <div class="course-name-text">${c.name||LAID_COURSE_LABELS[c.courseType]||'Laid Course'}</div>
-            <div style="font-size:.78rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
+            <div style="font-size:.85rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
               ${c.published_at?'Set '+new Date(c.published_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}
             </div>
           </div>
           <div class="wind-badge"><span class="wind-badge-arrow">💨</span><span class="wind-badge-label">${windDegDisp3}</span></div>
         </div>
-        <div style="margin-top:8px;padding:8px 12px;background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);border-radius:8px;font-size:.78rem;color:var(--teal)">
+        <div style="margin-top:8px;padding:8px 12px;background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);border-radius:8px;font-size:.85rem;color:var(--teal)">
           🌊 Laid course — marks are set on the day; positions below are conceptual, not exact bearings.
         </div>
         ${c.notes?`<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.82rem;color:var(--gold)">📋 ${c.notes}</div>`:''}
@@ -10113,15 +10113,15 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
       <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:rgba(232,160,32,.1);border:1px solid rgba(232,160,32,.35);border-radius:10px;margin-bottom:12px">
         <span style="font-size:1.1rem">⚠️</span>
         <div>
-          <div style="font-size:.75rem;font-weight:700;color:var(--gold);letter-spacing:.04em;text-transform:uppercase">Previous Course — For Reference Only</div>
-          <div style="font-size:.78rem;color:var(--muted);margin-top:1px">Today's course has not been published yet. Check back before race time.</div>
+          <div style="font-size:.85rem;font-weight:700;color:var(--gold);letter-spacing:.04em;text-transform:uppercase">Previous Course — For Reference Only</div>
+          <div style="font-size:.85rem;color:var(--muted);margin-top:1px">Today's course has not been published yet. Check back before race time.</div>
         </div>
       </div>`:''}
       <div class="course-header">
         <div>
           <div class="course-title-label">${isStale?'Last Published Course':'Course'}</div>
           <div class="course-name-text">${c.name||'Published Course'}</div>
-          <div style="font-size:.78rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
+          <div style="font-size:.85rem;color:${isStale?'var(--muted)':'var(--teal)'};margin-top:2px">
             ${c.published_at?'Set '+new Date(c.published_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}
           </div>
         </div>
@@ -10168,7 +10168,7 @@ function buildMarksGrid(){
       '<div class="mark-toggle-id" style="display:flex;align-items:center;gap:4px">'+
         '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+m.colour+';flex-shrink:0"></span>'+
         m.name+'</div>'+
-      '<div style="font-size:.75rem;color:var(--teal);margin-top:3px;font-family:Barlow Condensed,sans-serif;font-weight:600">+ ADD</div>';
+      '<div style="font-size:.85rem;color:var(--teal);margin-top:3px;font-family:Barlow Condensed,sans-serif;font-weight:600">+ ADD</div>';
     el.onclick=()=>addMarkToSequence(m.id);
     g.appendChild(el);
   });
@@ -10219,14 +10219,14 @@ function renderSelectedOrder(){
     el.className='smo-item';
     el.style.cssText='display:flex;align-items:center;gap:6px;background:var(--navy);border:1px solid var(--border);border-radius:10px;padding:7px 10px;margin-bottom:6px;';
     el.innerHTML=
-      '<span style="font-family:Barlow Condensed,sans-serif;font-size:.75rem;color:var(--teal);font-weight:700;min-width:16px">'+(i+1)+'.</span>'+
+      '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--teal);font-weight:700;min-width:16px">'+(i+1)+'.</span>'+
       '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+colour+';flex-shrink:0"></span>'+
       '<span style="flex:1;min-width:0">'+
         '<span style="display:block;font-family:Barlow Condensed,sans-serif;font-weight:800;font-size:.95rem">'+(m?m.name:entry.id)+'</span>'+
-        (brg!=null?'<span style="display:block;font-family:Barlow Condensed,sans-serif;font-size:.75rem;color:var(--muted);margin-top:1px">'+brg+'° '+dir+' · '+d+'nm</span>':'')+
+        (brg!=null?'<span style="display:block;font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted);margin-top:1px">'+brg+'° '+dir+' · '+d+'nm</span>':'')+
       '</span>'+
-      '<button onclick="setRounding('+i+',\'port\')" style="font-size:.75rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'#e63946':'var(--border)')+';background:'+(isPort?'rgba(230,57,70,.2)':'transparent')+';color:'+(isPort?'#e63946':'var(--muted)')+';cursor:pointer">◄ Port</button>'+
-      '<button onclick="setRounding('+i+',\'stbd\')" style="font-size:.75rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'var(--border)':'#2dc653')+';background:'+(isPort?'transparent':'rgba(45,198,83,.2)')+';color:'+(isPort?'var(--muted)':'#2dc653')+';cursor:pointer">Stbd ►</button>'+
+      '<button onclick="setRounding('+i+',\'port\')" style="font-size:.85rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'#e63946':'var(--border)')+';background:'+(isPort?'rgba(230,57,70,.2)':'transparent')+';color:'+(isPort?'#e63946':'var(--muted)')+';cursor:pointer">◄ Port</button>'+
+      '<button onclick="setRounding('+i+',\'stbd\')" style="font-size:.85rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:3px 7px;border-radius:6px;border:1px solid '+(isPort?'var(--border)':'#2dc653')+';background:'+(isPort?'transparent':'rgba(45,198,83,.2)')+';color:'+(isPort?'var(--muted)':'#2dc653')+';cursor:pointer">Stbd ►</button>'+
       '<span onclick="removeMarkFromSequence('+i+')" style="color:var(--muted);cursor:pointer;font-size:.9rem;padding:0 2px;line-height:1" title="Remove">✕</span>';
     list.appendChild(el);
   });
@@ -10239,7 +10239,7 @@ function renderSelectedOrder(){
   const summary=document.createElement('div');
   summary.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border:1px solid rgba(0,174,239,.2);border-radius:8px;background:rgba(0,174,239,.05);margin-top:2px';
   summary.innerHTML=
-    '<span style="font-family:Barlow Condensed,sans-serif;font-size:.78rem;color:var(--muted)">↩ Finish: '+retBrg+'° '+retDir+' · '+retD+'nm</span>'+
+    '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;color:var(--muted)">↩ Finish: '+retBrg+'° '+retDir+' · '+retD+'nm</span>'+
     '<span style="font-family:Barlow Condensed,sans-serif;font-size:.85rem;font-weight:700;color:var(--teal)">📏 '+totalNm+'nm</span>';
   list.appendChild(summary);
 }
@@ -10540,7 +10540,7 @@ async function buildPinMgmtList(){
     // Starting Line list above.
     groupBoatsByFleet(boats).forEach((g,i)=>{
       const heading=document.createElement('div');
-      heading.style.cssText='font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;'+(i===0?'margin-bottom:8px':'margin:16px 0 8px');
+      heading.style.cssText='font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;'+(i===0?'margin-bottom:8px':'margin:16px 0 8px');
       heading.textContent=g.name;
       list.appendChild(heading);
       g.boats.forEach(b=>list.appendChild(boatRow(b)));
@@ -11004,12 +11004,12 @@ async function renderFeeStatement(){
           <div style="color:#4caf50;font-size:1.1rem;margin-top:1px;flex-shrink:0">✓</div>
           <div style="flex:1;min-width:0">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.race_name}</div>
-            <div style="font-size:.78rem;color:var(--muted);margin-top:1px">${dateStr}${crewNote}</div>
+            <div style="font-size:.85rem;color:var(--muted);margin-top:1px">${dateStr}${crewNote}</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             <div style="text-align:right">
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;color:#4caf50">€${pay.total}</div>
-              <div style="font-size:.73rem;color:var(--muted)">${methods}</div>
+              <div style="font-size:.85rem;color:var(--muted)">${methods}</div>
             </div>
             ${clickable?'<div style="color:var(--muted);font-size:.8rem">›</div>':''}
           </div>
@@ -11022,7 +11022,7 @@ async function renderFeeStatement(){
           <div style="color:#f59e0b;font-size:1.1rem;margin-top:1px;flex-shrink:0">⚠</div>
           <div style="flex:1;min-width:0">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.race_name}</div>
-            <div style="font-size:.78rem;color:var(--muted);margin-top:1px">${dateStr}</div>
+            <div style="font-size:.85rem;color:var(--muted);margin-top:1px">${dateStr}</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700;color:#f59e0b">Outstanding</div>
@@ -11046,7 +11046,7 @@ async function renderFeeStatement(){
     </div>`;
 
   if(clickable){
-    html+='<div style="font-size:.75rem;color:var(--muted);text-align:center;padding:10px 0 2px">Tap a race to open Race Fees</div>';
+    html+='<div style="font-size:.85rem;color:var(--muted);text-align:center;padding:10px 0 2px">Tap a race to open Race Fees</div>';
   }
 
   body.innerHTML=html;
@@ -11246,7 +11246,7 @@ async function loadResultsIfNeeded(){
     wrap.innerHTML=`
       <div class="empty-state">
         <div class="icon">⚠</div>
-        <div style="margin-bottom:10px">Could not reach Halsail<br><span style="font-size:.75rem;color:var(--muted)">${errMsg}</span></div>
+        <div style="margin-bottom:10px">Could not reach Halsail<br><span style="font-size:.85rem;color:var(--muted)">${errMsg}</span></div>
         <button class="btn btn-ghost" style="padding:8px 16px" onclick="loadResultsIfNeeded()">Try Again</button>
       </div>`;
     return;
@@ -11388,7 +11388,7 @@ function renderFleetPills(group){
   if(!group||group.members.length<2){ wrap.style.display='none'; wrap.innerHTML=''; return; }
   wrap.style.display='flex';
   wrap.innerHTML=group.members.map((m,i)=>
-    `<button onclick="selectCuratedFleet(${i})" style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;`
+    `<button onclick="selectCuratedFleet(${i})" style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;`
     +(i===0?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);')
     +`">${escHtml(m.fleetLabel||m.name)}</button>`
   ).join('');
@@ -11399,7 +11399,7 @@ async function selectCuratedFleet(memberIdx){
   if(!g) return;
   const wrap=document.getElementById('resultFleetPills');
   if(wrap) [...wrap.children].forEach((btn,i)=>{
-    btn.style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'
+    btn.style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'
       +(i===memberIdx?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
   });
   await renderCuratedSeries(g.members[memberIdx]);
@@ -11413,7 +11413,7 @@ async function renderCuratedSeries(entry){
   if(!halResultsCache[entry.seryId]){
     const data=await halFetch('/GetSeriesResult/'+entry.seryId);
     if(!data||data._err){
-      wrap.innerHTML=`<div class="empty-state"><div class="icon">⚠</div><div>Could not load results<br><span style="font-size:.75rem;color:var(--muted)">${data&&data._err?data._err:'No data'}</span></div></div>`;
+      wrap.innerHTML=`<div class="empty-state"><div class="icon">⚠</div><div>Could not load results<br><span style="font-size:.85rem;color:var(--muted)">${data&&data._err?data._err:'No data'}</span></div></div>`;
       return;
     }
     halResultsCache[entry.seryId]=data;
@@ -11589,8 +11589,8 @@ function showFleet(fleet){
   halCurrentFleet=fleet;
   document.getElementById('ircBtn').className='';
   document.getElementById('echoBtn').className='';
-  document.getElementById('ircBtn').style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'+(fleet==='irc'?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
-  document.getElementById('echoBtn').style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'+(fleet==='echo'?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
+  document.getElementById('ircBtn').style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'+(fleet==='irc'?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
+  document.getElementById('echoBtn').style.cssText='font-family:Barlow Condensed,sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;'+(fleet==='echo'?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
   if(halCurrentSeries) renderResultsForSeries(halCurrentSeries);
 }
 
@@ -11610,7 +11610,7 @@ async function renderResultsForSeries(series){
   if(!halResultsCache[seriesId]){
     const data=await halFetch('/GetSeriesResult/'+seriesId);
     if(!data||data._err){
-      wrap.innerHTML=`<div class="empty-state"><div class="icon">⚠</div><div>Could not load results<br><span style="font-size:.75rem;color:var(--muted)">${data&&data._err?data._err:'No data'}</span></div></div>`;
+      wrap.innerHTML=`<div class="empty-state"><div class="icon">⚠</div><div>Could not load results<br><span style="font-size:.85rem;color:var(--muted)">${data&&data._err?data._err:'No data'}</span></div></div>`;
       return;
     }
     halResultsCache[seriesId]=data;
@@ -11819,7 +11819,7 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handic
     const display=resolveBoatDisplay(b);
 
     const tccBadge=display.tcc!=null
-      ?`<span style="font-size:.72rem;color:var(--muted);font-weight:400;margin-left:4px">(${display.tcc})</span>`
+      ?`<span style="font-size:.85rem;color:var(--muted);font-weight:400;margin-left:4px">(${display.tcc})</span>`
       :'';
     const nameCell=display.secondary
       ? `<div style="font-weight:600;line-height:1.2">${display.primary}${tccBadge}</div>`+
@@ -11999,7 +11999,7 @@ function showCrewPayPage(data){
         ${pageHeader}
         <div style="background:#112240;border:1px solid rgba(0,180,216,.22);border-radius:16px;
           padding:24px 20px;margin-bottom:20px;text-align:center;">
-          <div style="font-size:.78rem;color:#7a8fa6;font-weight:700;letter-spacing:.12em;
+          <div style="font-size:.85rem;color:#7a8fa6;font-weight:700;letter-spacing:.12em;
             text-transform:uppercase;margin-bottom:10px">Your Race Fee</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;font-weight:700;
             color:#f0f4f8;margin-bottom:8px">${c.n}</div>
@@ -12220,14 +12220,14 @@ function buildMarksMgrList(){
       `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${m.colour};flex-shrink:0"></span>`+
       `<div style="flex:1;min-width:0;">`+
         `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${m.active?'':'opacity:.45'}">${m.name}</div>`+
-        `<div style="font-size:.78rem;color:var(--muted)">${m.desc||''}</div>`+
+        `<div style="font-size:.85rem;color:var(--muted)">${m.desc||''}</div>`+
       `</div>`+
       `<div style="display:flex;align-items:center;gap:5px">`+
-        `<button onclick="toggleMarkActive('${m.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        `<button onclick="toggleMarkActive('${m.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
         (m.active?'border:1px solid var(--teal);background:transparent;color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)')+`">`+
         (m.active?'On':'Off')+`</button>`+
-        `<button onclick="openEditMark('${m.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
-        `<button onclick="deleteMark('${m.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
+        `<button onclick="openEditMark('${m.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteMark('${m.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
       `</div>`;
     list.appendChild(row);
   });
@@ -12365,14 +12365,14 @@ function buildLinesMgrList(){
     row.innerHTML=
       `<div style="flex:1;min-width:0;">`+
         `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${inactive?'opacity:.45':''}">${l.name}${l.isDefault?' ★':''}</div>`+
-        `<div style="font-size:.65rem;color:var(--muted)">Pin: ${fmtDM(l.lat1,true)} ${fmtDM(l.lng1,false)}</div>`+
+        `<div style="font-size:.85rem;color:var(--muted)">Pin: ${fmtDM(l.lat1,true)} ${fmtDM(l.lng1,false)}</div>`+
       `</div>`+
       `<div style="display:flex;align-items:center;gap:5px">`+
-        `<button onclick="toggleLineActive('${l.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        `<button onclick="toggleLineActive('${l.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
         (!inactive?'border:1px solid var(--teal);background:transparent;color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)')+`">`+
         (!inactive?'On':'Off')+`</button>`+
-        `<button onclick="openEditLine('${l.id}')" style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
-        `<button onclick="deleteLine('${l.id}')" ${l.isDefault?'disabled':''} style="font-size:.68rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer;${l.isDefault?'opacity:.35;cursor:not-allowed':''}">🗑</button>`+
+        `<button onclick="openEditLine('${l.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteLine('${l.id}')" ${l.isDefault?'disabled':''} style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer;${l.isDefault?'opacity:.35;cursor:not-allowed':''}">🗑</button>`+
       `</div>`;
     list.appendChild(row);
   });
@@ -12560,11 +12560,11 @@ function buildFleetsMgrList(){
         `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${f.active?'':'opacity:.45'}">${escHtml(f.name)}</div>`+
       `</div>`+
       `<div style="display:flex;align-items:center;gap:5px">`+
-        `<button onclick="toggleFleetActive('${f.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        `<button onclick="toggleFleetActive('${f.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
         (f.active?'border:1px solid var(--teal);background:transparent;color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)')+`">`+
         (f.active?'On':'Off')+`</button>`+
-        `<button onclick="openEditFleet('${f.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
-        `<button onclick="deleteFleet('${f.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
+        `<button onclick="openEditFleet('${f.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteFleet('${f.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
       `</div>`;
     list.appendChild(row);
   });
@@ -12692,11 +12692,11 @@ function buildAreasMgrList(){
         `<div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;${a.active?'':'opacity:.45'}">${escHtml(a.name)}</div>`+
       `</div>`+
       `<div style="display:flex;align-items:center;gap:5px">`+
-        `<button onclick="toggleAreaActive('${a.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
+        `<button onclick="toggleAreaActive('${a.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;cursor:pointer;`+
         (a.active?'border:1px solid var(--teal);background:transparent;color:var(--teal)':'border:1px solid var(--border);background:transparent;color:var(--muted)')+`">`+
         (a.active?'On':'Off')+`</button>`+
-        `<button onclick="openEditArea('${a.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
-        `<button onclick="deleteArea('${a.id}')" style="font-size:.78rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
+        `<button onclick="openEditArea('${a.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(0,174,239,.4);background:transparent;color:var(--teal);cursor:pointer">✏</button>`+
+        `<button onclick="deleteArea('${a.id}')" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:3px 8px;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>`+
       `</div>`;
     list.appendChild(row);
   });
@@ -12813,7 +12813,7 @@ async function checkForProtestsAgainstMe(){
   if(body) body.innerHTML=`
     <div style="background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);
       border-radius:12px;padding:16px;margin-bottom:16px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
         letter-spacing:.12em;text-transform:uppercase;color:#f87171;margin-bottom:6px">Protestor</div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;
         color:var(--white)">${protestor?protestor.name:'Unknown boat'}</div>
@@ -12822,22 +12822,22 @@ async function checkForProtestsAgainstMe(){
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
-        <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;
           letter-spacing:.1em;font-weight:700;margin-bottom:4px">Race</div>
         <div style="font-size:.9rem;color:var(--white);font-weight:600">${p.race_name}</div>
       </div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
-        <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;
           letter-spacing:.1em;font-weight:700;margin-bottom:4px">Status</div>
         <div style="font-size:.9rem;font-weight:700;color:${p.status==='Pending'?'#f87171':p.status==='Upheld'?'var(--warn)':'var(--teal)'}">${p.status}</div>
       </div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
-        <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;
           letter-spacing:.1em;font-weight:700;margin-bottom:4px">Where</div>
         <div style="font-size:.9rem;color:var(--white)">${p.incident_where||'—'}</div>
       </div>
       <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px">
-        <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+        <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;
           letter-spacing:.1em;font-weight:700;margin-bottom:4px">Time</div>
         <div style="font-size:.9rem;color:var(--white)">${p.incident_time||'—'}</div>
       </div>
@@ -12845,28 +12845,28 @@ async function checkForProtestsAgainstMe(){
 
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;
       padding:14px;margin-bottom:12px">
-      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;
         letter-spacing:.1em;font-weight:700;margin-bottom:6px">Rules Alleged</div>
       <div style="font-size:.9rem;color:var(--white);font-weight:600">${rules}</div>
     </div>
 
     <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;
       padding:14px;margin-bottom:16px">
-      <div style="font-size:.72rem;color:var(--muted);text-transform:uppercase;
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;
         letter-spacing:.1em;font-weight:700;margin-bottom:6px">Description</div>
       <div style="font-size:.9rem;color:var(--white);line-height:1.5">${p.description||'—'}</div>
     </div>
 
     ${p.hearing_at?`<div style="background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.35);
       border-radius:10px;padding:14px;margin-bottom:12px">
-      <div style="font-size:.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;
+      <div style="font-size:.85rem;color:var(--teal);text-transform:uppercase;letter-spacing:.1em;
         font-weight:700;margin-bottom:4px">⚖ Hearing Scheduled</div>
       <div style="font-size:1rem;color:var(--white);font-weight:700">${new Date(p.hearing_at).toLocaleString('en-IE',{weekday:'long',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>
       ${p.hearing_location?`<div style="font-size:.85rem;color:var(--muted);margin-top:2px">${p.hearing_location}</div>`:''}
     </div>`:''}
     <div style="background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.2);
       border-radius:10px;padding:14px;margin-bottom:16px">
-      <div style="font-size:.78rem;color:var(--teal);font-weight:700;margin-bottom:6px">
+      <div style="font-size:.85rem;color:var(--teal);font-weight:700;margin-bottom:6px">
         Your rights under RRS Rule 63</div>
       <div style="font-size:.82rem;color:var(--muted);line-height:1.5">
         You are entitled to be present throughout the hearing, to hear all evidence,
@@ -12874,7 +12874,7 @@ async function checkForProtestsAgainstMe(){
       </div>
     </div>
 
-    ${r.length>1?`<div style="font-size:.78rem;color:var(--muted);text-align:center;padding:4px">
+    ${r.length>1?`<div style="font-size:.85rem;color:var(--muted);text-align:center;padding:4px">
       ${r.length} protests filed against you for this race</div>`:''}
   `;
 }
@@ -13040,17 +13040,17 @@ async function renderRoStartsLog(){
     if(relevant.status==='postponed'){
       wrap.innerHTML=
         '<div style="background:rgba(244,162,97,.1);border:1px solid rgba(244,162,97,.35);border-radius:12px;padding:14px">'+
-          '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--warn);margin-bottom:6px">Postponed (AP)</div>'+
+          '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--warn);margin-bottom:6px">Postponed (AP)</div>'+
           '<div style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px">AP flying — no time set</div>'+
-          '<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">Set a new time below to resume, or cancel</div>'+
+          '<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Set a new time below to resume, or cancel</div>'+
           '<button class="btn btn-ghost" style="width:100%;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+relevant.id+')">✕ Cancel</button>'+
         '</div>';
     } else {
       wrap.innerHTML=
         '<div style="background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:12px;padding:14px">'+
-          '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--success);margin-bottom:6px">Active Start</div>'+
+          '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--success);margin-bottom:6px">Active Start</div>'+
           '<div style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px">'+t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+relevant.flag_system+' flag · Class '+relevant.class_flag+'</div>'+
-          '<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">'+(t>new Date()?'Counting down…':'Started')+'</div>'+
+          '<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px">'+(t>new Date()?'Counting down…':'Started')+'</div>'+
           '<div style="display:flex;gap:8px">'+
             '<button class="btn btn-ghost" style="flex:1;padding:10px;color:var(--warn);border-color:rgba(244,162,97,.4)" onclick="roPostponeStartRow('+relevant.id+')">⏸ Postpone (AP)</button>'+
             '<button class="btn btn-ghost" style="flex:1;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+relevant.id+')">✕ Cancel</button>'+
@@ -13062,7 +13062,7 @@ async function renderRoStartsLog(){
 
   if(!rows.length){ wrap.innerHTML=''; return; }
   const fleetName=id=>id?((fleets.find(f=>f.id===id)||{}).name||id):'All Fleets';
-  wrap.innerHTML='<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Tonight\'s Starts</div>'+
+  wrap.innerHTML='<div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Tonight\'s Starts</div>'+
     rows.map(r=>{
       const t=new Date(r.start_time);
       const pending=(r.status==='armed'||r.status==='postponed')&&!isStale(r);
@@ -13070,15 +13070,15 @@ async function renderRoStartsLog(){
       const statusText=r.status==='cancelled'?'Cancelled':r.status==='postponed'?'Postponed (AP)':(t>new Date()?'Counting down':'Started');
       const actions=pending?
         '<div style="display:flex;gap:6px;margin-top:8px">'+
-          (r.status==='armed'?'<button class="btn btn-ghost" style="flex:1;padding:6px;font-size:.78rem;color:var(--warn);border-color:rgba(244,162,97,.4)" onclick="roPostponeStartRow('+r.id+')">⏸ Postpone</button>':'')+
-          '<button class="btn btn-ghost" style="flex:1;padding:6px;font-size:.78rem;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+r.id+')">✕ Cancel</button>'+
+          (r.status==='armed'?'<button class="btn btn-ghost" style="flex:1;padding:6px;font-size:.85rem;color:var(--warn);border-color:rgba(244,162,97,.4)" onclick="roPostponeStartRow('+r.id+')">⏸ Postpone</button>':'')+
+          '<button class="btn btn-ghost" style="flex:1;padding:6px;font-size:.85rem;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+r.id+')">✕ Cancel</button>'+
         '</div>':'';
       return '<div style="background:var(--navy);border-radius:10px;padding:10px 12px;margin-bottom:6px'+(pending?';border:1px solid rgba(45,198,83,.25)':'')+'">'+
         '<div style="display:flex;justify-content:space-between;align-items:baseline">'+
           '<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:.9rem;color:var(--white)">'+escHtml(fleetName(r.fleet_id))+'</span>'+
           '<span style="font-size:.85rem;font-weight:700;color:'+statusColor+'">'+(r.status==='postponed'?'AP':t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}))+'</span>'+
         '</div>'+
-        '<div style="font-size:.75rem;color:var(--muted);margin-top:2px">'+statusText+' · '+r.flag_system+' flag · Class '+r.class_flag+'</div>'+
+        '<div style="font-size:.85rem;color:var(--muted);margin-top:2px">'+statusText+' · '+r.flag_system+' flag · Class '+r.class_flag+'</div>'+
         actions+
       '</div>';
     }).join('');
@@ -13758,20 +13758,20 @@ async function printProtest(protestId){
   body{font-family:'Barlow',sans-serif;color:#1a1a2e;padding:32px;max-width:780px;margin:0 auto;font-size:13px;line-height:1.5;}
   h1{font-family:'Barlow Condensed',sans-serif;font-size:1.8rem;font-weight:800;color:#1B3E93;letter-spacing:.04em;text-transform:uppercase;}
   .section{margin-bottom:20px;border:1px solid #dde4f0;border-radius:6px;overflow:hidden;}
-  .section-head{background:#1B3E93;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;}
+  .section-head{background:#1B3E93;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:6px 12px;}
   .section-body{padding:12px;}
   .field{margin-bottom:10px;}
-  .field-label{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#666;margin-bottom:2px;}
+  .field-label{font-size:.85rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#666;margin-bottom:2px;}
   .field-value{font-size:.95rem;color:#1a1a2e;}
   .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
   .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
   .status-badge{display:inline-block;padding:3px 12px;border-radius:20px;font-weight:700;font-family:'Barlow Condensed',sans-serif;font-size:.9rem;color:${statusColour};border:2px solid ${statusColour};letter-spacing:.04em;}
-  .rrs-ref{font-size:.78rem;color:#555;font-style:italic;margin-top:12px;padding-top:10px;border-top:1px solid #e0e8f5;}
+  .rrs-ref{font-size:.85rem;color:#555;font-style:italic;margin-top:12px;padding-top:10px;border-top:1px solid #e0e8f5;}
   .check{color:#1B3E93;font-weight:700;}
   .cross{color:#c0392b;font-weight:700;}
-  .footer{margin-top:28px;padding-top:14px;border-top:2px solid #1B3E93;display:flex;justify-content:space-between;font-size:.75rem;color:#888;}
+  .footer{margin-top:28px;padding-top:14px;border-top:2px solid #1B3E93;display:flex;justify-content:space-between;font-size:.85rem;color:#888;}
   .sig-block{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:32px;}
-  .sig-line{border-top:1px solid #333;margin-top:36px;padding-top:4px;font-size:.75rem;color:#666;}
+  .sig-line{border-top:1px solid #333;margin-top:36px;padding-top:4px;font-size:.85rem;color:#666;}
   @media print{body{padding:16px;}@page{margin:15mm;size:A4;}button{display:none;}}
 </style>
 </head><body>
@@ -14137,15 +14137,15 @@ async function loadProtests(){
             font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">🗑</button>
         </div>
       </div>
-      ${isRO?`<div style="font-size:.75rem;color:var(--teal);font-weight:700;margin-bottom:6px">${p.race_name} · ${filedDate}</div>`:''}
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${(PROTEST_TYPE_META[type]||PROTEST_TYPE_META.protest).showWhereWhen?`📍 ${p.incident_where} · ⏱ ${p.incident_time} · `:''}Filed ${filedAt}</div>
-      ${(PROTEST_TYPE_META[type]||PROTEST_TYPE_META.protest).showFlagHail?`<div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">${p.flag_displayed?'🚩 Flag displayed':'⚠ No flag'} · ${p.protest_hailed?'📣 Hailed':'⚠ Not hailed'}</div>`:''}
-      <div style="font-size:.78rem;color:var(--teal);margin-bottom:8px">${rules}</div>
+      ${isRO?`<div style="font-size:.85rem;color:var(--teal);font-weight:700;margin-bottom:6px">${p.race_name} · ${filedDate}</div>`:''}
+      <div style="font-size:.85rem;color:var(--muted);margin-bottom:6px">${(PROTEST_TYPE_META[type]||PROTEST_TYPE_META.protest).showWhereWhen?`📍 ${p.incident_where} · ⏱ ${p.incident_time} · `:''}Filed ${filedAt}</div>
+      ${(PROTEST_TYPE_META[type]||PROTEST_TYPE_META.protest).showFlagHail?`<div style="font-size:.85rem;color:var(--muted);margin-bottom:6px">${p.flag_displayed?'🚩 Flag displayed':'⚠ No flag'} · ${p.protest_hailed?'📣 Hailed':'⚠ Not hailed'}</div>`:''}
+      <div style="font-size:.85rem;color:var(--teal);margin-bottom:8px">${rules}</div>
       <div style="font-size:.82rem;color:var(--white);margin-bottom:12px;line-height:1.4">${p.description}</div>
-      ${p.hearing_at?`<div style="font-size:.78rem;color:var(--white);background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.25);border-radius:8px;padding:7px 10px;margin-bottom:10px">⚖ Hearing: ${new Date(p.hearing_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}${p.hearing_location?' · '+p.hearing_location:''}</div>`:''}
+      ${p.hearing_at?`<div style="font-size:.85rem;color:var(--white);background:rgba(0,174,239,.08);border:1px solid rgba(0,174,239,.25);border-radius:8px;padding:7px 10px;margin-bottom:10px">⚖ Hearing: ${new Date(p.hearing_at).toLocaleString('en-IE',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}${p.hearing_location?' · '+p.hearing_location:''}</div>`:''}
       ${isRO&&type==='protest'&&p.protestee_id?`
       <div style="border-top:1px solid var(--border);padding-top:10px;margin-bottom:10px">
-        <div style="font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Arbitration (Appendix T)</div>
+        <div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Arbitration (Appendix T)</div>
         <select onchange="updateProtestArbitration('${p.id}',this.value)"
           style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
           color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
@@ -14157,13 +14157,13 @@ async function loadProtests(){
           outline:none;box-sizing:border-box;resize:none;height:44px;line-height:1.4">${p.arbitration_notes||''}</textarea>`:''}
       </div>`:''}
       <div style="border-top:1px solid var(--border);padding-top:10px">
-        <div style="font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">RO Decision</div>
+        <div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">RO Decision</div>
         <select onchange="updateProtestStatus('${p.id}',this.value)"
           style="width:100%;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;
           color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.88rem;font-weight:700;
           padding:7px 10px;outline:none;margin-bottom:8px">${statusOpts}</select>
         ${p.status==='Hearing Scheduled'?`<div style="margin-bottom:8px">
-          <div style="font-size:.72rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Hearing — time &amp; place (RRS 63.1)</div>
+          <div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Hearing — time &amp; place (RRS 63.1)</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
             <input type="datetime-local" id="ph-when-${p.id}" value="${p.hearing_at?toLocalDatetimeValue(new Date(p.hearing_at)):''}"
               style="background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);
@@ -14578,7 +14578,7 @@ function renderFinishRecordList(){
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:${pendingAuto&&!rec.time?'.85rem':'1.1rem'};font-weight:800;color:${timeColour};flex-shrink:0;text-align:right;white-space:nowrap">${timeText}</div>
       </div>
       <select onclick="event.stopPropagation()" onchange="setFinishStatus('${b.id}',this.value)" title="Non-finish status (OCS/RET/DNF/DSQ/DNS)"
-        style="flex-shrink:0;width:58px;background:var(--navy-input);border:1px solid ${rec.status?'var(--danger)':'var(--border)'};border-radius:6px;color:${rec.status?'#e63946':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.75rem;font-weight:700;padding:5px 2px;text-align:center;cursor:pointer">
+        style="flex-shrink:0;width:58px;background:var(--navy-input);border:1px solid ${rec.status?'var(--danger)':'var(--border)'};border-radius:6px;color:${rec.status?'#e63946':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;padding:5px 2px;text-align:center;cursor:pointer">
         <option value=""${rec.status?'':' selected'}>—</option>
         ${statusOpts}
       </select>
@@ -14591,7 +14591,7 @@ function renderFinishRecordList(){
       html+=boatList.map(rowHtml).join('');
     } else {
       html+=groupBoatsByFleet(boatList).map(g=>
-        `<div style="font-size:.72rem;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin:8px 0 4px">${escHtml(g.name)} (${g.boats.length})</div>`+
+        `<div style="font-size:.85rem;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin:8px 0 4px">${escHtml(g.name)} (${g.boats.length})</div>`+
         g.boats.map(rowHtml).join('')
       ).join('');
     }
@@ -14768,7 +14768,7 @@ async function loadUsageStats(){
       <div class="usage-sep"></div>
       <div class="usage-stat"><div class="usage-val">${guests}</div><div class="usage-lbl">Guest</div></div>
     </div>
-    <div class="sec-head" style="margin-top:20px"><div class="sec-title">Recent Sessions</div><div style="font-size:.75rem;color:var(--muted)">Last 50</div></div>
+    <div class="sec-head" style="margin-top:20px"><div class="sec-title">Recent Sessions</div><div style="font-size:.85rem;color:var(--muted)">Last 50</div></div>
     <div class="usage-log">${recentRows}</div>`;
 }
 
@@ -15076,8 +15076,8 @@ async function renderRONewsList(){
       <div style="display:flex;align-items:flex-start;gap:10px">
         <div style="flex:1;min-width:0">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(item.title)}</div>
-          ${item.url?`<div style="font-size:.75rem;color:var(--teal);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(item.url)}</div>`:''}
-          ${item.body?`<div style="font-size:.78rem;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.body)}</div>`:''}
+          ${item.url?`<div style="font-size:.85rem;color:var(--teal);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(item.url)}</div>`:''}
+          ${item.body?`<div style="font-size:.85rem;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(item.body)}</div>`:''}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
           <button onclick="toggleNewsActive('${item.id}',${!item.active})" style="padding:5px 10px;border-radius:7px;border:1px solid ${item.active?'rgba(0,174,239,.4)':'var(--border)'};background:${item.active?'rgba(0,174,239,.12)':'transparent'};color:${item.active?'var(--teal)':'var(--muted)'};font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;cursor:pointer">${item.active?'Active':'Inactive'}</button>
