@@ -6894,7 +6894,7 @@ function renderWeather(wx,tides,warnings,live){
           <div style="font-size:.9rem;color:var(--white);margin-bottom:16px">
             Gusting <strong style="font-size:1.05rem">${lGust} kt</strong>
           </div>
-          <div style="display:grid;grid-template-columns:${live.tide?'1fr 1fr 1fr':'1fr 1fr'};gap:10px;margin-bottom:12px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
             <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
               <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Air Temp</div>
               <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
@@ -6914,9 +6914,15 @@ function renderWeather(wx,tides,warnings,live){
                 <span style="font-size:.8rem;color:var(--muted);font-weight:400">m LAD</span></div>
               <div style="font-size:.82rem;color:var(--white);margin-top:2px">${tideTrendLabel}</div>
             </div>`:''}
+            <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+              <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Humidity</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+                color:var(--white);line-height:1.1">${Math.round(live.humidity)}
+                <span style="font-size:.8rem;color:var(--muted);font-weight:400">%</span></div>
+            </div>
           </div>
           <div style="font-size:.85rem;color:${isStaleLive?staleColour:'var(--muted)'}">
-            ${isStaleLive?'⚠ ':''}Reading from ${lTimeStr} (${relativeAgeStr(liveAgeMs)}) · Humidity ${Math.round(live.humidity)}%
+            ${isStaleLive?'⚠ ':''}Reading from ${lTimeStr} (${relativeAgeStr(liveAgeMs)})
           </div>
         </div>`;
     }
