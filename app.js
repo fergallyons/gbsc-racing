@@ -6299,19 +6299,16 @@ function getNextRaceForWeather(){
 async function loadRaceWeather(){
   const body=document.getElementById('weatherBody'); if(!body) return;
 
-  // Only true off-season (no future race at all) blocks the forecast now —
-  // see getNextRaceForWeather() above for why this isn't just "has the
-  // most recently-relevant race passed".
+  // getNextRaceForWeather() falls back to getNextRace()'s "last race of the
+  // season" when nothing's on the calendar, so race.date can be in the
+  // past here — used below purely to size the forecast-cache horizon.
+  // This used to short-circuit the whole panel to a "No forecast right
+  // now" placeholder in that case, but current conditions (live station,
+  // tide predictions, Met Éireann warnings) don't need a race to be worth
+  // showing — only the race-specific forecast blocks inside renderWeather()
+  // do, and those already degrade gracefully on their own (see
+  // showForecast there) when there's no race, or it's still days out.
   const race=getNextRaceForWeather();
-  if(race&&race.date<new Date()){
-    body.innerHTML=`<div style="text-align:center;padding:60px 24px;color:var(--muted)">
-      <div style="font-size:2rem;margin-bottom:12px">🌬️</div>
-      <div style="font-size:1rem;font-weight:600;margin-bottom:8px">No forecast right now</div>
-      <div style="font-size:.88rem">No upcoming race scheduled yet</div>
-      <div style="font-size:.82rem;margin-top:6px;color:var(--muted)">Check back once a race is on the calendar</div>
-    </div>`;
-    return;
-  }
 
   body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ Loading conditions…</div>';
   // Clear any stale Open-Meteo tide cache (replaced by IMI ERDDAP)
@@ -7035,8 +7032,11 @@ function renderWeather(wx,tides,warnings,live){
   }
 
   // ── HEADER + FOOTER ──────────────────────────────────────────
+  // race is null off-season (no future race on the calendar at all) — the
+  // subtitle line below says so honestly instead of formatting raceDate's
+  // own now-fallback as if today/right-now were an actual start time.
   const raceDateStr=raceDate.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
-  const raceLabel=race?race.label:'Next race';
+  const raceLabel=race?race.label:'No Race Scheduled';
   const raceTimeStr=raceDate.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
   const providerLabel=wx._source==='met-eireann'?'Met Éireann':'Open-Meteo';
   // getNextRaceForWeather() isn't fleet-scoped at all — a boat racing in
@@ -7054,7 +7054,7 @@ function renderWeather(wx,tides,warnings,live){
     <div style="margin-bottom:16px">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:700;
         color:var(--white)">${raceLabel}</div>
-      <div style="font-size:.85rem;color:var(--muted)">${raceDateStr} · start ${raceTimeStr}</div>
+      <div style="font-size:.85rem;color:var(--muted)">${race?raceDateStr+' · start '+raceTimeStr:'No race on the calendar — showing current conditions'}</div>
       ${sameDayNote}
     </div>
     ${FEAT.livePortWeather?sectionHeader('📡','Current Conditions · Port of Galway')+liveBlock:''}
