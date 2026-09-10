@@ -3084,9 +3084,14 @@ function openPanel(id){
     // ~13h gap once, a ~90min gap another time) — if the RO opens this
     // panel mid-outage and the feed happens to recover while they're
     // looking at it, a poll means they see it come back without having to
-    // remember to hit Refresh. 60s, not 15s like the course poll — wind
-    // doesn't need second-guessing that fast, and the 4-min cache in
-    // fetchLivePortWeather() absorbs most of these calls anyway.
+    // remember to hit Refresh. 10min, not 60s — none of wind/tide/pressure
+    // moves fast enough to need a sub-10min check (the source station
+    // itself only updates ~every 5min, and fetchLivePortWeather() caches
+    // for 4min anyway), but it still has to stay well under an hour: this
+    // same poll is the only thing re-fetching Met Éireann's small-craft
+    // warnings while the panel is open, and their licence requires those
+    // shown warnings be kept current (see fetchMetWarnings()) — not just
+    // refreshed whenever someone happens to reopen the panel.
     if(id==='weatherPanel') _startWeatherPoll();
   }));
 }
@@ -3111,7 +3116,7 @@ function _stopCoursePoll(){
 let _weatherPollTimer=null;
 function _startWeatherPoll(){
   if(_weatherPollTimer) clearInterval(_weatherPollTimer);
-  _weatherPollTimer=setInterval(loadRaceWeather,60000);
+  _weatherPollTimer=setInterval(loadRaceWeather,600000); // 10min — see openPanel()'s weatherPanel case for why
 }
 function _stopWeatherPoll(){
   if(_weatherPollTimer){ clearInterval(_weatherPollTimer); _weatherPollTimer=null; }
@@ -6889,23 +6894,6 @@ function renderWeather(wx,tides,warnings,live){
           <div style="font-size:.9rem;color:var(--white);margin-bottom:16px">
             Gusting <strong style="font-size:1.05rem">${lGust} kt</strong>
           </div>
-          ${live.history&&live.history.length>1?`
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;
-            letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">
-            Last 3 Hours · kt</div>
-          <div style="display:flex;gap:6px;margin-bottom:16px">${live.history.map(h=>{
-            const hr=new Date(h.time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-            const hw=Math.round(h.speed), hg=Math.round(h.gust), hd=Math.round(h.dir);
-            const hb=wxBeaufort(hw); const hbc=wxBfColour(hb.f);
-            return `<div style="flex:1;text-align:center;background:var(--navy);border-radius:10px;
-              padding:9px 4px;border:2px solid var(--border)">
-              <div style="font-size:.85rem;color:var(--muted);margin-bottom:5px">${hr}</div>
-              ${windArrowSvg(hd,hbc,20)}
-              <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;
-                font-weight:800;color:${hbc};line-height:1">${hw}</div>
-              <div style="font-size:.85rem;color:var(--white);margin-top:1px">↑${hg}</div>
-            </div>`;
-          }).join('')}</div>`:''}
           <div style="display:grid;grid-template-columns:${live.tide?'1fr 1fr 1fr':'1fr 1fr'};gap:10px;margin-bottom:12px">
             <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
               <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Air Temp</div>
@@ -12085,11 +12073,11 @@ async function loadWindWidget(){
 // direct, unlike halFetch()'s try-direct-then-fallback pattern (the
 // port's block is a clean HTTP response, not a thrown network error, so a
 // direct-first attempt would just silently get an empty 503 every time).
-// {speed,gust,dir,pressure,temp,humidity,time,history,tide} or null.
-// history: last ~3h of readings, downsampled to roughly hourly, oldest
-// first — {time,speed,gust,dir}. tide: {level (m, LAD datum),trend,time} or
-// null if the tide fetch failed (weather succeeding is the hard
-// requirement; tide is a bonus that degrades independently).
+// {speed,gust,dir,pressure,temp,humidity,time,tide} or null. Only the
+// single latest reading is kept — this tile is "current conditions", not
+// a trend/history view. tide: {level (m, LAD datum),trend,time} or null
+// if the tide fetch failed (weather succeeding is the hard requirement;
+// tide is a bonus that degrades independently).
 let livePortWx=null;
 async function fetchLivePortWeather(){
   try{
@@ -12113,24 +12101,6 @@ async function fetchLivePortWeather(){
     const wxArr=await wxRes.json();
     if(!Array.isArray(wxArr)||!wxArr.length) return null;
     const latest=wxArr[wxArr.length-1]; // API returns oldest-first
-
-    // Last 3h of data ENDING AT THE LATEST READING, not at wall-clock now —
-    // confirmed live 2026-08-16 the station can go quiet for 10+ hours, and
-    // anchoring to Date.now() made the window come up completely empty
-    // during a gap even though real recent history existed right
-    // before the outage started. Downsampled to ~hourly (last reading in
-    // each hour bucket) — the station reports every ~5min, so 3h raw would
-    // be ~36 points, still too dense for a horizontal strip. Mirrors windBlock's
-    // own Race Window strip visually, just fed the recent past instead of
-    // a forecast.
-    const latestMs=new Date(latest.time).getTime();
-    const threeHoursBeforeLatestMs=latestMs-3*3600000;
-    const hourBuckets={};
-    wxArr.filter(r=>new Date(r.time).getTime()>=threeHoursBeforeLatestMs)
-      .forEach(r=>{ hourBuckets[Math.floor(new Date(r.time).getTime()/3600000)]=r; });
-    const history=Object.values(hourBuckets)
-      .sort((a,b)=>new Date(a.time)-new Date(b.time))
-      .map(r=>({time:r.time,speed:r.wind_speed,gust:r.wind_gust,dir:r.wind_direction}));
 
     // Tide: live sensor reading (water_level_lad, metres above Lowest
     // Astronomical Tide — the datum charts are drawn against, so this is
@@ -12165,7 +12135,7 @@ async function fetchLivePortWeather(){
     const data={
       speed:latest.wind_speed, gust:latest.wind_gust, dir:latest.wind_direction,
       pressure:latest.air_pressure, temp:latest.air_temperature, humidity:latest.air_humidity,
-      time:latest.time, history, tide,
+      time:latest.time, tide,
     };
     try{ localStorage.setItem('__port_weather_v1__',JSON.stringify({ts:Date.now(),data})); }catch(e){}
     return data;
