@@ -1428,6 +1428,7 @@ let _trackLastPost=0; // ms timestamp — throttles posts to at most 1 per 15s, 
 let _trackingWakeLock=null;
 let _trackStaleTimer=null;
 let _trackingStale=false;
+let _trackStatusTimer=null;
 const TRACKING_STALE_MS=90000; // no successful post in 90s despite tracking being "on" -> the watch has likely been suspended (screen locked / app backgrounded), not just an unlucky dropped post
 
 async function sbToggleTracking(boatId,race,value){
@@ -1530,13 +1531,37 @@ function startPositionSharing(){
   _trackingStale=false;
   _acquireTrackingWakeLock();
   _startTrackingStaleWatch();
+  _startTrackingStatusPoll();
   updateTrackingButton();
 }
 function stopPositionSharing(){
   if(_trackWatchId!=null){ navigator.geolocation.clearWatch(_trackWatchId); _trackWatchId=null; }
   _releaseTrackingWakeLock();
   _stopTrackingStaleWatch();
+  _stopTrackingStatusPoll();
   updateTrackingButton();
+}
+// "Is this actually working?" line under the tracking button — separate
+// poll from the staleness watch above (that one only judges "on/off", this
+// one shows the real accuracy/age numbers, which only matter once tracking
+// is genuinely on). Reads back from the DB rather than pos.coords.accuracy
+// directly so it's proof the ping actually landed, not just what the
+// device's own GPS chip claims locally.
+function _startTrackingStatusPoll(){
+  if(_trackStatusTimer) clearInterval(_trackStatusTimer);
+  _refreshTrackingStatusLine();
+  _trackStatusTimer=setInterval(_refreshTrackingStatusLine,5000);
+}
+function _stopTrackingStatusPoll(){
+  if(_trackStatusTimer){ clearInterval(_trackStatusTimer); _trackStatusTimer=null; }
+  const el=document.getElementById('trackingStatusLine');
+  if(el) el.textContent='';
+}
+async function _refreshTrackingStatusLine(){
+  const el=document.getElementById('trackingStatusLine');
+  if(!el) return;
+  const row=await fetchLatestOwnPosition();
+  el.textContent=formatTrackingStatus(row);
 }
 // The OS/browser force-releases the wake lock (and may fully suspend the
 // GPS watch) whenever the tab is hidden — neither reliably resumes on its
@@ -1563,6 +1588,7 @@ function onTrackPosition(pos){
       lat:c.latitude, lng:c.longitude,
       heading:(c.heading!=null&&!isNaN(c.heading))?c.heading:null,
       speed_kn:(c.speed!=null&&!isNaN(c.speed))?+(c.speed*1.94384).toFixed(2):null, // m/s -> knots
+      accuracy:(c.accuracy!=null&&!isNaN(c.accuracy))?c.accuracy:null, // metres — Geolocation API always provides this
       // The device's own GPS fix time (pos.timestamp, sibling of pos.coords)
       // — overrides the column's DEFAULT now(), which is when the INSERT
       // landed server-side and carries whatever network latency the POST
@@ -1572,6 +1598,34 @@ function onTrackPosition(pos){
       recorded_at:new Date(pos.timestamp).toISOString()
     })
   });
+}
+
+// ── "Is this actually working?" status readout ──────────────────────────
+// Shared by both tracking paths (the web fallback above, and the Traccar
+// agent below) — reads back the most recent race_positions row this boat
+// actually landed in the DB, rather than trusting either source's own local
+// idea of its GPS fix. That's deliberate: for the agent path especially,
+// this page has no visibility at all into whether Traccar is really
+// running — the only proof is a row showing up server-side. race_positions
+// is anon-SELECT-able already (039_race_positions.sql), so no new endpoint
+// is needed for either caller.
+async function fetchLatestOwnPosition(){
+  if(!currentBoat||!selectedRace) return null;
+  const key=raceKey(selectedRace);
+  const rows=await sbFetch('/rest/v1/race_positions?boat_id=eq.'+currentBoat.id
+    +'&race_key=eq.'+encodeURIComponent(key)+'&order=recorded_at.desc&limit=1&select=recorded_at,accuracy');
+  return (Array.isArray(rows)&&rows[0])?rows[0]:null;
+}
+// Three-tier read, not a bare number — "42m" means nothing to a sailor who
+// doesn't already know what a good GPS fix looks like; ✅/🟡/⚠️ does.
+function formatTrackingStatus(row){
+  if(!row) return 'Waiting for a first position…';
+  const ageSec=Math.max(0,Math.round((Date.now()-new Date(row.recorded_at).getTime())/1000));
+  const ageStr=ageSec<90?ageSec+'s ago':Math.round(ageSec/60)+'m ago';
+  if(row.accuracy==null) return 'Updated '+ageStr+' · accuracy unknown';
+  const acc=Math.round(row.accuracy);
+  const badge=acc<=10?'✅':acc<=30?'🟡':'⚠️';
+  return badge+' '+acc+'m accuracy · updated '+ageStr;
 }
 
 // ── Location Agent pairing (Phase 0 pilot) ───────────────────────────────
@@ -1631,12 +1685,36 @@ function renderAgentSetupBody(){
       '<b style="color:var(--white)">Distance: 0</b> — important, set this first. Any non-zero value switches Traccar into movement-triggered mode and the time interval below stops applying at all, so a boat sitting still (e.g. pre-start) would stop sending updates entirely.<br>'+
       '<b style="color:var(--white)">Interval (may be labelled Frequency): 15s</b> — this field may only appear once Distance is set to 0. Then tap Start.'+
     '</div>'+
+    '<div id="agentStatusBox" style="text-align:center;margin-bottom:16px;padding:10px 12px;background:var(--navy);border:1px solid var(--border);border-radius:8px">'+
+      '<div style="font-size:.75rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Live status</div>'+
+      '<div id="agentStatusLine" style="font-size:.88rem;color:var(--white)">Waiting for a first position…</div>'+
+    '</div>'+
     '<div style="text-align:center;margin-bottom:16px">'+
       '<div style="font-size:.85rem;color:var(--muted);margin-bottom:8px">Setting it up on a different phone? Scan the Device Identifier instead of typing it:</div>'+
       '<div id="agentQr" style="display:inline-block;background:#fff;padding:10px;border-radius:8px;min-width:160px;min-height:160px"></div>'+
     '</div>'+
     '<button class="btn btn-ghost" style="width:100%;padding:10px;color:var(--muted)" onclick="revokeAgentPairing()">Revoke this pairing</button>';
   renderAgentQr(p.token);
+  _startAgentStatusPoll();
+}
+// Same "prove it's actually working" idea as the web tracker's own status
+// line (fetchLatestOwnPosition()/formatTrackingStatus() above) — this is
+// the ONLY window this page has into whether Traccar, running entirely on
+// its own outside the browser, is really posting anything.
+let _agentStatusTimer=null;
+function _startAgentStatusPoll(){
+  if(_agentStatusTimer) clearInterval(_agentStatusTimer);
+  _refreshAgentStatusLine();
+  _agentStatusTimer=setInterval(_refreshAgentStatusLine,5000);
+}
+function _stopAgentStatusPoll(){
+  if(_agentStatusTimer){ clearInterval(_agentStatusTimer); _agentStatusTimer=null; }
+}
+async function _refreshAgentStatusLine(){
+  const el=document.getElementById('agentStatusLine');
+  if(!el) return;
+  const row=await fetchLatestOwnPosition();
+  el.textContent=formatTrackingStatus(row);
 }
 async function issueAgentPairing(){
   try{
@@ -1652,6 +1730,7 @@ async function issueAgentPairing(){
 async function revokeAgentPairing(){
   if(!_agentPairing) return;
   if(!confirm('Stop this device from sending location? You can set up a new pairing any time.'))return;
+  _stopAgentStatusPoll();
   try{
     await fetch('/.netlify/functions/agent-pair',{
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -12020,6 +12099,7 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handic
 function closeSheet(id){
   document.getElementById(id).classList.remove('open');
   if(id==='collectSheet'||id==='pnSheet') renderCrew();
+  if(id==='agentSetupSheet') _stopAgentStatusPoll();
 }
 
 // ── Crew Pay Page (opened via shared QR link) ─────────────────

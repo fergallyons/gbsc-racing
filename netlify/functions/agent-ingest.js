@@ -115,6 +115,7 @@ exports.handler = async (event) => {
     // in place since the column is nullable and unused by finish/OCS
     // detection either way; worth a deliberate look once real pings land.
     speed_kn: num(p.speed),
+    accuracy: num(p.accuracy), // metres — standard OsmAnd-protocol field, same units as the web tracker's own
     recorded_at: parseTimestamp(p.timestamp).toISOString(),
     source: 'agent',
   };
