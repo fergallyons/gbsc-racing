@@ -13529,6 +13529,69 @@ let _startSeqAudioCtx=null;
 let _startSeqWakeLock=null;
 let _startSeqHornTimers=[];
 
+// ── Spoken flag countdown (listener-side, opt-in) ────────────────────────
+// A per-DEVICE preference, not an RO setting or DB column — deliberately:
+// this is "do I personally want a voice counting me into each flag", the
+// same kind of choice as a phone's own ringer volume, not something that
+// should broadcast to or be controlled by anyone else watching the same
+// sequence. Persisted in localStorage so it survives a reload/re-open on
+// this device without needing a login.
+let _startSeqSpeechOn=(function(){ try{ return localStorage.getItem('_startSeqSpokenCountdown')==='1'; }catch(e){ return false; } })();
+let _startSeqVoices=null;
+// Web Speech API has no "tone"/"emotion" parameter — there's no literal
+// "affirmative voice" to select. Approximated instead with a brisk rate and
+// a slightly lowered pitch (reads as more assertive than the flatter
+// default), plus preferring a LOCAL (on-device) English voice over a
+// network one — a network voice's extra latency could easily blow past the
+// 1s tolerance window below, arriving late enough to read as "4" when the
+// flag's already gone up on "3".
+function _pickStartSeqVoice(){
+  try{
+    if(!_startSeqVoices||!_startSeqVoices.length) _startSeqVoices=window.speechSynthesis.getVoices();
+    if(!_startSeqVoices.length) return null;
+    return _startSeqVoices.find(v=>v.lang.startsWith('en')&&v.localService)
+      ||_startSeqVoices.find(v=>v.lang.startsWith('en'))
+      ||_startSeqVoices[0];
+  }catch(e){ return null; }
+}
+// Voices often load asynchronously (empty on the first getVoices() call,
+// populated once 'voiceschanged' fires) — call this once, early, so a real
+// voice is already cached by the time the first number needs speaking.
+let _startSeqVoicesPrimed=false;
+function _primeStartSeqVoices(){
+  if(_startSeqVoicesPrimed||!('speechSynthesis' in window)) return;
+  _startSeqVoicesPrimed=true;
+  _startSeqVoices=window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged=()=>{ _startSeqVoices=window.speechSynthesis.getVoices(); };
+}
+function _speakStartSeqNumber(n){
+  try{
+    if(!('speechSynthesis' in window)) return;
+    const u=new SpeechSynthesisUtterance(String(n));
+    u.rate=1.15;
+    u.pitch=0.85;
+    u.volume=1;
+    const voice=_pickStartSeqVoice();
+    if(voice) u.voice=voice;
+    window.speechSynthesis.cancel(); // don't let a late-finishing previous number overlap the next
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+function toggleStartSeqSpeech(){
+  _startSeqSpeechOn=!_startSeqSpeechOn;
+  try{localStorage.setItem('_startSeqSpokenCountdown',_startSeqSpeechOn?'1':'0');}catch(e){}
+  if(_startSeqSpeechOn) _primeStartSeqVoices();
+  _updateStartSeqSpeechButton();
+  _scheduleStartSeqHorns(); // re-pin now, so turning it on mid-sequence still catches the remaining flag events
+}
+function _updateStartSeqSpeechButton(){
+  const btn=document.getElementById('startSeqSpeechToggle');
+  if(!btn) return;
+  btn.textContent=_startSeqSpeechOn?'🔊 Countdown':'🔇 Countdown';
+  btn.style.borderColor=_startSeqSpeechOn?'var(--teal)':'var(--border)';
+  btn.style.color=_startSeqSpeechOn?'var(--teal)':'var(--white)';
+}
+
 // Horns are scheduled with precise setTimeouts pinned to the exact signal
 // instant, rather than being detected by the 250ms display-tick polling loop
 // (that approach could lag the real moment by up to 250ms). Re-run whenever
@@ -13569,6 +13632,25 @@ function _scheduleStartSeqHorns(){
       if(Date.now()-b.ms<2000) playStartHorn(b.isLong);
     },delay);
     _startSeqHornTimers.push(id);
+    // Spoken 5-4-3-2-1 into this same flag event, opt-in per listener (see
+    // toggleStartSeqSpeech() above) — pinned to the same instant the horn
+    // targets, just 5..1 seconds earlier, so "1" lands right before the
+    // flag/horn rather than on top of it. Tighter 1s staleness tolerance
+    // than the horn's 2s: a horn a couple seconds late just sounds a beat
+    // slow, but a spoken "5" arriving late enough to nearly collide with
+    // "4" is actively confusing, so a badly-delayed one is skipped outright
+    // rather than played out of step.
+    if(_startSeqSpeechOn){
+      for(let s=5;s>=1;s--){
+        const numMs=b.ms-s*1000;
+        const speakDelay=numMs-now;
+        if(speakDelay<0) continue;
+        const sid=setTimeout(()=>{
+          if(Date.now()-numMs<1000) _speakStartSeqNumber(s);
+        },speakDelay);
+        _startSeqHornTimers.push(sid);
+      }
+    }
   });
 }
 // Real ICS numeral pennants taper from full height at the hoist to half
@@ -13608,6 +13690,8 @@ async function openStartSeq(){
   openPanel('startSeqOverlay');
   _ensureStartSeqAudio(); // unlock AudioContext on this user gesture
   _acquireStartSeqWakeLock();
+  _updateStartSeqSpeechButton();
+  if(_startSeqSpeechOn) _primeStartSeqVoices();
   await refreshStartSeqData();
   if(_startSeqTimer) clearInterval(_startSeqTimer);
   if(_startSeqPollTimer) clearInterval(_startSeqPollTimer);
@@ -13627,6 +13711,7 @@ function closeStartSeq(){
   if(_startSeqTimer){ clearInterval(_startSeqTimer); _startSeqTimer=null; }
   if(_startSeqPollTimer){ clearInterval(_startSeqPollTimer); _startSeqPollTimer=null; }
   _clearStartSeqHornTimers();
+  try{ if('speechSynthesis' in window) window.speechSynthesis.cancel(); }catch(e){} // don't keep talking after leaving the screen
 }
 
 async function refreshStartSeqData(){
