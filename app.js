@@ -1103,7 +1103,7 @@ async function patchRaceTimesFromHalsail(){
   updateGuestDashCancellation();
   if(!cancelledTodayRace){
     const raceEl=document.getElementById('loginRaceLabel');
-    if(raceEl&&nextRace) raceEl.textContent=getRaceEyebrow(nextRace)+': '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+    if(raceEl&&nextRace) raceEl.textContent=getRaceEyebrow(nextRace)+': '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'});
   }
 
   // If the patch changed which race is "current", re-render the registration list —
@@ -1229,7 +1229,7 @@ async function buildBoatGrid(){
 
   // Show next race label
   const raceEl=document.getElementById('loginRaceLabel');
-  if(nextRace&&raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  if(nextRace&&raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'});
   if(nextRace) showSponsor(nextRace.label);
   renderDocs();
 
@@ -2153,7 +2153,7 @@ function updateReplayUI(){
 // elapsed/duration counter (00:00 / 12:34), which told you how far into
 // the *replay* you were but not what time it actually was in the race.
 function fmtReplayClock(epochMs){
-  return new Date(epochMs).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  return new Date(epochMs).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Europe/Dublin'});
 }
 function scrubReplay(value){
   pauseReplay();
@@ -2700,7 +2700,7 @@ async function renderSeriesFeesPanel(){
           <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
             <div>
               <div style="font-size:.88rem;color:var(--fg)">${f.series_name}</div>
-              <div style="font-size:.85rem;color:var(--muted)">${f.method} · ${new Date(f.paid_at).toLocaleDateString('en-IE')}</div>
+              <div style="font-size:.85rem;color:var(--muted)">${f.method} · ${new Date(f.paid_at).toLocaleDateString('en-IE',{timeZone:'Europe/Dublin'})}</div>
             </div>
             <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;color:var(--success)">€${Number(f.amount).toFixed(2)}</span>
           </div>
@@ -2760,7 +2760,7 @@ async function renderRegisteredTab(){
   const label=document.getElementById('regRaceLabel'); // legacy — may be null in new dashboard
   const list=document.getElementById('registeredList');
   if(!nextRace){if(list)list.innerHTML='<div class="empty-state"><div class="icon">📅</div><div>No upcoming race found</div></div>';return;}
-  if(label) label.textContent=nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+  if(label) label.textContent=nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'});
   list.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading…</div></div>';
   const regs=await sbLoadRegistrations(nextRace);
   if(!regs||!regs.length){
@@ -3286,7 +3286,7 @@ function updateSkipperDash(){
   if(!selectedRace && cancelledTodayRace){
     if(eyebrow){ eyebrow.textContent='Race Cancelled'; eyebrow.classList.add('cancelled'); }
     nameEl.textContent=cancelledTodayRace.label;
-    if(metaEl) metaEl.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'})+'  ·  '+cancelledTodayRace.note;
+    if(metaEl) metaEl.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'})+'  ·  '+cancelledTodayRace.note;
     if(crewRaceName) crewRaceName.textContent=cancelledTodayRace.label;
     if(card) card.classList.add('race-cancelled');
     if(regEl) regEl.innerHTML='';
@@ -3298,7 +3298,7 @@ function updateSkipperDash(){
   if(r){
     nameEl.textContent=r.label;
     if(metaEl){
-      metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+      metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'});
       // This card shows no time at all otherwise — a same-day sibling race
       // would be invisible here even though "Change race" already lists it.
       const sameDay=getRacesForDay(r.date);
@@ -3330,15 +3330,15 @@ function updateGuestDashCancellation(){
   const guestCard=el?.closest('.dash-race-card');
   if(cancelledTodayRace){
     if(el) el.textContent=cancelledTodayRace.label;
-    if(mel) mel.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'})+'  ·  '+cancelledTodayRace.note;
+    if(mel) mel.textContent=cancelledTodayRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'})+'  ·  '+cancelledTodayRace.note;
     if(tel) tel.textContent='';
     if(ge){ ge.textContent='Race Cancelled'; ge.classList.add('cancelled'); }
     if(guestCard) guestCard.classList.add('race-cancelled');
   } else {
     if(el&&nextRace) el.textContent=nextRace.label;
     else if(el) el.textContent='No races scheduled';
-    if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
-    if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'});
+    if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
     if(ge){ ge.textContent=getRaceEyebrow(nextRace); ge.classList.remove('cancelled'); }
     if(guestCard) guestCard.classList.remove('race-cancelled');
   }
@@ -3382,7 +3382,7 @@ function updateRODash(){
   const nameEl=document.getElementById('roDashRaceName');
   const metaEl=document.getElementById('roDashMeta');
   if(nameEl&&r){ nameEl.textContent=r.label; }
-  if(metaEl&&r){ metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'}); }
+  if(metaEl&&r){ metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'}); }
   updateROResultsStatus();
   refreshRoStartSeqTile();
   renderRoTodayRaces();
@@ -3401,7 +3401,7 @@ function renderRoTodayRaces(){
   head.style.display='';
   body.innerHTML=today.map(r=>{
     const isNext=nextRace&&r.id===nextRace.id;
-    const timeStr=r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const timeStr=r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 2px;
       border-bottom:1px solid var(--border)">
       <span style="font-size:.88rem;font-weight:${isNext?'700':'500'};color:${isNext?'var(--teal)':'var(--white)'}">${isNext?'▸ ':''}${escHtml(r.label)}</span>
@@ -3421,7 +3421,7 @@ async function refreshRoStartSeqTile(){
     } else if(active.status==='postponed'){
       sub.textContent='Postponed (AP)';
     } else {
-      sub.textContent='Armed · '+new Date(active.start_time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      sub.textContent='Armed · '+new Date(active.start_time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
     }
     return;
   }
@@ -3483,7 +3483,7 @@ function buildRoReportDropdown(){
   sorted.forEach(r=>{
     const o=document.createElement('option');
     o.value=r.label;
-    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' · '+r.label;
+    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'})+' · '+r.label;
     sel.appendChild(o);
   });
   // Default: most recent past race (or first in list)
@@ -3514,8 +3514,8 @@ function buildRaceDropdown(){
     // Date+time prefix, not just the label — otherwise two same-day races
     // (or any two races sharing a generic label like "Wednesday Race")
     // are indistinguishable in the list.
-    const dateStr=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
-    const timeStr=r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const dateStr=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'});
+    const timeStr=r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
     o.textContent=dateStr+' '+timeStr+' · '+r.label;
     og[grp].appendChild(o);
   });
@@ -3525,7 +3525,7 @@ function buildRaceDropdown(){
 async function onRaceSelect(el,silent){
   const i=parseInt(el.value);if(isNaN(i))return;
   selectedRace=allRaces[i];
-  document.getElementById('raceBadge').textContent=selectedRace.date.toLocaleDateString('en-IE',{day:'numeric',month:'short'});
+  document.getElementById('raceBadge').textContent=selectedRace.date.toLocaleDateString('en-IE',{day:'numeric',month:'short',timeZone:'Europe/Dublin'});
   if(!isRO&&!isGuest){
     updateSkipperDash();
     refreshMyRaceRegistration(); // registration status is per-race — re-check for whichever race is now selected
@@ -4830,7 +4830,7 @@ async function renderRaceScheduleList(){
     html+=`<div class="race-mgmt-series">${series}</div>`;
     races.forEach(r=>{
       const d=new Date(r.race_date+'T00:00:00');
-      const dateStr=d.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+      const dateStr=d.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'});
       const hh=String(r.start_hour||19).padStart(2,'0');
       const mm=String(r.start_min||0).padStart(2,'0');
       const cancelled=!r.active;
@@ -5177,7 +5177,7 @@ async function browseEstelaRaces(){
 
   window._estelaRaces=data.races;
   content.innerHTML=data.races.map((race,i)=>{
-    const d=race.start_at?new Date(race.start_at).toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'}):'';
+    const d=race.start_at?new Date(race.start_at).toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Dublin'}):'';
     return `<div onclick="pickEstelaRace(${i})"
       style="display:flex;align-items:center;gap:12px;padding:12px 14px;
         background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;
@@ -5986,7 +5986,7 @@ function populateFwDaySelect(){
     const label=dr.length>1?(dr[0].series||dr[0].label)+' ('+dr.length+' races)':(dr[0]?dr[0].label:'');
     const o=document.createElement('option');
     o.value=i;
-    o.textContent=d.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' · '+label;
+    o.textContent=d.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'})+' · '+label;
     sel.appendChild(o);
   });
   const idx=feeWizardState.day?days.findIndex(dd=>dd.toDateString()===feeWizardState.day.toDateString()):-1;
@@ -6309,7 +6309,7 @@ function fwRenderOther(){
     const dateObj=new Date(d+'T12:00:00');
     const dayRaces=getRacesForDay(dateObj);
     const label=dayRaces.length?(dayRaces[0].series||dayRaces[0].label):d;
-    const dateStr=dateObj.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'});
+    const dateStr=dateObj.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'});
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)">
       <div><div style="font-size:.92rem;font-weight:700">${escHtml(label)}</div><div style="font-size:.85rem;color:var(--muted)">${dateStr}</div></div>
       <button onclick="openFeeWizard(new Date('${d}T12:00:00'))" style="font-size:.85rem;font-weight:700;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:rgba(0,174,239,.1);color:var(--teal);cursor:pointer">Resolve now</button>
@@ -6979,7 +6979,7 @@ function renderWeather(wx,tides,warnings,live){
       return new Date(t*1000).toISOString().split('T')[0]===raceDayStr;
     });
     if(di>=0&&wx.daily.sunset[di]){
-      sunsetStr=new Date(wx.daily.sunset[di]*1000).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      sunsetStr=new Date(wx.daily.sunset[di]*1000).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
     }
   }
 
@@ -7104,7 +7104,7 @@ function renderWeather(wx,tides,warnings,live){
       const lDir=Math.round(live.dir);
       const lBf=wxBeaufort(lSpeed);
       const lBfCol=wxBfColour(lBf.f);
-      const lTimeStr=new Date(live.time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      const lTimeStr=new Date(live.time).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
       // "Steady" alone doesn't say which turning point we're at — the tide
       // curve flattens out at BOTH high and low water, so a flat reading is
       // ambiguous without more context. Cross-reference the predicted
@@ -7211,7 +7211,7 @@ function renderWeather(wx,tides,warnings,live){
     if(relevant.length){
       const rows=relevant.map(e=>{
         const t=new Date(e.date);
-        const timeStr=t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+        const timeStr=t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
         const isHigh=e.type==='High';
         return `<div style="display:flex;align-items:center;gap:14px;padding:11px 0;
           border-bottom:1px solid rgba(255,255,255,.06)">
@@ -7253,8 +7253,8 @@ function renderWeather(wx,tides,warnings,live){
     const fmt=d=>{
       const dt=new Date(d);
       const sameDay=dt.toDateString()===new Date().toDateString();
-      const time=dt.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-      return sameDay?time:dt.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' '+time;
+      const time=dt.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
+      return sameDay?time:dt.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'})+' '+time;
     };
     const now=Date.now();
     const onsetMs=w.onset?new Date(w.onset).getTime():null;
@@ -7298,9 +7298,9 @@ function renderWeather(wx,tides,warnings,live){
   // race is null off-season (no future race on the calendar at all) — the
   // subtitle line below says so honestly instead of formatting raceDate's
   // own now-fallback as if today/right-now were an actual start time.
-  const raceDateStr=raceDate.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
+  const raceDateStr=raceDate.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'});
   const raceLabel=race?race.label:'No Race Scheduled';
-  const raceTimeStr=raceDate.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  const raceTimeStr=raceDate.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
   const providerLabel=wx._source==='met-eireann'?'Met Éireann':'Open-Meteo';
   // getNextRaceForWeather() isn't fleet-scoped at all — a boat racing in
   // the second of two same-day races could otherwise read the first
@@ -7333,7 +7333,7 @@ function renderWeather(wx,tides,warnings,live){
           style="font-size:.8rem;color:var(--teal);background:transparent;border:none;
           cursor:pointer;font-family:inherit;padding:0">↺ Refresh</button>
       </div>
-      <div>${wx._fetchedAt?'Fetched '+new Date(wx._fetchedAt).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · ':''}\
+      <div>${wx._fetchedAt?'Fetched '+new Date(wx._fetchedAt).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'})+' · ':''}\
 ${providerLabel}${tides?' · '+tideSource:''}</div>
     </div>`;
 }
@@ -7673,7 +7673,7 @@ function renderSpHistory(body){
 
   // Race history list
   const historyRows=raceList.length?raceList.map(r=>{
-    const dateStr=r.date?r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'}):'';
+    const dateStr=r.date?r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'}):'';
     let statusHtml;
     const isUnpaidOnBoard = r.wasOnBoard && !r.paid;
     if(r.paid){
@@ -8630,7 +8630,7 @@ async function generatePaymentReport(){
   const race=roReportRace||nextRace;
   if(!race){statusEl.textContent='No race selected';return;}
   const raceName=race.label;
-  const raceDate=race.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const raceDate=race.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'Europe/Dublin'});
 
   // Check for cancellation: match report race date against Halsail schedule or today's cancelledTodayRace
   const raceDateStr=race.date.toDateString();
@@ -8704,7 +8704,7 @@ async function generatePaymentReport(){
       </tr>`;
     }).join('');
 
-    const submittedAt=new Date(rec.submitted_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const submittedAt=new Date(rec.submitted_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
     const methodStr=Object.entries(methods).map(([m,a])=>`${m}: €${a}`).join(' · ')||'—';
     const settlementStr=(rec.settlement_methods||[]).map(s=>s.charAt(0).toUpperCase()+s.slice(1)).join(', ')||'—';
     const settlementNote=rec.settlement_note||'';
@@ -8961,7 +8961,7 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
   body.innerHTML=summaryHtml+
     `<div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Boats (${rows.length})</div>`+
     rowsHtml+
-    `<div style="font-size:.85rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is the handicap used in each boat's most recent race; Next is Halsail's own "Hcap for next race" figure from that race's ECHO analysis — the number that will actually apply next time out. Both are blank for boats that haven't raced under Halsail scoring yet this season.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE')+')':''} · Halsail</div>`;
+    `<div style="font-size:.85rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is the handicap used in each boat's most recent race; Next is Halsail's own "Hcap for next race" figure from that race's ECHO analysis — the number that will actually apply next time out. Both are blank for boats that haven't raced under Halsail scoring yet this season.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE',{timeZone:'Europe/Dublin'})+')':''} · Halsail</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -9393,9 +9393,9 @@ function renderCalList(){
       const isPast=d<now;
       const isNext=nextEvt&&r.RaceID===nextEvt.RaceID;
       const dayNum=d.getDate();
-      const mon=d.toLocaleDateString('en-IE',{month:'short'});
-      const weekday=d.toLocaleDateString('en-IE',{weekday:'short'});
-      const time=d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      const mon=d.toLocaleDateString('en-IE',{month:'short',timeZone:'Europe/Dublin'});
+      const weekday=d.toLocaleDateString('en-IE',{weekday:'short',timeZone:'Europe/Dublin'});
+      const time=d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
       html+=`<div class="cal-race-row${isNext?' next-race':''}${isPast?' past':''}">
         <div class="cal-date${isPast?' past':''}">
           <div class="cal-date-day">${dayNum}</div>
@@ -9423,7 +9423,7 @@ function renderCalByDate(){
   // Group by month label e.g. "May 2026"
   const months={};
   calSchedule.forEach(r=>{
-    const key=r.dateObj.toLocaleDateString('en-IE',{month:'long',year:'numeric'});
+    const key=r.dateObj.toLocaleDateString('en-IE',{month:'long',year:'numeric',timeZone:'Europe/Dublin'});
     if(!months[key]) months[key]=[];
     months[key].push(r);
   });
@@ -9438,9 +9438,9 @@ function renderCalByDate(){
       const isNext=nextEvt&&r.RaceID===nextEvt.RaceID;
       const isKotb=r.Series.toLowerCase().includes('king');
       const dayNum=d.getDate();
-      const mon=d.toLocaleDateString('en-IE',{month:'short'});
-      const weekday=d.toLocaleDateString('en-IE',{weekday:'short'});
-      const time=d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+      const mon=d.toLocaleDateString('en-IE',{month:'short',timeZone:'Europe/Dublin'});
+      const weekday=d.toLocaleDateString('en-IE',{weekday:'short',timeZone:'Europe/Dublin'});
+      const time=d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
       const raceName=halRaceLabel(r);
       html+=`<div class="cal-race-row${isNext?' next-race':''}${isPast?' past':''}">
         <div class="cal-date${isPast?' past':''}">
@@ -10173,13 +10173,13 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
   }
 
   if(state==='pending'){
-    const raceTime=race?race.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'today';
+    const raceTime=race?race.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'}):'today';
     wrap.innerHTML=
       '<div class="no-course-state" style="gap:10px">'+
         '<div class="icon">🕐</div>'+
         '<div style="font-size:1rem;font-weight:700;color:var(--white)">Course Not Yet Set</div>'+
         '<div style="font-size:.82rem;color:var(--muted);line-height:1.5;max-width:260px;text-align:center">'+
-          'The Race Officer will publish today\'s course before the '+(race?race.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}):'')+' start.<br>Check back closer to race time.'+
+          'The Race Officer will publish today\'s course before the '+(race?race.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'}):'')+' start.<br>Check back closer to race time.'+
         '</div>'+
       '</div>';
     return;
@@ -10520,7 +10520,7 @@ function populateRoCourseRaceSelect(){
   allRaces.forEach((r,i)=>{
     const o=document.createElement('option');
     o.value=i;
-    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' · '+r.label;
+    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'})+' · '+r.label;
     sel.appendChild(o);
   });
   const defaultRace=nextRace||allRaces[0];
@@ -11119,8 +11119,8 @@ function populateRoRegsRaceSelect(){
   allRaces.forEach((r,i)=>{
     const o=document.createElement('option');
     o.value=i;
-    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' '+
-      r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+r.label;
+    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'})+' '+
+      r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'})+' · '+r.label;
     sel.appendChild(o);
   });
   const defaultRace=nextRace||allRaces[0];
@@ -11143,8 +11143,8 @@ function shareRegistrationInvite(){
   if(!race){toast('No upcoming race found');return;}
 
   const raceName=race.label;
-  const raceDate=race.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long'});
-  const raceTime=race.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+  const raceDate=race.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'});
+  const raceTime=race.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
   const appUrl=window.location.href.split('#')[0];
 
   const msg=
@@ -11200,7 +11200,7 @@ async function loadRegistrations(){
     // Visual nudge only — a boat whose fleet requires a sail number but
     // whose registration doesn't have one. Nothing here blocks racing.
     const missingSail=fleetRequiresSailNumber(boat)&&!r.sail_number;
-    const t=new Date(r.registered_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const t=new Date(r.registered_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
     const row=document.createElement('div'); row.className='reg-row';
     row.innerHTML=
       '<div style="display:flex;align-items:center;gap:10px">'+
@@ -11366,9 +11366,9 @@ async function renderFeeStatement(){
   }
 
   let totalPaid=0, outstandingCount=0;
-  const fmtDate=d=>new Date(d+'T12:00:00Z').toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'});
+  const fmtDate=d=>new Date(d+'T12:00:00Z').toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Dublin'});
   const club=window.CLUB?.name||'Sailing Club';
-  const today=new Date().toLocaleDateString('en-IE',{day:'numeric',month:'long',year:'numeric'});
+  const today=new Date().toLocaleDateString('en-IE',{day:'numeric',month:'long',year:'numeric',timeZone:'Europe/Dublin'});
   const shareLines=[];
   // Skipper view: rows are clickable and drill into race fees for that race
   const clickable=!isRO&&feeStmtBoatId===currentBoat?.id;
@@ -13170,8 +13170,8 @@ async function checkForProtestsAgainstMe(){
 
   const p=r[0]; // Show most recent protest if multiple
   const protestor=boats.find(b=>b.id===p.protestor_id);
-  const filedTime=new Date(p.filed_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-  const filedDate=new Date(p.filed_at).toLocaleDateString('en-IE',{day:'numeric',month:'short'});
+  const filedTime=new Date(p.filed_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
+  const filedDate=new Date(p.filed_at).toLocaleDateString('en-IE',{day:'numeric',month:'short',timeZone:'Europe/Dublin'});
   const rules=(p.rules_broken||[]).join(', ')||'Not specified';
 
   // Show the banner
@@ -13419,7 +13419,7 @@ async function renderRoStartsLog(){
       wrap.innerHTML=
         '<div style="background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:12px;padding:14px">'+
           '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--success);margin-bottom:6px">Active Start</div>'+
-          '<div style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px">'+t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+relevant.flag_system+' flag · Class '+relevant.class_flag+'</div>'+
+          '<div style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px">'+t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'})+' · '+relevant.flag_system+' flag · Class '+relevant.class_flag+'</div>'+
           '<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px">'+(t>new Date()?'Counting down…':'Started')+'</div>'+
           '<div style="display:flex;gap:8px">'+
             '<button class="btn btn-ghost" style="flex:1;padding:10px;color:var(--warn);border-color:rgba(244,162,97,.4)" onclick="roPostponeStartRow('+relevant.id+')">⏸ Postpone (AP)</button>'+
@@ -13446,7 +13446,7 @@ async function renderRoStartsLog(){
       return '<div style="background:var(--navy);border-radius:10px;padding:10px 12px;margin-bottom:6px'+(pending?';border:1px solid rgba(45,198,83,.25)':'')+'">'+
         '<div style="display:flex;justify-content:space-between;align-items:baseline">'+
           '<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:.9rem;color:var(--white)">'+escHtml(fleetName(r.fleet_id))+'</span>'+
-          '<span style="font-size:.85rem;font-weight:700;color:'+statusColor+'">'+(r.status==='postponed'?'AP':t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}))+'</span>'+
+          '<span style="font-size:.85rem;font-weight:700;color:'+statusColor+'">'+(r.status==='postponed'?'AP':t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'}))+'</span>'+
         '</div>'+
         '<div style="font-size:.85rem;color:var(--muted);margin-top:2px">'+statusText+' · '+r.flag_system+' flag · Class '+r.class_flag+'</div>'+
         actions+
@@ -13517,7 +13517,7 @@ async function roArmStart(){
   if(SCHEMA_HAS_SEQUENCE_MINS) fields.sequence_mins=_roStartSequenceMins;
   const r=await sbArmStart(fields);
   if(r&&r._err){toast('⚠ Could not arm start — '+r._err.slice(0,60));return;}
-  toast('🚦 Start sequence armed for '+startTime.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'}));
+  toast('🚦 Start sequence armed for '+startTime.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'}));
   await renderRoStartsLog();
   refreshRoStartSeqTile();
 }
@@ -13686,7 +13686,7 @@ function updatePubStartSeqSub(){
   let text;
   if(_startSeqActive){
     const t=new Date(_startSeqActive.start_time);
-    text=(t>new Date()?'Armed for ':'Started ')+t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    text=(t>new Date()?'Armed for ':'Started ')+t.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
   } else {
     text='Flags & countdown';
   }
@@ -14339,7 +14339,7 @@ function openProtestSheet(){
   const deadlineRow=document.getElementById('pr-deadline-row');
   if(selectedRace.protestDeadline){
     const past=Date.now()>selectedRace.protestDeadline.getTime();
-    const when=selectedRace.protestDeadline.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    const when=selectedRace.protestDeadline.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
     deadlineRow.style.display='block';
     deadlineRow.style.color=past?'var(--danger)':'var(--teal)';
     deadlineRow.textContent=past?'⚠ Protest deadline was '+when+' — filing late may require showing good cause':'⏱ Protest deadline: '+when;
@@ -14479,8 +14479,8 @@ async function loadProtests(){
     const protestor=boats.find(b=>b.id===p.protestor_id);
     const protestee=p.protestee_id?boats.find(b=>b.id===p.protestee_id):null;
     const protesteeLabel=p.protestee_id?(protestee?protestee.name:'Unknown'):'Race Committee';
-    const filedAt=new Date(p.filed_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
-    const filedDate=new Date(p.filed_at).toLocaleDateString('en-IE',{day:'numeric',month:'short'});
+    const filedAt=new Date(p.filed_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
+    const filedDate=new Date(p.filed_at).toLocaleDateString('en-IE',{day:'numeric',month:'short',timeZone:'Europe/Dublin'});
     const rules=(p.rules_broken||[]).join(', ');
     const statusOpts=PROTEST_STATUSES.map(s=>
       `<option value="${s}"${p.status===s?' selected':''}>${s}</option>`).join('');
@@ -14920,8 +14920,8 @@ function populateRoFinishRaceSelect(){
   allRaces.forEach((r,i)=>{
     const o=document.createElement('option');
     o.value=i;
-    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'})+' '+
-      r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'})+' · '+r.label;
+    o.textContent=r.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'})+' '+
+      r.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'})+' · '+r.label;
     sel.appendChild(o);
   });
   const defaultRace=_finishRecordRace||selectedRace||nextRace||allRaces[0];
@@ -15186,8 +15186,8 @@ async function loadUsageStats(){
   }
   function fmt(iso){
     const d=new Date(iso);
-    return d.toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'})+
-      ' '+d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit'});
+    return d.toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Dublin'})+
+      ' '+d.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
   }
   function badge(type){
     if(type==='ro')return'<span class="usage-badge ro">RO</span>';
@@ -15726,7 +15726,7 @@ async function loadOutstandingReport(){
     const raceRows = recs.map(r => {
       const { label, date } = raceLabel(r[identCol]);
       const owed = (r.total_due||0) - (r.total_paid||0);
-      const dateStr = date ? date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'}) : '';
+      const dateStr = date ? date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'}) : '';
       return `<div style="display:flex;justify-content:space-between;align-items:baseline;
         padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:.83rem">
         <div>
@@ -15757,7 +15757,7 @@ async function loadOutstandingReport(){
     const raceRows = recs.map(r => {
       const { label, date } = raceLabel(r[identCol]);
       const owed = (r.total_due||0) - (r.total_paid||0);
-      const dateStr = date ? date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short'}) : '';
+      const dateStr = date ? date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'}) : '';
       // List unpaid crew from snapshot
       const unpaidCrew = (r.crew_snapshot||[]).filter(p=>!p.paid);
       const crewStr = unpaidCrew.length ? unpaidCrew.map(p=>`${p.first} ${p.last}`).join(', ') : '—';
@@ -15805,7 +15805,7 @@ async function loadOutstandingReport(){
   <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
     <div>
       <h1>Outstanding Balances</h1>
-      <h2>Race Fees — As of ${new Date().toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}</h2>
+      <h2>Race Fees — As of ${new Date().toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'Europe/Dublin'})}</h2>
     </div>
     <div style="text-align:right;font-size:.8rem;color:#888">
       Generated ${new Date().toLocaleString('en-IE')}<br>
