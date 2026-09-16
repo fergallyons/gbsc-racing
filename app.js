@@ -870,9 +870,9 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false,
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
-    SCHEMA_HAS_COURSE_TEMPLATES=false;
+    SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -891,6 +891,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_RNLI=names.has('061_rnli_contributions.sql');
   SCHEMA_HAS_RNLI_BASE=names.has('062_rnli_base_amount.sql');
   SCHEMA_HAS_COURSE_TEMPLATES=names.has('063_course_templates.sql');
+  SCHEMA_HAS_POSITION_ACCURACY=names.has('064_position_accuracy.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -1608,24 +1609,30 @@ function onTrackPosition(pos){
   _trackLastPost=now;
   if(_trackingStale){ _trackingStale=false; updateTrackingButton(); }
   const c=pos.coords;
+  const row={
+    boat_id:currentBoat.id,
+    race_key:raceKey(selectedRace),
+    lat:c.latitude, lng:c.longitude,
+    heading:(c.heading!=null&&!isNaN(c.heading))?c.heading:null,
+    speed_kn:(c.speed!=null&&!isNaN(c.speed))?+(c.speed*1.94384).toFixed(2):null, // m/s -> knots
+    // The device's own GPS fix time (pos.timestamp, sibling of pos.coords)
+    // — overrides the column's DEFAULT now(), which is when the INSERT
+    // landed server-side and carries whatever network latency the POST
+    // hit on top of the real fix time. Matters for automatic finish
+    // detection, which interpolates a crossing instant between two
+    // pings and is only as accurate as their timestamps.
+    recorded_at:new Date(pos.timestamp).toISOString()
+  };
+  // Only sent once this club's DB has the column (migration 064) — an
+  // unrecognized key in the JSON body 400s the WHOLE insert, silently
+  // dropping every position (not just the accuracy reading) for any club
+  // that hasn't migrated yet. Same SCHEMA_HAS_* gating rule as every other
+  // additive column in this app; missed here originally.
+  if(SCHEMA_HAS_POSITION_ACCURACY&&c.accuracy!=null&&!isNaN(c.accuracy)) row.accuracy=c.accuracy;
   sbFetch('/rest/v1/race_positions',{
     method:'POST',
     headers:{...SBH,'Prefer':'return=minimal'},
-    body:JSON.stringify({
-      boat_id:currentBoat.id,
-      race_key:raceKey(selectedRace),
-      lat:c.latitude, lng:c.longitude,
-      heading:(c.heading!=null&&!isNaN(c.heading))?c.heading:null,
-      speed_kn:(c.speed!=null&&!isNaN(c.speed))?+(c.speed*1.94384).toFixed(2):null, // m/s -> knots
-      accuracy:(c.accuracy!=null&&!isNaN(c.accuracy))?c.accuracy:null, // metres — Geolocation API always provides this
-      // The device's own GPS fix time (pos.timestamp, sibling of pos.coords)
-      // — overrides the column's DEFAULT now(), which is when the INSERT
-      // landed server-side and carries whatever network latency the POST
-      // hit on top of the real fix time. Matters for automatic finish
-      // detection, which interpolates a crossing instant between two
-      // pings and is only as accurate as their timestamps.
-      recorded_at:new Date(pos.timestamp).toISOString()
-    })
+    body:JSON.stringify(row)
   });
 }
 

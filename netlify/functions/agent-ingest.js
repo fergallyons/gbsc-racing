@@ -115,16 +115,40 @@ exports.handler = async (event) => {
     // in place since the column is nullable and unused by finish/OCS
     // detection either way; worth a deliberate look once real pings land.
     speed_kn: num(p.speed),
-    accuracy: num(p.accuracy), // metres — standard OsmAnd-protocol field, same units as the web tracker's own
     recorded_at: parseTimestamp(p.timestamp).toISOString(),
     source: 'agent',
   };
+  // metres — standard OsmAnd-protocol field, same units as the web tracker's
+  // own. Only added once accuracy is actually present in the ping AND the
+  // insert below confirms the column exists — this function has no way to
+  // check a club's migration state up front (no shared client-side
+  // SCHEMA_HAS_* flags, this runs stateless per request), and an unknown
+  // key in the JSON body 400s the WHOLE insert on any club that hasn't
+  // applied 064_position_accuracy.sql yet, silently dropping every
+  // position, not just the accuracy reading.
+  const accuracy = num(p.accuracy);
+  if (accuracy != null) row.accuracy = accuracy;
 
-  const insert = await fetch(sbUrl + '/rest/v1/race_positions', {
+  let insert = await fetch(sbUrl + '/rest/v1/race_positions', {
     method: 'POST',
     headers: { ...serviceHeaders, Prefer: 'return=minimal' },
     body: JSON.stringify(row),
   });
+  if (!insert.ok && row.accuracy !== undefined) {
+    // Retry once without `accuracy` — self-heals for a club that hasn't
+    // migrated yet, rather than dropping the ping outright. Whatever the
+    // real failure reason was, this retry either fixes it (the migration
+    // gap) or fails identically, at the cost of one extra request only on
+    // an already-failing ping.
+    const bodyText = await insert.text();
+    console.warn('agent-ingest: insert with accuracy failed HTTP ' + insert.status + ', retrying without it: ' + bodyText.slice(0, 300));
+    delete row.accuracy;
+    insert = await fetch(sbUrl + '/rest/v1/race_positions', {
+      method: 'POST',
+      headers: { ...serviceHeaders, Prefer: 'return=minimal' },
+      body: JSON.stringify(row),
+    });
+  }
   if (!insert.ok) {
     const bodyText = await insert.text();
     console.error('agent-ingest: race_positions insert failed HTTP ' + insert.status + ': ' + bodyText.slice(0, 300));
