@@ -7180,6 +7180,20 @@ function renderWeather(wx,tides,warnings,live){
                 color:var(--white);line-height:1.1">${Math.round(live.humidity)}
                 <span style="font-size:.8rem;color:var(--muted);font-weight:400">%</span></div>
             </div>
+            ${live.wave?`
+            <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+              <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Wave Height</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+                color:var(--white);line-height:1.1">${live.wave.height.toFixed(1)}
+                <span style="font-size:.8rem;color:var(--muted);font-weight:400">m</span></div>
+            </div>
+            ${live.wave.max!=null?`
+            <div style="background:var(--navy);border-radius:10px;padding:12px 14px">
+              <div style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Max Wave</div>
+              <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.6rem;font-weight:800;
+                color:var(--white);line-height:1.1">${live.wave.max.toFixed(1)}
+                <span style="font-size:.8rem;color:var(--muted);font-weight:400">m</span></div>
+            </div>`:''}`:''}
           </div>
           <div style="font-size:.85rem;color:${isStaleLive?staleColour:'var(--muted)'}">
             ${isStaleLive?'⚠ ':''}Reading from ${lTimeStr} (${relativeAgeStr(liveAgeMs)})
@@ -12493,9 +12507,10 @@ async function fetchLivePortWeather(){
     // flagging an old reading as stale — this window just needs to be wide
     // enough to actually find the last real one. 24h matches the proxy's
     // own clamp, so "truly nothing" only fires on a genuine day-long outage.
-    const [wxRes,tideRes]=await Promise.all([
+    const [wxRes,tideRes,buoyRes]=await Promise.all([
       fetch('/.netlify/functions/port-galway-proxy?type=weather&hours=24'),
       fetch('/.netlify/functions/port-galway-proxy?type=tide&hours=24'),
+      fetch('/.netlify/functions/port-galway-proxy?type=buoy&hours=24'),
     ]);
     if(!wxRes.ok) return null;
     const wxArr=await wxRes.json();
@@ -12532,6 +12547,28 @@ async function fetchLivePortWeather(){
       }catch(e){}
     }
 
+    // Wave buoy — significant_wave_height (the conventional "wave height" a
+    // sailor means: average of the highest third of waves) and
+    // maximum_wave_height, both already in metres. Originally left out of
+    // this proxy as too unreliable (real multi-hour gaps observed) — still
+    // true, so unlike wind/tide this is only trusted within the last 3h;
+    // past that it's more likely to mislead than inform, so it's just
+    // omitted rather than shown stale with a caveat.
+    const WAVE_STALE_MS=3*3600000;
+    let wave=null;
+    if(buoyRes.ok){
+      try{
+        const buoyArr=await buoyRes.json();
+        if(Array.isArray(buoyArr)&&buoyArr.length){
+          const latestBuoy=buoyArr[buoyArr.length-1];
+          const buoyAgeMs=Date.now()-new Date(latestBuoy.time).getTime();
+          if(latestBuoy.significant_wave_height!=null&&buoyAgeMs<WAVE_STALE_MS){
+            wave={height:latestBuoy.significant_wave_height, max:latestBuoy.maximum_wave_height, time:latestBuoy.time};
+          }
+        }
+      }catch(e){}
+    }
+
     // wind_speed/wind_gust come off the station in m/s, not knots — confirmed
     // live 2026-09-16: station read 12.19 (displayed as "12kt" pre-fix) while
     // the Port of Galway's own site showed 23.7kt for the same instant;
@@ -12547,7 +12584,7 @@ async function fetchLivePortWeather(){
       gust:latest.wind_gust!=null?latest.wind_gust*MPS_TO_KT:null,
       dir:latest.wind_direction,
       pressure:latest.air_pressure, temp:latest.air_temperature, humidity:latest.air_humidity,
-      time:latest.time, tide,
+      time:latest.time, tide, wave,
     };
     try{ localStorage.setItem('__port_weather_v1__',JSON.stringify({ts:Date.now(),data})); }catch(e){}
     return data;
