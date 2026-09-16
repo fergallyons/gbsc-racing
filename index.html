@@ -372,6 +372,11 @@
       <div class="dash-card-label">Available Crew</div>
       <div class="dash-card-sub" id="sk-crew-available-sub">Sailors looking to crew</div>
     </div>
+    <div id="tile-sk-crewTurnout" class="dash-card" onclick="openCrewTurnoutPanel()">
+      <div class="dash-card-icon">🏆</div>
+      <div class="dash-card-label">Turnout</div>
+      <div class="dash-card-sub">Season attendance leaderboard</div>
+    </div>
   </div>
 
   <!-- ── Advanced ── -->
@@ -481,6 +486,22 @@
     </div>
   </div>
 </div><!-- /crewWantedPanel -->
+
+<!-- ═══ PANEL: CREW TURNOUT — season attendance leaderboard (opt-in) ═══ -->
+<div class="panel-overlay" id="crewTurnoutPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('crewTurnoutPanel')">‹</button>
+    <span class="panel-title">🏆 Turnout</span>
+  </div>
+  <div class="panel-body">
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:18px;line-height:1.5">
+      Who's turned up most this season — races attended, not races won.
+    </p>
+    <div id="crewTurnoutList">
+      <div class="empty-state"><div class="icon">🏆</div>Loading…</div>
+    </div>
+  </div>
+</div><!-- /crewTurnoutPanel -->
 
 <!-- ═══ PANEL: CREW AVAILABLE — public registration form ═══ -->
 <div class="panel-overlay" id="crewAvailableFormPanel" style="display:none">
@@ -819,6 +840,11 @@
       <div class="dash-card-icon">🙋</div>
       <div class="dash-card-label">Available to Crew</div>
       <div class="dash-card-sub">Register your interest</div>
+    </div>
+    <div id="tile-pub-crewTurnout" class="dash-card" onclick="openCrewTurnoutPanel()">
+      <div class="dash-card-icon">🏆</div>
+      <div class="dash-card-label">Turnout</div>
+      <div class="dash-card-sub">Season attendance leaderboard</div>
     </div>
   </div>
   <!-- Starting line -->

@@ -742,6 +742,7 @@ const FEAT_TILE_MAP={
   results:        ['tile-pub-results'],
   crewWanted:     ['tile-sk-crewWanted','tile-pub-crewWanted'],
   crewAvailable:  ['tile-sk-crewAvailable','tile-pub-crewAvailable'],
+  crewTurnout:    ['tile-sk-crewTurnout','tile-pub-crewTurnout'],
   newSailors:     ['tile-pub-newSailors'],
   handicaps:      ['tile-pub-handicaps','tile-sk-handicaps','tile-ro-handicaps'],
   rnli:           ['tile-pub-rnli','tile-sk-rnli','tile-ro-rnli'],
@@ -762,6 +763,7 @@ const FEAT_DEFAULTS={
   livePortWeather:false, // opt-in — GBSC-only hardware (Galway Port buoy); other clubs must stay unaffected
   feeWizard:false, // opt-in — GBSC-only, needs migration 058 applied too; other clubs must stay unaffected
   rnli:false, // opt-in — GBSC-only, needs migration 061 applied too; other clubs must stay unaffected
+  crewTurnout:false, // opt-in — publicly ranks named crew by races attended; a club must choose this, not inherit it
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
   crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
@@ -803,6 +805,7 @@ const FEAT_CATALOG=[
   {key:'results',    label:'Results',     type:'bool', group:'Public Tiles'},
   {key:'crewWanted',    label:'Crew Wanted',    type:'bool', group:'Public Tiles'},
   {key:'crewAvailable', label:'Available Crew',  type:'bool', group:'Public Tiles'},
+  {key:'crewTurnout',   label:'Crew Turnout Leaderboard — publicly ranks named crew by races attended this season', type:'bool', group:'Public Tiles'},
   {key:'newSailors',    label:'New Sailors CTA', type:'bool', group:'Public Tiles'},
   {key:'handicaps',     label:'Handicaps (ECHO/IRC)', type:'bool', group:'Public Tiles'},
 ];
@@ -2224,7 +2227,7 @@ async function enterApp(b,ro){
   await sbEnsureBoat(b);
   await Promise.all([loadBoatConfig(b.id), loadClubSettings()]);
   // Load crew
-  const sbCrew=await sbLoadCrew(b.id);
+  const [sbCrew]=await Promise.all([sbLoadCrew(b.id), loadBoatTurnoutCounts(b.id)]);
   if(sbCrew!==null){
     // Guests are one-off crew, recorded via the Pay Race Fees flow — not part of the regular roster
     roster=sbCrew.filter(p=>!p.isGuest); // selected state comes from DB — no need to restore from localStorage
@@ -3615,8 +3618,27 @@ function renderNewSailorsPanel(){
   `;
 }
 
+// {crew_id: count} — this boat's own crew, races attended this season
+// (race_attendees), for the private per-crew-member tag in renderCrew()
+// below. Same underlying idea as the public leaderboard (see
+// loadCrewTurnoutLeaderboard()) but scoped to just this boat's roster, so
+// it's always cheap and doesn't depend on the crewTurnout feature being
+// switched on club-wide — a skipper seeing their own crew's own turnout is
+// a much smaller visibility step than a club-wide public ranking, gated
+// separately below purely so the tag doesn't appear as unexplained clutter
+// on a club that never asked for any of this.
+let _boatTurnoutCounts={};
+async function loadBoatTurnoutCounts(boatId){
+  _boatTurnoutCounts={};
+  const rows=await sbFetch('/rest/v1/race_attendees?boat_id=eq.'+boatId+'&race_date=gte.'+CY+'-01-01&select=crew_id');
+  if(!Array.isArray(rows)) return;
+  rows.forEach(r=>{ _boatTurnoutCounts[r.crew_id]=(_boatTurnoutCounts[r.crew_id]||0)+1; });
+}
+
 function renderCrew(){
   const list=document.getElementById('crewList'); list.innerHTML='';
+  const _crf=(clubSettings&&clubSettings.features)||{};
+  const crewTurnoutOn=_crf.crewTurnout!==undefined?_crf.crewTurnout:FEAT_DEFAULTS.crewTurnout;
   const sel=roster.filter(p=>p.selected);
   const guests=raceFeesGuests||[];
   document.getElementById('crewCount').textContent=sel.length+' selected';
@@ -3641,6 +3663,7 @@ function renderCrew(){
           (p.type==='visitor'?'<span style="font-size:.8rem;color:'+(warn?'var(--warn)':'var(--muted)')+'">'+p.outings+'/'+VISITOR_MAX+' outings</span>':'')+
           (p.type==='crew'&&p.joinYear?'<span style="font-size:.8rem;color:var(--muted)">since '+p.joinYear+'</span>':'')+
           (p.phone?'<span style="font-size:.8rem;color:var(--muted)">📱 '+p.phone+'</span>':'')+
+          (crewTurnoutOn&&_boatTurnoutCounts[p.id]?'<span style="font-size:.8rem;color:var(--teal)">🏁 '+_boatTurnoutCounts[p.id]+' this season</span>':'')+
         '</div>'+
         (over(p)?'<div class="cc-alert">⚠ Should convert to Full Member</div>':'')+
         (vmax(p)?'<div class="cc-alert">⚠ Max outings — must join as Crew</div>':'')+
@@ -6362,6 +6385,64 @@ async function loadAndRenderCrewWanted(){
         <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem">${name}</div>
         <div style="font-size:.8rem;color:var(--teal);margin-top:2px">Looking for crew tonight</div>
       </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Crew Turnout leaderboard (opt-in, FEAT_DEFAULTS.crewTurnout) ────────
+// Rewards showing up, not finishing position — races ATTENDED this season
+// (race_attendees, written every time a skipper selects a crew member for
+// a race — see schema.sql), not races won. Deliberately club-wide and
+// public, same trust model as every other race list in this app; a club
+// opts in explicitly via the Features panel since ranking named
+// individuals by attendance is a bigger visibility step than most tiles.
+//
+// race_attendees has no crew name on the row itself (just crew_id) — a
+// second fetch against `crew` resolves id -> name/boat. Both fetched in
+// full for the season and reduced client-side rather than via a DB-side
+// aggregate: at the scale of one club's season this is a few hundred rows
+// at most, well inside PostgREST's default page size, and matches how the
+// rest of this app already treats "fetch then reduce in JS" as the norm
+// (see e.g. fetchAllRacePositions for the one case that genuinely needs
+// paging).
+function openCrewTurnoutPanel(){
+  openPanel('crewTurnoutPanel');
+  loadCrewTurnoutLeaderboard();
+}
+async function loadCrewTurnoutLeaderboard(){
+  const list=document.getElementById('crewTurnoutList');
+  if(!list) return;
+  list.innerHTML='<div class="empty-state"><div class="icon">🏆</div>Loading…</div>';
+  const [attendRows,crewRows]=await Promise.all([
+    sbFetch('/rest/v1/race_attendees?race_date=gte.'+CY+'-01-01&select=crew_id'),
+    sbFetch('/rest/v1/crew?select=id,first,last,boat_id')
+  ]);
+  if(!Array.isArray(attendRows)||!Array.isArray(crewRows)){
+    list.innerHTML='<div class="empty-state"><div class="icon">⚠</div><div>Could not load turnout data</div></div>';
+    return;
+  }
+  const crewById={};
+  crewRows.forEach(c=>{ crewById[c.id]=c; });
+  const counts={};
+  attendRows.forEach(r=>{ counts[r.crew_id]=(counts[r.crew_id]||0)+1; });
+  const ranked=Object.keys(counts)
+    .map(id=>({count:counts[id],crew:crewById[id]}))
+    .filter(x=>x.crew) // the crew record may since have been deleted — nothing sane to show
+    .sort((a,b)=>b.count-a.count)
+    .slice(0,15);
+  if(!ranked.length){
+    list.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No races recorded yet this season</div></div>';
+    return;
+  }
+  list.innerHTML=ranked.map((r,i)=>{
+    const boat=boats.find(b=>b.id===r.crew.boat_id);
+    return`<div style="display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--border)">
+      <div style="width:22px;text-align:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;color:var(--muted)">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem">${escHtml(r.crew.first)} ${escHtml(r.crew.last)}</div>
+        <div style="font-size:.8rem;color:var(--muted)">${boat?escHtml(boat.name):'—'}</div>
+      </div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;color:var(--teal);font-size:1.1rem">${r.count}</div>
     </div>`;
   }).join('');
 }
