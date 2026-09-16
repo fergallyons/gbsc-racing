@@ -944,8 +944,9 @@ async function loadRaceSchedule(){
     return;
   }
   allRaces=rows.map(r=>{
-    const d=new Date(r.race_date+'T00:00:00'); // local midnight, no UTC shift
-    d.setHours(r.start_hour||19, r.start_min||0, 0, 0);
+    // dublinInstant() (defined below) — NOT the viewer's own local time.
+    // See its own comment for the live bug this fixes.
+    const d=dublinInstant(r.race_date, r.start_hour||19, r.start_min||0);
     return {id:r.id, label:r.label, date:d, series:r.series||'',
       protestDeadline: r.protest_deadline?new Date(r.protest_deadline):null,
       automated: !!r.automated, fleetId: r.fleet_id||null, raceDayId: r.race_day_id||null};
@@ -971,21 +972,46 @@ const WED=[
 ];
 const KOTB=["King of the Bay: Spring Cup|May 2, 2026|14,0","King of the Bay: Barna|May 16, 2026","King of the Bay: Ballyvaughan|May 30, 2026","King of the Bay: Aran Cup|Jun 19, 2026","King of the Bay: Kinvara|Aug 15, 2026","King of the Bay: Clarinbridge Cup|Aug 29, 2026","King of the Bay: Morans|Sep 12, 2026","King of the Bay: Oyster Festival|Sep 26, 2026"];
 
+// Real-world instant for a given calendar date + time, always interpreted
+// as Europe/Dublin local time regardless of the viewer's own device
+// timezone — every club currently on this platform is in Ireland, so this
+// one hardcoded timezone is safe. dateStr must be a strict 'YYYY-MM-DD'
+// string (split directly, not routed through `new Date(dateStr)` — that
+// parses an ISO date-only string as UTC midnight, and reading it back with
+// LOCAL-time getters, as raceDate() below does for its own looser input
+// format, flips the calendar date for anyone far enough behind UTC).
+//
+// Getting this wrong is exactly the bug reported live: a colleague on the
+// US Pacific coast saw both a wildly wrong race countdown AND an
+// empty registration list from ONE root cause — race.date was being built
+// at 19:00 in the VIEWER's own local time (loadRaceSchedule() below used to
+// do `new Date(race_date+'T00:00:00'); d.setHours(19,...)`, which sets
+// those hours in whatever timezone the browser is in), not 19:00 Dublin.
+// That's a different real instant than every other client computes for the
+// same race — wrong by itself for the countdown, and since raceKey() reads
+// race.date.toISOString() (the UTC calendar day), often a different
+// CALENDAR DAY too, silently mismatching every device's race_key for the
+// same nominal race and returning zero registrations for that key.
+function dublinInstant(dateStr,hour,min){
+  const [y,mo,day]=dateStr.split('-').map(Number);
+  const pad=n=>String(n).padStart(2,'0');
+  const noonUtc=new Date(`${y}-${pad(mo)}-${pad(day)}T12:00:00Z`);
+  const dublinHour=parseInt(new Intl.DateTimeFormat('en',{timeZone:'Europe/Dublin',hour:'numeric',hour12:false}).format(noonUtc));
+  const offsetMs=(dublinHour-12)*3600000; // e.g. BST=+1h → 3600000
+  return new Date(new Date(`${y}-${pad(mo)}-${pad(day)}T${pad(hour)}:${pad(min)}:00Z`).getTime()-offsetMs);
+}
 function raceDate(dateStr,hour=19,min=0){
-  // Build the date in Europe/Dublin time regardless of where the user's device is.
-  // Strategy: find Dublin's UTC offset at noon on the race date via Intl, then
-  // subtract that offset from the "naive UTC" timestamp to get the correct UTC instant.
+  // dateStr here is a loose, non-ISO format (e.g. "Apr 8 2026") — such
+  // strings parse as LOCAL time (unlike a strict ISO date, which parses as
+  // UTC), so reading the intended calendar date back with local-time
+  // getters is correct regardless of viewer timezone. Normalize to
+  // 'YYYY-MM-DD' and hand off to dublinInstant() for the actual Dublin-
+  // offset math, rather than duplicating it here.
   const tmp=new Date(dateStr);
   const y=tmp.getFullYear();
   const mo=String(tmp.getMonth()+1).padStart(2,'0');
   const day=String(tmp.getDate()).padStart(2,'0');
-  const h=String(hour).padStart(2,'0');
-  const m=String(min).padStart(2,'0');
-  // Ask Intl what hour Dublin shows when it's 12:00 UTC on this date — gives the offset
-  const noonUtc=new Date(`${y}-${mo}-${day}T12:00:00Z`);
-  const dublinHour=parseInt(new Intl.DateTimeFormat('en',{timeZone:'Europe/Dublin',hour:'numeric',hour12:false}).format(noonUtc));
-  const offsetMs=(dublinHour-12)*3600000; // e.g. BST=+1h → 3600000
-  return new Date(new Date(`${y}-${mo}-${day}T${h}:${m}:00Z`).getTime()-offsetMs);
+  return dublinInstant(`${y}-${mo}-${day}`,hour,min);
 }
 function buildAllRaces(){
   allRaces=[];
@@ -14479,11 +14505,14 @@ async function loadProtests(){
 
 // A filed protest's incident_time is a plain "HH:MM" string (the <input
 // type="time"> value at filing, see submitProtest()) paired with race_date
-// (a date-only column) — not a real timestamp. Composed as a LOCAL date/time
-// deliberately, not UTC: both this and the original filing happen in the
-// browser's local time, which for every club here is also where the racing
-// happens, so a straight local-time construction lines up correctly against
-// race_positions.recorded_at (a real timestamptz) without any timezone math.
+// (a date-only column) — not a real timestamp. It's captured correctly at
+// filing (whoever files a protest is physically at the club, so their
+// browser's local time genuinely IS Dublin time) — but resolving it back
+// to a real instant must use dublinInstant(), not another local-time
+// construction: whoever later opens this protest to review the track
+// (viewProtestTrack()) may not be in Ireland at all, and their OWN local
+// time has nothing to do with when the incident actually happened. Same
+// bug, same fix, as loadRaceSchedule()'s race times — see dublinInstant().
 // Returns null (not a guess) when there's nothing usable to parse — redress/
 // scoring-enquiry protests never collect this field at all (see
 // PROTEST_TYPE_META.showWhereWhen), and viewProtestTrack() below treats null
@@ -14492,10 +14521,8 @@ function _parseProtestIncidentMs(p){
   if(!p.race_date||!p.incident_time) return null;
   const m=/^(\d{1,2}):(\d{2})$/.exec(String(p.incident_time).trim());
   if(!m) return null;
-  const d=new Date(p.race_date+'T00:00:00');
-  if(isNaN(d.getTime())) return null;
-  d.setHours(+m[1],+m[2],0,0);
-  return d.getTime();
+  const ms=dublinInstant(p.race_date,+m[1],+m[2]).getTime();
+  return isNaN(ms)?null:ms;
 }
 
 // Jump from a filed protest straight to the Race Tracker replay, seeked to
