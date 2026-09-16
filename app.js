@@ -4516,6 +4516,11 @@ function saveROClubSettings(){
   const newMemberVal  = memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'';
   const newStudentVal = studentVal !==''?studentVal :clubSettings.stripe_link_student||'';
   const newVisitorVal = visitorVal !==''?visitorVal :clubSettings.stripe_link_visitor||'';
+  // Same "blank keeps existing value" rule as the stripe links above — a
+  // blank Revolut field previously overwrote a real saved handle with '',
+  // silently clearing RNLI donation collection until re-entered.
+  const newRoRevolutVal   = roRevolutVal   !==''?roRevolutVal   :clubSettings.ro_revolut_user||'';
+  const newRnliRevolutVal = rnliRevolutVal !==''?rnliRevolutVal :clubSettings.rnli_revolut_user||'';
   if(_currentRoPin){
     // set_ro_payment_settings only grew the p_rnli_revolut_user parameter in
     // migration 061 — a club still on the old 5-arg DB function 404s
@@ -4527,16 +4532,16 @@ function saveROClubSettings(){
       p_stripe_link_member:newMemberVal,
       p_stripe_link_student:newStudentVal,
       p_stripe_link_visitor:newVisitorVal,
-      p_ro_revolut_user:roRevolutVal
+      p_ro_revolut_user:newRoRevolutVal
     };
-    if(SCHEMA_HAS_RNLI) roPayParams.p_rnli_revolut_user=rnliRevolutVal;
+    if(SCHEMA_HAS_RNLI) roPayParams.p_rnli_revolut_user=newRnliRevolutVal;
     sbRpc('set_ro_payment_settings',roPayParams).then(ok=>{
       if(ok!==true){ toast('⚠ Payment settings not saved — try logging in again'); return; }
       clubSettings.stripe_link_member=newMemberVal;
       clubSettings.stripe_link_student=newStudentVal;
       clubSettings.stripe_link_visitor=newVisitorVal;
-      clubSettings.ro_revolut_user=roRevolutVal;
-      if(SCHEMA_HAS_RNLI) clubSettings.rnli_revolut_user=rnliRevolutVal;
+      clubSettings.ro_revolut_user=newRoRevolutVal;
+      if(SCHEMA_HAS_RNLI) clubSettings.rnli_revolut_user=newRnliRevolutVal;
     });
   } else {
     toast('⚠ Payment settings not saved — try logging in again');
