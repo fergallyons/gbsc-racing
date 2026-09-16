@@ -13359,7 +13359,12 @@ async function openStartSeq(){
   if(_startSeqTimer) clearInterval(_startSeqTimer);
   if(_startSeqPollTimer) clearInterval(_startSeqPollTimer);
   _startSeqTimer=setInterval(tickStartSeq,250);
-  _startSeqPollTimer=setInterval(refreshStartSeqData,15000);
+  // 2s, not the old 15s — an RO postpone/recall/abandon is safety-relevant
+  // and every device showing this screen should reflect it almost
+  // immediately, not up to 15s late. Only runs while this overlay is open
+  // (see closeStartSeq()), so the extra request volume is bounded to
+  // however many devices currently have Start Sequence on screen.
+  _startSeqPollTimer=setInterval(refreshStartSeqData,2000);
   tickStartSeq();
 }
 
@@ -14212,6 +14217,10 @@ async function loadProtests(){
 
   _loadedProtests=protests;
   const typeLabel={protest:'🚩 Protest',redress:'⚖ Redress',scoring_enquiry:'📊 Scoring Enquiry'};
+  // Same on/off switch loadRaceTracker()'s own tile uses — no point offering
+  // "View Track" on a club that's never opted into GPS tracking at all.
+  const _ptf=(clubSettings&&clubSettings.features)||{};
+  const trackerFeatureOn=_ptf.raceTracker!==undefined?_ptf.raceTracker:FEAT_DEFAULTS.raceTracker;
   list.innerHTML=protests.map(p=>{
     const type=p.type||'protest';
     const protestor=boats.find(b=>b.id===p.protestor_id);
@@ -14237,6 +14246,9 @@ async function loadProtests(){
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span class="protest-status ${p.status}">${p.status}</span>
+          ${trackerFeatureOn&&(PROTEST_TYPE_META[type]||PROTEST_TYPE_META.protest).showWhereWhen?`<button onclick="viewProtestTrack('${p.id}')" title="View GPS track around the incident"
+            style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);
+            font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">📍</button>`:''}
           <button onclick="printProtest('${p.id}')" title="Print / PDF"
             style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);
             font-size:.8rem;padding:3px 7px;cursor:pointer;line-height:1">🖨</button>
@@ -14302,6 +14314,71 @@ async function loadProtests(){
       </div>
     </div>`;
   }).join('');
+}
+
+// A filed protest's incident_time is a plain "HH:MM" string (the <input
+// type="time"> value at filing, see submitProtest()) paired with race_date
+// (a date-only column) — not a real timestamp. Composed as a LOCAL date/time
+// deliberately, not UTC: both this and the original filing happen in the
+// browser's local time, which for every club here is also where the racing
+// happens, so a straight local-time construction lines up correctly against
+// race_positions.recorded_at (a real timestamptz) without any timezone math.
+// Returns null (not a guess) when there's nothing usable to parse — redress/
+// scoring-enquiry protests never collect this field at all (see
+// PROTEST_TYPE_META.showWhereWhen), and viewProtestTrack() below treats null
+// as "open the full replay, un-seeked" rather than failing outright.
+function _parseProtestIncidentMs(p){
+  if(!p.race_date||!p.incident_time) return null;
+  const m=/^(\d{1,2}):(\d{2})$/.exec(String(p.incident_time).trim());
+  if(!m) return null;
+  const d=new Date(p.race_date+'T00:00:00');
+  if(isNaN(d.getTime())) return null;
+  d.setHours(+m[1],+m[2],0,0);
+  return d.getTime();
+}
+
+// Jump from a filed protest straight to the Race Tracker replay, seeked to
+// the incident time and with the protestor's marker popped open — the RO
+// (or either party, in a hearing) shouldn't have to separately open the
+// tracker, re-pick the race, and manually scrub to roughly the right minute.
+// Matches the protest up to a race by (label, date) rather than an id — this
+// app's protests table has no race_id FK (see schema.sql), just the same
+// race_name/race_date pair raceKey() would derive an id from.
+//
+// selectedRace is a global the app reuses for "whichever race is currently
+// on screen" — loadRaceTracker() and loadReplayData() both read it (falling
+// back to nextRace) rather than taking a race as a parameter. It's swapped
+// to the protest's race only long enough for both of those to do their one-
+// time read, then restored, so this doesn't leave the RO's dashboard/course
+// builder pointed at a different race afterward.
+async function viewProtestTrack(protestId){
+  const p=_loadedProtests.find(x=>String(x.id)===String(protestId));
+  if(!p) return;
+  const race=allRaces.find(r=>r.label===p.race_name&&dayDateStr(r.date)===p.race_date);
+  if(!race){ toast('⚠ Could not find that race to replay — it may be from a previous season'); return; }
+  const prevSelected=selectedRace;
+  selectedRace=race;
+  openPanel('raceTrackerPanel');
+  await loadRaceTracker(); // opens in live mode first, same as every other entry into this panel
+  // Switch into replay ourselves rather than via setTrackerMode('replay') —
+  // that fires loadReplayData() without awaiting it, and this needs to wait
+  // for it to finish (still reading `selectedRace`) before restoring it.
+  _trackerMode='replay';
+  updateTrackerModeButtons();
+  pauseReplay();
+  Object.values(_trackerMarkers).forEach(m=>_trackerMap.removeLayer(m));
+  _trackerMarkers={};
+  clearReplayTrails();
+  if(_trackerPollTimer){ clearInterval(_trackerPollTimer); _trackerPollTimer=null; }
+  await loadReplayData();
+  selectedRace=prevSelected;
+  if(!_replayData){ toast('No tracked positions for that race'); return; }
+  const incidentMs=_parseProtestIncidentMs(p);
+  if(incidentMs!=null) seekReplay(Math.max(0,incidentMs-_replayStart));
+  const marker=_trackerMarkers[p.protestor_id];
+  if(marker) marker.openPopup();
+  const protestorName=(boats.find(b=>b.id===p.protestor_id)||{}).name||'that boat';
+  toast(incidentMs!=null?'📍 '+protestorName+'\'s track, around the reported incident time':'📍 '+protestorName+'\'s track — scrub to the incident manually');
 }
 
 // Statuses that represent the hearing committee having actually decided
