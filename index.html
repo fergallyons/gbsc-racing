@@ -69,14 +69,31 @@
 <div class="overlay" id="racingCancelledOverlay" style="align-items:center;justify-content:center;z-index:400">
   <div style="max-width:340px;width:calc(100% - 40px);background:#fff;border-radius:16px;
     padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.45)">
-    <!-- International Code of Signals "N" flag — 4x4 blue/white check -->
-    <div style="display:inline-grid;grid-template-columns:repeat(4,17px);grid-template-rows:repeat(4,17px);
-      border:2px solid #0f1f3d;margin-bottom:16px;line-height:0">
-      <div style="background:#0055a4"></div><div style="background:#fff"></div><div style="background:#0055a4"></div><div style="background:#fff"></div>
-      <div style="background:#fff"></div><div style="background:#0055a4"></div><div style="background:#fff"></div><div style="background:#0055a4"></div>
-      <div style="background:#0055a4"></div><div style="background:#fff"></div><div style="background:#0055a4"></div><div style="background:#fff"></div>
-      <div style="background:#fff"></div><div style="background:#0055a4"></div><div style="background:#fff"></div><div style="background:#0055a4"></div>
+    <!-- Race signal "N over A" — flag N (postponement/cancellation) flown
+         above flag A (swallowtail, white/blue) means ALL races are
+         abandoned, no more racing today. Flown as a pair, N always above A. -->
+    <div style="margin-bottom:8px">
+      <!-- Flag N — International Code of Signals, 4x4 blue/white check -->
+      <div style="display:inline-grid;grid-template-columns:repeat(4,17px);grid-template-rows:repeat(4,17px);
+        border:2px solid #0f1f3d;line-height:0">
+        <div style="background:#0055a4"></div><div style="background:#fff"></div><div style="background:#0055a4"></div><div style="background:#fff"></div>
+        <div style="background:#fff"></div><div style="background:#0055a4"></div><div style="background:#fff"></div><div style="background:#0055a4"></div>
+        <div style="background:#0055a4"></div><div style="background:#fff"></div><div style="background:#0055a4"></div><div style="background:#fff"></div>
+        <div style="background:#fff"></div><div style="background:#0055a4"></div><div style="background:#fff"></div><div style="background:#0055a4"></div>
+      </div>
+      <!-- Halyard between the two flags -->
+      <div style="width:2px;height:10px;background:#0f1f3d;margin:0 auto"></div>
+      <!-- Flag A — International Code of Signals, white/blue swallowtail -->
+      <svg width="68" height="41" viewBox="0 0 120 72" style="display:block;margin:0 auto">
+        <defs><clipPath id="flagAClip"><polygon points="0,0 120,0 82,36 120,72 0,72"/></clipPath></defs>
+        <g clip-path="url(#flagAClip)">
+          <rect x="0" y="0" width="70" height="72" fill="#fff"/>
+          <rect x="68" y="0" width="52" height="72" fill="#0055a4"/>
+        </g>
+        <polygon points="0,0 120,0 82,36 120,72 0,72" fill="none" stroke="#0f1f3d" stroke-width="4"/>
+      </svg>
     </div>
+    <div style="font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#8a97b3;margin-bottom:18px">N over A — all races abandoned</div>
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;
       letter-spacing:.04em;color:#0f1f3d;text-transform:uppercase;margin-bottom:10px">Racing Cancelled</div>
     <div id="rcNote" style="font-size:.92rem;color:#44506b;line-height:1.5;margin-bottom:22px"></div>
