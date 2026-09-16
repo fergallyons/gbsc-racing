@@ -12532,8 +12532,20 @@ async function fetchLivePortWeather(){
       }catch(e){}
     }
 
+    // wind_speed/wind_gust come off the station in m/s, not knots — confirmed
+    // live 2026-09-16: station read 12.19 (displayed as "12kt" pre-fix) while
+    // the Port of Galway's own site showed 23.7kt for the same instant;
+    // 12.19 * 1.94384 = 23.7 exactly. Every other wind source in this app
+    // (Met Éireann, Open-Meteo, the Geolocation API) already converts to
+    // knots before it reaches renderWeather() — this was the one that
+    // didn't, so the live figure (and the Beaufort description computed
+    // from it, wxBeaufort() explicitly expects knots) both read roughly
+    // half of the real value.
+    const MPS_TO_KT=1.94384;
     const data={
-      speed:latest.wind_speed, gust:latest.wind_gust, dir:latest.wind_direction,
+      speed:latest.wind_speed!=null?latest.wind_speed*MPS_TO_KT:null,
+      gust:latest.wind_gust!=null?latest.wind_gust*MPS_TO_KT:null,
+      dir:latest.wind_direction,
       pressure:latest.air_pressure, temp:latest.air_temperature, humidity:latest.air_humidity,
       time:latest.time, tide,
     };
