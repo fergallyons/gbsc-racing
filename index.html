@@ -1221,8 +1221,28 @@
     <div class="publish-bar">
       <button class="btn btn-ro" style="flex:1;padding:12px" onclick="publishCourse()">🚀 Publish to Skippers</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="saveDraft()" title="Save draft — not visible to skippers">💾 Draft</button>
+      <button class="btn btn-ghost" id="courseTemplatesBtn" style="padding:12px 14px" title="Save/load reusable course templates" onclick="openCourseTemplatesPanel()">📂 Templates</button>
       <button class="btn btn-ghost" style="padding:12px 14px" title="Download GPX" onclick="downloadCourseGpx('builder')">⬇ GPX</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="clearCourse()">Clear</button>
+    </div>
+  </div>
+</div>
+
+<!-- courseTemplatesPanel — save/reload reusable courses (mark-builder / laid-course only) -->
+<div class="panel-overlay" id="courseTemplatesPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('courseTemplatesPanel')">‹</button>
+    <span class="panel-title">📂 Course Templates</span>
+  </div>
+  <div class="panel-body">
+    <div class="login-label" style="margin-bottom:10px">Save the course currently in the builder, or tap a saved one to load it back in</div>
+    <div style="display:flex;gap:8px;margin-bottom:18px">
+      <input type="text" id="courseTemplateNameInput" placeholder="e.g. Wednesday windward-leeward"
+        style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.9rem;padding:9px 10px;box-sizing:border-box">
+      <button class="btn btn-ro" style="padding:9px 14px;white-space:nowrap" onclick="saveCourseAsTemplate()">💾 Save Current</button>
+    </div>
+    <div id="courseTemplatesList">
+      <div class="empty-state"><div class="icon">📂</div><div>Loading…</div></div>
     </div>
   </div>
 </div>

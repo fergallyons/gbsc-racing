@@ -866,9 +866,10 @@ let boats=[], fleets=[], raceAreas=[], currentBoat=null, isRO=false, isGuest=fal
 let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLEET=false,
     SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false,
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
-    SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false;
+    SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
+    SCHEMA_HAS_COURSE_TEMPLATES=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -886,11 +887,16 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_PROTEST_ARCHIVE=names.has('059_protest_archive.sql');
   SCHEMA_HAS_RNLI=names.has('061_rnli_contributions.sql');
   SCHEMA_HAS_RNLI_BASE=names.has('062_rnli_base_amount.sql');
+  SCHEMA_HAS_COURSE_TEMPLATES=names.has('063_course_templates.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
   const rsWrap=document.getElementById('fl-requires-sail-wrap');
   if(rsWrap) rsWrap.style.display=SCHEMA_HAS_SAIL_NUMBER_REQ?'flex':'none';
+  // Same reasoning — no course_templates table means the button has
+  // nothing to do, so hide it rather than let it fail on tap.
+  const ctBtn=document.getElementById('courseTemplatesBtn');
+  if(ctBtn) ctBtn.style.display=SCHEMA_HAS_COURSE_TEMPLATES?'':'none';
 }
 let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
@@ -10431,6 +10437,136 @@ async function loadDraftIfExists(){
     if(bar) bar.style.display='none';
     toast('📋 Active course loaded into builder');
   }
+}
+
+// ── Course Templates ─────────────────────────────────────────────────────
+// A reusable, named course (mark-builder or laid-course only — see
+// 063_course_templates.sql for why course-card mode doesn't need this)
+// that an RO builds once and reloads into the builder for a future race,
+// instead of rebuilding the same "usual Wednesday course" from scratch
+// every week. Deliberately separate from Draft (per-race, tied to one
+// race's row) and from published_courses generally (id there is a routing
+// key, not a name) — see the migration file for the full reasoning.
+let _courseTemplates=[];
+
+async function loadCourseTemplates(){
+  const list=document.getElementById('courseTemplatesList');
+  if(list) list.innerHTML='<div class="empty-state"><div class="icon">📂</div><div>Loading…</div></div>';
+  const rows=await sbFetch('/rest/v1/course_templates?select=*&order=name.asc');
+  _courseTemplates=Array.isArray(rows)?rows.map(row=>{
+    let marks=row.marks||[];
+    if(typeof marks==='string'){try{marks=JSON.parse(marks);}catch(e){marks=[];}}
+    return{...row,marks};
+  }):[];
+  renderCourseTemplatesList();
+}
+
+function openCourseTemplatesPanel(){
+  openPanel('courseTemplatesPanel');
+  loadCourseTemplates();
+}
+
+function renderCourseTemplatesList(){
+  const list=document.getElementById('courseTemplatesList');
+  if(!list) return;
+  if(!_courseTemplates.length){
+    list.innerHTML='<div class="empty-state"><div class="icon">📂</div><div>No saved templates yet</div></div>';
+    return;
+  }
+  list.innerHTML=_courseTemplates.map(t=>{
+    const summary=t.course_type
+      ?(LAID_COURSE_LABELS[t.course_type]||t.course_type)+' × '+(t.laps||1)
+      :t.marks.map(x=>{const m=MARKS.find(mk=>mk.id===x.id);return m?m.name:x.id;}).join(' – ')||'No marks';
+    return `<div style="background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;
+      padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="loadCourseTemplateIntoBuilder(${t.id})">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.02rem;font-weight:800;color:var(--white)">${escHtml(t.name)}</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(summary)}</div>
+      </div>
+      <button class="btn btn-ghost" style="padding:8px 12px;flex-shrink:0" onclick="loadCourseTemplateIntoBuilder(${t.id})">Load</button>
+      <button onclick="deleteCourseTemplate(${t.id})" title="Delete template" style="font-size:.85rem;font-family:'Barlow Condensed',sans-serif;font-weight:700;padding:8px 10px;flex-shrink:0;border-radius:6px;border:1px solid rgba(230,57,70,.4);background:transparent;color:#e63946;cursor:pointer">🗑</button>
+    </div>`;
+  }).join('');
+}
+
+function _buildCourseTemplatePayload(name){
+  const notes=(document.getElementById('courseNotes')||{}).value||'';
+  if(_laidCourseMode){
+    return{
+      name,
+      marks:[],
+      course_type:_laidCourseType,
+      laps:_laidCourseLaps,
+      start_line_id:selectedStartLineId||null,
+      finish_line_id:selectedFinishLineId||null,
+      notes:notes.trim()
+    };
+  }
+  return{
+    name,
+    marks:courseMarks,
+    course_type:null,
+    laps:null,
+    start_line_id:selectedStartLineId||null,
+    finish_line_id:selectedFinishLineId||null,
+    notes:notes.trim()
+  };
+}
+
+async function saveCourseAsTemplate(){
+  const input=document.getElementById('courseTemplateNameInput');
+  const name=(input&&input.value||'').trim();
+  if(!name){toast('Name this course first');return;}
+  if(_laidCourseMode){
+    if(!_laidCourseType){toast('Pick a course shape first');return;}
+  } else if(!courseMarks.length){toast('Add at least one mark first');return;}
+  const r=await sbFetch('/rest/v1/course_templates',{
+    method:'POST',
+    headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify(_buildCourseTemplatePayload(name))
+  });
+  if(!r||r._err){toast('⚠ Could not save template');return;}
+  if(input) input.value='';
+  toast('💾 Saved "'+name+'" as a template');
+  loadCourseTemplates();
+}
+
+function loadCourseTemplateIntoBuilder(id){
+  const t=_courseTemplates.find(x=>x.id===id);
+  if(!t) return;
+  if(t.course_type){
+    setCourseMode('laid');
+    setLaidCourseType(t.course_type);
+    _laidCourseLaps=t.laps||1;
+    const lapsInput=document.getElementById('laidLaps');
+    if(lapsInput) lapsInput.value=_laidCourseLaps;
+  } else {
+    setCourseMode('marks');
+    courseMarks=t.marks.map(m=>({...m}));
+    document.querySelectorAll('.mark-toggle').forEach(el=>el.classList.remove('selected'));
+    courseMarks.forEach(entry=>{
+      const btn=document.getElementById('mt-'+entry.id);
+      if(btn) btn.classList.add('selected');
+    });
+    renderSelectedOrder();
+  }
+  if(t.start_line_id) selectedStartLineId=t.start_line_id;
+  if(t.finish_line_id) selectedFinishLineId=t.finish_line_id;
+  populateLineSelects();
+  const notesEl=document.getElementById('courseNotes');
+  if(notesEl) notesEl.value=t.notes||'';
+  renderRoCoursePreview();
+  closePanel('courseTemplatesPanel');
+  toast('📂 Loaded "'+t.name+'" — remember to Publish or Save Draft');
+}
+
+async function deleteCourseTemplate(id){
+  const t=_courseTemplates.find(x=>x.id===id);
+  if(!t||!confirm('Delete template "'+t.name+'"?')) return;
+  const r=await sbFetch('/rest/v1/course_templates?id=eq.'+id,{method:'DELETE',headers:{...SBH,'Prefer':'return=minimal'}});
+  if(!r||r._err){toast('⚠ Could not delete template');return;}
+  toast('🗑 Deleted "'+t.name+'"');
+  loadCourseTemplates();
 }
 
 async function publishCourse(){
