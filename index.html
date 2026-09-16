@@ -62,6 +62,26 @@
 <script>setTimeout(function(){typeof liftVeil==='function'&&liftVeil();},3000);</script>
 
 <!-- ═══════════════════════════════════════════════════════════
+     RACING CANCELLED — RO-toggled, shown to every role on load
+     while clubSettings.racing_cancelled is true (see
+     loadRacingCancelledStatus() / toggleRacingCancelled() in app.js)
+════════════════════════════════════════════════════════════ -->
+<div class="overlay" id="racingCancelledOverlay" style="align-items:center;justify-content:center;z-index:400">
+  <div style="max-width:340px;width:calc(100% - 40px);background:#fff;border-radius:16px;
+    padding:0 24px 28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.45);overflow:hidden">
+    <div style="height:16px;margin:0 -24px 22px;
+      background-image:linear-gradient(45deg,#0f1f3d 25%,transparent 25%,transparent 75%,#0f1f3d 75%),
+        linear-gradient(45deg,#0f1f3d 25%,transparent 25%,transparent 75%,#0f1f3d 75%);
+      background-size:16px 16px;background-position:0 0,8px 8px;background-color:#fff"></div>
+    <div style="font-size:2.6rem;line-height:1;margin-bottom:10px">🏁</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:800;
+      letter-spacing:.04em;color:#0f1f3d;text-transform:uppercase;margin-bottom:10px">Racing Cancelled</div>
+    <div id="rcNote" style="font-size:.92rem;color:#44506b;line-height:1.5;margin-bottom:22px"></div>
+    <button class="btn btn-primary" style="width:100%;padding:12px" onclick="closeSheet('racingCancelledOverlay')">OK, got it</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
      LOGIN SHEET (slides up from bottom on Login tap)
 ════════════════════════════════════════════════════════════ -->
 <div class="overlay" id="loginSheet">
@@ -971,6 +991,11 @@
       <div class="dash-card-icon">🏁</div>
       <div class="dash-card-label">Finish Line</div>
       <div class="dash-card-sub" id="finishRecordStatus">No finishes recorded</div>
+    </div>
+    <div id="tile-ro-racingCancelled" class="dash-card ro-card" onclick="toggleRacingCancelled()" style="display:none">
+      <div class="dash-card-icon">🏁</div>
+      <div class="dash-card-label" id="rc-tile-label">Cancel Racing</div>
+      <div class="dash-card-sub" id="rc-tile-sub">Notify everyone racing is off</div>
     </div>
     <div id="tile-ro-halsail" class="dash-card ro-card" onclick="openHalsail()">
       <div class="dash-card-icon">🏁</div>

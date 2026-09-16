@@ -870,9 +870,10 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_RACE_DAYS=false, SCHEMA_HAS_RACE_AREAS=false, SCHEMA_HAS_SAIL_NUMBER_REQ=false,
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
-    SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false;
+    SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false,
+    SCHEMA_HAS_RACING_CANCELLED=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -892,6 +893,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_RNLI_BASE=names.has('062_rnli_base_amount.sql');
   SCHEMA_HAS_COURSE_TEMPLATES=names.has('063_course_templates.sql');
   SCHEMA_HAS_POSITION_ACCURACY=names.has('064_position_accuracy.sql');
+  SCHEMA_HAS_RACING_CANCELLED=names.has('065_racing_cancelled.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -4148,6 +4150,63 @@ async function loadRnliBaseAmount(){
   const r=await sbFetch('/rest/v1/settings?id=eq.club&select=rnli_base_amount');
   if(Array.isArray(r)&&r[0]) clubSettings.rnli_base_amount=r[0].rnli_base_amount||0;
 }
+
+// ── Racing Cancelled overlay (RO toggle) ─────────────────────────────────
+// Same isolated-request treatment as the RNLI loaders above, own migration
+// (065) + own flag — folding racing_cancelled into SETTINGS_SELECT/
+// fullSelect would 400 the WHOLE settings load for any club that hasn't
+// applied it yet. Safe to call unconditionally: no-ops until
+// SCHEMA_HAS_RACING_CANCELLED is true.
+async function loadRacingCancelledStatus(){
+  if(!SCHEMA_HAS_RACING_CANCELLED) return;
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=racing_cancelled,racing_cancelled_note');
+  if(!Array.isArray(r)||!r[0]) return;
+  clubSettings.racing_cancelled=!!r[0].racing_cancelled;
+  clubSettings.racing_cancelled_note=r[0].racing_cancelled_note||'';
+  updateRacingCancelledTile();
+  // Shown once per fresh app load/reload while the flag is on — the point
+  // is that anyone opening the app finds out before turning up at the
+  // club, not that it nags on every panel navigation within one session.
+  if(clubSettings.racing_cancelled) showRacingCancelledOverlay();
+}
+function showRacingCancelledOverlay(){
+  const overlay=document.getElementById('racingCancelledOverlay');
+  if(!overlay) return;
+  const noteEl=document.getElementById('rcNote');
+  if(noteEl) noteEl.textContent=clubSettings.racing_cancelled_note||'';
+  overlay.classList.add('open');
+}
+// RO-only quick toggle — a dash-card tile the RO taps straight from the
+// dashboard rather than a separate settings screen, since the whole point
+// is speed (a last-minute weather call, not something planned ahead of
+// time). The optional reason is asked via a plain prompt() rather than a
+// new form panel for the same reason — deliberately the fastest path, not
+// this app's usual form-panel convention.
+async function toggleRacingCancelled(){
+  const turningOn=!clubSettings.racing_cancelled;
+  let note=clubSettings.racing_cancelled_note||'';
+  if(turningOn){
+    note=(prompt('Reason (optional, shown to everyone):',note)||'').trim();
+  } else if(!confirm('Resume racing? This removes the cancelled notice for everyone.')){
+    return;
+  }
+  await saveClubSettingsFields({racing_cancelled:turningOn, racing_cancelled_note:turningOn?note:''});
+  updateRacingCancelledTile();
+  toast(turningOn?'🏁 Racing marked cancelled':'✅ Racing resumed');
+}
+function updateRacingCancelledTile(){
+  const tile=document.getElementById('tile-ro-racingCancelled');
+  if(!tile) return;
+  tile.style.display=SCHEMA_HAS_RACING_CANCELLED?'':'none';
+  const on=!!clubSettings.racing_cancelled;
+  const label=document.getElementById('rc-tile-label');
+  const sub=document.getElementById('rc-tile-sub');
+  if(label) label.textContent=on?'Racing Cancelled':'Cancel Racing';
+  if(sub) sub.textContent=on?'Tap to resume racing':'Notify everyone racing is off';
+  tile.style.background=on?'rgba(230,57,70,.12)':'';
+  tile.style.borderColor=on?'rgba(230,57,70,.4)':'';
+}
+
 async function saveBoatSettings(revolut_user,whatsapp,bowOffsetM){
   // revolut_user is gated by the pin verified at login (migration 040) —
   // payment-redirect field, not a plain anon-writable column anymore.
@@ -15336,6 +15395,10 @@ const _schemaCapabilitiesReady=checkSchemaCapabilities();
 // callees no-op while either is still off, so safe to fire unconditionally.
 Promise.all([_schemaCapabilitiesReady,_settingsReady]).then(()=>{
   Promise.all([loadRnliRevolutUser(),loadRnliBaseAmount()]).then(rnliRefreshTotals);
+  // Same "fire once both are ready, no-ops until its own migration is in"
+  // shape as the RNLI pair above — shows the full-screen notice on this
+  // fresh load if the RO left racing marked cancelled.
+  loadRacingCancelledStatus();
 });
 // Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
 loadRaceSchedule().then(async()=>{
