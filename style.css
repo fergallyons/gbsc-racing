@@ -757,3 +757,22 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 #trackerMap .leaflet-popup-tip{background:var(--navy-mid);}
 #trackerMap .leaflet-popup-close-button{color:var(--muted) !important;}
 #trackerMap .leaflet-popup-close-button:hover{color:var(--white) !important;}
+
+/* Rendered markdown (Boat Info, 066_boat_info.sql) — marked.js emits plain
+   h1-h6/p/ul/li/a with no classes or inline styles, so left alone it'd
+   render in the browser's unstyled defaults (blue links, cramped list
+   markers) against this app's dark chrome. Text colour itself is fine
+   without any of this — #boatInfoPreview already sets color:var(--fg) and
+   every child inherits it — this is just making headings/links/lists read
+   as native to the rest of the app instead of a dropped-in browser default. */
+#boatInfoPreview h1,#boatInfoPreview h2,#boatInfoPreview h3{
+  font-family:'Barlow Condensed',sans-serif;font-weight:800;color:var(--white);
+  margin:16px 0 8px;line-height:1.2;}
+#boatInfoPreview h1:first-child,#boatInfoPreview h2:first-child,#boatInfoPreview h3:first-child{margin-top:0;}
+#boatInfoPreview p{margin:0 0 10px;}
+#boatInfoPreview ul,#boatInfoPreview ol{margin:0 0 10px;padding-left:22px;}
+#boatInfoPreview li{margin-bottom:4px;}
+#boatInfoPreview a{color:var(--teal);}
+#boatInfoPreview strong{color:var(--white);}
+#boatInfoPreview code{background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;font-size:.9em;}
+#boatInfoPreview hr{border:none;border-top:1px solid var(--border);margin:14px 0;}

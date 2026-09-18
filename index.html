@@ -416,6 +416,11 @@
       <div class="dash-card-label">Turnout</div>
       <div class="dash-card-sub">Season attendance leaderboard</div>
     </div>
+    <div id="tile-sk-boatInfo" class="dash-card" onclick="openBoatInfoPanel()" style="display:none">
+      <div class="dash-card-icon">📖</div>
+      <div class="dash-card-label">Boat Info</div>
+      <div class="dash-card-sub">Safety gear, house rules &amp; more</div>
+    </div>
   </div>
 
   <!-- ── Advanced ── -->
@@ -735,6 +740,33 @@
     <div class="empty-state"><div class="icon">🛥️</div><div>Loading…</div></div>
   </div>
 </div><!-- /boatProfilePanel -->
+
+<!-- ═══ PANEL: BOAT INFO — skipper edit + public read-only (066_boat_info.sql) ═══
+     Two modes, one panel: opened via openBoatInfoPanel() (skipper, edit) or
+     openBoatInfoReadOnly() (public, from the boat summary sheet) — the
+     latter hides boatInfoEditRow/boatInfoText/boatInfoSaveBar and shows
+     only the rendered preview. closeBoatInfoPanel() always restores the
+     edit controls so the panel isn't stuck read-only next time. -->
+<div class="panel-overlay" id="boatInfoPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closeBoatInfoPanel()">‹</button>
+    <span class="panel-title">📖 Boat Info</span>
+  </div>
+  <div class="panel-body">
+    <div id="boatInfoEditRow" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 12px;background:var(--navy);border:1px solid var(--border);border-radius:10px">
+      <input type="checkbox" id="boatInfoPublicToggle" onchange="toggleBoatInfoPublicPreview(this.checked)"
+        style="width:20px;height:20px;accent-color:#00aeef;cursor:pointer;flex-shrink:0">
+      <span id="boatInfoPublicLabel" style="font-size:.85rem;color:var(--white)">Skipper only — needs the boat PIN</span>
+    </div>
+    <textarea id="boatInfoText" rows="14" placeholder="e.g.&#10;&#10;## Safety Gear&#10;Lifejackets under the aft berth. Flares in the nav table.&#10;&#10;## Engine Start&#10;Fuel valve ON before starting — see checklist on the bulkhead.&#10;&#10;## WiFi&#10;Network: OutOfTheBlue · Password: on the fridge"
+      style="width:100%;background:var(--navy);border:1px solid var(--border);border-radius:10px;color:var(--white);font-family:'Barlow',monospace;font-size:.88rem;padding:12px;outline:none;box-sizing:border-box;resize:vertical;line-height:1.5;margin-bottom:12px"></textarea>
+    <div id="boatInfoSaveBar" style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-ghost" style="flex:1;padding:11px" onclick="previewBoatInfo()">👁 Preview</button>
+      <button class="btn btn-primary" style="flex:1;padding:11px" onclick="saveBoatInfo()">💾 Save</button>
+    </div>
+    <div id="boatInfoPreview" style="display:none;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:16px;color:var(--fg);font-size:.9rem;line-height:1.6"></div>
+  </div>
+</div><!-- /boatInfoPanel -->
 
 <!-- ═══ TAB: REGISTERED BOATS (Guest Dashboard) ═══ -->
 <div class="tab-wrap" id="registeredTab">

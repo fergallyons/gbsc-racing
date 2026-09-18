@@ -871,9 +871,9 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
     SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false,
-    SCHEMA_HAS_RACING_CANCELLED=false;
+    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -894,6 +894,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_COURSE_TEMPLATES=names.has('063_course_templates.sql');
   SCHEMA_HAS_POSITION_ACCURACY=names.has('064_position_accuracy.sql');
   SCHEMA_HAS_RACING_CANCELLED=names.has('065_racing_cancelled.sql');
+  SCHEMA_HAS_BOAT_INFO=names.has('066_boat_info.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -903,6 +904,8 @@ async function checkSchemaCapabilities(){
   // nothing to do, so hide it rather than let it fail on tap.
   const ctBtn=document.getElementById('courseTemplatesBtn');
   if(ctBtn) ctBtn.style.display=SCHEMA_HAS_COURSE_TEMPLATES?'':'none';
+  const biTile=document.getElementById('tile-sk-boatInfo');
+  if(biTile) biTile.style.display=SCHEMA_HAS_BOAT_INFO?'':'none';
 }
 let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
@@ -1802,6 +1805,47 @@ function ensureQrLib(){
   });
   return _qrLibLoading;
 }
+
+// Boat Info (066_boat_info.sql) renders skipper-authored markdown — needs
+// an actual markdown parser, unlike anything else in this app. Same lazy
+// CDN-load pattern as ensureQrLib() above, just two scripts: marked (parses
+// markdown to HTML) and DOMPurify (strips anything script-like out of that
+// HTML before it's ever handed to innerHTML). This content is shown to
+// other people (a boat's crew), not just re-displayed to whoever wrote it,
+// so it gets that sanitising pass even though a skipper is a trusted-ish
+// author — cheap insurance, not paranoia.
+let _mdLibLoading=null;
+function ensureMarkdownLibs(){
+  if(window.marked&&window.DOMPurify) return Promise.resolve();
+  if(_mdLibLoading) return _mdLibLoading;
+  const load=(src)=>new Promise((resolve,reject)=>{
+    const script=document.createElement('script');
+    script.src=src;
+    script.onload=()=>resolve();
+    script.onerror=()=>reject(new Error('Library failed to load: '+src));
+    document.head.appendChild(script);
+  });
+  _mdLibLoading=Promise.all([
+    window.marked?Promise.resolve():load('https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js'),
+    window.DOMPurify?Promise.resolve():load('https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js'),
+  ]);
+  return _mdLibLoading;
+}
+// marked's callable form (marked(text)) was removed in v5 — calling
+// through .parse works on every version, pinned or not.
+async function renderMarkdownSafe(mdText){
+  if(!mdText||!mdText.trim()) return '';
+  try{
+    await ensureMarkdownLibs();
+    const raw=(window.marked.parse||window.marked)(mdText);
+    return window.DOMPurify?window.DOMPurify.sanitize(raw):raw;
+  }catch(e){
+    // Libraries failed to load (offline, CDN blocked) — plain escaped text
+    // beats either a blank panel or, worse, unsanitised raw markdown.
+    return '<pre style="white-space:pre-wrap;font-family:inherit">'+escHtml(mdText)+'</pre>';
+  }
+}
+
 async function renderAgentQr(text){
   const el=document.getElementById('agentQr');
   if(!el) return;
@@ -2805,17 +2849,24 @@ async function renderRegisteredTab(){
 // panel uses, so this is normally near-instant after the first fetch of
 // the day.
 let _boatSummaryId=null;
+let _boatSummaryInfoMd=''; // stashed by renderBoatSummaryBody(), read by openBoatInfoReadOnly() — see there
 function openBoatSummary(id){
   const b=boats.find(x=>x.id===id); if(!b) return;
   _boatSummaryId=id;
   const body=document.getElementById('boatSummaryBody');
   if(body) body.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading…</div></div>';
   document.getElementById('boatSummarySheet').classList.add('open');
-  _fetchBoatRatingData()
-    .then(({national,halEcho})=>renderBoatSummaryBody(b,national,halEcho))
-    .catch(()=>renderBoatSummaryBody(b,[],{current:{},next:{}})); // ratings are a bonus here, not essential — still show name/photo/sail no. on failure
+  // Boat Info is its own isolated fetch (see openBoatInfoPanel()'s comment
+  // for why) — a plain no() resolve when the schema isn't there yet, so
+  // this summary sheet degrades to exactly its pre-066 shape rather than
+  // failing the whole thing.
+  const infoPromise=SCHEMA_HAS_BOAT_INFO
+    ?sbFetch('/rest/v1/boats?id=eq.'+id+'&select=info_md,info_public').then(r=>(Array.isArray(r)&&r[0])?r[0]:null)
+    :Promise.resolve(null);
+  Promise.all([_fetchBoatRatingData().catch(()=>({national:[],halEcho:{current:{},next:{}}})),infoPromise])
+    .then(([{national,halEcho},boatInfo])=>renderBoatSummaryBody(b,national,halEcho,boatInfo));
 }
-function renderBoatSummaryBody(b,nationalBoats,halEcho){
+function renderBoatSummaryBody(b,nationalBoats,halEcho,boatInfo){
   const body=document.getElementById('boatSummaryBody');
   if(!body) return;
   const byNorm={};
@@ -2849,7 +2900,17 @@ function renderBoatSummaryBody(b,nationalBoats,halEcho){
         +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:1.6rem;font-weight:800;color:'+(nextEcho!=null?'var(--success)':'var(--muted)')+'">'+(nextEcho!=null?nextEcho:'—')+'</div>'
         +'<div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-top:2px">Next ECHO</div>'
       +'</div>'
-    +'</div>';
+    +'</div>'
+    // Only when THIS boat's skipper has explicitly opted in (info_public) —
+    // see openBoatInfoPanel()'s comment. A visitor here has no boat PIN at
+    // all, so this is the one and only gate.
+    +(boatInfo&&boatInfo.info_public&&(boatInfo.info_md||'').trim()
+      ?'<button class="btn btn-ghost" style="width:100%;padding:11px;margin-top:12px" onclick="openBoatInfoReadOnly()">📖 Boat Info</button>'
+      :'');
+  // Stashed here, not passed through the onclick HTML string above — the
+  // markdown text can contain quote characters that would otherwise break
+  // out of that attribute. openBoatInfoReadOnly() reads it back from here.
+  _boatSummaryInfoMd=(boatInfo&&boatInfo.info_public)?(boatInfo.info_md||''):'';
 }
 function loginFromBoatSummary(){
   if(_boatSummaryId) loginAs(_boatSummaryId);
@@ -9080,6 +9141,93 @@ async function loadBoatSummaryStrip(){
   }catch(e){
     // Silent — passive dashboard card, not worth an error toast on every load
   }
+}
+
+// ── Boat Info (066_boat_info.sql) ────────────────────────────────────────
+// A free-text markdown repository, per boat, for whatever a skipper wants
+// their crew to have on hand — safety gear locations, engine start
+// procedure, WiFi code, house rules. Fetched/saved via its own isolated
+// request rather than folded into BOATS_SELECT — an unknown column there
+// 400s the WHOLE boat roster for every club that hasn't applied 066 yet
+// (same reasoning as every other SCHEMA_HAS_* isolated fetch in this app —
+// see loadRnliRevolutUser()'s comment for the actual incident that taught
+// this lesson, confirmed live 2026-09-02).
+//
+// info_public controls whether openBoatSummary() below (the existing
+// no-PIN, tap-a-boat-from-Starting-Line flow) also shows this — off by
+// default, so a skipper opts IN to sharing rather than crew content
+// appearing publicly by surprise. Same caveat as every PIN in this app:
+// a UI-level gate, not a real security boundary (see 066_boat_info.sql).
+let _boatInfoPublic=false;
+async function openBoatInfoPanel(){
+  if(!currentBoat) return;
+  openPanel('boatInfoPanel');
+  const textarea=document.getElementById('boatInfoText');
+  const toggle=document.getElementById('boatInfoPublicToggle');
+  const preview=document.getElementById('boatInfoPreview');
+  if(textarea) textarea.value='Loading…';
+  if(preview){ preview.style.display='none'; preview.innerHTML=''; }
+  const r=await sbFetch('/rest/v1/boats?id=eq.'+currentBoat.id+'&select=info_md,info_public');
+  const row=(Array.isArray(r)&&r[0])?r[0]:{info_md:'',info_public:false};
+  _boatInfoPublic=!!row.info_public;
+  if(textarea) textarea.value=row.info_md||'';
+  if(toggle) toggle.checked=_boatInfoPublic;
+  updateBoatInfoPublicLabel();
+}
+function updateBoatInfoPublicLabel(){
+  const label=document.getElementById('boatInfoPublicLabel');
+  if(label) label.textContent=_boatInfoPublic
+    ?'Visible to crew — no PIN needed'
+    :'Skipper only — needs the boat PIN';
+}
+// Local-only until Save is tapped — matches every other edit form in this
+// app (change fields freely, nothing writes to the DB until Save).
+function toggleBoatInfoPublicPreview(checked){
+  _boatInfoPublic=!!checked;
+  updateBoatInfoPublicLabel();
+}
+async function previewBoatInfo(){
+  const textarea=document.getElementById('boatInfoText');
+  const preview=document.getElementById('boatInfoPreview');
+  if(!textarea||!preview) return;
+  preview.style.display='block';
+  preview.innerHTML='<div style="color:var(--muted);font-size:.85rem">Rendering…</div>';
+  const html=await renderMarkdownSafe(textarea.value);
+  preview.innerHTML=html||'<div style="color:var(--muted);font-size:.85rem">Nothing to preview yet</div>';
+}
+async function saveBoatInfo(){
+  if(!currentBoat) return;
+  const textarea=document.getElementById('boatInfoText');
+  const md=(textarea&&textarea.value)||'';
+  const r=await sbSaveBoatConfig(currentBoat.id,{info_md:md, info_public:_boatInfoPublic});
+  if(!r||r._err){toast('⚠ Could not save Boat Info');return;}
+  toast('📖 Boat Info saved');
+}
+// Read-only view for anyone WITHOUT the boat's PIN — reached only from
+// openBoatSummary() below, and only when that boat's own info_public is
+// on. Reuses boatInfoPanel but hides every edit control, since a public
+// viewer (no login at all) has no business editing it.
+async function openBoatInfoReadOnly(){
+  openPanel('boatInfoPanel');
+  ['boatInfoEditRow','boatInfoText','boatInfoSaveBar'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display='none';
+  });
+  const preview=document.getElementById('boatInfoPreview');
+  if(preview){
+    preview.style.display='block';
+    preview.innerHTML='<div style="color:var(--muted);font-size:.85rem">Loading…</div>';
+    preview.innerHTML=await renderMarkdownSafe(_boatSummaryInfoMd);
+  }
+}
+// closePanel('boatInfoPanel') doesn't know which mode it was opened in —
+// restore the edit controls every time, so the NEXT open (e.g. the
+// skipper's own, right after browsing a public boat's info) isn't stuck
+// read-only from the last visit.
+function closeBoatInfoPanel(){
+  closePanel('boatInfoPanel');
+  ['boatInfoEditRow','boatInfoText','boatInfoSaveBar'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.style.display='';
+  });
 }
 
 async function loadBoatProfile(){
