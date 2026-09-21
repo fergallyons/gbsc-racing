@@ -9146,88 +9146,110 @@ async function loadBoatSummaryStrip(){
 // ── Boat Info (066_boat_info.sql) ────────────────────────────────────────
 // A free-text markdown repository, per boat, for whatever a skipper wants
 // their crew to have on hand — safety gear locations, engine start
-// procedure, WiFi code, house rules. Fetched/saved via its own isolated
-// request rather than folded into BOATS_SELECT — an unknown column there
-// 400s the WHOLE boat roster for every club that hasn't applied 066 yet
-// (same reasoning as every other SCHEMA_HAS_* isolated fetch in this app —
-// see loadRnliRevolutUser()'s comment for the actual incident that taught
-// this lesson, confirmed live 2026-09-02).
+// procedure, WiFi code, house rules. Deliberately no in-app authoring: the
+// skipper writes the .md file in their own editor (as most already do —
+// see e.g. a real boat's knowledge-base file used to test this) and
+// uploads it here; the app just reads that file's text client-side
+// (file.text(), no storage bucket needed) and stores it as-is. Re-uploading
+// replaces the stored content outright — there's no version history.
+//
+// Fetched/saved via its own isolated request rather than folded into
+// BOATS_SELECT — an unknown column there 400s the WHOLE boat roster for
+// every club that hasn't applied 066 yet (same reasoning as every other
+// SCHEMA_HAS_* isolated fetch in this app — see loadRnliRevolutUser()'s
+// comment for the actual incident that taught this lesson, confirmed live
+// 2026-09-02).
 //
 // info_public controls whether openBoatSummary() below (the existing
 // no-PIN, tap-a-boat-from-Starting-Line flow) also shows this — off by
 // default, so a skipper opts IN to sharing rather than crew content
-// appearing publicly by surprise. Same caveat as every PIN in this app:
+// appearing publicly by surprise, and saves immediately on toggle (matches
+// every other on/off switch in this app — e.g. saveFeatureSetting() — none
+// of them wait for a separate Save step). Same caveat as every PIN here:
 // a UI-level gate, not a real security boundary (see 066_boat_info.sql).
-let _boatInfoPublic=false;
+const BOAT_INFO_MAX_BYTES=500*1024; // generous for text — catches an accidental wrong-file pick, not a real limit
 async function openBoatInfoPanel(){
   if(!currentBoat) return;
   openPanel('boatInfoPanel');
-  const textarea=document.getElementById('boatInfoText');
   const toggle=document.getElementById('boatInfoPublicToggle');
   const preview=document.getElementById('boatInfoPreview');
-  if(textarea) textarea.value='Loading…';
-  if(preview){ preview.style.display='none'; preview.innerHTML=''; }
+  if(preview) preview.innerHTML='<div style="color:var(--muted);font-size:.85rem">Loading…</div>';
   const r=await sbFetch('/rest/v1/boats?id=eq.'+currentBoat.id+'&select=info_md,info_public');
   const row=(Array.isArray(r)&&r[0])?r[0]:{info_md:'',info_public:false};
-  _boatInfoPublic=!!row.info_public;
-  if(textarea) textarea.value=row.info_md||'';
-  if(toggle) toggle.checked=_boatInfoPublic;
-  updateBoatInfoPublicLabel();
+  if(toggle) toggle.checked=!!row.info_public;
+  updateBoatInfoPublicLabel(!!row.info_public);
+  await renderBoatInfoPreview(row.info_md||'',true);
 }
-function updateBoatInfoPublicLabel(){
+function updateBoatInfoPublicLabel(on){
   const label=document.getElementById('boatInfoPublicLabel');
-  if(label) label.textContent=_boatInfoPublic
+  if(label) label.textContent=on
     ?'Visible to crew — no PIN needed'
     :'Skipper only — needs the boat PIN';
 }
-// Local-only until Save is tapped — matches every other edit form in this
-// app (change fields freely, nothing writes to the DB until Save).
-function toggleBoatInfoPublicPreview(checked){
-  _boatInfoPublic=!!checked;
-  updateBoatInfoPublicLabel();
-}
-async function previewBoatInfo(){
-  const textarea=document.getElementById('boatInfoText');
-  const preview=document.getElementById('boatInfoPreview');
-  if(!textarea||!preview) return;
-  preview.style.display='block';
-  preview.innerHTML='<div style="color:var(--muted);font-size:.85rem">Rendering…</div>';
-  const html=await renderMarkdownSafe(textarea.value);
-  preview.innerHTML=html||'<div style="color:var(--muted);font-size:.85rem">Nothing to preview yet</div>';
-}
-async function saveBoatInfo(){
+async function saveBoatInfoPublicToggle(checked){
   if(!currentBoat) return;
-  const textarea=document.getElementById('boatInfoText');
-  const md=(textarea&&textarea.value)||'';
-  const r=await sbSaveBoatConfig(currentBoat.id,{info_md:md, info_public:_boatInfoPublic});
-  if(!r||r._err){toast('⚠ Could not save Boat Info');return;}
-  toast('📖 Boat Info saved');
+  updateBoatInfoPublicLabel(checked); // optimistic — matches saveFeatureSetting()'s own pattern elsewhere
+  const r=await sbSaveBoatConfig(currentBoat.id,{info_public:checked});
+  if(!r||r._err){
+    toast('⚠ Could not save — check connection');
+    const toggle=document.getElementById('boatInfoPublicToggle');
+    if(toggle) toggle.checked=!checked;
+    updateBoatInfoPublicLabel(!checked);
+  }
+}
+// Rendered for the skipper's own edit view AND the read-only public view
+// (openBoatInfoReadOnly() below) — same content, same styling either way.
+// isEditView adds the "no file yet" empty state's upload hint, which makes
+// no sense to a public viewer who can't upload anything.
+async function renderBoatInfoPreview(md,isEditView){
+  const preview=document.getElementById('boatInfoPreview');
+  if(!preview) return;
+  if(!md||!md.trim()){
+    preview.innerHTML='<div style="text-align:center;padding:24px 12px;color:var(--muted)">'
+      +'<div style="font-size:1.8rem;margin-bottom:8px">📄</div>'
+      +'<div>No Boat Info uploaded yet</div>'
+      +(isEditView?'<div style="font-size:.85rem;margin-top:4px">Tap Upload above to add your .md file</div>':'')
+      +'</div>';
+    return;
+  }
+  preview.innerHTML=await renderMarkdownSafe(md);
+}
+async function onBoatInfoFileSelected(input){
+  const file=input.files&&input.files[0];
+  if(!file||!currentBoat) return;
+  if(file.size>BOAT_INFO_MAX_BYTES){ toast('⚠ File too large — that doesn\'t look like a plain markdown file'); input.value=''; return; }
+  try{
+    const text=await file.text();
+    const preview=document.getElementById('boatInfoPreview');
+    if(preview) preview.innerHTML='<div style="color:var(--muted);font-size:.85rem">Uploading…</div>';
+    const r=await sbSaveBoatConfig(currentBoat.id,{info_md:text});
+    if(!r||r._err){ toast('⚠ Could not save — check connection'); await renderBoatInfoPreview('',true); return; }
+    toast('📖 Boat Info updated');
+    await renderBoatInfoPreview(text,true);
+  }catch(e){
+    toast('⚠ Could not read that file');
+  }finally{
+    input.value=''; // lets the same filename be re-selected later (e.g. after editing it again) and still fire onchange
+  }
 }
 // Read-only view for anyone WITHOUT the boat's PIN — reached only from
 // openBoatSummary() below, and only when that boat's own info_public is
-// on. Reuses boatInfoPanel but hides every edit control, since a public
-// viewer (no login at all) has no business editing it.
+// on. Reuses boatInfoPanel but hides the upload/toggle row entirely, since
+// a public viewer (no login at all) has nothing here to manage.
 async function openBoatInfoReadOnly(){
   openPanel('boatInfoPanel');
-  ['boatInfoEditRow','boatInfoText','boatInfoSaveBar'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.style.display='none';
-  });
-  const preview=document.getElementById('boatInfoPreview');
-  if(preview){
-    preview.style.display='block';
-    preview.innerHTML='<div style="color:var(--muted);font-size:.85rem">Loading…</div>';
-    preview.innerHTML=await renderMarkdownSafe(_boatSummaryInfoMd);
-  }
+  const controls=document.getElementById('boatInfoControlsRow');
+  if(controls) controls.style.display='none';
+  await renderBoatInfoPreview(_boatSummaryInfoMd,false);
 }
 // closePanel('boatInfoPanel') doesn't know which mode it was opened in —
-// restore the edit controls every time, so the NEXT open (e.g. the
+// restore the upload/toggle row every time, so the NEXT open (e.g. the
 // skipper's own, right after browsing a public boat's info) isn't stuck
 // read-only from the last visit.
 function closeBoatInfoPanel(){
   closePanel('boatInfoPanel');
-  ['boatInfoEditRow','boatInfoText','boatInfoSaveBar'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.style.display='';
-  });
+  const controls=document.getElementById('boatInfoControlsRow');
+  if(controls) controls.style.display='';
 }
 
 async function loadBoatProfile(){
