@@ -9212,7 +9212,40 @@ async function renderBoatInfoPreview(md,isEditView){
       +'</div>';
     return;
   }
-  preview.innerHTML=await renderMarkdownSafe(md);
+  preview.innerHTML=addBoatInfoToc(await renderMarkdownSafe(md));
+}
+// Prepends a jump-to contents list built from the rendered content's own
+// h2/h3 headings — this file format tends to run to dozens of numbered
+// sections (a real boat's knowledge-base .md, used to test this, has 24
+// top-level sections plus subsections like 8.1-8.7), long enough that
+// finding "the bit about the engine" by scrolling is real friction.
+// h1 is skipped (normally just the document title, appearing once); ids
+// are prefixed bi- to guarantee no collision with the rest of this
+// single-page app's own element ids. #boatInfoPreview is a plain
+// overflow-y:auto block (.panel-body), so a native <a href="#id"> jump
+// already scrolls correctly with no custom JS needed.
+function addBoatInfoToc(html){
+  const container=document.createElement('div');
+  container.innerHTML=html;
+  const headings=Array.from(container.querySelectorAll('h2,h3'));
+  if(headings.length<2) return html; // not worth a contents list for one or two headings
+  const seen={};
+  const items=headings.map(h=>{
+    let slug='bi-'+(h.textContent||'').toLowerCase().trim()
+      .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'section';
+    if(seen[slug]!=null){ seen[slug]++; slug+='-'+seen[slug]; } else { seen[slug]=0; }
+    h.id=slug;
+    return {isSub:h.tagName==='H3', text:h.textContent||'', id:slug};
+  });
+  const tocList=items.map(it=>
+    `<a href="#${it.id}" style="display:block;padding:${it.isSub?'3px 0 3px 16px':'5px 0'};`
+    +`font-size:${it.isSub?'.83rem':'.88rem'};color:${it.isSub?'var(--muted)':'var(--teal)'};`
+    +`text-decoration:none;font-weight:${it.isSub?'400':'700'}">${escHtml(it.text)}</a>`
+  ).join('');
+  const toc=`<div style="background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:12px 14px 8px;margin-bottom:18px">`
+    +`<div style="font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">📑 Contents</div>`
+    +tocList+`</div>`;
+  return toc+container.innerHTML;
 }
 async function onBoatInfoFileSelected(input){
   const file=input.files&&input.files[0];
