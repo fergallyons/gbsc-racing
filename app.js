@@ -9267,6 +9267,7 @@ async function onBoatInfoFileSelected(input){
 // on. Reuses boatInfoPanel but hides the upload/toggle row entirely, since
 // a public viewer (no login at all) has nothing here to manage.
 async function openBoatInfoReadOnly(){
+  closeSheet('boatSummarySheet'); // otherwise it's still open underneath, blocking this panel
   openPanel('boatInfoPanel');
   const controls=document.getElementById('boatInfoControlsRow');
   if(controls) controls.style.display='none';
