@@ -7140,26 +7140,23 @@ function renderWeather(wx,tides,warnings,live){
   // (always shown), tide predictions have no forecast/current duality.
   let liveBlock='';
   if(FEAT.livePortWeather){
-    // Two tiers, not one — confirmed live over multiple days that this feed's
-    // gaps range from a few minutes to ~13h. A flat "stale after 30min" tag
-    // made a 35-minute-old reading (still broadly representative — wind
-    // rarely swings hard in well under an hour) look as suspect as a
-    // 10-hour-old one (not representative at all), and read as unfairly
-    // premature against a source that can normally go up to an hour between
-    // readings. Mild: past a full hour, not just past the source's typical
-    // cadence. Severe: stale enough that the reading shouldn't be trusted
-    // for tactical decisions.
+    // Mild-stale tag past an hour (this feed's normal cadence, so a 35min-old
+    // reading is still broadly representative and doesn't need a warning at
+    // all) — but past 2h the reading is withheld outright rather than shown
+    // with a bigger warning: this station's gaps go well beyond 2h (a 15h
+    // gap seen live 2026-09-23), and at that point a stale number dressed up
+    // with a "Long Gap" tag still reads as "here's the wind" with an
+    // asterisk nobody reads, not as genuinely unavailable.
     const PORT_WX_STALE_MS=60*60000;
     const PORT_WX_VERY_STALE_MS=2*3600000;
-    if(!live){
+    const liveAgeMs=live?Date.now()-new Date(live.time).getTime():null;
+    if(!live||liveAgeMs>PORT_WX_VERY_STALE_MS){
       liveBlock=`<div style="text-align:center;padding:32px 20px;color:var(--muted)">
-        ⚠ Live buoy data unavailable — showing forecast only
+        ⚠ No current data available — showing forecast only
       </div>`;
     } else {
-      const liveAgeMs=Date.now()-new Date(live.time).getTime();
       const isStaleLive=liveAgeMs>PORT_WX_STALE_MS;
-      const isVeryStaleLive=liveAgeMs>PORT_WX_VERY_STALE_MS;
-      const staleColour=isVeryStaleLive?'var(--danger)':'var(--gold)';
+      const staleColour='var(--gold)';
       const lSpeed=Math.round(live.speed);
       const lGust=Math.round(live.gust);
       const lDir=Math.round(live.dir);
@@ -7193,7 +7190,7 @@ function renderWeather(wx,tides,warnings,live){
           <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px">
             <div style="font-family:'Barlow Condensed',sans-serif;font-size:.8rem;font-weight:700;
               letter-spacing:.12em;text-transform:uppercase;color:var(--muted)">Live Now · Port of Galway</div>
-            ${isStaleLive?`<div style="font-size:.85rem;color:${staleColour};font-weight:600">⚠ ${isVeryStaleLive?'Long Gap':'Stale'}</div>`:''}
+            ${isStaleLive?`<div style="font-size:.85rem;color:${staleColour};font-weight:600">⚠ Stale</div>`:''}
           </div>
           <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
             ${windArrowSvg(lDir,lBfCol,52)}
