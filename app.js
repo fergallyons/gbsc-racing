@@ -12490,6 +12490,19 @@ function closeSheet(id){
   if(id==='agentSetupSheet') _stopAgentStatusPoll();
 }
 
+// Static, shareable link straight to the RNLI donation panel — e.g. for
+// posting into a WhatsApp group — rather than "open the app, find the RNLI
+// tile yourself". Deliberately just a bare hash (#rnli), no payload to
+// encode (unlike #pay/ below, which carries a specific crew member's fee
+// details) — always opens fresh at the amount-picker step for whoever
+// taps it, from any device, logged in or not (RNLI giving is a public
+// tile — see FEAT_TILE_MAP.rnli). Called once schema capabilities and
+// club settings are both ready (see its call site) so it never fires
+// before openRnliPanel()'s own SCHEMA_HAS_RNLI/FEAT.rnli checks are valid.
+function checkRnliHash(){
+  if(window.location.hash==='#rnli') openRnliPanel();
+}
+
 // ── Crew Pay Page (opened via shared QR link) ─────────────────
 function checkPayHash(){
   const hash=window.location.hash;
@@ -15734,6 +15747,12 @@ Promise.all([_schemaCapabilitiesReady,_settingsReady]).then(()=>{
   // shape as the RNLI pair above — shows the full-screen notice on this
   // fresh load if the RO left racing marked cancelled.
   loadRacingCancelledStatus();
+  // Static #rnli link straight to the donation panel (e.g. for sharing in
+  // a WhatsApp group) — checked here, not earlier, so SCHEMA_HAS_RNLI/
+  // FEAT.rnli are already resolved before openRnliPanel() reads them;
+  // opening it any sooner risks the "isn't set up yet" bail firing wrongly
+  // on a perfectly configured club that just hasn't finished loading yet.
+  checkRnliHash();
 });
 // Load schedule from DB; fall back to hardcoded GBSC schedule if unavailable
 loadRaceSchedule().then(async()=>{
