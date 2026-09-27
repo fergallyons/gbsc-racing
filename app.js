@@ -871,9 +871,9 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
     SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false,
-    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false;
+    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -895,6 +895,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_POSITION_ACCURACY=names.has('064_position_accuracy.sql');
   SCHEMA_HAS_RACING_CANCELLED=names.has('065_racing_cancelled.sql');
   SCHEMA_HAS_BOAT_INFO=names.has('066_boat_info.sql');
+  SCHEMA_HAS_RO_PROTEST=names.has('067_ro_protest.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -906,6 +907,8 @@ async function checkSchemaCapabilities(){
   if(ctBtn) ctBtn.style.display=SCHEMA_HAS_COURSE_TEMPLATES?'':'none';
   const biTile=document.getElementById('tile-sk-boatInfo');
   if(biTile) biTile.style.display=SCHEMA_HAS_BOAT_INFO?'':'none';
+  const roProtestBtn=document.getElementById('ro-file-protest-btn');
+  if(roProtestBtn) roProtestBtn.style.display=SCHEMA_HAS_RO_PROTEST?'':'none';
 }
 let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
@@ -925,6 +928,10 @@ let myResolvedRace=null;
 // Registrations panel is currently scoped to. null (the default) means
 // "whatever nextRace resolves to", same as before this picker existed.
 let _roRegsRace=null;
+// Which race a Race Committee protest (RRS 60.2/60.3, openRoProtestSheet())
+// is being filed against — deliberately not selectedRace, which is always
+// null for RO sessions (see submitProtest()'s ro_protest branch).
+let _roProtestRace=null;
 let selectedStartLineId='club';   // id from LINES[]
 let selectedFinishLineId='club';  // can differ for destination-finish races
 // Laid Course — RO picks a course SHAPE instead of fixed marks, for races
@@ -14416,6 +14423,7 @@ async function printProtest(protestId){
   const type=p.type||'protest';
   const protestor=boats.find(b=>b.id===p.protestor_id);
   const protestee=p.protestee_id?boats.find(b=>b.id===p.protestee_id):null;
+  const protestorName=p.protestor_id?(protestor?protestor.name:'Unknown'):'Race Committee';
   const protesteeName=p.protestee_id?(protestee?protestee.name:'Unknown'):'Race Committee';
   const filedAt=new Date(p.filed_at).toLocaleString('en-IE',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const rules=(p.rules_broken||[]);
@@ -14464,6 +14472,19 @@ async function printProtest(protestId){
       rulesFootnote:'',
       sigLabel:'Enquiring Boat Signature',
       docLabel:'Scoring Enquiry',
+    },
+    ro_protest:{
+      formTitle:'Race Committee Protest',
+      partiesHead:'Parties to the Protest',
+      protestorLabel:'Protestor',
+      protesteeLabel:'Protestee (Boat Protested Against)',
+      incidentHead:'Incident Details (RRS Rule 60.3)',
+      showRequirements:false,
+      rulesHead:'Rules Alleged to Have Been Broken',
+      rulesEmpty:'No rules specified',
+      rulesFootnote:'Racing Rules of Sailing 2025–2028, World Sailing. The hearing committee will determine which rules, if any, were broken (RRS Rule 63.5).',
+      sigLabel:'Protestor Signature',
+      docLabel:'Committee Protest',
     },
   }[type];
 
@@ -14526,7 +14547,7 @@ async function printProtest(protestId){
   <div class="section">
     <div class="section-head">${PRINT_META.partiesHead}</div>
     <div class="section-body two-col">
-      <div class="field"><div class="field-label">${PRINT_META.protestorLabel}</div><div class="field-value" style="font-size:1.1rem;font-weight:700">${protestor?protestor.name:'Unknown'}</div></div>
+      <div class="field"><div class="field-label">${PRINT_META.protestorLabel}</div><div class="field-value" style="font-size:1.1rem;font-weight:700">${protestorName}</div></div>
       <div class="field"><div class="field-label">${PRINT_META.protesteeLabel}</div><div class="field-value" style="font-size:1.1rem;font-weight:700;color:#c0392b">${protesteeName}</div></div>
     </div>
   </div>
@@ -14589,7 +14610,7 @@ async function printProtest(protestId){
   <div class="sig-block">
     <div>
       <div style="font-size:.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em">${PRINT_META.sigLabel}</div>
-      <div class="sig-line">${protestor?protestor.name:''}</div>
+      <div class="sig-line">${protestorName}</div>
     </div>
     <div>
       <div style="font-size:.8rem;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em">Race Officer Signature</div>
@@ -14661,6 +14682,20 @@ const PROTEST_TYPE_META={
     submitLabel:'📊 Submit Enquiry',
     filedToast:'📊 Scoring enquiry filed',
   },
+  ro_protest:{
+    title:'🎌 Race Committee Protest',
+    sub:'Under RRS Rule 60.2/60.3 — the race committee may protest a boat directly; no flag or hail is required (RRS Rule 61.1(c)).',
+    protesteeLabel:'Boat being protested',
+    showProtestee:true,
+    protesteeRequired:true,
+    showWhereWhen:true,
+    descLabel:'Description of incident',
+    showFlagHail:false,
+    rulesSection:'rules',
+    rulesRequired:true,
+    submitLabel:'🎌 File Committee Protest',
+    filedToast:'🎌 Committee protest filed',
+  },
 };
 
 function setProtestType(type){
@@ -14683,6 +14718,9 @@ function setProtestType(type){
 
 function openProtestSheet(){
   if(!selectedRace){toast('Select a race first');return;}
+  _roProtestRace=null;
+  const roTypeBtn=document.getElementById('pr-type-ro_protest');
+  if(roTypeBtn) roTypeBtn.style.display='none';
   setProtestType('protest');
   const deadlineRow=document.getElementById('pr-deadline-row');
   if(selectedRace.protestDeadline){
@@ -14712,6 +14750,34 @@ function openProtestSheet(){
     document.getElementById(id+'-check').style.borderColor='var(--muted)';
     document.getElementById(id+'-check').style.background='';
   });
+  document.getElementById('protestSheet').classList.add('open');
+}
+
+// RO/Race Committee protest (RRS 60.2/60.3) — the committee protesting a
+// boat directly, rather than a boat protesting another boat. Uses
+// _roProtestRace (RO-scoped, see its declaration) instead of selectedRace,
+// which is always null in an RO session. The protestee dropdown lists
+// every boat with no self-exclusion, since there's no "current boat" for
+// the committee to exclude.
+function openRoProtestSheet(){
+  _roProtestRace=getNextRace();
+  if(!_roProtestRace){toast('No race to protest against yet');return;}
+  const roTypeBtn=document.getElementById('pr-type-ro_protest');
+  if(roTypeBtn) roTypeBtn.style.display='';
+  setProtestType('ro_protest');
+  const deadlineRow=document.getElementById('pr-deadline-row');
+  deadlineRow.style.display='none';
+  const sel=document.getElementById('pr-protestee');
+  sel.innerHTML='<option value="">Select boat…</option>';
+  boats.forEach(b=>{
+    const o=document.createElement('option');
+    o.value=b.id; o.textContent=b.name;
+    sel.appendChild(o);
+  });
+  document.getElementById('pr-where').value='';
+  document.getElementById('pr-time').value=new Date().toTimeString().slice(0,5);
+  document.getElementById('pr-description').value='';
+  document.querySelectorAll('.pr-rule-btn').forEach(b=>{b.classList.remove('active'); delete b.dataset.rule;});
   document.getElementById('protestSheet').classList.add('open');
 }
 
@@ -14755,11 +14821,12 @@ async function submitProtest(){
   if(!description){toast('Describe what happened');return;}
   if(meta.rulesRequired&&rulesBroken.length===0){toast(prType==='redress'?'Select at least one ground for redress':'Select at least one rule');return;}
 
+  const race=prType==='ro_protest'?_roProtestRace:selectedRace;
   const result=await sbSaveProtest({
     type:prType,
-    race_name:selectedRace.label,
-    race_date:selectedRace.date.toISOString().split('T')[0],
-    protestor_id:currentBoat.id,
+    race_name:race.label,
+    race_date:race.date.toISOString().split('T')[0],
+    protestor_id:prType==='ro_protest'?null:currentBoat.id,
     protestee_id:protesteeId||null,
     incident_where:where,
     incident_time:time,
@@ -14777,7 +14844,7 @@ async function submitProtest(){
   // Informational heads-up only — this is NOT the formal RRS 60.2 notice
   // (that happens on the water, hail + red flag) but it's the first moment
   // the protestee's phone can plausibly know before opening the app.
-  if(protesteeId) notifyPush('protest_filed',{boatIds:[protesteeId],boatName:currentBoat.name,raceLabel:selectedRace.label});
+  if(protesteeId) notifyPush('protest_filed',{boatIds:[protesteeId],boatName:prType==='ro_protest'?'Race Committee':currentBoat.name,raceLabel:race.label});
   closeSheet('protestSheet');
   toast(meta.filedToast);
 }
@@ -14817,7 +14884,7 @@ async function loadProtests(){
   }
 
   _loadedProtests=protests;
-  const typeLabel={protest:'🚩 Protest',redress:'⚖ Redress',scoring_enquiry:'📊 Scoring Enquiry'};
+  const typeLabel={protest:'🚩 Protest',redress:'⚖ Redress',scoring_enquiry:'📊 Scoring Enquiry',ro_protest:'🎌 Committee Protest'};
   // Same on/off switch loadRaceTracker()'s own tile uses — no point offering
   // "View Track" on a club that's never opted into GPS tracking at all.
   const _ptf=(clubSettings&&clubSettings.features)||{};
@@ -14826,6 +14893,7 @@ async function loadProtests(){
     const type=p.type||'protest';
     const protestor=boats.find(b=>b.id===p.protestor_id);
     const protestee=p.protestee_id?boats.find(b=>b.id===p.protestee_id):null;
+    const protestorLabel=p.protestor_id?(protestor?protestor.name:'Unknown'):'Race Committee';
     const protesteeLabel=p.protestee_id?(protestee?protestee.name:'Unknown'):'Race Committee';
     const filedAt=new Date(p.filed_at).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
     const filedDate=new Date(p.filed_at).toLocaleDateString('en-IE',{day:'numeric',month:'short',timeZone:'Europe/Dublin'});
@@ -14841,7 +14909,7 @@ async function loadProtests(){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div>
           <span class="protest-type-badge" style="margin-right:6px">${typeLabel[type]||typeLabel.protest}</span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem">${protestor?protestor.name:'Unknown'}</span>${waBtn(protestorWa,'Message '+(protestor?protestor.name:'protestor'))}
+          <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem">${protestorLabel}</span>${waBtn(protestorWa,'Message '+protestorLabel)}
           <span style="color:var(--muted);font-size:.8rem"> → </span>
           <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem;color:var(--danger)">${protesteeLabel}</span>${waBtn(protesteeWa,'Message '+protesteeLabel)}
         </div>

@@ -1523,6 +1523,12 @@
     <span class="panel-title">🚩 Protests</span>
   </div>
   <div class="panel-body">
+    <!-- RO-only, needs migration 067 (SCHEMA_HAS_RO_PROTEST) — hidden by checkSchemaCapabilities() otherwise -->
+    <button id="ro-file-protest-btn" onclick="openRoProtestSheet()" style="display:none;width:100%;padding:10px;margin-bottom:14px;
+      background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.35);border-radius:8px;color:var(--teal);
+      font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer;letter-spacing:.02em">
+      🎌 File Committee Protest
+    </button>
     <!-- RO-only, needs migration 059 (SCHEMA_HAS_PROTEST_ARCHIVE) — hidden by openPanel()'s dispatch otherwise -->
     <div id="protestViewRow" style="display:none;gap:8px;margin-bottom:14px">
       <button id="protestTabActive" class="pr-type-btn active" onclick="setProtestView('active')">Active</button>
@@ -2634,6 +2640,8 @@
       <button class="pr-type-btn active" id="pr-type-protest" onclick="setProtestType('protest')">🚩 Protest</button>
       <button class="pr-type-btn" id="pr-type-redress" onclick="setProtestType('redress')">⚖ Redress</button>
       <button class="pr-type-btn" id="pr-type-scoring_enquiry" onclick="setProtestType('scoring_enquiry')">📊 Scoring Enquiry</button>
+      <!-- RO-only entry point (openRoProtestSheet()) unhides this; openProtestSheet() re-hides it for the skipper flow -->
+      <button class="pr-type-btn" id="pr-type-ro_protest" onclick="setProtestType('ro_protest')" style="display:none">🎌 Committee Protest</button>
     </div>
     <div style="font-size:.85rem;color:var(--muted);margin-bottom:6px" id="pr-sheet-sub">Under RRS Rule 60.3 — must be submitted within 2 hours of the last boat finishing.</div>
     <div style="font-size:.85rem;font-weight:700;margin-bottom:14px;display:none" id="pr-deadline-row"></div>
