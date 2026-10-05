@@ -2440,6 +2440,20 @@
       <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
         Halsail's numeric club ID — powers Results, Handicaps, and Finish Recording's CSV export. Find it in Halsail's own URL when logged in, or ask Halsail support.
       </div>
+      <!-- Needs migration 068 (SCHEMA_HAS_HAL_API_KEY) — hidden by checkSchemaCapabilities() otherwise -->
+      <div id="ro-hal-api-key-wrap" style="display:none;margin-top:14px">
+        <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+          🔑 Halsail API Key
+        </label>
+        <input type="password" id="ro-hal-api-key" placeholder="Paste key from Halsail" autocomplete="off"
+          style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+          color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
+          outline:none;width:100%;box-sizing:border-box;">
+        <div id="ro-hal-api-key-status" style="font-size:.8rem;margin-top:5px;line-height:1.4"></div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
+          Halsail will require an API key for access. Stored write-only — it can't be read back out of the app. Leave blank to keep the existing key. Not used yet; connecting it to Halsail requests is a follow-up once Halsail confirms how the key is sent.
+        </div>
+      </div>
     </div>
 
     <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">

@@ -871,9 +871,9 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
     SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false,
-    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false;
+    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -896,6 +896,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_RACING_CANCELLED=names.has('065_racing_cancelled.sql');
   SCHEMA_HAS_BOAT_INFO=names.has('066_boat_info.sql');
   SCHEMA_HAS_RO_PROTEST=names.has('067_ro_protest.sql');
+  SCHEMA_HAS_HAL_API_KEY=names.has('068_hal_api_key.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -909,6 +910,8 @@ async function checkSchemaCapabilities(){
   if(biTile) biTile.style.display=SCHEMA_HAS_BOAT_INFO?'':'none';
   const roProtestBtn=document.getElementById('ro-file-protest-btn');
   if(roProtestBtn) roProtestBtn.style.display=SCHEMA_HAS_RO_PROTEST?'':'none';
+  const halKeyWrap=document.getElementById('ro-hal-api-key-wrap');
+  if(halKeyWrap) halKeyWrap.style.display=SCHEMA_HAS_HAL_API_KEY?'block':'none';
 }
 let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
@@ -4295,6 +4298,17 @@ async function saveBoatSettings(revolut_user,whatsapp,bowOffsetM){
   await sbSaveBoatConfig(currentBoat.id,{whatsapp,bow_offset_m:bowOffsetM});
   return true;
 }
+// Write-only key (migration 068): the key itself is never readable by the
+// app, only the generated hal_api_key_set flag, and it's deliberately kept
+// out of clubSettings so it can't end up in the localStorage settings cache.
+async function refreshHalApiKeyStatus(){
+  const el=document.getElementById('ro-hal-api-key-status');
+  if(!el||!SCHEMA_HAS_HAL_API_KEY) return;
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=hal_api_key_set');
+  const isSet=Array.isArray(r)&&r[0]&&r[0].hal_api_key_set===true;
+  el.style.color=isSet?'var(--success)':'var(--muted)';
+  el.textContent=isSet?'✓ A key is saved':'No key saved yet';
+}
 async function saveClubSettingsFields(links){
   Object.assign(clubSettings,links);
   try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
@@ -4702,6 +4716,8 @@ async function openROClubSettings(){
   setVal('ro-revolut-user',clubSettings.ro_revolut_user||'');
   setVal('ro-rnli-revolut-user',clubSettings.rnli_revolut_user||'');
   setVal('ro-hal-club',clubSettings.hal_club||'');
+  setVal('ro-hal-api-key','');
+  refreshHalApiKeyStatus();
   setVal('ro-fee-full',clubSettings.fee_full??'');
   setVal('ro-fee-crew',clubSettings.fee_crew??'');
   setVal('ro-fee-visitor',clubSettings.fee_visitor??'');
@@ -4813,6 +4829,13 @@ function saveROClubSettings(){
     });
   } else {
     toast('⚠ Payment settings not saved — try logging in again');
+  }
+
+  const halApiKeyVal=getVal('ro-hal-api-key');
+  if(SCHEMA_HAS_HAL_API_KEY&&halApiKeyVal!==''){
+    sbFetch('/rest/v1/settings?id=eq.club',{method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify({hal_api_key:halApiKeyVal})}).then(r=>{
+      if(r&&r._err) toast('⚠ Halsail API key not saved — '+r._err.slice(0,60));
+    });
   }
 
   saveClubSettingsFields({
