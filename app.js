@@ -12130,7 +12130,7 @@ async function loadHalConfigPanel(){
   halConfigNames=Object.assign({},(clubSettings&&clubSettings.features&&clubSettings.features.halSeriesNames)||{});
 
   try{
-    const r=await fetch('/.netlify/functions/halsail-class-map?club='+HAL_CLUB);
+    const r=await fetch('/.netlify/functions/halsail-class-map?hal='+HAL_CLUB);
     const data=await r.json();
     if(!r.ok||data.error){
       status.textContent='⚠ Could not load classes: '+(data.error||('HTTP '+r.status));

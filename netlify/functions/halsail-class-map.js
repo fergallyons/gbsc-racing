@@ -24,7 +24,7 @@
 //      dropdown's numeric SeryID is trusted here, never its label. The
 //      authoritative name comes back from GetSeriesResult itself instead.
 //
-// Request:  GET ?club=<HalSail club ID>
+// Request:  GET ?hal=<HalSail club ID>
 // Response: 200 { classes: [{classId, seryId, name}], fetchedAt }
 //           502 { error }
 
@@ -53,12 +53,13 @@ function extractCurrentSeryId(html, classId) {
 }
 
 exports.handler = async (event) => {
-  const club = ((event.queryStringParameters || {}).club || '').trim();
+  const q = event.queryStringParameters || {};
+  const club = (q.hal || q.club || '').trim(); // ?hal= is the Halsail club id; ?club= kept for older cached clients
   if (!club) return json(400, { error: 'club query param required' });
 
   try {
     const base = apiBase(event);
-    const scheduleRes = await fetch(base + '/HalApi/GetSchedule/' + encodeURIComponent(club), { headers: apiHeaders(event) });
+    const scheduleRes = await fetch(base + '/HalApi/GetSchedule/' + encodeURIComponent(club), { headers: await apiHeaders(event) });
     if (!scheduleRes.ok) return json(502, { error: 'GetSchedule failed: HTTP ' + scheduleRes.status });
     const schedule = await scheduleRes.json();
     if (!Array.isArray(schedule) || !schedule.length || !schedule[0].SeryID) {

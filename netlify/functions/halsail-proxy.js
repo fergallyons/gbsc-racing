@@ -1,7 +1,7 @@
 // Netlify serverless function: Halsail API proxy
 // Browsers can't call halsail.com directly (no CORS headers), and the JSON API
-// now needs an API key that must never reach the browser — this function runs
-// server-side, adds the key (see _halsail.js), forwards the request and returns
+// now needs this club's API key, which must never reach the browser — this function
+// runs server-side, adds the key (see _halsail.js), forwards the request and returns
 // Halsail's response with its status code unchanged.
 
 const { apiBase, apiHeaders } = require('./_halsail');
@@ -21,7 +21,7 @@ exports.handler = async (event) => {
 
   try {
     const res = await fetch(base + (isHtmlReport ? '' : '/HalApi') + path, {
-      headers: isHtmlReport ? { Accept: 'text/html' } : apiHeaders(event, 'application/json'),
+      headers: isHtmlReport ? { Accept: 'text/html' } : await apiHeaders(event, 'application/json'),
     });
     const body = await res.text();
     return {
