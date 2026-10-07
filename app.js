@@ -12548,7 +12548,60 @@ function ssSourceUrls(){
   const u=ssFeatures().ssSeriesUrls;
   return Array.isArray(u)?u.filter(x=>typeof x==='string'&&x.trim()):[];
 }
-function ssResultsEnabled(){ return !!ssFeatures().sailScoring&&ssSourceUrls().length>0; }
+function ssResultsEnabled(){ return !!ssFeatures().sailScoring&&(ssSourceUrls().length>0||!!ssWorkspace()); }
+
+// The club's Sail Scoring workspace (the "u-…" slug in /p/<workspace>/…) is the
+// one config point everything else hangs off: Sail Scoring's planned
+// machine-readable index (/p/<ws>/index.json and /p/<ws>/<season>/index.json,
+// github.com/sailscoring/sailscoring issue 669) will list every published
+// series, so saved series addresses become a fallback, not the main path.
+const SS_ORIGIN='https://app.sailscoring.ie';
+function ssWorkspace(){ const w=ssFeatures().ssWorkspace; return typeof w==='string'&&/^[A-Za-z0-9_-]+$/.test(w)?w:''; }
+function ssWorkspaceBase(ws){ return SS_ORIGIN+'/p/'+ws; }
+// Accepts the bare slug or any Sail Scoring link containing /p/<workspace>
+function ssParseWorkspaceInput(raw){
+  raw=(raw||'').trim();
+  if(!raw) return {slug:''};
+  let slug=raw;
+  if(/^https?:/i.test(raw)){
+    let u; try{ u=new URL(raw); }catch(e){ return {error:'Not a valid web address'}; }
+    if(u.hostname!=='sailscoring.ie'&&!u.hostname.endsWith('.sailscoring.ie')) return {error:'Must be a sailscoring.ie address'};
+    const m=u.pathname.match(/^\/p\/([^\/]+)/);
+    if(!m) return {error:'No workspace found — expected an address containing /p/<workspace>/'};
+    slug=m[1];
+  }
+  if(!/^[A-Za-z0-9_-]+$/.test(slug)) return {error:'Workspace names only use letters, numbers, - and _'};
+  return {slug};
+}
+
+// Reads Sail Scoring's series index for the workspace, if it exists yet.
+// Returns an array of data-file addresses, or null when the index isn't
+// available / isn't in a shape we recognise — callers then fall back to the
+// manually saved addresses. The index format is still being built (see
+// above), so this is deliberately tolerant: a list of entries each carrying a
+// `data` address, under a top-level `version`. Current season first, then the
+// whole workspace.
+async function ssDiscoverSeries(ws){
+  const year=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Dublin'}).slice(0,4);
+  for(const path of ['/'+year+'/index.json','/index.json']){
+    try{
+      const r=await fetch(ssWorkspaceBase(ws)+path,{cache:'no-cache'});
+      if(!r.ok) continue;
+      const j=await r.json();
+      if(!j||typeof j!=='object') continue;
+      if(typeof j.version==='number'&&j.version>1) continue;
+      const list=Array.isArray(j)?j:(['publications','series','entries','items'].map(k=>j[k]).find(Array.isArray)||null);
+      if(!list) continue;
+      const urls=[];
+      list.forEach(e=>{
+        const v=e&&typeof e.data==='string'?ssValidateUrl(e.data.startsWith('/')?SS_ORIGIN+e.data:e.data):null;
+        if(v&&v.url&&!urls.includes(v.url)) urls.push(v.url);
+      });
+      if(urls.length) return urls.slice(0,15);
+    }catch(e){ /* try the next path, else fall back */ }
+  }
+  return null;
+}
 // escHtml() returns '' for the number 0 — a 0 score or rank must still show
 function ssEsc(v){ return escHtml(v==null?'':String(v)); }
 function ssSailKey(s){ return String(s==null?'':s).replace(/[^a-z0-9]/gi,'').toUpperCase(); }
@@ -12655,7 +12708,9 @@ function ssParseExport(raw,url){
 }
 
 async function loadSailScoringResults(){
-  const urls=ssSourceUrls();
+  const ws=ssWorkspace();
+  const discovered=ws?await ssDiscoverSeries(ws):null;
+  const urls=[...new Set([...(discovered||[]),...ssSourceUrls()])];
   const sel=document.getElementById('resultSeriesSelect');
   const wrap=document.getElementById('resultsContent');
   const ircBtnEl=document.getElementById('ircBtn'), echoBtnEl=document.getElementById('echoBtn');
@@ -12665,6 +12720,13 @@ async function loadSailScoringResults(){
   if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
   sel.innerHTML='<option value="">Loading…</option>';
   wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading '+escHtml(_C.short||'club')+' results from Sail Scoring…</div></div>';
+  if(!urls.length){
+    sel.innerHTML='<option value="">—</option>';
+    wrap.innerHTML=`<div class="empty-state"><div class="icon">🏆</div>
+      <div style="margin-bottom:10px">No series to show yet<br><span style="font-size:.85rem;color:var(--muted)">Sail Scoring's series list isn't available for this workspace yet.${isRO?' Add series addresses in Sail Scoring Setup.':''}</span></div>
+      ${ws?`<a href="${escHtml(ssWorkspaceBase(ws))}" target="_blank" rel="noopener" style="color:var(--teal);font-size:.88rem">Open results on Sail Scoring ↗</a>`:''}</div>`;
+    return;
+  }
 
   ssModels=await Promise.all(urls.map(async url=>{
     try{ return {url,model:await ssFetchExport(url),error:null}; }
@@ -12839,6 +12901,9 @@ function ssConfigRowHtml(value){
 function loadSsConfigPanel(){
   const urls=ssSourceUrls();
   document.getElementById('ssConfigList').innerHTML=(urls.length?urls:['']).map(ssConfigRowHtml).join('');
+  const wsIn=document.getElementById('ssWorkspaceInput'), wsSt=document.getElementById('ssWorkspaceStatus');
+  if(wsIn) wsIn.value=ssWorkspace();
+  if(wsSt) wsSt.textContent='';
   const note=document.getElementById('ssConfigToggleNote');
   if(note) note.style.display=ssFeatures().sailScoring?'none':'block';
 }
@@ -12849,6 +12914,12 @@ function ssConfigRemoveRow(btn){
   const row=btn.closest('.ss-cfg-row'); if(row) row.remove();
 }
 async function saveSsConfig(){
+  const wsIn=document.getElementById('ssWorkspaceInput'), wsSt=document.getElementById('ssWorkspaceStatus');
+  const wsParsed=ssParseWorkspaceInput(wsIn?wsIn.value:'');
+  if(wsParsed.error){
+    wsSt.style.color='var(--danger)'; wsSt.textContent='⚠ '+wsParsed.error;
+    toast('⚠ Fix the workspace first — nothing saved'); return;
+  }
   const rows=[...document.querySelectorAll('#ssConfigList .ss-cfg-row')];
   const seen=new Set(), ok=[]; let bad=0;
   const saveBtn=document.getElementById('ssConfigSaveBtn');
@@ -12875,6 +12946,13 @@ async function saveSsConfig(){
   if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Save'; }
   if(bad){ toast('⚠ Fix the highlighted addresses first — nothing saved'); return; }
   await saveFeatureSetting('ssSeriesUrls',ok);
+  await saveFeatureSetting('ssWorkspace',wsParsed.slug);
+  if(wsParsed.slug){
+    wsSt.style.color='var(--muted)'; wsSt.textContent='Checking for a series list…';
+    const found=await ssDiscoverSeries(wsParsed.slug);
+    wsSt.style.color=found?'var(--success)':'var(--muted)';
+    wsSt.textContent=found?'✓ Series list found — '+found.length+' series':'Saved. No series list available from Sail Scoring yet — using the addresses below.';
+  } else { wsSt.textContent=''; }
 }
 
 function closeSheet(id){

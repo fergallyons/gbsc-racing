@@ -1627,10 +1627,20 @@
     <div id="ssConfigToggleNote" style="display:none;font-size:.85rem;color:var(--gold);margin-bottom:12px">
       Sail Scoring Results is currently <b>off</b> in Features — saved series won't show until it's switched on.
     </div>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:16px;background:var(--navy-mid)">
+      <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Club workspace</label>
+      <input type="text" id="ssWorkspaceInput" placeholder="Paste any results link, e.g. https://app.sailscoring.ie/p/…/2026" autocomplete="off"
+        style="margin-top:8px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;outline:none;width:100%;box-sizing:border-box;">
+      <div id="ssWorkspaceStatus" style="font-size:.8rem;margin-top:6px;line-height:1.4"></div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
+        The club's Sail Scoring workspace — the <b>u-…</b> part of its results addresses. Sail Scoring is adding a
+        machine-readable series list per workspace; once it's live, the club's series will appear in Results automatically.
+      </div>
+    </div>
     <div style="font-size:.85rem;color:var(--muted);margin-bottom:12px;line-height:1.5">
-      Results can come from series published in Sail Scoring instead of Halsail. For each series, paste the
-      <b style="color:var(--white)">Data (.sailscoring.json)</b> link from the footer of its published results page.
-      Each address is checked when you save. With none saved, Results keeps using Halsail.
+      <b style="color:var(--white)">Series addresses</b> — until the series list is available (and for anything outside it),
+      paste the <b style="color:var(--white)">Data (.sailscoring.json)</b> link from the footer of a series' published results page.
+      Everything is checked when you save. With nothing saved, Results keeps using Halsail.
     </div>
     <div id="ssConfigList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"></div>
     <button class="btn btn-ghost" style="padding:9px 16px;margin-bottom:80px" onclick="ssConfigAddRow()">+ Add series</button>
