@@ -767,7 +767,6 @@ const FEAT_DEFAULTS={
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
   crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
-  sailScoring:false, // opt-in — Results from published Sail Scoring files instead of Halsail (needs series addresses in Sail Scoring Setup)
 };
 // Feature catalog for the admin panel UI (rendered by renderFeaturesPanel).
 const FEAT_CATALOG=[
@@ -777,7 +776,8 @@ const FEAT_CATALOG=[
   {key:'livePortWeather', label:'Live Port of Galway Weather (Race Weather tab)', type:'bool', group:'Behaviour'},
   {key:'feeWizard', label:'Guided Fee Wizard — declare crew, collect funds, review, submit', type:'bool', group:'Behaviour'},
   {key:'rnli', label:'RNLI Contributions — crew-level donate flow (Revolut + Card)', type:'bool', group:'Behaviour'},
-  {key:'sailScoring', label:'Sail Scoring Results — show results from published Sail Scoring files instead of Halsail', type:'bool', group:'Behaviour'},
+  {key:'resultsSource', label:'Results Source — where the Results tab gets its standings', type:'select', group:'Behaviour',
+    options:[{value:'halsail',label:'Halsail'},{value:'sailscoring',label:'Sail Scoring'},{value:'none',label:'None (club website link only)'}]},
   {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
   {key:'courseCard',     label:'Course Card Picker',    type:'bool', group:'RO Tiles'},
   {key:'registrations',  label:'Registrations',         type:'bool', group:'RO Tiles'},
@@ -2412,8 +2412,12 @@ function renderFeaturesPanel(){
     html+=`<div class="sec-head" style="margin-top:16px;margin-bottom:4px"><div class="sec-title">${group}</div></div>`;
     groups[group].forEach(item=>{
       if(item.type==='select'){
-        const val=f[item.key]!==undefined?f[item.key]:(FEAT_DEFAULTS[item.key]||item.options[0]);
-        const opts=item.options.map(o=>`<option value="${o}"${val===o?' selected':''}>${o}</option>`).join('');
+        const stored=item.key==='resultsSource'?ssResultsSource():f[item.key];
+        const val=stored!==undefined?stored:(FEAT_DEFAULTS[item.key]||(item.options[0].value||item.options[0]));
+        const opts=item.options.map(o=>{
+          const ov=typeof o==='string'?o:o.value, ol=typeof o==='string'?o:o.label;
+          return `<option value="${ov}"${val===ov?' selected':''}>${ol}</option>`;
+        }).join('');
         html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
           <span style="font-size:.9rem;color:var(--white)">${item.label}</span>
           <select onchange="saveFeatureSetting('${item.key}',this.value)"
@@ -4104,8 +4108,12 @@ function applyAllFeatureVisibility(){
       if(el) el.style.display=on?'':'none';
     });
   });
+  // Each source has its own RO setup tile — only the active source's is shown
+  const _rs=ssResultsSource(f);
   const ssTile=document.getElementById('tile-ro-ssConfig');
-  if(ssTile) ssTile.style.display=f.sailScoring?'':'none';
+  if(ssTile) ssTile.style.display=_rs==='sailscoring'?'':'none';
+  const halCfgTile=document.getElementById('tile-ro-halConfig');
+  if(halCfgTile) halCfgTile.style.display=_rs==='halsail'?'':'none';
   // Every FEAT.* behavior flag set here must have an else-reset to its
   // default, not just a set-when-present branch — applyLocalFeatures()
   // (above) pre-populates FEAT from localStorage's '__features__' cache
@@ -11823,13 +11831,11 @@ async function refreshResults(){
   // Manual refresh button — just delegate to the standard load (which always fetches fresh now)
   await loadResultsIfNeeded();
 }
-// skipSs: set only by loadSailScoringResults() when Sail Scoring is switched
-// on but yields no series at all (workspace saved, series list not available,
-// no addresses) — Results then falls straight back to Halsail rather than
-// showing an empty tab.
-async function loadResultsIfNeeded(skipSs){
-  ssActive=skipSs!==true&&ssResultsEnabled();
-  if(!HAL_CLUB&&!ssActive){
+async function loadResultsIfNeeded(){
+  const _src=ssResultsSource();
+  ssActive=_src==='sailscoring';
+  // 'none' = no integrated results at all; 'halsail' with no club ID behaves the same
+  if(_src==='none'||(_src==='halsail'&&!HAL_CLUB)){
     document.getElementById('resultSeriesSelect').innerHTML='<option value="">—</option>';
     const resultsUrl=(_C.resultsUrl||'').trim();
     document.getElementById('resultsContent').innerHTML= resultsUrl
@@ -12534,10 +12540,10 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handic
 // Reads the public, CORS-open `.sailscoring.json` file Sail Scoring publishes
 // beside each series' results page (format: github.com/sailscoring/sailscoring,
 // docs/public-export-format.md). No key, no server proxy. Opt-in per club via
-// settings.features.sailScoring + settings.features.ssSeriesUrls — both live
-// in the existing features JSON, so no migration. Results only switch over
-// when the toggle is on AND at least one series address is saved; otherwise
-// loadResultsIfNeeded() behaves exactly as before (Halsail).
+// settings.features.resultsSource ('halsail' | 'sailscoring' | 'none') plus
+// ssWorkspace / ssSeriesUrls — all in the existing features JSON, so no
+// migration. Only when resultsSource is 'sailscoring' does the Results tab
+// use this path; otherwise loadResultsIfNeeded() is exactly as before.
 //
 // The standings rows' `name` is a PERSON's name, not the boat — boat names
 // come from competitors[].boatName, matched by sail number.
@@ -12552,7 +12558,14 @@ function ssSourceUrls(){
   const u=ssFeatures().ssSeriesUrls;
   return Array.isArray(u)?u.filter(x=>typeof x==='string'&&x.trim()):[];
 }
-function ssResultsEnabled(){ return !!ssFeatures().sailScoring&&(ssSourceUrls().length>0||!!ssWorkspace()); }
+// Which system feeds the Results tab: 'halsail' | 'sailscoring' | 'none'.
+// Clubs that saved the earlier Sail Scoring on/off switch (features.sailScoring)
+// before this selector existed keep their choice until they pick one here.
+function ssResultsSource(feats){
+  const f=feats||ssFeatures();
+  if(f.resultsSource==='halsail'||f.resultsSource==='sailscoring'||f.resultsSource==='none') return f.resultsSource;
+  return f.sailScoring?'sailscoring':'halsail';
+}
 
 // The club's Sail Scoring workspace (the "u-…" slug in /p/<workspace>/…) is the
 // one config point everything else hangs off: Sail Scoring's planned
@@ -12724,7 +12737,13 @@ async function loadSailScoringResults(){
   if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
   sel.innerHTML='<option value="">Loading…</option>';
   wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading '+escHtml(_C.short||'club')+' results from Sail Scoring…</div></div>';
-  if(!urls.length){ await loadResultsIfNeeded(true); return; }
+  if(!urls.length){
+    sel.innerHTML='<option value="">—</option>';
+    wrap.innerHTML=`<div class="empty-state"><div class="icon">🏆</div>
+      <div style="margin-bottom:10px">No series found<br><span style="font-size:.85rem;color:var(--muted)">Sail Scoring's series list isn't available for this workspace yet.${isRO?' Add a series address in Sail Scoring Setup.':''}</span></div>
+      ${ws?`<a href="${escHtml(ssWorkspaceBase(ws))}" target="_blank" rel="noopener" style="color:var(--teal);font-size:.88rem">Open results on Sail Scoring ↗</a>`:''}</div>`;
+    return;
+  }
 
   ssModels=await Promise.all(urls.map(async url=>{
     try{ return {url,model:await ssFetchExport(url),error:null}; }
@@ -12903,7 +12922,7 @@ function loadSsConfigPanel(){
   if(wsIn) wsIn.value=ssWorkspace();
   if(wsSt) wsSt.textContent='';
   const note=document.getElementById('ssConfigToggleNote');
-  if(note) note.style.display=ssFeatures().sailScoring?'none':'block';
+  if(note) note.style.display=ssResultsSource()==='sailscoring'?'none':'block';
 }
 function ssConfigAddRow(){
   document.getElementById('ssConfigList').insertAdjacentHTML('beforeend',ssConfigRowHtml(''));
