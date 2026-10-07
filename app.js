@@ -11823,8 +11823,12 @@ async function refreshResults(){
   // Manual refresh button — just delegate to the standard load (which always fetches fresh now)
   await loadResultsIfNeeded();
 }
-async function loadResultsIfNeeded(){
-  ssActive=ssResultsEnabled();
+// skipSs: set only by loadSailScoringResults() when Sail Scoring is switched
+// on but yields no series at all (workspace saved, series list not available,
+// no addresses) — Results then falls straight back to Halsail rather than
+// showing an empty tab.
+async function loadResultsIfNeeded(skipSs){
+  ssActive=skipSs!==true&&ssResultsEnabled();
   if(!HAL_CLUB&&!ssActive){
     document.getElementById('resultSeriesSelect').innerHTML='<option value="">—</option>';
     const resultsUrl=(_C.resultsUrl||'').trim();
@@ -12720,13 +12724,7 @@ async function loadSailScoringResults(){
   if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
   sel.innerHTML='<option value="">Loading…</option>';
   wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading '+escHtml(_C.short||'club')+' results from Sail Scoring…</div></div>';
-  if(!urls.length){
-    sel.innerHTML='<option value="">—</option>';
-    wrap.innerHTML=`<div class="empty-state"><div class="icon">🏆</div>
-      <div style="margin-bottom:10px">No series to show yet<br><span style="font-size:.85rem;color:var(--muted)">Sail Scoring's series list isn't available for this workspace yet.${isRO?' Add series addresses in Sail Scoring Setup.':''}</span></div>
-      ${ws?`<a href="${escHtml(ssWorkspaceBase(ws))}" target="_blank" rel="noopener" style="color:var(--teal);font-size:.88rem">Open results on Sail Scoring ↗</a>`:''}</div>`;
-    return;
-  }
+  if(!urls.length){ await loadResultsIfNeeded(true); return; }
 
   ssModels=await Promise.all(urls.map(async url=>{
     try{ return {url,model:await ssFetchExport(url),error:null}; }
