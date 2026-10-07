@@ -11771,7 +11771,9 @@ let halCuratedGroupIdx=0;   // index into halCuratedGroups of the selected serie
 
 // Halsail fetch — tries direct first, falls back to Supabase proxy if CORS blocks it
 const HAL_PROXY='/.netlify/functions/halsail-proxy'; // Netlify function proxy — avoids CORS on direct Halsail calls
-let halUsesProxy=false;
+// Always via the proxy: Halsail's JSON API needs an API key (header halsailapikey),
+// which only the server-side function may hold — a direct browser call has no key.
+let halUsesProxy=true;
 
 async function halFetch(path){
   const url=(halUsesProxy?HAL_PROXY+'?path=':HAL_URL)+path;
@@ -11780,7 +11782,14 @@ async function halFetch(path){
   const opts=halUsesProxy?{cache:'no-store'}:{mode:'cors',cache:'no-store'};
   try{
     const r=await fetch(url,opts);
-    if(!r.ok){ console.error('Halsail',r.status,path); return {_err:'HTTP '+r.status}; }
+    if(!r.ok){
+      console.error('Halsail',r.status,path);
+      // Halsail's 404 body says why ({Status,ErrorMessage}) and key failures
+      // say so too ({MessageLine1}) — surface that rather than a bare "HTTP 404".
+      let why='';
+      try{ const eb=await r.json(); why=(eb&&(eb.ErrorMessage||eb.MessageLine1||eb.error))||''; }catch(e){}
+      return {_err:why?String(why).slice(0,120):'HTTP '+r.status};
+    }
     return await r.json();
   }catch(e){
     // If direct fetch fails with a TypeError (CORS / network), try proxy once

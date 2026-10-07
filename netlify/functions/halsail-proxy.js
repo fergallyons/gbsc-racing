@@ -1,6 +1,10 @@
 // Netlify serverless function: Halsail API proxy
-// Browsers can't call halsail.com directly (no CORS headers).
-// This function runs server-side and forwards the request, then returns the JSON.
+// Browsers can't call halsail.com directly (no CORS headers), and the JSON API
+// now needs an API key that must never reach the browser — this function runs
+// server-side, adds the key (see _halsail.js), forwards the request and returns
+// Halsail's response with its status code unchanged.
+
+const { apiBase, apiHeaders } = require('./_halsail');
 
 exports.handler = async (event) => {
   const path = (event.queryStringParameters || {}).path || '';
@@ -10,14 +14,14 @@ exports.handler = async (event) => {
   }
 
   // Paths under /Result/ are Halsail's public HTML report pages (e.g. the ECHO race
-  // analysis page), served from the site root — not the /HalApi JSON API. Everything
-  // else keeps the original /HalApi-prefixed behaviour.
+  // analysis page), served from the site root — not the /HalApi JSON API, and they
+  // take no key. Everything else is the keyed /HalApi-prefixed JSON API.
   const isHtmlReport = path.startsWith('/Result/');
-  const base = isHtmlReport ? 'https://halsail.com' : 'https://halsail.com/HalApi';
+  const base = apiBase(event);
 
   try {
-    const res = await fetch(base + path, {
-      headers: { 'Accept': isHtmlReport ? 'text/html' : 'application/json' },
+    const res = await fetch(base + (isHtmlReport ? '' : '/HalApi') + path, {
+      headers: isHtmlReport ? { Accept: 'text/html' } : apiHeaders(event, 'application/json'),
     });
     const body = await res.text();
     return {

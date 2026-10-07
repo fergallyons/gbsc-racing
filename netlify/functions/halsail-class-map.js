@@ -28,8 +28,7 @@
 // Response: 200 { classes: [{classId, seryId, name}], fetchedAt }
 //           502 { error }
 
-const HAL_API = 'https://halsail.com/HalApi';
-const HAL_RESULT = 'https://halsail.com/Result/Public';
+const { apiBase, apiHeaders } = require('./_halsail');
 
 function extractOuterClasses(html) {
   const m = html.match(/<select id="ddRacingClasses"[^>]*>([\s\S]*?)<\/select>/);
@@ -58,7 +57,8 @@ exports.handler = async (event) => {
   if (!club) return json(400, { error: 'club query param required' });
 
   try {
-    const scheduleRes = await fetch(HAL_API + '/GetSchedule/' + club);
+    const base = apiBase(event);
+    const scheduleRes = await fetch(base + '/HalApi/GetSchedule/' + encodeURIComponent(club), { headers: apiHeaders(event) });
     if (!scheduleRes.ok) return json(502, { error: 'GetSchedule failed: HTTP ' + scheduleRes.status });
     const schedule = await scheduleRes.json();
     if (!Array.isArray(schedule) || !schedule.length || !schedule[0].SeryID) {
@@ -66,7 +66,7 @@ exports.handler = async (event) => {
     }
     const bootstrapSeryId = schedule[0].SeryID;
 
-    const pageRes = await fetch(HAL_RESULT + '/' + bootstrapSeryId);
+    const pageRes = await fetch(base + '/Result/Public/' + bootstrapSeryId);
     if (!pageRes.ok) return json(502, { error: 'Result page fetch failed: HTTP ' + pageRes.status });
     const html = await pageRes.text();
 
