@@ -12645,7 +12645,8 @@ function ssParseExport(raw,url){
 
   return {
     url,
-    pageUrl:url.replace(/\.sailscoring\.json$/i,''),
+    // The season index the file sits in (e.g. …/p/<workspace>/2026) — the series' own page URL isn't derivable from the data file's name
+    pageUrl:url.replace(/\/[^\/]*$/,''),
     name:s.name||'Series',venue:s.venue||'',startDate:s.startDate||'',endDate:s.endDate||'',
     exportedAt:raw.exportedAt||'',final:s.resultsStatus==='final',version:raw.version,
     races:races.map(r=>({number:r.number,date:r.date})),
