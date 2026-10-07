@@ -767,6 +767,7 @@ const FEAT_DEFAULTS={
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
   crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
+  sailScoring:false, // opt-in — Results from published Sail Scoring files instead of Halsail (needs series addresses in Sail Scoring Setup)
 };
 // Feature catalog for the admin panel UI (rendered by renderFeaturesPanel).
 const FEAT_CATALOG=[
@@ -776,6 +777,7 @@ const FEAT_CATALOG=[
   {key:'livePortWeather', label:'Live Port of Galway Weather (Race Weather tab)', type:'bool', group:'Behaviour'},
   {key:'feeWizard', label:'Guided Fee Wizard — declare crew, collect funds, review, submit', type:'bool', group:'Behaviour'},
   {key:'rnli', label:'RNLI Contributions — crew-level donate flow (Revolut + Card)', type:'bool', group:'Behaviour'},
+  {key:'sailScoring', label:'Sail Scoring Results — show results from published Sail Scoring files instead of Halsail', type:'bool', group:'Behaviour'},
   {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
   {key:'courseCard',     label:'Course Card Picker',    type:'bool', group:'RO Tiles'},
   {key:'registrations',  label:'Registrations',         type:'bool', group:'RO Tiles'},
@@ -4102,6 +4104,8 @@ function applyAllFeatureVisibility(){
       if(el) el.style.display=on?'':'none';
     });
   });
+  const ssTile=document.getElementById('tile-ro-ssConfig');
+  if(ssTile) ssTile.style.display=f.sailScoring?'':'none';
   // Every FEAT.* behavior flag set here must have an else-reset to its
   // default, not just a set-when-present branch — applyLocalFeatures()
   // (above) pre-populates FEAT from localStorage's '__features__' cache
@@ -11820,7 +11824,8 @@ async function refreshResults(){
   await loadResultsIfNeeded();
 }
 async function loadResultsIfNeeded(){
-  if(!HAL_CLUB){
+  ssActive=ssResultsEnabled();
+  if(!HAL_CLUB&&!ssActive){
     document.getElementById('resultSeriesSelect').innerHTML='<option value="">—</option>';
     const resultsUrl=(_C.resultsUrl||'').trim();
     document.getElementById('resultsContent').innerHTML= resultsUrl
@@ -11843,6 +11848,8 @@ async function loadResultsIfNeeded(){
     return;
   }
 
+  if(ssActive){ await loadSailScoringResults(); return; }
+
   // Curated mode — RO has explicitly picked real series in Results Setup.
   // Completely separate path from the default logic below: no schedule
   // scan, no isEchoClass filter, no tandem detection. Untouched default
@@ -11854,6 +11861,8 @@ async function loadResultsIfNeeded(){
     return;
   }
   halCuratedActive=null;
+  const _ssPills=document.getElementById('resultFleetPills');
+  if(_ssPills){ _ssPills.style.display='none'; _ssPills.innerHTML=''; }
 
   // Always fetch live from Halsail — no session cache so results are never stale.
   // Clear result/boat caches but preserve the user's current series selection.
@@ -11939,6 +11948,7 @@ async function loadResultsIfNeeded(){
 async function onResultSeriesChange(){
   const i=parseInt(document.getElementById('resultSeriesSelect').value);
   if(isNaN(i)) return;
+  if(ssActive){ ssSelectSeries(i); return; }
   if(halCuratedActive){ await selectCuratedGroup(i); return; }
   halCurrentSeries=halSeriesList[i];
   await renderResultsForSeries(halCurrentSeries);
@@ -12514,6 +12524,358 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handic
     </div>
   `;
 }
+// ═══════════════════════════════════════════════════════════════
+// SAIL SCORING RESULTS SOURCE — alternative to Halsail
+// ═══════════════════════════════════════════════════════════════
+// Reads the public, CORS-open `.sailscoring.json` file Sail Scoring publishes
+// beside each series' results page (format: github.com/sailscoring/sailscoring,
+// docs/public-export-format.md). No key, no server proxy. Opt-in per club via
+// settings.features.sailScoring + settings.features.ssSeriesUrls — both live
+// in the existing features JSON, so no migration. Results only switch over
+// when the toggle is on AND at least one series address is saved; otherwise
+// loadResultsIfNeeded() behaves exactly as before (Halsail).
+//
+// The standings rows' `name` is a PERSON's name, not the boat — boat names
+// come from competitors[].boatName, matched by sail number.
+const SS_MAX_VERSION=8;
+let ssActive=false;
+let ssModels=[];          // [{url, model|null, error|null}] for the current Results load
+let ssCurrentIdx=0;
+let ssCurrentFleetIdx=0;
+
+function ssFeatures(){ return (clubSettings&&clubSettings.features)||{}; }
+function ssSourceUrls(){
+  const u=ssFeatures().ssSeriesUrls;
+  return Array.isArray(u)?u.filter(x=>typeof x==='string'&&x.trim()):[];
+}
+function ssResultsEnabled(){ return !!ssFeatures().sailScoring&&ssSourceUrls().length>0; }
+// escHtml() returns '' for the number 0 — a 0 score or rank must still show
+function ssEsc(v){ return escHtml(v==null?'':String(v)); }
+function ssSailKey(s){ return String(s==null?'':s).replace(/[^a-z0-9]/gi,'').toUpperCase(); }
+
+function ssValidateUrl(raw){
+  let u;
+  try{ u=new URL((raw||'').trim()); }catch(e){ return {error:'Not a valid web address'}; }
+  if(u.protocol!=='https:') return {error:'Must start with https://'};
+  if(u.hostname!=='sailscoring.ie'&&!u.hostname.endsWith('.sailscoring.ie')) return {error:'Must be a sailscoring.ie address'};
+  if(!/\.sailscoring\.json$/i.test(u.pathname)) return {error:'Must end in .sailscoring.json — use the “Data” link in the published results page footer'};
+  return {url:u.toString()};
+}
+
+async function ssFetchExport(url){
+  const ctl=new AbortController();
+  const timer=setTimeout(()=>ctl.abort(),15000);
+  try{
+    // no-cache = always revalidate (the file is ETag'd), so a fresh publish shows immediately
+    const r=await fetch(url,{cache:'no-cache',signal:ctl.signal});
+    if(!r.ok) throw new Error(r.status===404?'Not found — has the series been published?':r.status===429?'Sail Scoring is rate-limiting requests — try again shortly':'HTTP '+r.status);
+    let raw;
+    try{ raw=await r.json(); }catch(e){ throw new Error('Response was not valid JSON'); }
+    return ssParseExport(raw,url);
+  }catch(e){
+    if(e&&e.name==='AbortError') throw new Error('Timed out reaching Sail Scoring');
+    if(e instanceof TypeError) throw new Error('Could not reach Sail Scoring');
+    throw e;
+  }finally{ clearTimeout(timer); }
+}
+
+// Converts a PublicSeriesExport (any version up to SS_MAX_VERSION) into a
+// small neutral model the renderer needs. Per-race arrays in standings rows
+// line up index-for-index with export.races (see championshipStandingRows()
+// in the Sail Scoring source). Throws a readable Error on anything unusable.
+function ssParseExport(raw,url){
+  if(!raw||typeof raw!=='object'||Array.isArray(raw)) throw new Error('Not a Sail Scoring results file');
+  if(typeof raw.version!=='number') throw new Error('Missing format version — not a Sail Scoring results file');
+  if(raw.version>SS_MAX_VERSION) throw new Error('This file uses format v'+raw.version+', newer than this app understands (v'+SS_MAX_VERSION+')');
+  ['fleets','competitors','races','standings'].forEach(k=>{
+    if(!Array.isArray(raw[k])) throw new Error('Results file is missing “'+k+'”');
+  });
+  const s=raw.series||{};
+  const bySail={};
+  raw.competitors.forEach(c=>{ const k=ssSailKey(c.sailNumber); if(k&&!bySail[k]) bySail[k]=c; });
+  const fleetDefs={};
+  raw.fleets.forEach(f=>{ fleetDefs[f.name]=f; });
+  const races=raw.races.map(r=>({number:r.raceNumber,date:r.date||'',byFleet:r.echoByFleet||{}}));
+
+  // Rating shown beside a boat, per the fleet's scoring system. ECHO is
+  // progressive: the rating she raced under in the latest race that fleet
+  // sailed, plus the new rating that race produced (the "next ECHO").
+  function ratingFor(def,comp,sailKey){
+    const sys=def&&def.scoringSystem;
+    if(!comp) return {rating:null,next:null};
+    if(sys==='irc') return {rating:comp.ircTcc!=null?comp.ircTcc:null,next:null};
+    if(sys==='echo'){
+      for(let i=races.length-1;i>=0;i--){
+        const fr=races[i].byFleet[def.name];
+        const row=fr&&Array.isArray(fr.rows)?fr.rows.find(x=>ssSailKey(x.sailNumber)===sailKey):null;
+        if(row) return {rating:row.tcfApplied!=null?row.tcfApplied:null,next:row.newTcf!=null?row.newTcf:null};
+      }
+      return {rating:comp.echoStartingTcf!=null?comp.echoStartingTcf:null,next:null};
+    }
+    if(sys==='nhc') return {rating:comp.nhcStartingTcf!=null?comp.nhcStartingTcf:null,next:null};
+    if(sys==='vprs') return {rating:comp.vprsTcc!=null?comp.vprsTcc:null,next:null};
+    if(sys==='tcf') return {rating:comp.fixedTcf!=null?comp.fixedTcf:null,next:null};
+    if(sys==='py') return {rating:comp.pyNumber!=null?comp.pyNumber:null,next:null};
+    return {rating:null,next:null};
+  }
+
+  const fleets=raw.standings.map(st=>{
+    const def=fleetDefs[st.fleetName]||null;
+    const rows=(st.rows||[]).map(r=>{
+      const key=ssSailKey(r.sailNumber);
+      const comp=bySail[key]||null;
+      const rt=ratingFor(def,comp,key);
+      const cells=races.map((_,i)=>({
+        pts:r.racePoints?r.racePoints[i]:null,
+        code:r.raceCodes?r.raceCodes[i]:null,
+        discard:!!(r.raceDiscards&&r.raceDiscards[i]),
+        excluded:!!(r.raceExcluded&&r.raceExcluded[i])||!!(r.raceNotScored&&r.raceNotScored[i]),
+        penalty:r.racePenaltyCodes?r.racePenaltyCodes[i]:null,
+        redress:!!(r.raceRedressFlags&&r.raceRedressFlags[i]),
+      }));
+      return {
+        rank:r.rank,unranked:!!r.unranked,sail:r.sailNumber||'',
+        boat:(comp&&comp.boatName)||'',helm:r.name||'',
+        club:(comp&&Array.isArray(comp.clubs)&&comp.clubs[0])||'',
+        rating:rt.rating,next:rt.next,net:r.netPoints,total:r.totalPoints,cells,
+      };
+    });
+    return {name:(def&&(def.label||def.name))||st.fleetName,system:def?def.scoringSystem:'',order:def&&def.displayOrder!=null?def.displayOrder:0,rows};
+  }).sort((a,b)=>a.order-b.order);
+
+  return {
+    url,
+    pageUrl:url.replace(/\.sailscoring\.json$/i,''),
+    name:s.name||'Series',venue:s.venue||'',startDate:s.startDate||'',endDate:s.endDate||'',
+    exportedAt:raw.exportedAt||'',final:s.resultsStatus==='final',version:raw.version,
+    races:races.map(r=>({number:r.number,date:r.date})),
+    fleets,
+  };
+}
+
+async function loadSailScoringResults(){
+  const urls=ssSourceUrls();
+  const sel=document.getElementById('resultSeriesSelect');
+  const wrap=document.getElementById('resultsContent');
+  const ircBtnEl=document.getElementById('ircBtn'), echoBtnEl=document.getElementById('echoBtn');
+  if(ircBtnEl) ircBtnEl.style.display='none';
+  if(echoBtnEl) echoBtnEl.style.display='none';
+  const elink=document.getElementById('resultEstellaLink');
+  if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
+  sel.innerHTML='<option value="">Loading…</option>';
+  wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading '+escHtml(_C.short||'club')+' results from Sail Scoring…</div></div>';
+
+  ssModels=await Promise.all(urls.map(async url=>{
+    try{ return {url,model:await ssFetchExport(url),error:null}; }
+    catch(e){ return {url,model:null,error:(e&&e.message)||'Failed to load'}; }
+  }));
+  if(ssModels.every(m=>!m.model)){
+    sel.innerHTML='<option value="">—</option>';
+    wrap.innerHTML=`<div class="empty-state"><div class="icon">⚠</div>
+      <div style="margin-bottom:10px">Could not load results from Sail Scoring<br><span style="font-size:.85rem;color:var(--muted)">${escHtml(ssModels[0].error)}</span></div>
+      <button class="btn btn-ghost" style="padding:8px 16px" onclick="loadResultsIfNeeded()">Try Again</button></div>`;
+    return;
+  }
+  // Chronological, unavailable series last
+  ssModels.sort((a,b)=>{
+    if(!a.model||!b.model) return a.model?-1:(b.model?1:0);
+    return (a.model.startDate||'').localeCompare(b.model.startDate||'');
+  });
+  const today=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Dublin'});
+  let defaultIdx=-1;
+  ssModels.forEach((m,i)=>{ if(m.model&&m.model.startDate&&m.model.startDate<=today) defaultIdx=i; });
+  if(defaultIdx<0) defaultIdx=ssModels.findIndex(m=>m.model);
+  sel.innerHTML='';
+  ssModels.forEach((m,i)=>{
+    const o=document.createElement('option');
+    o.value=i;
+    o.textContent=m.model?m.model.name:'⚠ Unavailable — '+m.url.split('/').pop();
+    if(i===defaultIdx) o.selected=true;
+    sel.appendChild(o);
+  });
+  ssSelectSeries(defaultIdx);
+}
+
+function ssSelectSeries(i){
+  ssCurrentIdx=i; ssCurrentFleetIdx=0;
+  const m=ssModels[i];
+  if(!m||!m.model){
+    const pills=document.getElementById('resultFleetPills');
+    if(pills){ pills.style.display='none'; pills.innerHTML=''; }
+    document.getElementById('resultsContent').innerHTML=
+      `<div class="empty-state"><div class="icon">⚠</div><div>Could not load this series<br><span style="font-size:.85rem;color:var(--muted)">${escHtml(m?m.error:'No data')}</span></div></div>`;
+    return;
+  }
+  ssRenderFleetPills();
+  ssRenderResults();
+}
+
+function ssPillStyle(active){
+  return "font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:8px;cursor:pointer;"
+    +(active?'border:1px solid var(--teal);background:var(--teal);color:var(--navy);':'border:1px solid var(--border);background:transparent;color:var(--muted);');
+}
+function ssRenderFleetPills(){
+  const wrap=document.getElementById('resultFleetPills');
+  if(!wrap) return;
+  const model=ssModels[ssCurrentIdx]&&ssModels[ssCurrentIdx].model;
+  if(!model||model.fleets.length<2){ wrap.style.display='none'; wrap.innerHTML=''; return; }
+  wrap.style.display='flex';
+  wrap.innerHTML=model.fleets.map((f,i)=>
+    `<button onclick="ssSelectFleet(${i})" style="${ssPillStyle(i===ssCurrentFleetIdx)}">${escHtml(f.name)}</button>`).join('');
+}
+function ssSelectFleet(i){
+  ssCurrentFleetIdx=i;
+  const wrap=document.getElementById('resultFleetPills');
+  if(wrap) [...wrap.children].forEach((btn,j)=>{ btn.style.cssText=ssPillStyle(j===i); });
+  ssRenderResults();
+}
+
+// Same markup/classes as buildResultsTable() so it looks identical — kept as
+// a sibling rather than a refactor so the Halsail path is untouched.
+function ssRenderResults(){
+  const wrap=document.getElementById('resultsContent');
+  const entry=ssModels[ssCurrentIdx];
+  const model=entry&&entry.model;
+  if(!model){ return; }
+  const fleet=model.fleets[ssCurrentFleetIdx]||model.fleets[0];
+  if(!fleet||!fleet.rows.length){ wrap.innerHTML='<div class="empty-state"><div class="icon">🏆</div><div>No results yet</div></div>'; return; }
+
+  const myName=currentBoat&&!isRO?normBoatName(currentBoat.name):'';
+  const mySail=currentBoat&&!isRO?ssSailKey(currentBoat.sailNumber):'';
+  const myResult=fleet.rows.find(r=>(myName&&r.boat&&normBoatName(r.boat)===myName)||(mySail&&ssSailKey(r.sail)===mySail));
+
+  const summaryHtml=myResult?`<div class="results-my-pos">
+      <div class="results-my-rank">${myResult.unranked?'—':ssEsc(myResult.rank)}</div>
+      <div>
+        <div class="results-my-label">${escHtml(currentBoat.name)} — ${escHtml(fleet.name)}</div>
+        <div class="results-my-pts">${ssEsc(myResult.net)} pts · ${model.races.length} races</div>
+      </div>
+    </div>`:'';
+
+  const raceHeaders=model.races.map(r=>
+    `<th class="num" style="min-width:32px" title="${escHtml(r.date?'Race '+r.number+' · '+r.date:'Race '+r.number)}">R${ssEsc(r.number)}</th>`).join('');
+
+  const showNext=fleet.system==='echo'&&fleet.rows.some(r=>r.next!=null);
+  const fmtR=v=>(Math.round(v*1000)/1000).toString();
+  const rows=fleet.rows.map((r,i)=>{
+    const rank=r.unranked?'—':(r.rank||i+1);
+    const podiumClass=rank===1?'podium-1':rank===2?'podium-2':rank===3?'podium-3':'';
+    const isMe=r===myResult;
+    const primary=r.boat||r.helm||r.sail||'—';
+    const secondary=r.boat?(r.sail||''):'';
+    const ratingBadge=r.rating!=null
+      ?`<span style="font-size:.85rem;color:var(--muted);font-weight:400;margin-left:4px">(${fmtR(r.rating)}${showNext&&r.next!=null?' → '+fmtR(r.next):''})</span>`:'';
+    const nameCell=secondary
+      ?`<div style="font-weight:600;line-height:1.2">${escHtml(primary)}${ratingBadge}</div><div style="font-size:.8rem;color:var(--muted)">${escHtml(secondary)}</div>`
+      :`<div style="font-weight:600">${escHtml(primary)}${ratingBadge}</div>`;
+    const raceCells=r.cells.map(c=>{
+      if(c.excluded||c.pts==null) return '<td class="num"><span class="race-pts dns">—</span></td>';
+      const label=c.discard?'('+c.pts+')':String(c.pts);
+      const cls=c.discard?'discarded':(c.code?'dns':'ok');
+      const tip=[c.code,c.penalty,c.redress?'Redress':''].filter(Boolean).join(' · ');
+      return `<td class="num"><span class="race-pts ${cls}"${tip?` title="${escHtml(tip)}"`:''}>${escHtml(label)}</span></td>`;
+    }).join('');
+    return `<tr class="${isMe?'my-boat':''} ${podiumClass}">
+      <td class="rank-cell">${ssEsc(rank)}</td>
+      <td class="boat-name">${nameCell}</td>
+      <td class="num" style="color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:800">${ssEsc(r.net)}</td>
+      ${raceCells}
+    </tr>`;
+  }).join('');
+
+  let updated='';
+  if(model.exportedAt){
+    const d=new Date(model.exportedAt);
+    if(!isNaN(d)) updated=' · Updated '+d.toLocaleString('en-IE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
+  }
+  wrap.innerHTML=`
+    ${summaryHtml}
+    <div class="results-race-header">
+      <div class="results-series-name">${escHtml(model.name)} · ${escHtml(fleet.name)}</div>
+      <div class="results-updated">via Sail Scoring · ${model.final?'Final':'Provisional'}${escHtml(updated)}</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="results-table">
+        <thead>
+          <tr>
+            <th style="width:28px"></th>
+            <th>Boat</th>
+            <th class="num">Pts</th>
+            ${raceHeaders}
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="font-size:.8rem;color:var(--muted);margin-top:10px;text-align:center">
+      Points in () are discards · Red = DNC/DNS/DNF/OCS${showNext?' · Rating (→ next ECHO)':''}
+    </div>
+    <div style="margin-top:14px;text-align:center">
+      <a href="${escHtml(model.pageUrl)}" target="_blank" rel="noopener"
+        style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;
+        border-radius:10px;background:transparent;border:1px solid rgba(0,174,239,.3);
+        color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-size:.88rem;
+        font-weight:700;letter-spacing:.04em;text-decoration:none">
+        Full results on Sail Scoring ↗
+      </a>
+    </div>`;
+}
+
+// ── Sail Scoring Setup panel (RO) ───────────────────────────────────────
+// One address per series (each series publishes its own file). Save checks
+// every address by fetching + parsing it first, so a typo shows up here, not
+// as a broken Results tab for every skipper.
+function ssConfigRowHtml(value){
+  return `<div class="ss-cfg-row" style="background:var(--navy-mid);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="url" class="ss-cfg-url" value="${escHtml(value||'')}" placeholder="https://app.sailscoring.ie/p/…/series.sailscoring.json" autocomplete="off"
+        style="flex:1;min-width:0;background:var(--navy-input);border:1px solid var(--border);border-radius:7px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.82rem;padding:8px 10px;outline:none;">
+      <button onclick="ssConfigRemoveRow(this)" title="Remove" style="background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--muted);cursor:pointer;padding:6px 9px;line-height:1">✕</button>
+    </div>
+    <div class="ss-cfg-status" style="font-size:.8rem;margin-top:6px;line-height:1.4"></div>
+  </div>`;
+}
+function loadSsConfigPanel(){
+  const urls=ssSourceUrls();
+  document.getElementById('ssConfigList').innerHTML=(urls.length?urls:['']).map(ssConfigRowHtml).join('');
+  const note=document.getElementById('ssConfigToggleNote');
+  if(note) note.style.display=ssFeatures().sailScoring?'none':'block';
+}
+function ssConfigAddRow(){
+  document.getElementById('ssConfigList').insertAdjacentHTML('beforeend',ssConfigRowHtml(''));
+}
+function ssConfigRemoveRow(btn){
+  const row=btn.closest('.ss-cfg-row'); if(row) row.remove();
+}
+async function saveSsConfig(){
+  const rows=[...document.querySelectorAll('#ssConfigList .ss-cfg-row')];
+  const seen=new Set(), ok=[]; let bad=0;
+  const saveBtn=document.getElementById('ssConfigSaveBtn');
+  if(saveBtn){ saveBtn.disabled=true; saveBtn.textContent='Checking…'; }
+  await Promise.all(rows.map(async row=>{
+    const input=row.querySelector('.ss-cfg-url'), st=row.querySelector('.ss-cfg-status');
+    const raw=input.value.trim();
+    if(!raw){ st.textContent=''; return; }
+    const v=ssValidateUrl(raw);
+    if(v.error){ st.style.color='var(--danger)'; st.textContent='⚠ '+v.error; bad++; return; }
+    if(seen.has(v.url)){ st.style.color='var(--muted)'; st.textContent='Duplicate — ignored'; return; }
+    seen.add(v.url);
+    st.style.color='var(--muted)'; st.textContent='Checking…';
+    try{
+      const m=await ssFetchExport(v.url);
+      const boats=Math.max(0,...m.fleets.map(f=>f.rows.length));
+      st.style.color='var(--success)';
+      st.textContent='✓ '+m.name+' — '+m.fleets.length+' fleet'+(m.fleets.length===1?'':'s')+', '+boats+' boats, '+m.races.length+' race'+(m.races.length===1?'':'s');
+      ok.push(v.url);
+    }catch(e){
+      st.style.color='var(--danger)'; st.textContent='⚠ '+((e&&e.message)||'Could not load'); bad++;
+    }
+  }));
+  if(saveBtn){ saveBtn.disabled=false; saveBtn.textContent='Save'; }
+  if(bad){ toast('⚠ Fix the highlighted addresses first — nothing saved'); return; }
+  await saveFeatureSetting('ssSeriesUrls',ok);
+}
+
 function closeSheet(id){
   document.getElementById(id).classList.remove('open');
   if(id==='collectSheet'||id==='pnSheet') renderCrew();
