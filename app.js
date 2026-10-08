@@ -626,33 +626,22 @@ let MARKS = [
 ];
 // ── Named start / finish lines ────────────────────────────────────────────
 // Each line is defined by two endpoints: lat1/lng1 = pin end,
-// lat2/lng2 = committee boat / outer mark end.
-// TODO: Replace placeholder coords for Ballyvaughan and Galway Docks
-//       with the real transits / GPS fixes once confirmed on the water.
-let LINES=[
-  { id:'club',
-    name:'Club Start/Finish',
-    lat1:_C.startLat != null ? _C.startLat : 53+(14.5687/60),
-    lng1:_C.startLng != null ? _C.startLng : -(8+(58.6148/60)),
-    lat2:53+(14.7106/60), lng2:-(8+(58.6084/60)),  // committee boat end  53°14.7106'N 008°58.6084'W
-    isDefault:true, isActive:true },
-  { id:'ballyvaughan',
-    name:'Ballyvaughan Finish',
-    // TODO: replace with real finish-line coords once confirmed
-    lat1:53.1165, lng1:-9.1490,
-    lat2:53.1155, lng2:-9.1495,
-    isActive:true },
-  { id:'galway_docks',
-    name:'Galway Docks Start',
-    lat1:53+(16.0355/60), lng1:-(9+(2.6577/60)),  // 53°16.0355'N 009°02.6577'W
-    lat2:53+(16.0090/60), lng2:-(9+(2.8005/60)),  // 53°16.0090'N 009°02.8005'W
-    isActive:true },
-];
-function getLineById(id){ return LINES.find(l=>l.id===id)||LINES[0]; }
+// lat2/lng2 = committee boat / outer mark end. The real set comes from the
+// club's start_finish_lines table (loadLines()). A club with none gets a
+// single club-neutral line at its own start position — this used to be
+// GBSC's own lines (committee-boat end in Galway Bay, Ballyvaughan, Galway
+// Docks), which put another club's "start" halfway across Ireland: HYC's
+// Course Builder measured its first and last legs as ~52nm.
+function _fallbackLines(){
+  const lat=_C.startLat!=null?_C.startLat:53+(14.5687/60); // GBSC's pin only if the club has no start at all
+  const lng=_C.startLng!=null?_C.startLng:-(8+(58.6148/60));
+  return [{ id:'club', name:'Club Start/Finish', lat1:lat, lng1:lng, lat2:lat, lng2:lng, isDefault:true, isActive:true }];
+}
+let LINES=_fallbackLines();
+// Unknown/missing id (e.g. a course saved with the generic 'club' at a club
+// whose lines have their own ids) -> the club's default line, else the first
+function getLineById(id){ return LINES.find(l=>l.id===id)||LINES.find(l=>l.isDefault)||LINES[0]; }
 function lineMidpoint(l){ return {lat:(l.lat1+l.lat2)/2, lng:(l.lng1+l.lng2)/2}; }
-
-// Legacy single-point reference — kept so any code not yet migrated still works
-const START_POS = lineMidpoint(LINES[0]);
 
 // ═══════════════════════════════════════════════════════════════
 // MAP TILE BACKGROUND
@@ -10870,7 +10859,11 @@ function renderSelectedOrder(){
   if(!courseMarks.length){wrap.style.display='none';return;}
   wrap.style.display='block';
   const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  let prevLat=START_POS.lat, prevLng=START_POS.lng;
+  // Legs run from the course's chosen start line and back to its chosen
+  // finish line (they differ for destination finishes), each at its midpoint
+  const startPt=lineMidpoint(getLineById(selectedStartLineId));
+  const finishPt=lineMidpoint(getLineById(selectedFinishLineId));
+  let prevLat=startPt.lat, prevLng=startPt.lng;
   let totalDist=0;
   courseMarks.forEach((entry,i)=>{
     const m=MARKS.find(x=>x.id===entry.id);
@@ -10896,9 +10889,9 @@ function renderSelectedOrder(){
     list.appendChild(el);
   });
   // Return leg + total distance summary
-  const retBrg=Math.round(bearing(prevLat,prevLng,START_POS.lat,START_POS.lng));
-  const retD=Math.round(dist(prevLat,prevLng,START_POS.lat,START_POS.lng)/1852*10)/10;
-  totalDist+=dist(prevLat,prevLng,START_POS.lat,START_POS.lng);
+  const retBrg=Math.round(bearing(prevLat,prevLng,finishPt.lat,finishPt.lng));
+  const retD=Math.round(dist(prevLat,prevLng,finishPt.lat,finishPt.lng)/1852*10)/10;
+  totalDist+=dist(prevLat,prevLng,finishPt.lat,finishPt.lng);
   const totalNm=Math.round(totalDist/1852*10)/10;
   const retDir=dirs[Math.round(retBrg/22.5)%16];
   const summary=document.createElement('div');
@@ -10951,10 +10944,12 @@ function onRoCourseRaceSelect(el,silent){
 }
 function updateStartLine(id){
   selectedStartLineId=id;
+  renderSelectedOrder(); // leg distances are measured from the start line
   renderRoCoursePreview();
 }
 function updateFinishLine(id){
   selectedFinishLineId=id;
+  renderSelectedOrder(); // ...and back to the finish line
   renderRoCoursePreview();
 }
 
@@ -13487,6 +13482,8 @@ async function loadLines(){
       isDefault:r.is_default||false,
       isActive:r.is_active!==false
     }));
+  } else {
+    LINES=_fallbackLines(); // rebuilt now the DB start position (settings.start_lat) is known
   }
   if(isRO) buildLinesMgrList();
 }
