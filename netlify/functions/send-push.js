@@ -3,15 +3,15 @@
 //
 // Setup (per club):
 //   Netlify → Site configuration → Environment variables → Add:
-//     VAPID_PRIVATE_KEY            (default/GBSC)
-//     VAPID_PRIVATE_KEY_<SLUG>     (per-club override, e.g. VAPID_PRIVATE_KEY_RCYC)
+//     VAPID_PRIVATE_KEY            (default/GBSC ONLY)
+//     VAPID_PRIVATE_KEY_<SLUG>     (per-club key, e.g. VAPID_PRIVATE_KEY_RCYC)
 //       — the private half of the VAPID keypair (generate with `npx web-push generate-vapid-keys`).
 //         The PUBLIC half is stored in the club's own Supabase `settings.vapid_public_key`
 //         (set via RO → Club Settings → Registration Notifications) — same value used
 //         client-side for pushManager.subscribe(), so it lives in the DB, not here.
 //
-//     SUPABASE_SERVICE_KEY         (default/GBSC)
-//     SUPABASE_SERVICE_KEY_<SLUG>  (per-club override, e.g. SUPABASE_SERVICE_KEY_RCYC)
+//     SUPABASE_SERVICE_KEY         (default/GBSC ONLY)
+//     SUPABASE_SERVICE_KEY_<SLUG>  (per-club key, e.g. SUPABASE_SERVICE_KEY_RCYC)
 //       — the club's Supabase "service_role" key (Supabase dashboard → Project Settings →
 //         API). Required because push_subscriptions has no anon SELECT policy — only the
 //         service role can read subscriber rows.
@@ -19,6 +19,10 @@
 //   Club is resolved from the request hostname via HOSTNAME_MAP, same as club-config.js —
 //   see netlify/functions/_club.js. The club's sbUrl/anon key come from CLUB_CONFIG_<SLUG>
 //   (already set for Stripe/branding — reused here read-only, server-side).
+//   The bare keys are GBSC's, so only the default club falls back to them
+//   (_club.js envForSlug); any other club missing either _<SLUG> key gets 503.
+//   ?club= is honoured (detect-finishes.js relies on it for OCS alerts) — it
+//   can only pick a club's own config + own keys, never mix clubs.
 //
 // Request (POST, JSON):
 //   { type: "boat_registered", raceLabel: "Sat 25 Jul", boatName: "Silver Fox" }

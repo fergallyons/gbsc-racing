@@ -3,8 +3,11 @@
 //
 // Setup:
 //   Netlify → Site configuration → Environment variables → Add variable:
-//   Key:   STRIPE_SECRET_KEY               (default/GBSC)
-//          STRIPE_SECRET_KEY_<SLUG>         (per-club override, e.g. STRIPE_SECRET_KEY_RCYC)
+//   Key:   STRIPE_SECRET_KEY               (default/GBSC ONLY)
+//          STRIPE_SECRET_KEY_<SLUG>         (per-club key, e.g. STRIPE_SECRET_KEY_RCYC)
+//   The bare key is GBSC's Stripe account, so only the default club falls back
+//   to it (_club.js envForSlug). Any other club without its own key gets 503 —
+//   never a checkout on GBSC's account.
 //   Value: sk_live_…  (grab from https://dashboard.stripe.com/apikeys)
 //   Club is resolved from the request hostname via HOSTNAME_MAP, same as club-config.js —
 //   see netlify/functions/_club.js.

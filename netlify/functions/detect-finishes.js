@@ -46,7 +46,11 @@
 // lookup/VAPID/stale-cleanup logic here — ?club=<slug> uses the same
 // override _club.js's resolveClubSlug() already supports, so no hostname
 // spoofing is needed to pick the right club from a request with no Host.
+// Only the default club may use the bare SUPABASE_SERVICE_KEY (GBSC's own
+// key, _club.js envForSlug); any other club without SUPABASE_SERVICE_KEY_<SLUG>
+// is skipped, never processed with GBSC's key.
 
+const { envForSlug } = require('./_club');
 const { findCrossing, isOnCourseSide, interpolateAtTime, offsetToBow } = require('./_geometry');
 
 async function fetchJson(url, headers) {
@@ -124,9 +128,9 @@ function rankRacesByFleet(races) {
 
 async function processClub(slug, clubConfig) {
   const sbUrl = clubConfig.sbUrl, anonKey = clubConfig.sbKey;
-  const serviceKey = process.env['SUPABASE_SERVICE_KEY_' + slug] || process.env.SUPABASE_SERVICE_KEY;
+  const serviceKey = envForSlug(slug, 'SUPABASE_SERVICE_KEY');
   if (!sbUrl || !anonKey) { console.log('[' + slug + '] skip: no sbUrl/sbKey'); return { slug, skipped: 'no sbUrl/sbKey' }; }
-  if (!serviceKey) { console.log('[' + slug + '] skip: no SUPABASE_SERVICE_KEY'); return { slug, skipped: 'no SUPABASE_SERVICE_KEY configured — can\'t write results' }; }
+  if (!serviceKey) { console.log('[' + slug + '] skip: no SUPABASE_SERVICE_KEY_' + slug); return { slug, skipped: 'no SUPABASE_SERVICE_KEY_' + slug + ' configured — can\'t write results' }; }
 
   const anonHeaders = { apikey: anonKey, Authorization: 'Bearer ' + anonKey };
   const serviceHeaders = { apikey: serviceKey, Authorization: 'Bearer ' + serviceKey, 'Content-Type': 'application/json' };
