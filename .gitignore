@@ -3,3 +3,7 @@
 
 # npm dependencies for Netlify Functions (installed at build time)
 node_modules
+
+# Raw Halsail/Sail Scoring captures — contain people's names, never commit
+.capture
+__pycache__/
