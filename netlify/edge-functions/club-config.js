@@ -89,6 +89,8 @@
  *  3. Redeploy (env var changes trigger a new deploy on Netlify).
  */
 
+import { dbBranding, withBranding } from './lib/branding.js';
+
 export default async function handler(request) {
   const host = (request.headers.get('host') || '').split(':')[0]; // strip port
 
@@ -157,6 +159,9 @@ export default async function handler(request) {
       { headers: { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-store' } },
     );
   }
+
+  // Branding set in Club Settings (DB) wins over the env var — see lib/branding.js
+  config = withBranding(config, await dbBranding(config));
 
   // ── 3. Serve as JS ─────────────────────────────────────────────────
   return new Response(`window.CLUB=${JSON.stringify(config)};`, {

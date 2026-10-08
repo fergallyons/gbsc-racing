@@ -1633,12 +1633,12 @@
         style="margin-top:8px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;outline:none;width:100%;box-sizing:border-box;">
       <div id="ssWorkspaceStatus" style="font-size:.8rem;margin-top:6px;line-height:1.4"></div>
       <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
-        The club's Sail Scoring workspace — the <b>u-…</b> part of its results addresses. Sail Scoring is adding a
-        machine-readable series list per workspace; once it's live, the club's series will appear in Results automatically.
+        The club's Sail Scoring workspace — the <b>u-…</b> part of its results addresses. Every series the club
+        publishes there appears in Results automatically.
       </div>
     </div>
     <div style="font-size:.85rem;color:var(--muted);margin-bottom:12px;line-height:1.5">
-      <b style="color:var(--white)">Series addresses</b> — until the series list is available (and for anything outside it),
+      <b style="color:var(--white)">Series addresses</b> — only needed for a series outside the club's workspace:
       paste the <b style="color:var(--white)">Data (.sailscoring.json)</b> link from the footer of a series' published results page.
       Everything is checked when you save. With nothing saved, Results keeps using Halsail.
     </div>
@@ -2329,6 +2329,42 @@
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title">⚙ Club Settings</div>
+
+    <!-- Branding — needs migration 070 (SCHEMA_HAS_BRANDING), hidden by checkSchemaCapabilities() otherwise.
+         Saves immediately (no Save button needed), like boat photos. -->
+    <div id="ro-branding-wrap" style="display:none;border-bottom:1px solid var(--border);margin-bottom:16px;padding-bottom:16px">
+      <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">🎨 Branding</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+        <div style="width:64px;height:64px;flex-shrink:0;border:1px solid var(--border);border-radius:10px;background:var(--navy);display:flex;align-items:center;justify-content:center;overflow:hidden">
+          <img id="ro-brand-logo-preview" alt="Club logo" style="max-width:100%;max-height:100%;display:none">
+          <span id="ro-brand-logo-none" style="font-size:.75rem;color:var(--muted)">No logo</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost" style="padding:7px 12px;font-size:.85rem" onclick="document.getElementById('ro-brand-logo-input').click()">⬆ Upload logo</button>
+            <button id="ro-brand-logo-reset" class="btn btn-ghost" style="padding:7px 12px;font-size:.85rem" onclick="resetBrandingField('logo')">Use default</button>
+          </div>
+          <div style="font-size:.78rem;color:var(--muted);line-height:1.4">PNG, JPG, WebP or SVG, up to 2 MB. Also used as the app icon.</div>
+        </div>
+        <input type="file" id="ro-brand-logo-input" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" style="display:none" onchange="onBrandLogoSelected(this)">
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px">
+        <span style="font-size:.9rem;color:var(--white)">Main colour <span style="font-size:.78rem;color:var(--muted)">— buttons, highlights</span></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="color" id="ro-brand-primary" onchange="saveBrandColor('primary',this.value)" style="width:44px;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--navy);cursor:pointer;padding:2px">
+          <button class="btn btn-ghost" style="padding:5px 10px;font-size:.8rem" onclick="resetBrandingField('primary')">Default</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px">
+        <span style="font-size:.9rem;color:var(--white)">RO colour <span style="font-size:.78rem;color:var(--muted)">— RO mode header &amp; buttons</span></span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="color" id="ro-brand-ro" onchange="saveBrandColor('ro',this.value)" style="width:44px;height:32px;border:1px solid var(--border);border-radius:6px;background:var(--navy);cursor:pointer;padding:2px">
+          <button class="btn btn-ghost" style="padding:5px 10px;font-size:.8rem" onclick="resetBrandingField('ro')">Default</button>
+        </div>
+      </div>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:10px;line-height:1.4">Changes save straight away and apply on this device now; everyone else sees them within a minute.</div>
+    </div>
+
     <div style="font-size:.8rem;color:var(--muted);margin-bottom:16px">Enter a separate Stripe Payment Link for each membership tier. These apply to all boats and enable card / Apple Pay / Google Pay on the crew payment page.</div>
 
     <div class="form-group" style="margin-bottom:14px">

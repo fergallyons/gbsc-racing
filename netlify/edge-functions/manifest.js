@@ -9,26 +9,7 @@
  * this edge function intercepts the path in all Netlify deployments.
  */
 
-// Fallback for clubs (e.g. GBSC) whose logo/favicon is set on the DB
-// settings row rather than the CLUB_CONFIG_<SLUG> env var — the env var
-// config already carries sbUrl/sbKey, so this is a cheap direct REST call,
-// not a general DB integration. Only called when the env var has no
-// favicon/logo, so already-configured clubs pay no extra latency.
-async function dbFaviconFallback(club) {
-  if (!club.sbUrl || !club.sbKey) return '';
-  try {
-    const r = await fetch(
-      club.sbUrl + '/rest/v1/settings?id=eq.club&select=logo_url,favicon_url',
-      { headers: { apikey: club.sbKey, Authorization: 'Bearer ' + club.sbKey } }
-    );
-    if (!r.ok) return '';
-    const rows = await r.json();
-    const row = rows[0] || {};
-    return row.favicon_url || row.logo_url || '';
-  } catch (e) {
-    return '';
-  }
-}
+import { dbBranding, withBranding, iconUrl } from './lib/branding.js';
 
 export default async function handler(request) {
   const host = (request.headers.get('host') || '').split(':')[0];
@@ -55,8 +36,8 @@ export default async function handler(request) {
     try { club = JSON.parse(configJson); } catch (e) {}
   }
 
-  let faviconUrl = club.faviconUrl || club.faviconurl || club.logoUrl || club.logourl || club.logo_url || club.logo || '';
-  if (!faviconUrl) faviconUrl = await dbFaviconFallback(club);
+  // Branding set in Club Settings (DB) wins over the env var — see lib/branding.js
+  const faviconUrl = iconUrl(withBranding(club, await dbBranding(club)));
   const ext = faviconUrl ? faviconUrl.split('.').pop().toLowerCase() : '';
   const mimeMap = { svg: 'image/svg+xml', png: 'image/png', webp: 'image/webp', gif: 'image/gif', ico: 'image/x-icon', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
   const mime = mimeMap[ext] || 'image/svg+xml';

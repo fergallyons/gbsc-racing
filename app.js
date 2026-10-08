@@ -2,6 +2,10 @@
 // CLUB CONFIG  (populated by /club-config.js edge function)
 // ═══════════════════════════════════════════════════════════════
 const _C = window.CLUB || {};
+// The stylesheet's own colours, read before any club override is applied —
+// what Club Settings → Branding "Default" falls back to when the env var has none
+const _CSS_DEFAULT_COLORS=(()=>{ const cs=getComputedStyle(document.documentElement);
+  return {primary:cs.getPropertyValue('--teal').trim(), ro:cs.getPropertyValue('--ro').trim(), border:cs.getPropertyValue('--border').trim()}; })();
 if(!window.CLUB) console.warn('window.CLUB not set — /club-config.js may have failed to load');
 
 // Apply club branding immediately — before any async work
@@ -716,6 +720,8 @@ const FEAT_TILE_MAP={
   halsail:        ['tile-ro-halsail'],
   paymentReport:  ['tile-ro-paymentReport'],
   marksManager:   ['tile-ro-marksManager'],
+  fleetsManager:  ['tile-ro-fleetsManager'],
+  areasManager:   ['tile-ro-areasManager'],
   publishResults: ['tile-ro-publishResults'],
   usageStats:     ['tile-ro-usageStats'],
   feeStatements:  ['tile-ro-feeStatements','tile-sk-feeHistory'],
@@ -754,6 +760,7 @@ const FEAT_TILE_MAP={
 // DB features column overrides these at startup via applyAllFeatureVisibility().
 const FEAT_DEFAULTS={
   startTimer:true, halsail:true, paymentReport:true, marksManager:true,
+  fleetsManager:true, areasManager:true,
   publishResults:true, usageStats:true, feeStatements:true, viewCourse:true,
   registrations:true, protests:true, boatMgmt:true, clubSettings:true,
   raceSchedule:true, startSequence:true, finishRecording:true,
@@ -792,6 +799,8 @@ const FEAT_CATALOG=[
   {key:'feeStatements',  label:'Fee Statements',        type:'bool', group:'RO Tiles'},
   {key:'paymentReport',  label:'Payment Report',        type:'bool', group:'RO Tiles'},
   {key:'marksManager',   label:'Marks Manager',         type:'bool', group:'RO Tiles'},
+  {key:'fleetsManager',  label:'Fleets Manager',        type:'bool', group:'RO Tiles'},
+  {key:'areasManager',   label:'Areas Manager',         type:'bool', group:'RO Tiles'},
   {key:'startSequence',  label:'Start Sequence',        type:'bool', group:'RO Tiles'},
   {key:'raceTracker',    label:'Race Tracker (experimental — live GPS)', type:'bool', group:'RO Tiles'},
   {key:'finishRecording',label:'Finish Recording',      type:'bool', group:'RO Tiles'},
@@ -873,9 +882,9 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
     SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false,
-    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false;
+    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false, SCHEMA_HAS_BRANDING=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql,070_club_branding.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -899,6 +908,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_BOAT_INFO=names.has('066_boat_info.sql');
   SCHEMA_HAS_RO_PROTEST=names.has('067_ro_protest.sql');
   SCHEMA_HAS_HAL_API_KEY=names.has('068_hal_api_key.sql');
+  SCHEMA_HAS_BRANDING=names.has('070_club_branding.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -914,6 +924,8 @@ async function checkSchemaCapabilities(){
   if(roProtestBtn) roProtestBtn.style.display=SCHEMA_HAS_RO_PROTEST?'':'none';
   const halKeyWrap=document.getElementById('ro-hal-api-key-wrap');
   if(halKeyWrap) halKeyWrap.style.display=SCHEMA_HAS_HAL_API_KEY?'block':'none';
+  const brandWrap=document.getElementById('ro-branding-wrap');
+  if(brandWrap) brandWrap.style.display=SCHEMA_HAS_BRANDING?'block':'none';
 }
 let roster=[], allRaces=[], selectedRace=null, nextRace=null, cancelledTodayRace=null;
 let editingId=null, pnId=null, pnMethod=null;
@@ -4054,30 +4066,50 @@ function _applyDbClubConfig(cfg){
   if(cfg.visitor_max  != null) VISITOR_MAX  = cfg.visitor_max;
   if(cfg.crew_max_yrs != null) CREW_MAX_YRS = cfg.crew_max_yrs;
 
-  // Branding — re-apply only if DB provides values not present in env var
+  // Branding — the DB value (Club Settings → Branding) wins over the env var,
+  // same rule as netlify/edge-functions/lib/branding.js, which has normally
+  // already merged it into window.CLUB server-side; this covers a value saved
+  // since the page loaded and local runs without the edge function.
   let brandingChanged = false;
-  if(cfg.logo_url && !(_C.logoUrl||_C.logoURL||_C.logourl||_C.logo_url||_C.logo)){
-    _C.logoUrl = cfg.logo_url; brandingChanged = true;
+  const dbLogo=_brandUrl(cfg.logo_url), dbFav=_brandUrl(cfg.favicon_url);
+  if(dbLogo && (dbLogo!==_brandLogo() || (dbFav||'')!==(_C.faviconUrl||''))){
+    _setBrandLogo(dbLogo, dbFav); brandingChanged = true;
   }
-  if(cfg.favicon_url && !(_C.faviconUrl||_C.faviconurl)){
-    _C.faviconUrl = cfg.favicon_url; brandingChanged = true;
-  }
-  if(cfg.primary_color && !_C.primaryColor){
+  if(_BRAND_HEX.test(cfg.primary_color||'') && cfg.primary_color!==_C.primaryColor){
     _C.primaryColor = cfg.primary_color; brandingChanged = true;
   }
-  if(cfg.ro_color && !_C.roColor){
+  if(_BRAND_HEX.test(cfg.ro_color||'') && cfg.ro_color!==_C.roColor){
     _C.roColor = cfg.ro_color; brandingChanged = true;
   }
   if(brandingChanged) _reapplyBranding();
+}
+
+const _BRAND_HEX=/^#[0-9a-f]{6}$/i;
+// A stored logo/favicon: a full URL (uploads) or a site path ('/logos/x.jpg',
+// or 'logos/x.jpg' as GBSC's row has it)
+function _brandUrl(v){
+  v=typeof v==='string'?v.trim():'';
+  if(/^https?:\/\//i.test(v)||v.startsWith('/')) return v;
+  return /^[\w.-]+\//.test(v)?'/'+v:'';
+}
+function _brandLogo(){ return _C.logoUrl||_C.logoURL||_C.logourl||_C.logo_url||_C.logo||''; }
+function _setBrandLogo(logoUrl, faviconUrl){
+  ['logoURL','logourl','logo_url','logo','faviconurl'].forEach(k=>delete _C[k]);
+  _C.logoUrl=logoUrl||'';
+  _C.faviconUrl=faviconUrl||''; // empty = the favicon follows the logo
 }
 
 function _reapplyBranding(){
   const short   = _C.short || 'Club'; // never GBSC's real name — see applyClubBranding() comment
   const logoUrl = _C.logoUrl||_C.logoURL||_C.logourl||_C.logo_url||_C.logo||'';
   const img = document.getElementById('clubLogoImg');
+  const fb = document.getElementById('hlf');
   if(img && logoUrl){
     img.src = logoUrl; img.alt = short; img.style.display = '';
-    const fb = document.getElementById('hlf'); if(fb) fb.style.display = 'none';
+    if(fb) fb.style.display = 'none';
+  } else if(img){ // logo removed in Club Settings — back to the text mark
+    img.style.display = 'none';
+    if(fb){ fb.textContent = short; fb.style.display = 'block'; }
   }
   const faviconUrl = _C.faviconUrl||_C.faviconurl||logoUrl||'';
   if(faviconUrl){
@@ -4088,11 +4120,13 @@ function _reapplyBranding(){
     if(fi){ fi.href=faviconUrl; fi.type=mime; }
     if(ai)  ai.href=faviconUrl;
   }
+  const root=document.documentElement.style;
   if(_C.primaryColor){
-    document.documentElement.style.setProperty('--teal', _C.primaryColor);
-    document.documentElement.style.setProperty('--border', 'rgba('+hexToRgb(_C.primaryColor)+',0.18)');
-  }
-  if(_C.roColor) document.documentElement.style.setProperty('--ro', _C.roColor);
+    root.setProperty('--teal', _C.primaryColor);
+    root.setProperty('--border', 'rgba('+hexToRgb(_C.primaryColor)+',0.18)');
+  } else { root.removeProperty('--teal'); root.removeProperty('--border'); }
+  if(_C.roColor) root.setProperty('--ro', _C.roColor);
+  else root.removeProperty('--ro');
 }
 function applyAllFeatureVisibility(){
   // Use DB-loaded features if available; fall back to the fast-apply localStorage cache.
@@ -4321,6 +4355,89 @@ async function refreshHalApiKeyStatus(){
   el.style.color=isSet?'var(--success)':'var(--muted)';
   el.textContent=isSet?'✓ A key is saved':'No key saved yet';
 }
+// ── Club Settings → Branding (migration 070) ──────────────────────────
+// Logo is uploaded to the public club-assets bucket (new timestamped file
+// each time, like boat photos — no stale CDN copies); its URL and the two
+// colours go straight to settings, no Save button. The DB value wins over
+// the CLUB_CONFIG env var (see _applyDbClubConfig and the edge functions'
+// lib/branding.js); "Default" clears the DB value, falling back to the env
+// var's (_C.envBranding, sent by club-config.js) or the stylesheet's.
+function _envBranding(){ return _C.envBranding||{}; }
+function refreshBrandingForm(){
+  if(!SCHEMA_HAS_BRANDING) return;
+  const logo=_brandLogo();
+  const img=document.getElementById('ro-brand-logo-preview'), none=document.getElementById('ro-brand-logo-none');
+  if(img){ img.style.display=logo?'':'none'; if(logo) img.src=logo; }
+  if(none) none.style.display=logo?'none':'';
+  const p=document.getElementById('ro-brand-primary'), r=document.getElementById('ro-brand-ro');
+  if(p) p.value=_C.primaryColor||_cssHex(_CSS_DEFAULT_COLORS.primary)||'#00aeef';
+  if(r) r.value=_C.roColor||_cssHex(_CSS_DEFAULT_COLORS.ro)||'#fee01e';
+}
+// <input type=color> only takes #rrggbb
+function _cssHex(v){
+  v=(v||'').trim();
+  if(_BRAND_HEX.test(v)) return v;
+  const m=v.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+  return m?('#'+m[1]+m[1]+m[2]+m[2]+m[3]+m[3]):'';
+}
+async function _saveBranding(fields){
+  const r=await sbFetch('/rest/v1/settings?id=eq.club',{method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify(fields)});
+  if(r&&r._err){ toast('⚠ Branding not saved — '+r._err.slice(0,60)); return false; }
+  Object.assign(clubSettings,fields);
+  try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
+  return true;
+}
+async function onBrandLogoSelected(input){
+  const file=input.files&&input.files[0];
+  if(!file) return;
+  try{
+    if(file.size>2*1024*1024){ toast('⚠ Logo too large — max 2 MB'); return; }
+    if(!/^image\/(png|jpeg|webp|svg\+xml|gif)$/.test(file.type)){ toast('⚠ Use a PNG, JPG, WebP or SVG image'); return; }
+    const ext=({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/svg+xml':'svg','image/gif':'gif'})[file.type];
+    const path='logo-'+Date.now()+'.'+ext;
+    toast('⏳ Uploading logo…');
+    const r=await fetch(SB_URL+'/storage/v1/object/club-assets/'+path,{
+      method:'POST',
+      headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':file.type},
+      body:file
+    });
+    if(!r.ok){ toast('⚠ Upload failed — HTTP '+r.status); return; }
+    const url=SB_URL+'/storage/v1/object/public/club-assets/'+path;
+    // favicon_url cleared so the app icon follows the new logo
+    if(!await _saveBranding({logo_url:url,favicon_url:''})) return;
+    _setBrandLogo(url,'');
+    _reapplyBranding(); refreshBrandingForm();
+    toast('Logo updated ✓');
+  }catch(e){
+    toast('⚠ Upload failed — check connection');
+  }finally{
+    input.value='';
+  }
+}
+async function saveBrandColor(which,value){
+  if(!_BRAND_HEX.test(value)) return;
+  if(!await _saveBranding(which==='primary'?{primary_color:value}:{ro_color:value})) return;
+  if(which==='primary') _C.primaryColor=value; else _C.roColor=value;
+  _reapplyBranding();
+  toast('Colour saved ✓');
+}
+async function resetBrandingField(which){
+  const env=_envBranding();
+  if(which==='logo'){
+    if(!confirm(env.logoUrl?'Go back to the default logo?':'Remove the club logo? There is no default logo, so the club name will show instead.')) return;
+    if(!await _saveBranding({logo_url:'',favicon_url:''})) return;
+    _setBrandLogo(env.logoUrl||'',env.faviconUrl||'');
+  } else if(which==='primary'){
+    if(!await _saveBranding({primary_color:''})) return;
+    _C.primaryColor=env.primaryColor||'';
+  } else {
+    if(!await _saveBranding({ro_color:''})) return;
+    _C.roColor=env.roColor||'';
+  }
+  _reapplyBranding(); refreshBrandingForm();
+  toast('Back to default ✓');
+}
+
 async function saveClubSettingsFields(links){
   Object.assign(clubSettings,links);
   try{localStorage.setItem('__club_settings__',JSON.stringify(clubSettings));}catch(e){}
@@ -4730,6 +4847,7 @@ async function openROClubSettings(){
   setVal('ro-hal-club',clubSettings.hal_club||'');
   setVal('ro-hal-api-key','');
   refreshHalApiKeyStatus();
+  refreshBrandingForm();
   setVal('ro-fee-full',clubSettings.fee_full??'');
   setVal('ro-fee-crew',clubSettings.fee_crew??'');
   setVal('ro-fee-visitor',clubSettings.fee_visitor??'');
@@ -12577,10 +12695,10 @@ function ssResultsSource(feats){
 }
 
 // The club's Sail Scoring workspace (the "u-…" slug in /p/<workspace>/…) is the
-// one config point everything else hangs off: Sail Scoring's planned
-// machine-readable index (/p/<ws>/index.json and /p/<ws>/<season>/index.json,
-// github.com/sailscoring/sailscoring issue 669) will list every published
-// series, so saved series addresses become a fallback, not the main path.
+// one config point everything else hangs off: Sail Scoring's machine-readable
+// index (/p/<ws>/index.json and /p/<ws>/<season>/index.json, live since
+// 2026-10, github.com/sailscoring/sailscoring issue 669) lists every published
+// series, so saved series addresses are only a fallback.
 const SS_ORIGIN='https://app.sailscoring.ie';
 function ssWorkspace(){ const w=ssFeatures().ssWorkspace; return typeof w==='string'&&/^[A-Za-z0-9_-]+$/.test(w)?w:''; }
 function ssWorkspaceBase(ws){ return SS_ORIGIN+'/p/'+ws; }
@@ -12600,13 +12718,14 @@ function ssParseWorkspaceInput(raw){
   return {slug};
 }
 
-// Reads Sail Scoring's series index for the workspace, if it exists yet.
-// Returns an array of data-file addresses, or null when the index isn't
-// available / isn't in a shape we recognise — callers then fall back to the
-// manually saved addresses. The index format is still being built (see
-// above), so this is deliberately tolerant: a list of entries each carrying a
-// `data` address, under a top-level `version`. Current season first, then the
-// whole workspace.
+// Reads Sail Scoring's series index for the workspace. Returns an array of
+// data-file addresses, or null when the index isn't available / isn't in a
+// shape we recognise — callers then fall back to the manually saved
+// addresses. Format (version 1): { version, workspace, seasons:[{label,
+// current, index}], publications:[{name, season, url, pages, data, fleets,
+// publishedAt, firstRaceDate, lastRaceDate}] } — `data` is the
+// .sailscoring.json address, or null for a publication without one (skipped).
+// Current season first, then the whole workspace.
 async function ssDiscoverSeries(ws){
   const year=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Dublin'}).slice(0,4);
   for(const path of ['/'+year+'/index.json','/index.json']){
