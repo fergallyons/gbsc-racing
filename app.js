@@ -9595,8 +9595,17 @@ async function loadAndRenderDocs(){
   const driveFolderId=noticeboardUrl?extractDriveFolderId(noticeboardUrl):null;
   if(noticeboardUrl && !driveFolderId){
     // Not a recognizable Drive folder link — treat it as an arbitrary
-    // noticeboard page (e.g. a club's own site) and just embed it as-is.
-    el.innerHTML=`<iframe src="${noticeboardUrl}" style="width:100%;height:calc(100vh - 200px);border:none;border-radius:10px;background:#fff"></iframe>`;
+    // noticeboard page (e.g. a club's own site) and embed it. Many club sites
+    // refuse to be framed (X-Frame-Options: SAMEORIGIN — hyc.ie does), which
+    // leaves a blank box the app can't detect, so an open-in-browser link
+    // always comes first.
+    const safeUrl=escHtml(noticeboardUrl);
+    el.innerHTML=`<a href="${safeUrl}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:10px;color:var(--white);text-decoration:none">
+        <span style="display:flex;align-items:center;gap:10px"><span style="font-size:1.4rem">📌</span><span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1rem">Open noticeboard</span></span>
+        <span style="color:var(--teal);font-size:.9rem;font-weight:700">↗</span>
+      </a>
+      <div style="font-size:.78rem;color:var(--muted);margin:0 2px 10px">If the page below stays blank, the club's website doesn't allow it to be shown inside the app — use the button above.</div>
+      <iframe src="${safeUrl}" style="width:100%;height:calc(100vh - 280px);border:none;border-radius:10px;background:#fff"></iframe>`;
     return;
   }
   el.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading documents…</div></div>';
