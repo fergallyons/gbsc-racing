@@ -18,13 +18,6 @@ function resolveClubSlug(event) {
     : hostnameMap[host] || hostnameMap['default'] || 'gbsc');
 }
 
-// Reads env var `${prefix}_<SLUG>` for the resolved club, falling back to the
-// bare `prefix` var (existing GBSC-only setups keep working unchanged).
-function clubEnv(event, prefix) {
-  const slug = resolveClubSlug(event);
-  return process.env[prefix + '_' + slug.toUpperCase()] || process.env[prefix] || '';
-}
-
 // The club a bare (unsuffixed) env var belongs to — HOSTNAME_MAP's default
 // entry, else GBSC. Bare vars predate multi-club support and are GBSC's own
 // values, so only this club may fall back to them.
@@ -35,4 +28,24 @@ function defaultClubSlug() {
   return hostnameMap['default'] || 'gbsc';
 }
 
-module.exports = { resolveClubSlug, clubEnv, defaultClubSlug };
+// Reads env var `${prefix}_<SLUG>`, falling back to the bare `prefix` var for
+// the DEFAULT club only (existing GBSC-only setups keep working unchanged).
+// Any other club without its own var gets '' — never GBSC's Stripe account,
+// service key or push keys — and the caller reports the feature as not
+// configured for that club.
+function envForSlug(slug, prefix) {
+  slug = String(slug || '').toLowerCase();
+  const own = process.env[prefix + '_' + slug.toUpperCase()];
+  if (own) return own;
+  return slug === defaultClubSlug().toLowerCase() ? (process.env[prefix] || '') : '';
+}
+
+// envForSlug() for the club this request resolves to (hostname or ?club=).
+// Honouring ?club= is safe here: it can only select a club's OWN complete
+// set of values (its CLUB_CONFIG_<SLUG> plus its own _<SLUG> secrets), never
+// mix one club's secret with another club's database or account.
+function clubEnv(event, prefix) {
+  return envForSlug(resolveClubSlug(event), prefix);
+}
+
+module.exports = { resolveClubSlug, clubEnv, envForSlug, defaultClubSlug };

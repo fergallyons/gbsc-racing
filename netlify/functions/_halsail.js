@@ -21,19 +21,19 @@
 //   CLUB_CONFIG_<SLUG> + SUPABASE_SERVICE_KEY[_<SLUG>]   existing per-club settings
 //                                  used to reach the club's database
 //
+// The bare (unsuffixed) env vars are GBSC's own values, so only the default
+// club falls back to them (_club.js envForSlug) — another club with no
+// _<SLUG> var of its own gets no env key and the live host, never GBSC's.
+//
 // The public HTML report pages (/Result/...) need no key and don't get one.
 
-const { resolveClubSlug } = require('./_club');
+const { resolveClubSlug, envForSlug: envFor } = require('./_club');
 
 const KEY_TTL_MS = 60 * 1000; // short, so a key just saved in Club Settings is picked up within a minute
 const keyCache = {}; // slug -> { key, at } (per warm function instance)
 
 function hostSlug(event) {
   return resolveClubSlug({ headers: (event && event.headers) || {}, queryStringParameters: {} });
-}
-
-function envFor(slug, prefix) {
-  return process.env[prefix + '_' + slug.toUpperCase()] || process.env[prefix] || '';
 }
 
 function apiBase(event) {

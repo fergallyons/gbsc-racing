@@ -14,6 +14,10 @@
 // Token shape: "<club_slug>_<32 hex chars>" — see agent-ingest.js's file
 // header for why the club has to ride inside the token itself rather than
 // a query param (Traccar Client only has one identity field to put it in).
+//
+// Service key: SUPABASE_SERVICE_KEY_<SLUG>; the bare SUPABASE_SERVICE_KEY
+// (GBSC's) is used for the default club only (_club.js envForSlug) — any
+// other club without its own key gets "server not configured for this club".
 
 const { resolveClubSlug, clubEnv } = require('./_club');
 const crypto = require('crypto');

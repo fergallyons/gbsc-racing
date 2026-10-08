@@ -29,6 +29,13 @@
 // deliberately simpler than detect-finishes.js's fleet-aware gun resolution,
 // which exists to answer a different question (which start fired) that
 // doesn't apply here.
+//
+// Service key: SUPABASE_SERVICE_KEY_<SLUG>; the bare SUPABASE_SERVICE_KEY
+// (GBSC's) is used for the default club only (_club.js envForSlug) — a token
+// for any other club without its own key is refused, never written with
+// GBSC's key.
+
+const { envForSlug } = require('./_club');
 
 function parseParams(event) {
   const q = event.queryStringParameters || {};
@@ -81,13 +88,13 @@ exports.handler = async (event) => {
   let clubConfig;
   try { clubConfig = JSON.parse(process.env['CLUB_CONFIG_' + slug.toUpperCase()] || 'null'); }
   catch (e) { clubConfig = null; }
-  const serviceKey = process.env['SUPABASE_SERVICE_KEY_' + slug.toUpperCase()] || process.env.SUPABASE_SERVICE_KEY;
+  const serviceKey = envForSlug(slug, 'SUPABASE_SERVICE_KEY');
   if (!clubConfig || !clubConfig.sbUrl) {
     console.error('agent-ingest: no CLUB_CONFIG_' + slug.toUpperCase() + ' — token claims a club this deploy doesn\'t know about');
     return { statusCode: 400, body: 'unknown club' };
   }
   if (!serviceKey) {
-    console.error('agent-ingest: no SUPABASE_SERVICE_KEY_' + slug.toUpperCase() + '/SUPABASE_SERVICE_KEY configured for ' + slug);
+    console.error('agent-ingest: no SUPABASE_SERVICE_KEY_' + slug.toUpperCase() + ' configured for ' + slug);
     return { statusCode: 500, body: 'server not configured for this club' };
   }
 
