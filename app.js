@@ -219,6 +219,12 @@ async function sbSaveBoatConfig(id,fields){
     body:JSON.stringify(fields)
   });
 }
+// Netlify functions that use club-specific keys (Stripe, service key, push)
+// resolve the club from the hostname — on the shared host (racing.gbsc.ie
+// ?club=hyc) that's the default club, GBSC, so name the club explicitly.
+// Same reason drive-docs gets ?club=. The functions only ever use the named
+// club's own keys (bare GBSC vars are default-club-only).
+function _clubFnUrl(fn){ return '/.netlify/functions/'+fn+'?club='+encodeURIComponent(_C.slug||''); }
 async function sbRpc(name,args){
   // Calls a Postgres RPC (SECURITY DEFINER function) — used for the PIN-gated
   // writes migration 040 moved out of direct anon UPDATE (boat/RO pins,
@@ -1786,7 +1792,7 @@ async function _refreshAgentStatusLine(){
 }
 async function issueAgentPairing(){
   try{
-    const res=await fetch('/.netlify/functions/agent-pair',{
+    const res=await fetch(_clubFnUrl('agent-pair'),{
       method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({boatId:currentBoat.id, raceKey:raceKey(selectedRace)})
     });
@@ -1800,7 +1806,7 @@ async function revokeAgentPairing(){
   if(!confirm('Stop this device from sending location? You can set up a new pairing any time.'))return;
   _stopAgentStatusPoll();
   try{
-    await fetch('/.netlify/functions/agent-pair',{
+    await fetch(_clubFnUrl('agent-pair'),{
       method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({action:'revoke', token:_agentPairing.token})
     });
@@ -4597,7 +4603,7 @@ async function savePushSub(sub){
 // to a role's subscribers (RO on registration, crew+skipper on course publish).
 // Never blocks or throws into the caller — notifications are best-effort.
 function notifyPush(type,extra){
-  fetch('/.netlify/functions/send-push',{
+  fetch(_clubFnUrl('send-push'),{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({type,...extra})
@@ -6010,7 +6016,7 @@ async function rfBulkPayConfirm(method){
     toast('⏳ Opening Stripe Checkout…');
     try{
       const origin=window.location.origin;
-      const r=await fetch('/.netlify/functions/create-bulk-checkout',{
+      const r=await fetch(_clubFnUrl('create-bulk-checkout'),{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
@@ -8357,7 +8363,7 @@ async function rnliDoCard(){
     // boatId/raceKey as optional and accepts an arbitrary item list, so a
     // single "RNLI Contribution" line item with no race context needs no
     // new backend code at all.
-    const r=await fetch('/.netlify/functions/create-bulk-checkout',{
+    const r=await fetch(_clubFnUrl('create-bulk-checkout'),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
