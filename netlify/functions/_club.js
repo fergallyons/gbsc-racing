@@ -25,4 +25,14 @@ function clubEnv(event, prefix) {
   return process.env[prefix + '_' + slug.toUpperCase()] || process.env[prefix] || '';
 }
 
-module.exports = { resolveClubSlug, clubEnv };
+// The club a bare (unsuffixed) env var belongs to — HOSTNAME_MAP's default
+// entry, else GBSC. Bare vars predate multi-club support and are GBSC's own
+// values, so only this club may fall back to them.
+function defaultClubSlug() {
+  let hostnameMap = {};
+  try { hostnameMap = JSON.parse(process.env.HOSTNAME_MAP || '{}'); }
+  catch (e) { /* logged by resolveClubSlug */ }
+  return hostnameMap['default'] || 'gbsc';
+}
+
+module.exports = { resolveClubSlug, clubEnv, defaultClubSlug };

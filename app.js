@@ -9594,12 +9594,14 @@ async function loadAndRenderDocs(){
   }
   el.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading documents…</div></div>';
   try{
-    const qs=driveFolderId?('?folder='+encodeURIComponent(driveFolderId)):'';
+    // club= always: on the shared host the function would otherwise resolve
+    // every club as the default (GBSC) and list GBSC's folder
+    const qs='?club='+encodeURIComponent(_C.slug||'')+(driveFolderId?('&folder='+encodeURIComponent(driveFolderId)):'');
     const res=await fetch('/.netlify/functions/drive-docs'+qs);
     if(!res.ok) throw new Error('HTTP '+res.status);
     const files=await res.json();
     if(!Array.isArray(files)||!files.length){
-      el.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">📄</div><div>No documents available yet</div></div>';
+      el.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">📄</div><div>No documents available</div></div>';
       return;
     }
     const si=files.filter(f=>/sailing.instruct/i.test(f.name));
