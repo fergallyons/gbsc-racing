@@ -42,6 +42,12 @@ body{font-family:'Barlow',sans-serif;background:var(--navy);color:var(--white);m
 /* Role indicator — 3px accent line under the top bar */
 body.role-skipper header{border-bottom-color:var(--teal);border-bottom-width:3px;}
 body.role-ro header{border-bottom-color:var(--ro);border-bottom-width:3px;}
+body.role-admin header{border-bottom-color:#a78bfa;}
+/* One dashboard (#roTab) for both logins: race-day tiles for the Race
+   Officer, season-setup/financial tiles for Club Admin. !important because
+   feature toggles set tiles' inline display. */
+body:not(.role-admin) .admin-only{display:none!important;}
+body.role-admin .ro-only{display:none!important;}
 
 /* ─── SCREENS ─────────────────────────────────────────────── */
 .screen{display:none;} .screen.active{display:block;}
@@ -88,6 +94,12 @@ body.role-ro header{border-bottom-color:var(--ro);border-bottom-width:3px;}
   display:flex;align-items:center;justify-content:center;gap:7px;transition:all .15s;}
 .ro-btn:hover{border-color:var(--ro);background:rgba(254,224,30,.22);}
 .ro-btn-icon{font-size:1.05rem;}
+/* Club Admin login — its own button beside Race Officer (migration 071) */
+.sheet-title-row{flex-wrap:wrap;}
+.login-role-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+.admin-btn{background:linear-gradient(135deg,rgba(167,139,250,.18),rgba(167,139,250,.08));border-color:rgba(167,139,250,.5);}
+.admin-btn:hover{border-color:#a78bfa;background:rgba(167,139,250,.22);}
+.admin-btn .ro-btn-text{color:#a78bfa;}
 .ro-btn-text{font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:700;
   letter-spacing:.06em;text-transform:uppercase;color:var(--ro);white-space:nowrap;}
 .guest-btn{width:100%;margin-bottom:12px;padding:10px 14px;
@@ -606,6 +618,7 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .view-title--skipper{color:var(--teal);}
 .view-title--crew{color:var(--teal);}
 .view-title--ro{color:var(--ro);}
+.view-title--admin{color:#a78bfa;}
 
 /* ─── DASHBOARD ─────────────────────────────────────────────── */
 .dash-race-card{background:linear-gradient(135deg,rgba(27,62,147,.55),rgba(0,174,239,.12));

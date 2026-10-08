@@ -108,9 +108,15 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title-row">
       <div class="sheet-title" style="margin-bottom:0">⛵ Boat Login</div>
-      <div class="ro-btn" onclick="openPinOverlay('ro')">
-        <div class="ro-btn-icon">🎌</div>
-        <div class="ro-btn-text">Race Officer</div>
+      <div class="login-role-btns">
+        <div class="ro-btn" onclick="openPinOverlay('ro')">
+          <div class="ro-btn-icon">🎌</div>
+          <div class="ro-btn-text">Race Officer</div>
+        </div>
+        <div class="ro-btn admin-btn" onclick="openPinOverlay('admin')">
+          <div class="ro-btn-icon">🔑</div>
+          <div class="ro-btn-text">Club Admin</div>
+        </div>
       </div>
     </div>
     <div id="loginRaceLabel" style="font-size:.8rem;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:600;letter-spacing:.06em;margin-bottom:10px;text-align:center;min-height:14px"></div>
@@ -989,9 +995,10 @@
 
 <!-- ═══ TAB: RACE OFFICER (RO Dashboard) ═══ -->
 <div class="tab-wrap" id="roTab">
-  <div class="view-title view-title--ro">Race Officer</div>
+  <div class="view-title view-title--ro ro-only">Race Officer</div>
+  <div class="view-title view-title--admin admin-only">Club Admin</div>
   <!-- Race card -->
-  <div class="dash-race-card ro" style="margin-top:20px">
+  <div class="dash-race-card ro ro-only" style="margin-top:20px">
     <div class="dash-race-eyebrow">Race Officer</div>
     <div class="dash-race-name" id="roDashRaceName">Loading…</div>
     <div class="dash-race-meta" id="roDashMeta"></div>
@@ -1003,17 +1010,17 @@
        when the resolved next race has same-day siblings (renderRoTodayRaces()).
        Named "todayraces", NOT "raceday" — that id is already the unrelated
        tile-group accordion just below. -->
-  <div class="ro-sec-head" id="roSecHead-todayraces" onclick="toggleRoSection('todayraces')" style="display:none">
+  <div class="ro-sec-head ro-only" id="roSecHead-todayraces" onclick="toggleRoSection('todayraces')" style="display:none">
     <span class="ro-sec-title">📅 Today's Races</span>
     <span class="ro-sec-chev" id="roSecChev-todayraces">▸</span>
   </div>
-  <div id="roSecBody-todayraces" style="display:none"></div>
+  <div class="ro-only" id="roSecBody-todayraces" style="display:none"></div>
   <!-- ── Race Day ── (expanded by default — everything used live during a race) -->
-  <div class="ro-sec-head" id="roSecHead-raceday" onclick="toggleRoSection('raceday')">
+  <div class="ro-sec-head ro-only" id="roSecHead-raceday" onclick="toggleRoSection('raceday')">
     <span class="ro-sec-title">🏁 Race day</span>
     <span class="ro-sec-chev" id="roSecChev-raceday">▾</span>
   </div>
-  <div class="dash-grid" id="roSecBody-raceday">
+  <div class="dash-grid ro-only" id="roSecBody-raceday">
     <div class="dash-card ro-card" onclick="openPanel('roCoursePanel')">
       <div class="dash-card-icon">🗺</div>
       <div class="dash-card-label">Course Builder</div>
@@ -1067,69 +1074,16 @@
     </div>
   </div>
 
-  <!-- ── Payments ── -->
-  <div class="ro-sec-head" id="roSecHead-payments" onclick="toggleRoSection('payments')">
-    <span class="ro-sec-title">💰 Payments</span>
-    <span class="ro-sec-chev" id="roSecChev-payments">▸</span>
+  <!-- ── Race admin ── (RO only) -->
+  <div class="ro-sec-head ro-only" id="roSecHead-roadmin" onclick="toggleRoSection('roadmin')">
+    <span class="ro-sec-title">📋 Race admin</span>
+    <span class="ro-sec-chev" id="roSecChev-roadmin">▸</span>
   </div>
-  <div class="dash-grid" id="roSecBody-payments" style="display:none">
-    <div id="tile-ro-paymentReport" class="dash-card ro-card admin-gated" onclick="requireAdmin(()=>openPanel('roPaymentReportPanel'))">
-      <div class="dash-card-icon">💰</div>
-      <div class="dash-card-label">Payment Report</div>
-      <div class="dash-card-sub">Generate PDF</div>
-    </div>
+  <div class="dash-grid ro-only" id="roSecBody-roadmin" style="display:none">
     <div id="tile-ro-outstanding" class="dash-card ro-card" onclick="openOutstandingReport()">
       <div class="dash-card-icon">🔴</div>
       <div class="dash-card-label">Outstanding</div>
       <div class="dash-card-sub" id="roOutstandingSub">Who owes money</div>
-    </div>
-    <div id="tile-ro-feeStatements" class="dash-card ro-card admin-gated" onclick="requireAdmin(openFeeStatement)">
-      <div class="dash-card-icon">📋</div>
-      <div class="dash-card-label">Fee Statements</div>
-      <div class="dash-card-sub">Per-boat payment history</div>
-    </div>
-    <div id="tile-ro-rnli" class="dash-card ro-card" onclick="openRnliPanel()" style="display:none">
-      <div class="dash-card-icon"><img src="logos/rnli-flag.svg" alt="RNLI" style="height:22px;width:auto;display:block;border-radius:2px"></div>
-      <div class="dash-card-label">RNLI</div>
-      <div class="dash-card-sub" id="rnli-total-ro">Give what you can</div>
-    </div>
-  </div>
-
-  <!-- ── Club Admin ── (season setup, touched occasionally) -->
-  <div class="ro-sec-head" id="roSecHead-admin" onclick="toggleRoSection('admin')">
-    <span class="ro-sec-title">🔑 Club admin</span>
-    <span class="ro-sec-chev" id="roSecChev-admin">▸</span>
-  </div>
-  <div class="dash-grid" id="roSecBody-admin" style="display:none">
-    <div id="tile-ro-boatMgmt" class="dash-card ro-card admin-gated" onclick="requireAdmin(()=>openPanel('roBoatsPanel'))">
-      <div class="dash-card-icon">🔑</div>
-      <div class="dash-card-label">Boat Management</div>
-      <div class="dash-card-sub">Manage boats &amp; PINs</div>
-    </div>
-    <div id="tile-ro-marksManager" class="dash-card ro-card admin-gated" onclick="requireAdmin(()=>openPanel('roMarksPanel'))">
-      <div class="dash-card-icon">📍</div>
-      <div class="dash-card-label">Marks Manager</div>
-      <div class="dash-card-sub">Toggle &amp; add marks</div>
-    </div>
-    <div id="tile-ro-fleetsManager" class="dash-card ro-card admin-gated" onclick="requireAdmin(()=>openPanel('roFleetsPanel'))">
-      <div class="dash-card-icon">🚩</div>
-      <div class="dash-card-label">Fleets Manager</div>
-      <div class="dash-card-sub">Only needed for multiple fleets</div>
-    </div>
-    <div id="tile-ro-areasManager" class="dash-card ro-card admin-gated" onclick="requireAdmin(()=>openPanel('roAreasPanel'))">
-      <div class="dash-card-icon">🗺️</div>
-      <div class="dash-card-label">Areas Manager</div>
-      <div class="dash-card-sub">Only needed for multiple race areas</div>
-    </div>
-    <div id="tile-ro-halConfig" class="dash-card ro-card" onclick="openPanel('roHalConfigPanel');loadHalConfigPanel()">
-      <div class="dash-card-icon">🏁</div>
-      <div class="dash-card-label">Results Setup</div>
-      <div class="dash-card-sub">Choose Halsail series to show</div>
-    </div>
-    <div id="tile-ro-ssConfig" class="dash-card ro-card" style="display:none" onclick="openPanel('roSsConfigPanel');loadSsConfigPanel()">
-      <div class="dash-card-icon">⛵</div>
-      <div class="dash-card-label">Sail Scoring Setup</div>
-      <div class="dash-card-sub">Choose published series to show</div>
     </div>
     <div id="tile-ro-protests" class="dash-card ro-card" onclick="openPanel('roProtestsPanel')">
       <div class="dash-card-icon">🚩</div>
@@ -1141,43 +1095,107 @@
       <div class="dash-card-label">Publish Results</div>
       <div class="dash-card-sub" id="roResultsStatus">—</div>
     </div>
-    <div id="tile-ro-raceSchedule" class="dash-card ro-card admin-gated" onclick="requireAdmin(openRaceSchedulePanel)">
+    <div id="tile-ro-startTimer" class="dash-card ro-card" onclick="openStartTimer()">
+      <div class="dash-card-icon">🔔</div>
+      <div class="dash-card-label">Start Timer</div>
+      <div class="dash-card-sub" id="startTimerSub">Voice Sail Start Timer</div>
+    </div>
+  </div>
+
+  <!-- ── Club Admin login only (Club Admin replaced the Admin PIN tier
+       inside RO mode — see migration 071). Expanded: few tiles, all used. -->
+  <div class="ro-sec-head admin-only" id="roSecHead-fees" onclick="toggleRoSection('fees')">
+    <span class="ro-sec-title">💰 Payments &amp; fees</span>
+    <span class="ro-sec-chev" id="roSecChev-fees">▾</span>
+  </div>
+  <div class="dash-grid admin-only" id="roSecBody-fees">
+    <div id="tile-ro-paymentReport" class="dash-card ro-card" onclick="openPanel('roPaymentReportPanel')">
+      <div class="dash-card-icon">💰</div>
+      <div class="dash-card-label">Payment Report</div>
+      <div class="dash-card-sub">Generate PDF</div>
+    </div>
+    <div id="tile-ro-feeStatements" class="dash-card ro-card" onclick="openFeeStatement()">
+      <div class="dash-card-icon">📋</div>
+      <div class="dash-card-label">Fee Statements</div>
+      <div class="dash-card-sub">Per-boat payment history</div>
+    </div>
+    <div id="tile-ro-rnli" class="dash-card ro-card" onclick="openRnliPanel()" style="display:none">
+      <div class="dash-card-icon"><img src="logos/rnli-flag.svg" alt="RNLI" style="height:22px;width:auto;display:block;border-radius:2px"></div>
+      <div class="dash-card-label">RNLI</div>
+      <div class="dash-card-sub" id="rnli-total-ro">Give what you can</div>
+    </div>
+  </div>
+  <div class="ro-sec-head admin-only" id="roSecHead-setup" onclick="toggleRoSection('setup')">
+    <span class="ro-sec-title">🛠 Club setup</span>
+    <span class="ro-sec-chev" id="roSecChev-setup">▾</span>
+  </div>
+  <div class="dash-grid admin-only" id="roSecBody-setup">
+    <div id="tile-ro-boatMgmt" class="dash-card ro-card" onclick="openPanel('roBoatsPanel')">
+      <div class="dash-card-icon">🔑</div>
+      <div class="dash-card-label">Boat Management</div>
+      <div class="dash-card-sub">Manage boats &amp; PINs</div>
+    </div>
+    <div id="tile-ro-raceSchedule" class="dash-card ro-card" onclick="openRaceSchedulePanel()">
       <div class="dash-card-icon">📅</div>
       <div class="dash-card-label">Race Schedule</div>
       <div class="dash-card-sub" id="roRaceScheduleSub">Manage races</div>
+    </div>
+    <div id="tile-ro-marksManager" class="dash-card ro-card" onclick="openPanel('roMarksPanel')">
+      <div class="dash-card-icon">📍</div>
+      <div class="dash-card-label">Marks Manager</div>
+      <div class="dash-card-sub">Toggle &amp; add marks</div>
+    </div>
+    <div id="tile-ro-fleetsManager" class="dash-card ro-card" onclick="openPanel('roFleetsPanel')">
+      <div class="dash-card-icon">🚩</div>
+      <div class="dash-card-label">Fleets Manager</div>
+      <div class="dash-card-sub">Only needed for multiple fleets</div>
+    </div>
+    <div id="tile-ro-areasManager" class="dash-card ro-card" onclick="openPanel('roAreasPanel')">
+      <div class="dash-card-icon">🗺️</div>
+      <div class="dash-card-label">Areas Manager</div>
+      <div class="dash-card-sub">Only needed for multiple race areas</div>
+    </div>
+  </div>
+  <div class="ro-sec-head admin-only" id="roSecHead-results" onclick="toggleRoSection('results')">
+    <span class="ro-sec-title">🏆 Results</span>
+    <span class="ro-sec-chev" id="roSecChev-results">▾</span>
+  </div>
+  <div class="dash-grid admin-only" id="roSecBody-results">
+    <div id="tile-ro-halConfig" class="dash-card ro-card" onclick="openPanel('roHalConfigPanel');loadHalConfigPanel()">
+      <div class="dash-card-icon">🏁</div>
+      <div class="dash-card-label">Results Setup</div>
+      <div class="dash-card-sub">Choose Halsail series to show</div>
+    </div>
+    <div id="tile-ro-ssConfig" class="dash-card ro-card" style="display:none" onclick="openPanel('roSsConfigPanel');loadSsConfigPanel()">
+      <div class="dash-card-icon">⛵</div>
+      <div class="dash-card-label">Sail Scoring Setup</div>
+      <div class="dash-card-sub">Choose published series to show</div>
+    </div>
+  </div>
+  <div class="ro-sec-head admin-only" id="roSecHead-club" onclick="toggleRoSection('club')">
+    <span class="ro-sec-title">⚙ Club</span>
+    <span class="ro-sec-chev" id="roSecChev-club">▾</span>
+  </div>
+  <div class="dash-grid admin-only" id="roSecBody-club">
+    <div id="tile-ro-clubSettings" class="dash-card ro-card" onclick="openROClubSettings()">
+      <div class="dash-card-icon">⚙</div>
+      <div class="dash-card-label">Club Settings</div>
+      <div class="dash-card-sub">Payment links</div>
     </div>
     <div id="tile-ro-news" class="dash-card ro-card" onclick="openPanel('roNewsPanel')">
       <div class="dash-card-icon">📰</div>
       <div class="dash-card-label">News Feed</div>
       <div class="dash-card-sub" id="roNewsSub">Manage news items</div>
     </div>
-  </div>
-
-  <!-- ── Advanced ── -->
-  <div class="ro-sec-head" id="roSecHead-advanced" onclick="toggleRoSection('advanced')">
-    <span class="ro-sec-title">⚙ Advanced</span>
-    <span class="ro-sec-chev" id="roSecChev-advanced">▸</span>
-  </div>
-  <div class="dash-grid" id="roSecBody-advanced" style="display:none">
-    <div id="tile-ro-clubSettings" class="dash-card ro-card admin-gated" onclick="requireAdmin(openROClubSettings)">
-      <div class="dash-card-icon">⚙</div>
-      <div class="dash-card-label">Club Settings</div>
-      <div class="dash-card-sub">Payment links</div>
-    </div>
-    <div id="tile-ro-usageStats" class="dash-card ro-card admin-gated" onclick="requireAdmin(loadUsageStats)">
-      <div class="dash-card-icon">📊</div>
-      <div class="dash-card-label">Usage Stats</div>
-      <div class="dash-card-sub">Sessions &amp; logins</div>
-    </div>
-    <div id="tile-ro-startTimer" class="dash-card ro-card" onclick="openStartTimer()">
-      <div class="dash-card-icon">🔔</div>
-      <div class="dash-card-label">Start Timer</div>
-      <div class="dash-card-sub" id="startTimerSub">Voice Sail Start Timer</div>
-    </div>
     <div id="tile-ro-features" class="dash-card ro-card" onclick="openRoFeaturesPanel()">
       <div class="dash-card-icon">🧩</div>
       <div class="dash-card-label">Features</div>
       <div class="dash-card-sub">Club feature toggles</div>
+    </div>
+    <div id="tile-ro-usageStats" class="dash-card ro-card" onclick="loadUsageStats()">
+      <div class="dash-card-icon">📊</div>
+      <div class="dash-card-label">Usage Stats</div>
+      <div class="dash-card-sub">Sessions &amp; logins</div>
     </div>
   </div>
 </div><!-- /roTab -->
@@ -2977,7 +2995,7 @@
         <p>In the Race Fees panel, tap <strong>📲 Send payment link to crew</strong> to share a link your crew can use to self-pay at their convenience — useful before race night.</p>
 
         <div class="help-tip">
-          <p>⚙ <strong>Setup:</strong> Add your Revolut <strong>@username</strong> in Skipper Settings. Card payment links are configured by the RO in Club Settings.</p>
+          <p>⚙ <strong>Setup:</strong> Add your Revolut <strong>@username</strong> in Skipper Settings. Card payment links are configured by the Club Admin in Club Settings.</p>
         </div>
       </div>
     </div>
@@ -3026,7 +3044,7 @@
         <div class="help-step"><div class="help-step-num">🟡</div><div class="help-step-text"><strong>Pending</strong> — the race is coming up but no course has been published yet. Check back closer to the start time.</div></div>
         <div class="help-step"><div class="help-step-num">⚪</div><div class="help-step-text"><strong>Stale</strong> — a course exists but was published outside the pre-race window. It may be from a previous race and should not be relied on.</div></div>
         <div class="help-tip">
-          <p>⚙ The RO can adjust the pre-race window in Club Settings.</p>
+          <p>⚙ The Club Admin can adjust the pre-race window in Club Settings.</p>
         </div>
       </div>
     </div>
@@ -3034,19 +3052,19 @@
     <!-- ── RO Setup ───────────────────────────────── -->
     <div class="help-section">
       <div class="help-hd" onclick="toggleHelpSection('hs-ro')">
-        <span>🎌 Race Officer Setup</span>
+        <span>🎌 Race Officer &amp; 🔑 Club Admin</span>
         <span class="help-chevron" id="hs-ro-chev">›</span>
       </div>
       <div class="help-body" id="hs-ro">
-        <p>Race Officer mode is accessed from the login screen using the RO PIN.</p>
-        <div style="font-size:.85rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">First-time setup</div>
-        <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Enter RO mode and tap <strong>Club Settings</strong></div></div>
+        <p>Both are on the login screen: <strong>Race Officer</strong> (RO PIN) runs race day; <strong>Club Admin</strong> (Admin PIN) sets the club up — boats &amp; PINs, schedule, marks, fees, results and club settings.</p>
+        <div style="font-size:.85rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">First-time setup (Club Admin)</div>
+        <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Log in as <strong>Club Admin</strong> and tap <strong>Club Settings</strong></div></div>
         <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Add <strong>card payment links</strong> for member, student and visitor rates (e.g. Stripe or Revolut payment links)</div></div>
         <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">Set the <strong>pre-race window</strong> — how many hours before a race the course is shown as "Live" to skippers</div></div>
         <div style="font-size:.85rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin:12px 0 8px">Race day</div>
         <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text">Use <strong>Course Builder</strong> to set and publish the course before the start</div></div>
         <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Registrations</strong> shows all boats that have registered for the upcoming race</div></div>
-        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Marks Manager</strong> lets you enable or reposition course marks</div></div>
+        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Marks Manager</strong> (Club Admin) lets you enable or reposition course marks</div></div>
       </div>
     </div>
 
