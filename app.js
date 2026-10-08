@@ -7182,9 +7182,12 @@ function renderWeather(wx,tides,warnings,live){
   // long-range guess; only fall back to showing the forecast anyway when
   // there's no live data available (feed down, or this club doesn't have
   // FEAT.livePortWeather at all) — something is better than nothing.
+  // More than a week out it isn't worth showing at all, for any club — the
+  // models' range is ~7 days and the race-time numbers would be noise.
   const hoursToRace=race?(raceDate-now)/3600000:null;
   const raceImminent=hoursToRace!=null&&hoursToRace<=48;
-  const showForecast=raceImminent||!(FEAT.livePortWeather&&live);
+  const raceTooFar=hoursToRace!=null&&hoursToRace>7*24;
+  const showForecast=!raceTooFar&&(raceImminent||!(FEAT.livePortWeather&&live));
   const isToday=raceDate.toDateString()===now.toDateString();
   const targetTs=Math.floor((isToday?Math.max(now.getTime(),raceDate.getTime()):raceDate.getTime())/1000);
 
@@ -7509,6 +7512,10 @@ function renderWeather(wx,tides,warnings,live){
     if(w.onset) return status+fmt(w.onset);
     return status+'until '+fmt(w.expires);
   }
+  // Met Éireann's RSS descriptions are HTML fragments ("<p>Heavy spells of
+  // rain.&nbsp;</p><p>…") — reduce to plain text (DOMParser runs no scripts),
+  // then escape as before, instead of printing the tags literally
+  const plain=v=>new DOMParser().parseFromString(String(v||''),'text/html').body.textContent.replace(/\s+/g,' ').trim();
   let warningsBlock='';
   if(Array.isArray(warnings)){
     // Expired warnings shouldn't linger — the licence requires expired
@@ -7527,8 +7534,8 @@ function renderWeather(wx,tides,warnings,live){
             const timeStr=warningTimeWindow(w);
             const dot=w.colour&&WARN_COLOURS[w.colour]?`<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${WARN_COLOURS[w.colour]};margin-right:6px;flex-shrink:0"></span>`:'';
             return `<div style="${i<relevant.length-1?'margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(230,57,70,.2)':''}">
-            <div style="display:flex;align-items:baseline;gap:0"><div style="font-size:.88rem;font-weight:700;color:var(--white)">${dot}${escHtml(w.title)}</div></div>
-            <div style="font-size:.8rem;color:var(--muted);margin-top:2px">${escHtml(w.description)}</div>
+            <div style="display:flex;align-items:baseline;gap:0"><div style="font-size:.88rem;font-weight:700;color:var(--white)">${dot}${escHtml(plain(w.title))}</div></div>
+            <div style="font-size:.8rem;color:var(--muted);margin-top:2px">${escHtml(plain(w.description))}</div>
             ${timeStr?`<div style="font-size:.85rem;color:var(--teal);margin-top:3px;font-weight:600">${escHtml(timeStr)}</div>`:''}
           </div>`;
           }).join('')}
@@ -7567,6 +7574,8 @@ function renderWeather(wx,tides,warnings,live){
     </div>
     ${FEAT.livePortWeather?sectionHeader('📡','Current Conditions · Port of Galway')+liveBlock:''}
     ${showForecast?(FEAT.livePortWeather?sectionHeader('📅','Forecast'):'')+windBlock+condBlock
+      :raceTooFar?`<div style="text-align:center;padding:16px 20px;color:var(--muted);font-size:.82rem">
+        📅 Next race is ${Math.round(hoursToRace/24)} days away — come back closer to the day for the forecast</div>`
       :(FEAT.livePortWeather?`<div style="text-align:center;padding:16px 20px;color:var(--muted);font-size:.82rem">
         📅 Forecast will appear once your next race is within 48 hours</div>`:'')}
     ${tidesBlock}
