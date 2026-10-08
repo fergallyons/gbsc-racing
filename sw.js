@@ -1,4 +1,4 @@
-const CACHE = 'gbsc-racing-v9'; // bumped 2026-08-07 to force-purge any cache holding pre-race-days/areas/sail-number content
+const CACHE = 'gbsc-racing-v10'; // bumped 2026-10-08 to purge the stale /?club=… pages the old shell check let through (see fetch handler)
 const STATIC = ['/', '/index.html', '/app.js', '/style.css', '/favicon.svg', '/manifest.json'];
 
 // Install — cache static assets
@@ -44,9 +44,15 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Network-first for app shell + dynamic edge-function responses — ensures updates land immediately
+  // Network-first for app shell + dynamic edge-function responses — ensures updates land immediately.
+  // Page loads are matched by request mode / pathname, not url.endsWith('/'):
+  // '/?club=hyc' doesn't end in '/', so it used to fall through to the
+  // cache-first branch below and serve the first-ever cached index.html
+  // forever, while app.js stayed fresh — new code against an old page.
+  const path = new URL(url).pathname;
   if (
-    url.endsWith('/') ||
+    e.request.mode === 'navigate' ||
+    path === '/' ||
     url.includes('/index.html') ||
     url.includes('/app.js') ||
     url.includes('/style.css') ||
