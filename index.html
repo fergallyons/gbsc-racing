@@ -1635,6 +1635,15 @@
   </div>
 </div>
 
+<!-- ssRaceSheet — one race's detail from a Sail Scoring results file (ssOpenRace) -->
+<div class="overlay" id="ssRaceSheet" onclick="if(event.target===this)closeSheet('ssRaceSheet')">
+  <div class="sheet" style="max-height:88vh;overflow-y:auto">
+    <div class="sheet-handle"></div>
+    <div id="ssRaceSheetBody"></div>
+    <button class="btn btn-ghost" style="width:100%;padding:12px;margin-top:12px" onclick="closeSheet('ssRaceSheet')">Close</button>
+  </div>
+</div>
+
 <!-- roSsConfigPanel — Sail Scoring series feeding the Results tab (needs the "Sail Scoring Results" feature on) -->
 <div class="panel-overlay" id="roSsConfigPanel" style="display:none">
   <div class="panel-header">

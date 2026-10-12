@@ -12845,6 +12845,35 @@ function ssParseExport(raw,url){
   raw.fleets.forEach(f=>{ fleetDefs[f.name]=f; });
   const races=raw.races.map(r=>({number:r.raceNumber,date:r.date||'',byFleet:r.echoByFleet||{}}));
 
+  // Per-race detail for the race sheet (ssOpenRace): each fleet's start time,
+  // each boat's finish (time or elapsed, and code) and ECHO applied → next.
+  // Finishes are keyed by sail number via the competitor ref where present.
+  const sailByRef={};
+  raw.competitors.forEach(c=>{ if(c&&c.ref!=null) sailByRef[c.ref]=ssSailKey(c.sailNumber); });
+  const raceDetail=raw.races.map(r=>{
+    const startByFleet={};
+    (Array.isArray(r.starts)?r.starts:[]).forEach(st=>{
+      (st&&Array.isArray(st.fleetNames)?st.fleetNames:[]).forEach(fn=>{ if(st.startTime) startByFleet[fn]=st.startTime; });
+    });
+    const finishes={};
+    (Array.isArray(r.finishes)?r.finishes:[]).forEach(f=>{
+      if(!f) return;
+      const k=(f.competitorRef!=null&&sailByRef[f.competitorRef])||ssSailKey(f.sailNumber);
+      if(!k) return;
+      finishes[k]={finishTime:typeof f.finishTime==='string'?f.finishTime:null,
+        elapsedSecs:typeof f.elapsedSecs==='number'?f.elapsedSecs:null,
+        code:f.resultCode||null};
+    });
+    const echo={};
+    Object.entries(r.echoByFleet||{}).forEach(([fn,fr])=>{
+      echo[fn]={};
+      (fr&&Array.isArray(fr.rows)?fr.rows:[]).forEach(x=>{
+        echo[fn][ssSailKey(x.sailNumber)]={applied:typeof x.tcfApplied==='number'?x.tcfApplied:null,next:typeof x.newTcf==='number'?x.newTcf:null};
+      });
+    });
+    return {startByFleet,finishes,echo};
+  });
+
   // Rating shown beside a boat, per the fleet's scoring system. ECHO is
   // progressive: the rating she raced under in the latest race that fleet
   // sailed, plus the new rating that race produced (the "next ECHO").
@@ -12882,13 +12911,16 @@ function ssParseExport(raw,url){
         redress:!!(r.raceRedressFlags&&r.raceRedressFlags[i]),
       }));
       return {
+        sailKey:key,
+        // series-level rating, for races the file has no per-race rating for
+        baseRating:def&&def.scoringSystem!=='echo'?rt.rating:null,
         rank:r.rank,unranked:!!r.unranked,sail:r.sailNumber||'',
         boat:(comp&&comp.boatName)||'',helm:r.name||'',
         club:(comp&&Array.isArray(comp.clubs)&&comp.clubs[0])||'',
         rating:rt.rating,next:rt.next,net:r.netPoints,total:r.totalPoints,cells,
       };
     });
-    return {name:(def&&(def.label||def.name))||st.fleetName,system:def?def.scoringSystem:'',order:def&&def.displayOrder!=null?def.displayOrder:0,rows};
+    return {name:(def&&(def.label||def.name))||st.fleetName,key:st.fleetName,system:def?def.scoringSystem:'',order:def&&def.displayOrder!=null?def.displayOrder:0,rows};
   }).sort((a,b)=>a.order-b.order);
 
   return {
@@ -12897,7 +12929,7 @@ function ssParseExport(raw,url){
     pageUrl:url.replace(/\/[^\/]*$/,''),
     name:s.name||'Series',venue:s.venue||'',startDate:s.startDate||'',endDate:s.endDate||'',
     exportedAt:raw.exportedAt||'',final:s.resultsStatus==='final',version:raw.version,newer,
-    races:races.map(r=>({number:r.number,date:r.date})),
+    races:races.map((r,i)=>({number:r.number,date:r.date,...raceDetail[i]})),
     fleets,
   };
 }
@@ -13010,8 +13042,9 @@ function ssRenderResults(){
       </div>
     </div>`:'';
 
-  const raceHeaders=model.races.map(r=>
-    `<th class="num" style="min-width:32px" title="${escHtml(r.date?'Race '+r.number+' · '+r.date:'Race '+r.number)}">R${ssEsc(r.number)}</th>`).join('');
+  // Tap a race column for that race's detail (ssOpenRace)
+  const raceHeaders=model.races.map((r,i)=>
+    `<th class="num" onclick="ssOpenRace(${i})" style="min-width:32px;cursor:pointer;color:var(--teal);text-decoration:underline dotted;text-underline-offset:3px" title="${escHtml((r.date?'Race '+r.number+' · '+r.date:'Race '+r.number)+' — tap for race details')}">R${ssEsc(r.number)}</th>`).join('');
 
   const showNext=fleet.system==='echo'&&fleet.rows.some(r=>r.next!=null);
   const fmtR=v=>(Math.round(v*1000)/1000).toString();
@@ -13066,7 +13099,7 @@ function ssRenderResults(){
       </table>
     </div>
     <div style="font-size:.8rem;color:var(--muted);margin-top:10px;text-align:center">
-      Points in () are discards · Red = DNC/DNS/DNF/OCS${showNext?' · Rating (→ next ECHO)':''}
+      Tap a race (R1, R2…) for its details · Points in () are discards · Red = DNC/DNS/DNF/OCS${showNext?' · Rating (→ next ECHO)':''}
     </div>
     <div style="margin-top:14px;text-align:center">
       <a href="${escHtml(model.pageUrl)}" target="_blank" rel="noopener"
@@ -13077,6 +13110,182 @@ function ssRenderResults(){
         Full results on Sail Scoring ↗
       </a>
     </div>`;
+}
+
+// ── Sail Scoring race sheet ─────────────────────────────────────────────
+// Tapping a race column (R1, R2…) in the series table opens that race for
+// the fleet on show: each boat's finish time, elapsed and corrected time,
+// time behind the winner, rating (ECHO applied → next) and points.
+// Positions/points are Sail Scoring's own (standings, incl. penalties and
+// redress); times are worked out here from the file's start and finish
+// times. The file only carries a per-race rating for ECHO fleets — IRC and
+// fixed-TCF fleets carry one rating per boat, which is wrong for races
+// before a mid-series rating change — so the corrected times are checked
+// against Sail Scoring's finishing order and the rating/corrected/behind
+// columns are left out for that race whenever the two disagree.
+let ssRaceIdx=0;
+
+function ssHmsToSecs(t){
+  const m=/^(\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?$/.exec(t||'');
+  return m?(+m[1])*3600+(+m[2])*60+(+(m[3]||0)):null;
+}
+function ssFmtDur(secs){
+  if(secs==null||!isFinite(secs)) return '';
+  secs=Math.round(secs);
+  const h=Math.floor(secs/3600), m=Math.floor(secs%3600/60), s=secs%60;
+  return (h?h+':'+String(m).padStart(2,'0'):String(m))+':'+String(s).padStart(2,'0');
+}
+// Corrected time for the fleet's scoring system: time-on-time for ratings
+// that multiply (IRC TCC, ECHO/NHC/VPRS/fixed TCF), Portsmouth divides by
+// PN/1000; scratch is just elapsed.
+function ssCorrected(system,elapsed,rating){
+  if(elapsed==null) return null;
+  if(system==='scratch'||!system) return elapsed;
+  if(rating==null||!(rating>0)) return null;
+  return system==='py'?elapsed*1000/rating:elapsed*rating;
+}
+
+function ssOpenRace(i){
+  const model=ssModels[ssCurrentIdx]&&ssModels[ssCurrentIdx].model;
+  if(!model||!model.races[i]) return;
+  ssRaceIdx=i;
+  ssRenderRaceSheet();
+  document.getElementById('ssRaceSheet').classList.add('open');
+}
+function ssRaceStep(d){
+  const model=ssModels[ssCurrentIdx]&&ssModels[ssCurrentIdx].model;
+  if(!model) return;
+  const n=ssRaceIdx+d;
+  if(n<0||n>=model.races.length) return;
+  ssRaceIdx=n; ssRenderRaceSheet();
+}
+function ssRaceFleet(i){
+  ssSelectFleet(i); // keeps the series table behind the sheet on the same fleet
+  ssRenderRaceSheet();
+}
+
+function ssRenderRaceSheet(){
+  const body=document.getElementById('ssRaceSheetBody');
+  const model=ssModels[ssCurrentIdx]&&ssModels[ssCurrentIdx].model;
+  if(!body||!model) return;
+  const fleet=model.fleets[ssCurrentFleetIdx]||model.fleets[0];
+  const race=model.races[ssRaceIdx];
+  const sys=fleet.system;
+  const isEcho=sys==='echo';
+  const startTime=(race.startByFleet||{})[fleet.key]||'';
+  const startSecs=ssHmsToSecs(startTime);
+  const echo=(race.echo||{})[fleet.key]||{};
+
+  const entries=fleet.rows.map(r=>{
+    const c=r.cells[ssRaceIdx]||{};
+    const fin=(race.finishes||{})[r.sailKey]||null;
+    let elapsed=fin&&fin.elapsedSecs!=null?fin.elapsedSecs:null;
+    if(elapsed==null&&fin&&fin.finishTime&&startSecs!=null){
+      const f=ssHmsToSecs(fin.finishTime);
+      if(f!=null) elapsed=f-startSecs<0?f-startSecs+86400:f-startSecs;
+    }
+    const e=echo[r.sailKey];
+    const rating=isEcho?(e?e.applied:null):r.baseRating;
+    // The standings' code is authoritative. The finishes array can't be
+    // trusted for it: Sail Scoring exports every finisher of an
+    // elapsed-time race (no finish clock time) with resultCode "DNF" while
+    // scoring them as finishers.
+    const code=c.pts!=null?(c.code||null):((fin&&fin.code)||null);
+    const finished=!code&&!c.excluded&&elapsed!=null;
+    return {r,c,fin,code,finished,elapsed,rating,next:isEcho&&e?e.next:null,
+      corrected:finished?ssCorrected(sys,elapsed,rating):null};
+  }).filter(x=>x.c.pts!=null||x.fin); // boats with nothing at all in this race aren't listed
+
+  // Finishers by Sail Scoring's points (their order is the official result),
+  // then coded boats, then anyone without points
+  entries.sort((a,b)=>{
+    const ga=a.finished?0:(a.c.pts!=null?1:2), gb=b.finished?0:(b.c.pts!=null?1:2);
+    if(ga!==gb) return ga-gb;
+    return (a.c.pts??1e9)-(b.c.pts??1e9);
+  });
+  const finishers=entries.filter(x=>x.finished);
+
+  // Does our corrected-time order agree with Sail Scoring's? Penalised or
+  // redressed boats are left out of the check — their points aren't their
+  // finishing place.
+  const clean=finishers.filter(x=>!x.c.penalty&&!x.c.redress&&x.corrected!=null);
+  let timesAgree=finishers.length>0&&clean.length===finishers.filter(x=>!x.c.penalty&&!x.c.redress).length;
+  for(let i=1;timesAgree&&i<clean.length;i++){
+    if(Math.round(clean[i].corrected)<Math.round(clean[i-1].corrected)&&clean[i].c.pts>clean[i-1].c.pts) timesAgree=false;
+  }
+  // A fixed-TCF fleet's rating can be set per race (GBSC's migrated ECHO
+  // fleets: Halsail's ECHO changed every race) and the file only has one
+  // per boat, so corrected times there could be wrong even with the order
+  // agreeing — never shown. ECHO fleets carry the applied rating per race.
+  const ratingPerRaceKnown=sys!=='tcf';
+  const showCorr=timesAgree&&ratingPerRaceKnown&&sys!=='scratch';
+  const best=showCorr?Math.min(...clean.map(x=>x.corrected)):null;
+
+  const fmtR=v=>v==null?'':Number(v).toFixed(3);
+  const myName=currentBoat&&!isRO?normBoatName(currentBoat.name):'';
+  const mySail=currentBoat&&!isRO?ssSailKey(currentBoat.sailNumber):'';
+
+  const rowsHtml=entries.map((x,i)=>{
+    const r=x.r;
+    const isMe=(myName&&r.boat&&normBoatName(r.boat)===myName)||(mySail&&r.sailKey===mySail);
+    const pos=x.finished?String(finishers.indexOf(x)+1):(x.code||'—');
+    const primary=r.boat||r.helm||r.sail||'—';
+    const sub=[r.boat?r.sail:'',r.boat&&r.helm?r.helm:''].filter(Boolean).join(' · ');
+    const bits=[];
+    if(x.finished){
+      if(x.fin&&x.fin.finishTime) bits.push('Fin '+escHtml(x.fin.finishTime));
+      bits.push('Elapsed '+ssFmtDur(x.elapsed));
+      if(showCorr&&x.corrected!=null){
+        bits.push('Corr '+ssFmtDur(x.corrected));
+        const behind=x.corrected-best;
+        bits.push(Math.round(behind)<=0?'<span style="color:var(--teal)">Winner</span>':'+'+ssFmtDur(behind));
+      }
+    }
+    if(showCorr||isEcho){
+      const rt=isEcho&&x.rating!=null?'ECHO '+fmtR(x.rating)+(x.next!=null?' → '+fmtR(x.next):'')
+        :(x.rating!=null?fmtR(x.rating):'');
+      if(rt) bits.push(rt);
+    }
+    const ptsLabel=x.c.pts==null?'—':(x.c.discard?'('+x.c.pts+')':String(x.c.pts));
+    const tags=[x.c.penalty,x.c.redress?'Redress':''].filter(Boolean).join(' · ');
+    return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;margin-bottom:6px;
+        background:${isMe?'rgba(0,174,239,.12)':'var(--navy)'};border:1px solid ${isMe?'rgba(0,174,239,.45)':'var(--border)'}">
+      <div style="min-width:30px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:${x.finished?'1.15rem':'.8rem'};
+        color:${x.finished?'var(--white)':'var(--danger)'};line-height:1.3">${escHtml(pos)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;line-height:1.25">${escHtml(primary)}${tags?` <span style="font-size:.75rem;color:var(--gold)">${escHtml(tags)}</span>`:''}</div>
+        ${sub?`<div style="font-size:.78rem;color:var(--muted)">${escHtml(sub)}</div>`:''}
+        ${bits.length?`<div style="font-size:.8rem;color:var(--white);margin-top:3px;line-height:1.5">${bits.join(' · ')}</div>`:''}
+      </div>
+      <div style="text-align:right;font-family:'Barlow Condensed',sans-serif">
+        <div style="font-size:1.05rem;font-weight:800;color:var(--teal)">${escHtml(ptsLabel)}</div>
+        <div style="font-size:.7rem;color:var(--muted)">pts</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const dateStr=race.date?new Date(race.date+'T12:00:00').toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'}):'';
+  const navBtn=(d,label,dis)=>`<button onclick="ssRaceStep(${d})" ${dis?'disabled':''} style="background:transparent;border:1px solid var(--border);border-radius:8px;color:${dis?'var(--border)':'var(--teal)'};padding:6px 12px;font-size:1rem;cursor:${dis?'default':'pointer'}">${label}</button>`;
+  const pills=model.fleets.length>1?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px">${model.fleets.map((f,i)=>
+    `<button onclick="ssRaceFleet(${i})" style="${ssPillStyle(i===ssCurrentFleetIdx)}">${escHtml(f.name)}</button>`).join('')}</div>`:'';
+  const note=!showCorr&&finishers.length&&sys!=='scratch'
+    ?`<div style="font-size:.78rem;color:var(--muted);margin:6px 0 10px;line-height:1.4">${ratingPerRaceKnown
+      ?"Corrected times aren't shown for this race — the ratings in the results file don't reproduce Sail Scoring's finishing order (e.g. a rating changed part-way through the series)."
+      :"Corrected times aren't shown — this fleet's rating can change from race to race and the results file doesn't record which one each race used."} Places and points are Sail Scoring's.</div>`:'';
+
+  body.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      ${navBtn(-1,'‹',ssRaceIdx===0)}
+      <div style="text-align:center;flex:1;min-width:0">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;font-weight:800">Race ${ssEsc(race.number)} · ${escHtml(fleet.name)}</div>
+        <div style="font-size:.82rem;color:var(--muted)">${escHtml([dateStr,startTime?'Start '+startTime.slice(0,5):''].filter(Boolean).join(' · '))}</div>
+      </div>
+      ${navBtn(1,'›',ssRaceIdx>=model.races.length-1)}
+    </div>
+    ${pills}
+    <div style="font-size:.78rem;color:var(--muted);margin:6px 0 10px">${escHtml(model.name)}</div>
+    ${note}
+    ${entries.length?rowsHtml:'<div class="empty-state"><div class="icon">⛵</div><div>No results for this race</div></div>'}`;
 }
 
 // ── Sail Scoring Setup panel (RO) ───────────────────────────────────────
