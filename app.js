@@ -1057,6 +1057,7 @@ function buildAllRaces(){
 // Matches by calendar date (one race per day), so times set in Halsail
 // (e.g. adjusted for tide/weather) override the hardcoded defaults.
 async function patchRaceTimesFromHalsail(){
+  if(!await halsailActiveReady()) return; // club's own races table is the schedule
   const raw=await halFetch('/GetSchedule/'+HAL_CLUB);
   if(!raw||raw._err||!Array.isArray(raw)) return;
   if(!halSchedule) halSchedule=raw;
@@ -9111,7 +9112,7 @@ function normBoatName(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 async function loadHandicaps(){
   const body=document.getElementById('handicapsBody');
   if(!body||_handicapsLoaded) return;
-  body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading ratings from Irish Sailing &amp; Halsail…</div></div>';
+  body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⏳</div><div>Loading ratings…</div></div>';
   try{
     // Empty, not GBSC's real name, if _C.name is missing — querying the
     // ratings API for the wrong club would silently return GBSC's own
@@ -9119,7 +9120,7 @@ async function loadHandicaps(){
     const clubName=_C.name||'';
     const [res,halEcho]=await Promise.all([
       fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName)),
-      loadHalsailCurrentEcho()
+      loadClubCurrentEcho()
     ]);
     const data=await res.json();
     if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
@@ -9128,6 +9129,45 @@ async function loadHandicaps(){
   }catch(e){
     body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⚠</div><div>Could not load ratings — '+escHtml(String(e.message||e)).slice(0,80)+'</div></div>';
   }
+}
+
+// Current and next ECHO per boat (keyed by normBoatName), from whichever
+// system scores the club: Sail Scoring's published series, or Halsail.
+// Same {current,next} shape either way. Nothing for a club with neither.
+async function loadClubCurrentEcho(){
+  try{ await _settingsReady; }catch(e){}
+  if(ssResultsSource()==='sailscoring') return loadSailScoringCurrentEcho();
+  if(halsailActive()) return loadHalsailCurrentEcho();
+  return {current:{},next:{}};
+}
+function ratingsSourceLabel(){
+  return ssResultsSource()==='sailscoring'?'Sail Scoring':halsailActive()?'Halsail':'';
+}
+// From the club's Sail Scoring series: each boat's ECHO in the latest series
+// it raced in — the rating applied in its most recent race and, for ECHO
+// scored in Sail Scoring, the next ECHO that race produced. Reuses the
+// Results tab's already-loaded series when there are any.
+async function loadSailScoringCurrentEcho(){
+  const out={current:{},next:{}};
+  let models=(ssModels||[]).map(m=>m.model).filter(Boolean);
+  if(!models.length){
+    const ws=ssWorkspace();
+    const discovered=ws?await ssDiscoverSeries(ws):null;
+    const urls=[...new Set([...(discovered||[]),...ssSourceUrls()])];
+    models=(await Promise.all(urls.map(u=>ssFetchExport(u).catch(()=>null)))).filter(Boolean);
+  }
+  const lastDate=m=>m.races.reduce((d,r)=>r.date>d?r.date:d,m.endDate||'');
+  models.sort((a,b)=>lastDate(a).localeCompare(lastDate(b))); // oldest first, so the latest series wins
+  models.forEach(m=>m.fleets.forEach(f=>{
+    if(f.system!=='echo'&&!/echo/i.test(f.name)) return; // GBSC's migrated ECHO fleets are fixed-TCF, named "ECHO"
+    f.rows.forEach(r=>{
+      const k=normBoatName(r.boat);
+      if(!k||r.rating==null) return;
+      out.current[k]=r.rating;
+      if(r.next!=null) out.next[k]=r.next; else delete out.next[k];
+    });
+  }));
+  return out;
 }
 
 function renderHandicaps(nationalBoats,halEcho,fetchedAt){
@@ -9204,7 +9244,11 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
   body.innerHTML=summaryHtml+
     `<div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px">Boats (${rows.length})</div>`+
     rowsHtml+
-    `<div style="font-size:.85rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">Boat names are matched against Irish Sailing and Halsail automatically — a mismatch here may just mean a naming difference, not a missing certificate. Current ECHO is the handicap used in each boat's most recent race; Next is Halsail's own "Hcap for next race" figure from that race's ECHO analysis — the number that will actually apply next time out. Both are blank for boats that haven't raced under Halsail scoring yet this season.<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE',{timeZone:'Europe/Dublin'})+')':''} · Halsail</div>`;
+    `<div style="font-size:.85rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5">${(()=>{
+      const src=ratingsSourceLabel();
+      return 'Boat names are matched against Irish Sailing'+(src?' and '+src:'')+' automatically — a mismatch here may just mean a naming difference, not a missing certificate.'
+        +(src?' Current ECHO is the handicap used in each boat\'s most recent race; Next is the ECHO that race produced — the number that will apply next time out. Both are blank for boats that haven\'t raced under '+src+' scoring yet this season'+(src==='Sail Scoring'?', and Next is blank for series scored on a fixed ECHO':'')+'.':'');
+    })()}<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE',{timeZone:'Europe/Dublin'})+')':''}${ratingsSourceLabel()?' · '+ratingsSourceLabel():''}</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -9241,7 +9285,8 @@ async function _fetchBoatRatingData(){
   const clubName=_C.name||''; // empty, not GBSC's real name — see _C.name fallback comment above loadHandicaps()
   const clubKey=(window.CLUB&&window.CLUB.slug)||'club'; // keyed per club so a device that's ever viewed >1 club can't cross-contaminate
   const nationalKey='__ratings_national_'+clubKey;
-  const haleKey='__ratings_halecho_'+clubKey;
+  try{ await _settingsReady; }catch(e){}
+  const haleKey='__ratings_echo_'+(ratingsSourceLabel()||'none').replace(/\s/g,'')+'_'+clubKey; // per source, so a switch doesn't show the old system's ECHO
 
   let national=_ttlCacheGet(nationalKey,NATIONAL_RATINGS_TTL_MS);
   let halEcho=_ttlCacheGet(haleKey,HAL_ECHO_TTL_MS);
@@ -9257,7 +9302,7 @@ async function _fetchBoatRatingData(){
     })());
   }
   if(halEcho==null){
-    fetches.push(loadHalsailCurrentEcho().then(v=>{ halEcho=v; _ttlCacheSet(haleKey,halEcho); }));
+    fetches.push(loadClubCurrentEcho().then(v=>{ halEcho=v; _ttlCacheSet(haleKey,halEcho); }));
   }
   await Promise.all(fetches);
 
@@ -9523,7 +9568,7 @@ function renderBoatProfile(nationalBoats,halEcho){
     </div>
     ${currentEcho!=null?`<div style="text-align:center;font-size:.85rem;color:var(--muted);margin-top:4px">Current ECHO: ${currentEcho}</div>`:''}
     ${!match?`<div style="text-align:center;font-size:.85rem;color:var(--danger);margin-top:16px">⚠ No Irish Sailing rating found for this boat name — check it matches the national register spelling.</div>`:''}
-    <div style="font-size:.85rem;color:var(--muted);text-align:center;margin-top:20px;line-height:1.5">IRC TCC from Irish Sailing's national register; Next ECHO from Halsail's own race-by-race analysis (see the Handicaps tile for the full explanation).</div>
+    <div style="font-size:.85rem;color:var(--muted);text-align:center;margin-top:20px;line-height:1.5">IRC TCC from Irish Sailing's national register${ratingsSourceLabel()?'; Next ECHO from '+ratingsSourceLabel()+'\'s race-by-race scoring':''} (see the Handicaps tile for the full explanation).</div>
   `;
 }
 
@@ -9709,8 +9754,8 @@ async function loadCalendarIfNeeded(){
   if(calLoaded) return;
   calLoaded=true;
 
-  // No Halsail configured — build calendar from DB races (allRaces)
-  if(!HAL_CLUB){
+  // Club doesn't use Halsail — build calendar from DB races (allRaces)
+  if(!await halsailActiveReady()){
     calSchedule=allRaces.map(r=>({
       RaceID: r.id,
       Race:   r.label,
@@ -11875,6 +11920,16 @@ function shareFeeStatement(){
 // ═══════════════════════════════════════════════════════════════
 const HAL_URL='https://halsail.com/HalApi';
 let HAL_CLUB=_C.halClub||0; // updated from DB settings in _applyDbClubConfig
+// Whether this club uses Halsail at all: its Results Source is Halsail AND it
+// has a Halsail club ID. A club on Sail Scoring (or none) makes no Halsail
+// call anywhere — results, calendar, start times, ECHO — even if an old
+// hal_club is still saved. Depends on the club's settings, so callers that
+// can run at startup await _settingsReady first (see halsailActiveReady).
+function halsailActive(){ return ssResultsSource()==='halsail'&&!!HAL_CLUB; }
+async function halsailActiveReady(){
+  try{ await _settingsReady; }catch(e){ /* settings failed — go with what we have */ }
+  return halsailActive();
+}
 // GBSC Halsail convention:
 //   GetSchedule only ever returns ECHO entries (Class "Cru - E")
 //   IRC is a tandem series — its SeryID is always echoId + 1
@@ -16709,7 +16764,7 @@ loadRaceSchedule().then(async()=>{
   // checking the old club-wide 'current' row and seeing it as unpublished.
   await _schemaCapabilitiesReady;
   loadAndDrawCourseForBoat().then(()=>updateHomeChips());
-  if(HAL_CLUB) patchRaceTimesFromHalsail(); // patch start times from Halsail in background
+  patchRaceTimesFromHalsail(); // patch start times from Halsail in background (no-op unless the club uses Halsail)
 });
 buildBoatGrid(); // loads boats async — triggers renderRegisteredTab once boats are ready
 loadNewsFeed();
