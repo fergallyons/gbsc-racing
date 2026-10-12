@@ -4609,9 +4609,20 @@ async function sendTestPush(){
     const r=await fetch(_clubFnUrl('send-push'),{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({type:'test',endpoint:sub.endpoint})});
     const j=await r.json().catch(()=>({}));
-    if(r.ok&&j.sent) toast('Test sent — it should arrive in a few seconds');
-    else if(r.ok) toast('⚠ Not sent — this device isn\'t registered; switch notifications off and on again');
-    else toast('⚠ '+(j.error||('HTTP '+r.status)).slice(0,70));
+    // Say which of the three ways it can fail, not just "not sent"
+    let msg;
+    if(!r.ok) msg='⚠ '+(j.error||('HTTP '+r.status));
+    else if(j.sent) msg='Test sent — it should arrive in a few seconds';
+    else if(!j.matched) msg='⚠ This device has no subscription on the server — switch notifications off and on again';
+    else if(j.deleted) msg='⚠ The push service says this subscription has expired — switch notifications off and on again';
+    else{
+      const e=(j.errors&&j.errors[0])||{};
+      msg='⚠ Push service refused it'+(e.status?' (HTTP '+e.status+')':'')+(e.message?': '+e.message:'');
+    }
+    console.warn('Test notification result',j);
+    const hint=document.getElementById('ro-notif-hint');
+    if(hint){ hint.textContent=msg; hint.style.color=j.sent?'var(--teal)':'var(--danger)'; }
+    toast(msg.slice(0,90));
   }catch(e){ toast('⚠ Could not send test — check connection'); }
 }
 

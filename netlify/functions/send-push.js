@@ -185,6 +185,7 @@ exports.handler = async (event) => {
 
   let sent = 0, failed = 0;
   const staleIds = [];
+  const errors = []; // reported back only for `test`, to diagnose a device
   await Promise.all(subs.map(async (row) => {
     const sub = { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } };
     try {
@@ -193,6 +194,7 @@ exports.handler = async (event) => {
     } catch (e) {
       failed++;
       if (e.statusCode === 404 || e.statusCode === 410) staleIds.push(row.id);
+      errors.push({ status: e.statusCode || null, message: String((e.body || e.message || '')).slice(0, 200) });
     }
   }));
 
@@ -203,6 +205,10 @@ exports.handler = async (event) => {
     }).catch(() => {});
   }
 
+  // The test reports what happened to this device: no row found (matched 0),
+  // the push service refusing it (errors — e.g. 403 when the VAPID private
+  // key doesn't match the club's public key), or an expired subscription.
+  if (body.type === 'test') return json(200, { sent, failed, deleted: staleIds.length, matched: subs.length, errors });
   return json(200, { sent, failed, deleted: staleIds.length });
 };
 
