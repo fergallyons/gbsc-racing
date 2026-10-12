@@ -1080,6 +1080,11 @@
     <span class="ro-sec-chev" id="roSecChev-roadmin">▸</span>
   </div>
   <div class="dash-grid ro-only" id="roSecBody-roadmin" style="display:none">
+    <div id="tile-ro-notify" class="dash-card ro-card" onclick="openRoNotifSheet()">
+      <div class="dash-card-icon">🔔</div>
+      <div class="dash-card-label">Notifications</div>
+      <div class="dash-card-sub" id="roNotifTileSub">Registrations &amp; protests</div>
+    </div>
     <div id="tile-ro-outstanding" class="dash-card ro-card" onclick="openOutstandingReport()">
       <div class="dash-card-icon">🔴</div>
       <div class="dash-card-label">Outstanding</div>
@@ -1632,6 +1637,28 @@
       <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.88rem;color:var(--white);flex:1"><b id="halConfigCount" style="color:var(--teal)">0</b> series selected</span>
       <button class="btn btn-primary" style="padding:9px 18px" onclick="saveHalConfig()">Save</button>
     </div>
+  </div>
+</div>
+
+<!-- roNotifSheet — the RO's own push alerts (boat registrations, protests filed) -->
+<div class="overlay" id="roNotifSheet" onclick="if(event.target===this)closeSheet('roNotifSheet')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🔔 RO Notifications</div>
+    <div id="ro-notif-unavailable" style="display:none;font-size:.85rem;color:var(--muted);line-height:1.5"></div>
+    <div id="ro-notif-row" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="font-size:.88rem;color:var(--white);line-height:1.4">Notify this device when a boat registers or a protest is filed</div>
+        <label class="toggle-sw">
+          <input type="checkbox" id="ro-notif-toggle" onchange="onRoNotifToggle(this.checked)">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+      <div id="ro-notif-hint" style="font-size:.8rem;color:var(--muted);margin-top:6px"></div>
+      <button id="ro-notif-test" class="btn btn-ghost" style="width:100%;padding:10px;margin-top:14px;display:none" onclick="sendTestPush('ro')">Send a test notification to this device</button>
+      <div style="font-size:.78rem;color:var(--muted);margin-top:12px;line-height:1.5">On iPhone the app must be installed to the home screen. Alerts go to this device only — each RO turns them on on their own phone.</div>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;padding:12px;margin-top:14px" onclick="closeSheet('roNotifSheet')">Close</button>
   </div>
 </div>
 
@@ -2472,7 +2499,7 @@
 
     <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
       <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
-        🔔 Registration Notifications
+        🔔 Push Notifications
       </label>
       <input type="text" id="ro-vapid-key" placeholder="VAPID public key"
         style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
@@ -2481,15 +2508,8 @@
       <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
         One-time setup, per club — ask your developer to generate a VAPID keypair and paste the <em>public</em> half here (the private half goes in a server-side Netlify env var, not here).
       </div>
-      <div id="ro-notif-row" style="margin-top:14px;display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div style="font-size:.8rem;color:var(--muted);max-width:220px;line-height:1.4">Notify me when a boat registers for a race</div>
-          <label class="toggle-sw">
-            <input type="checkbox" id="ro-notif-toggle" onchange="onRoNotifToggle(this.checked)">
-            <span class="toggle-track"><span class="toggle-thumb"></span></span>
-          </label>
-        </div>
-        <div id="ro-notif-hint" style="font-size:.8rem;color:var(--muted);margin-top:6px"></div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:8px;line-height:1.4">
+        Race Officers turn their own alerts on from the RO dashboard → Race admin → 🔔 Notifications.
       </div>
     </div>
 

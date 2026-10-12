@@ -4556,12 +4556,7 @@ async function onNotifToggle(enabled){
     try{
       const reg=await navigator.serviceWorker.ready;
       const sub=await reg.pushManager.getSubscription();
-      if(sub){
-        await sbFetch('/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),
-          {method:'DELETE',headers:{...SBH}});
-        await sub.unsubscribe();
-      }
-      localStorage.removeItem('_push_endpoint');
+      await _pushDropRole(sub,'_push_endpoint','skipper',currentBoat&&currentBoat.id);
       toast('Notifications disabled');
       setHint('');
     }catch(err){
@@ -4587,6 +4582,37 @@ async function savePushSub(sub){
     return 'DB error: '+r._err;
   }
   return null;
+}
+
+// Turn one kind of alert off on this device: delete only that role's row
+// (and boat's, for a skipper) and keep the browser subscription while any
+// other kind is still on. Used to delete every row for the endpoint and
+// unsubscribe outright, so switching crew alerts off silently killed the
+// same phone's skipper or RO alerts too.
+async function _pushDropRole(sub,lsKey,role,boatId){
+  localStorage.removeItem(lsKey);
+  if(!sub) return;
+  let q='/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint)+'&role=eq.'+role;
+  if(boatId) q+='&boat_id=eq.'+encodeURIComponent(boatId);
+  await sbFetch(q,{method:'DELETE',headers:{...SBH}});
+  const stillUsed=['_push_endpoint','_push_endpoint_ro','_push_endpoint_crew'].some(k=>localStorage.getItem(k)===sub.endpoint);
+  if(!stillUsed) await sub.unsubscribe();
+}
+
+// "Send a test notification" — goes to this device only (send-push's `test`
+// type only ever targets the endpoint it is given).
+async function sendTestPush(){
+  try{
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(!sub){ toast('Turn notifications on first'); return; }
+    const r=await fetch(_clubFnUrl('send-push'),{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type:'test',endpoint:sub.endpoint})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok&&j.sent) toast('Test sent — it should arrive in a few seconds');
+    else if(r.ok) toast('⚠ Not sent — this device isn\'t registered; switch notifications off and on again');
+    else toast('⚠ '+(j.error||('HTTP '+r.status)).slice(0,70));
+  }catch(e){ toast('⚠ Could not send test — check connection'); }
 }
 
 // Fire-and-forget: asks the send-push Netlify Function to push a notification
@@ -4632,7 +4658,7 @@ async function onRoNotifToggle(enabled){
   if(enabled){
     if(!VAPID_PUBLIC_KEY){
       uncheck();
-      setHint('Set a VAPID public key above first','var(--danger)');
+      setHint('Not set up for this club yet — Club Admin adds the VAPID key in Club Settings','var(--danger)');
       return;
     }
     if(Notification.permission==='denied'){
@@ -4658,7 +4684,8 @@ async function onRoNotifToggle(enabled){
       if(!saveErr){
         localStorage.setItem('_push_endpoint_ro', sub.endpoint);
         toast('Subscribed ✓');
-        setHint('Subscribed — you\'ll be notified when a boat registers');
+        setHint('On — you\'ll be notified when a boat registers or a protest is filed');
+        refreshRoNotifRow();
       } else {
         try{ await sub.unsubscribe(); }catch(e){}
         localStorage.removeItem('_push_endpoint_ro');
@@ -4678,14 +4705,10 @@ async function onRoNotifToggle(enabled){
     try{
       const reg=await navigator.serviceWorker.ready;
       const sub=await reg.pushManager.getSubscription();
-      if(sub){
-        await sbFetch('/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),
-          {method:'DELETE',headers:{...SBH}});
-        await sub.unsubscribe();
-      }
-      localStorage.removeItem('_push_endpoint_ro');
+      await _pushDropRole(sub,'_push_endpoint_ro','ro');
       toast('Unsubscribed');
       setHint('');
+      refreshRoNotifRow();
     }catch(err){
       console.error('RO push unsubscribe error',err);
       toast('Could not unsubscribe');
@@ -4790,12 +4813,7 @@ async function onCrewNotifToggle(enabled){
     try{
       const reg=await navigator.serviceWorker.ready;
       const sub=await reg.pushManager.getSubscription();
-      if(sub){
-        await sbFetch('/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),
-          {method:'DELETE',headers:{...SBH}});
-        await sub.unsubscribe();
-      }
-      localStorage.removeItem('_push_endpoint_crew');
+      await _pushDropRole(sub,'_push_endpoint_crew','crew');
       toast('Notifications disabled');
       setHint('');
     }catch(err){
@@ -4871,15 +4889,29 @@ async function openROClubSettings(){
 // now (see savePushSubRO/onRoNotifToggle); no send function exists yet.
 // Row only shows once a VAPID public key is configured above and the
 // browser supports push at all.
+function openRoNotifSheet(){
+  refreshRoNotifRow();
+  document.getElementById('roNotifSheet').classList.add('open');
+}
 async function refreshRoNotifRow(){
   const row=document.getElementById('ro-notif-row');
   const hint=document.getElementById('ro-notif-hint');
+  const na=document.getElementById('ro-notif-unavailable');
+  const tileSub=document.getElementById('roNotifTileSub');
   if(!row) return;
   const supported=await checkNotifSupport();
   if(!supported||!VAPID_PUBLIC_KEY){
     row.style.display='none';
+    if(na){
+      na.style.display='';
+      na.textContent=!supported
+        ?'This browser can\'t receive notifications. On iPhone, install the app to the home screen first (Help → Install as an App).'
+        :'Notifications aren\'t set up for this club yet — Club Admin adds the VAPID key in Club Settings.';
+    }
+    if(tileSub) tileSub.textContent='Not available';
     return;
   }
+  if(na) na.style.display='none';
   row.style.display='';
   const reg=await navigator.serviceWorker.ready;
   const sub=await reg.pushManager.getSubscription();
@@ -4888,11 +4920,14 @@ async function refreshRoNotifRow(){
   const isEnabled=!!(sub&&granted&&savedEndpoint&&savedEndpoint===sub.endpoint);
   const toggle=document.getElementById('ro-notif-toggle');
   if(toggle) toggle.checked=isEnabled;
+  const testBtn=document.getElementById('ro-notif-test');
+  if(testBtn) testBtn.style.display=isEnabled?'':'none';
+  if(tileSub) tileSub.textContent=isEnabled?'On — this device':'Off';
   if(hint){
     if(Notification.permission==='denied')
       hint.textContent='Notifications blocked in browser settings — enable them there first';
     else if(isEnabled)
-      hint.textContent='Subscribed — you\'ll be notified when a boat registers';
+      hint.textContent='On — you\'ll be notified when a boat registers or a protest is filed';
     else
       hint.textContent='';
   }
@@ -15770,6 +15805,10 @@ async function submitProtest(){
   // (that happens on the water, hail + red flag) but it's the first moment
   // the protestee's phone can plausibly know before opening the app.
   if(protesteeId) notifyPush('protest_filed',{boatIds:[protesteeId],boatName:prType==='ro_protest'?'Race Committee':currentBoat.name,raceLabel:race.label});
+  // ...and the RO always, unless the RO filed it
+  if(prType!=='ro_protest') notifyPush('protest_filed_ro',{boatName:currentBoat.name,
+    protesteeName:protesteeId?((boats.find(b=>b.id===protesteeId)||{}).name||''):'',
+    kind:({protest:'Protest',redress:'Redress request',scoring_enquiry:'Scoring enquiry'})[prType]||'Protest',raceLabel:race.label});
   closeSheet('protestSheet');
   toast(meta.filedToast);
 }

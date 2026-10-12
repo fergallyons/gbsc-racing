@@ -32,6 +32,8 @@
 //   { type: "protest_hearing_scheduled", boatIds: [...], hearingAt: "...", hearingLocation: "..." }
 //   { type: "protest_decision", boatIds: [...], status: "Upheld" }
 //   { type: "ocs_detected", boatIds: [...], boatName: "Silver Fox" }
+//   { type: "protest_filed_ro", boatName: "Wanderer", protesteeName: "Silver Fox", kind: "Protest", raceLabel: "..." }
+//   { type: "test", endpoint: "https://..." }   — to that one device only
 //
 // boatIds (optional): restricts delivery to those boats' own 'skipper'-role
 // subscription instead of broadcasting to every subscriber with a matching
@@ -59,6 +61,12 @@ const TARGET_ROLES = {
   protest_hearing_scheduled:  ['skipper'],
   protest_decision:           ['skipper'],
   ocs_detected:               ['skipper'],
+  // The RO hears about every protest / redress request / scoring enquiry a
+  // boat files (protest_filed only ever went to the protested boat).
+  protest_filed_ro:           ['ro'],
+  // "Send a test notification" — delivered only to the endpoint in the
+  // request (any role), so it can't page anyone else.
+  test:                       ['skipper', 'crew', 'ro'],
 };
 
 exports.handler = async (event) => {
@@ -79,6 +87,10 @@ exports.handler = async (event) => {
   const hearingLocation = typeof body.hearingLocation === 'string' ? body.hearingLocation.slice(0, 80) : '';
   const hearingAt = typeof body.hearingAt === 'string' ? body.hearingAt : '';
   const status = typeof body.status === 'string' ? body.status.slice(0, 40) : '';
+  const protesteeName = typeof body.protesteeName === 'string' ? body.protesteeName.slice(0, 80) : '';
+  const kind = typeof body.kind === 'string' ? body.kind.slice(0, 40) : 'Protest';
+  const endpoint = typeof body.endpoint === 'string' && /^https:\/\/[^\s]{10,1000}$/.test(body.endpoint) ? body.endpoint : '';
+  if (body.type === 'test' && !endpoint) return json(400, { error: 'test requires the endpoint of this device' });
   // Same charset boats_insert's RLS policy already requires of a boat id —
   // reused here just to keep this safe to interpolate into a REST filter.
   const boatIds = Array.isArray(body.boatIds)
@@ -133,7 +145,8 @@ exports.handler = async (event) => {
   }
 
   const roleFilter = roles.length === 1 ? 'eq.' + roles[0] : 'in.(' + roles.join(',') + ')';
-  const boatFilter = boatIds.length > 0 ? '&boat_id=in.(' + boatIds.join(',') + ')' : '';
+  const boatFilter = boatIds.length > 0 ? '&boat_id=in.(' + boatIds.join(',') + ')'
+    : body.type === 'test' ? '&endpoint=eq.' + encodeURIComponent(endpoint) : '';
   let subs;
   try {
     const r = await fetch(sbUrl + '/rest/v1/push_subscriptions?role=' + roleFilter + boatFilter + '&select=id,endpoint,p256dh,auth', {
@@ -160,12 +173,19 @@ exports.handler = async (event) => {
     // check the app, not a verdict. A boat can clear this by returning and
     // restarting correctly (rule 30.1) before the RO ever gets involved.
     ocs_detected: { title: '🚩 Individual Recall', body: (boatName || 'Your boat') + ' looked to be over the line at the start — check the app', tag: 'ocs' },
+    protest_filed_ro: { title: '🚩 ' + kind + ' filed', body: (boatName || 'A boat') + (protesteeName ? ' v ' + protesteeName : '') + (raceLabel ? ' — ' + raceLabel : ''), tag: 'protest-ro' },
+    test: { title: '🔔 Test notification', body: 'Notifications are working on this device.', tag: 'test' },
   };
   const payload = PAYLOADS[body.type];
 
+  // One notification per device: since 072 a phone can hold a row per role
+  // (skipper + RO, say), and course_published targets crew AND skipper.
+  const seen = new Set();
+  subs = (subs || []).filter(row => !seen.has(row.endpoint) && seen.add(row.endpoint));
+
   let sent = 0, failed = 0;
   const staleIds = [];
-  await Promise.all((subs || []).map(async (row) => {
+  await Promise.all(subs.map(async (row) => {
     const sub = { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } };
     try {
       await webpush.sendNotification(sub, JSON.stringify(payload));
