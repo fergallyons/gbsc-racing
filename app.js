@@ -12702,7 +12702,15 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handic
 //
 // The standings rows' `name` is a PERSON's name, not the boat — boat names
 // come from competitors[].boatName, matched by sail number.
-const SS_MAX_VERSION=9; // v9 (2026-10) only adds an ORC course `north` field — nothing read here
+// Newest export format checked against Sail Scoring's docs
+// (docs/public-export-format.md, "Versioning"). Newer files are still read —
+// Sail Scoring bumps the version for any field whose meaning changes, mostly
+// ones this app never reads (v9, 2026-10: an ORC course `north` field), and
+// refusing them took the Results tab down until the cap was raised. Instead
+// ssParseExport() checks the fields it does read and fails only if those
+// have changed shape. Raise this after checking the docs, to drop the
+// "newer format" note.
+const SS_MAX_VERSION=9;
 let ssActive=false;
 let ssModels=[];          // [{url, model|null, error|null}] for the current Results load
 let ssCurrentIdx=0;
@@ -12805,17 +12813,25 @@ async function ssFetchExport(url){
   }finally{ clearTimeout(timer); }
 }
 
-// Converts a PublicSeriesExport (any version up to SS_MAX_VERSION) into a
+// Converts a PublicSeriesExport (any version — see SS_MAX_VERSION) into a
 // small neutral model the renderer needs. Per-race arrays in standings rows
 // line up index-for-index with export.races (see championshipStandingRows()
 // in the Sail Scoring source). Throws a readable Error on anything unusable.
 function ssParseExport(raw,url){
   if(!raw||typeof raw!=='object'||Array.isArray(raw)) throw new Error('Not a Sail Scoring results file');
   if(typeof raw.version!=='number') throw new Error('Missing format version — not a Sail Scoring results file');
-  if(raw.version>SS_MAX_VERSION) throw new Error('This file uses format v'+raw.version+', newer than this app understands (v'+SS_MAX_VERSION+')');
+  const newer=raw.version>SS_MAX_VERSION;
+  if(newer) console.warn('Sail Scoring export v'+raw.version+' is newer than the v'+SS_MAX_VERSION+' this app was checked against — reading it anyway',url);
   ['fleets','competitors','races','standings'].forEach(k=>{
-    if(!Array.isArray(raw[k])) throw new Error('Results file is missing “'+k+'”');
+    if(!Array.isArray(raw[k])) throw new Error('Results file is missing “'+k+'”'+(newer?' (format v'+raw.version+' — the app needs updating)':''));
   });
+  // The standings fields the table is built from. A newer format that has
+  // renamed or reshaped one of these must fail loudly, not show wrong points.
+  const badRow=raw.standings.some(st=>!st||typeof st.fleetName!=='string'||!Array.isArray(st.rows)
+    ||st.rows.some(r=>!r||typeof r.netPoints!=='number'||!('rank' in r)||!('sailNumber' in r)||(r.racePoints!=null&&!Array.isArray(r.racePoints))));
+  if(badRow) throw new Error(newer
+    ?'This file uses Sail Scoring format v'+raw.version+', which this app cannot read yet — the app needs updating'
+    :'Results file standings are not in the expected layout');
   const s=raw.series||{};
   const bySail={};
   raw.competitors.forEach(c=>{ const k=ssSailKey(c.sailNumber); if(k&&!bySail[k]) bySail[k]=c; });
@@ -12874,7 +12890,7 @@ function ssParseExport(raw,url){
     // The season index the file sits in (e.g. …/p/<workspace>/2026) — the series' own page URL isn't derivable from the data file's name
     pageUrl:url.replace(/\/[^\/]*$/,''),
     name:s.name||'Series',venue:s.venue||'',startDate:s.startDate||'',endDate:s.endDate||'',
-    exportedAt:raw.exportedAt||'',final:s.resultsStatus==='final',version:raw.version,
+    exportedAt:raw.exportedAt||'',final:s.resultsStatus==='final',version:raw.version,newer,
     races:races.map(r=>({number:r.number,date:r.date})),
     fleets,
   };
@@ -13028,7 +13044,7 @@ function ssRenderResults(){
     ${summaryHtml}
     <div class="results-race-header">
       <div class="results-series-name">${escHtml(model.name)} · ${escHtml(fleet.name)}</div>
-      <div class="results-updated">via Sail Scoring · ${model.final?'Final':'Provisional'}${escHtml(updated)}</div>
+      <div class="results-updated">via Sail Scoring · ${model.final?'Final':'Provisional'}${escHtml(updated)}${model.newer?' · format v'+model.version:''}</div>
     </div>
     <div style="overflow-x:auto;">
       <table class="results-table">
