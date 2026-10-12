@@ -1,4 +1,4 @@
-const CACHE = 'gbsc-racing-v10'; // bumped 2026-10-08 to purge the stale /?club=… pages the old shell check let through (see fetch handler)
+const CACHE = 'gbsc-racing-v11'; // bumped 2026-10-12 to purge Sail Scoring results files the cache-first branch had pinned (see fetch handler)
 const STATIC = ['/', '/index.html', '/app.js', '/style.css', '/favicon.svg', '/manifest.json'];
 
 // Install — cache static assets
@@ -29,8 +29,17 @@ self.addEventListener('fetch', e => {
   // a non-ok response rather than a TypeError and never retries via the proxy. Pass through.
   if (url.includes('halsail.com')) return;
 
-  // Always network-first for API calls — never serve stale API data from cache
+  // Always network-first for API calls — never serve stale API data from cache.
+  // That includes any other site's data: Sail Scoring's results
+  // files and series index fell through to cache-first below, so a device kept
+  // showing the first copy it ever fetched — an Expert Forklifts Series with 2
+  // races while the published one had 4, depending on whether the page load
+  // went through this worker.
+  // Images, fonts and stylesheets (logos, Google Fonts) stay cache-first.
+  const crossOriginData = new URL(url).origin !== self.location.origin &&
+    !['image', 'font', 'style'].includes(e.request.destination);
   if (
+    crossOriginData ||
     url.includes('supabase.co') ||
     url.includes('open-meteo.com') ||
     url.includes('/.netlify/functions/') ||
