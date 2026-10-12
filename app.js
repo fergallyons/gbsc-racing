@@ -12702,7 +12702,7 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handic
 //
 // The standings rows' `name` is a PERSON's name, not the boat — boat names
 // come from competitors[].boatName, matched by sail number.
-const SS_MAX_VERSION=8;
+const SS_MAX_VERSION=9; // v9 (2026-10) only adds an ORC course `north` field — nothing read here
 let ssActive=false;
 let ssModels=[];          // [{url, model|null, error|null}] for the current Results load
 let ssCurrentIdx=0;
