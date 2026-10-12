@@ -11987,6 +11987,12 @@ async function refreshResults(){
   await loadResultsIfNeeded();
 }
 async function loadResultsIfNeeded(){
+  // The source (Halsail / Sail Scoring) is a club setting. Right after a
+  // reload clubSettings has no `features` until the DB answers, and
+  // ssResultsSource() then defaults to Halsail — so tapping Results quickly
+  // showed GBSC's curated Halsail series (one series, 2 races) instead of its
+  // Sail Scoring results, varying from load to load. Wait for the settings.
+  try{ await _settingsReady; }catch(e){ /* settings failed — go with what we have */ }
   const _src=ssResultsSource();
   ssActive=_src==='sailscoring';
   // 'none' = no integrated results at all; 'halsail' with no club ID behaves the same
