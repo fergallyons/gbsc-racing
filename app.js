@@ -2293,6 +2293,7 @@ async function enterApp(b,ro,admin){
   document.body.classList.add(ro?'role-ro':'role-skipper');
   if(isAdmin) document.body.classList.add('role-admin');
   try{localStorage.setItem('gr_last',b.id);}catch(e){}
+  _pushRekeyIfNeeded(); // background: move this device's alerts to the club's current VAPID key
   sbStartSession(isAdmin?'admin':ro?'ro':'skipper', ro?null:b.id, b.name).then(id=>{currentSessionId=id;}).catch(()=>{});
   closeSheet('loginSheet');
   // Show boat tag, hide login button
@@ -4526,10 +4527,7 @@ async function onNotifToggle(enabled){
 
     try{
       const reg=await navigator.serviceWorker.ready;
-      const sub=await reg.pushManager.subscribe({
-        userVisibleOnly:true,
-        applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      });
+      const sub=await _pushSubscribe(reg);
       const saveErr=await savePushSub(sub);
       if(!saveErr){
         localStorage.setItem('_push_endpoint', sub.endpoint);
@@ -4575,6 +4573,7 @@ async function savePushSub(sub){
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify({boat_id:currentBoat.id,role:'skipper',endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})
   });
+  try{ localStorage.setItem('_push_boat',currentBoat.id); }catch(e){}
   if(r===null) return 'Network error — check connection';
   if(r&&r._err){
     // 23505 = unique_violation — endpoint already in DB, treat as success
@@ -4582,6 +4581,56 @@ async function savePushSub(sub){
     return 'DB error: '+r._err;
   }
   return null;
+}
+
+// ── Club VAPID key changes ──────────────────────────────────────────
+// A browser subscription is bound to the VAPID public key it was made with.
+// When the club's key pair is replaced (GBSC's private and public halves had
+// stopped matching — every push failed "403 invalid JWT"), existing
+// subscriptions can't be used and pushManager.subscribe() with the new key
+// throws until the old one is dropped. So: whenever this device's
+// subscription carries a different key, drop it and re-subscribe every kind
+// of alert it had on (skipper / RO / crew), without the user doing anything.
+function _pushKeyMatches(sub){
+  const k=sub&&sub.options&&sub.options.applicationServerKey;
+  if(!k||!VAPID_PUBLIC_KEY) return true; // can't tell — leave it alone
+  const have=new Uint8Array(k), want=urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+  return have.length===want.length&&have.every((b,i)=>b===want[i]);
+}
+const _PUSH_KINDS=[['_push_endpoint','skipper'],['_push_endpoint_ro','ro'],['_push_endpoint_crew','crew']];
+async function _pushRekey(reg,sub){
+  const kinds=_PUSH_KINDS.filter(([k])=>localStorage.getItem(k)===sub.endpoint);
+  await sbFetch('/rest/v1/push_subscriptions?endpoint=eq.'+encodeURIComponent(sub.endpoint),{method:'DELETE',headers:{...SBH}});
+  try{ await sub.unsubscribe(); }catch(e){}
+  const fresh=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+  const j=fresh.toJSON();
+  for(const [lsKey,role] of kinds){
+    const boatId=role==='skipper'?(localStorage.getItem('_push_boat')||(currentBoat&&!isRO?currentBoat.id:null)):null;
+    if(role==='skipper'&&!boatId){ localStorage.removeItem(lsKey); continue; } // boat unknown — re-enabled at next boat login
+    const r=await sbFetch('/rest/v1/push_subscriptions',{method:'POST',headers:{...SBH,'Prefer':'return=minimal'},
+      body:JSON.stringify({boat_id:boatId,role,endpoint:j.endpoint,p256dh:j.keys.p256dh,auth:j.keys.auth})});
+    if(r&&r._err&&!/23505|unique/.test(r._err)){ localStorage.removeItem(lsKey); continue; }
+    localStorage.setItem(lsKey,fresh.endpoint);
+  }
+  return fresh;
+}
+// Subscribe with the club's current key (re-keying an old subscription first)
+async function _pushSubscribe(reg){
+  const existing=await reg.pushManager.getSubscription();
+  if(existing&&!_pushKeyMatches(existing)) return _pushRekey(reg,existing);
+  return reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+}
+// Run on login: silently moves this device to the club's current key
+async function _pushRekeyIfNeeded(){
+  try{
+    if(!VAPID_PUBLIC_KEY||!('serviceWorker' in navigator)||!('Notification' in window)||Notification.permission!=='granted') return;
+    const reg=await navigator.serviceWorker.ready;
+    const sub=await reg.pushManager.getSubscription();
+    if(!sub||_pushKeyMatches(sub)) return;
+    if(!_PUSH_KINDS.some(([k])=>localStorage.getItem(k)===sub.endpoint)) return;
+    await _pushRekey(reg,sub);
+    console.info('Push subscription moved to the club\'s current key');
+  }catch(e){ console.warn('Push re-key failed',e); }
 }
 
 // Turn one kind of alert off on this device: delete only that role's row
@@ -4687,10 +4736,7 @@ async function onRoNotifToggle(enabled){
     }
     try{
       const reg=await navigator.serviceWorker.ready;
-      const sub=await reg.pushManager.subscribe({
-        userVisibleOnly:true,
-        applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      });
+      const sub=await _pushSubscribe(reg);
       const saveErr=await savePushSubRO(sub);
       if(!saveErr){
         localStorage.setItem('_push_endpoint_ro', sub.endpoint);
@@ -4796,10 +4842,7 @@ async function onCrewNotifToggle(enabled){
     if(permission!=='granted'){ uncheck(); setHint('Permission not granted'); return; }
     try{
       const reg=await navigator.serviceWorker.ready;
-      const sub=await reg.pushManager.subscribe({
-        userVisibleOnly:true,
-        applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-      });
+      const sub=await _pushSubscribe(reg);
       const saveErr=await savePushSubCrew(sub);
       if(!saveErr){
         localStorage.setItem('_push_endpoint_crew', sub.endpoint);
@@ -4900,7 +4943,8 @@ async function openROClubSettings(){
 // now (see savePushSubRO/onRoNotifToggle); no send function exists yet.
 // Row only shows once a VAPID public key is configured above and the
 // browser supports push at all.
-function openRoNotifSheet(){
+async function openRoNotifSheet(){
+  await _pushRekeyIfNeeded();
   refreshRoNotifRow();
   document.getElementById('roNotifSheet').classList.add('open');
 }
