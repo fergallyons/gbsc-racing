@@ -1329,6 +1329,14 @@
         <input type="number" id="laidLaps" min="1" max="10" value="1" oninput="updateLaidLaps(this.value)"
           style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
       </div>
+      <!-- Windward-leeward only, needs migration 074 (SCHEMA_HAS_LAID_SPREADER) -->
+      <div id="laidSpreaderRow" style="display:none;margin-top:10px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:.9rem;color:var(--white)">
+          <input type="checkbox" id="laidSpreader" onchange="updateLaidSpreader(this.checked)" style="width:18px;height:18px;accent-color:var(--teal)">
+          Spreader mark at the windward end
+        </label>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:4px;line-height:1.4">A short distance left of and slightly below the windward mark — boats bear away to it, then run down to leeward.</div>
+      </div>
       <!-- Windward-leeward only, needs migration 073 (SCHEMA_HAS_LAID_START_OFFSET) -->
       <div id="laidStartRow" style="display:none;margin-top:10px">
         <div class="ro-row">

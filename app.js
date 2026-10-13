@@ -502,6 +502,7 @@ async function sbSaveCourse(course){
   };
   // Only sent once the club's DB has the column (073) — see race_id below
   if(SCHEMA_HAS_LAID_START_OFFSET) payload.start_offset_pct=course.startOffsetPct||null;
+  if(SCHEMA_HAS_LAID_SPREADER) payload.spreader=course.spreader||null;
   // Only sent once this club's DB has the column (migration 057) — sending
   // it regardless would 400 the whole save on any club that hasn't applied
   // it yet, same reasoning as every other SCHEMA_HAS_* gate.
@@ -549,7 +550,8 @@ function _normalizeCourseRow(row){
     rounds,
     courseType: row.course_type||null,
     laps: row.laps||null,
-    startOffsetPct: row.start_offset_pct||null
+    startOffsetPct: row.start_offset_pct||null,
+    spreader: !!row.spreader
   };
 }
 async function sbLoadCourse(){
@@ -883,9 +885,9 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
     SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false,
-    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false, SCHEMA_HAS_BRANDING=false, SCHEMA_HAS_LAID_START_OFFSET=false;
+    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false, SCHEMA_HAS_BRANDING=false, SCHEMA_HAS_LAID_START_OFFSET=false, SCHEMA_HAS_LAID_SPREADER=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql,070_club_branding.sql,073_laid_start_offset.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql,070_club_branding.sql,073_laid_start_offset.sql,074_laid_spreader.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -911,6 +913,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_HAL_API_KEY=names.has('068_hal_api_key.sql');
   SCHEMA_HAS_BRANDING=names.has('070_club_branding.sql');
   SCHEMA_HAS_LAID_START_OFFSET=names.has('073_laid_start_offset.sql');
+  SCHEMA_HAS_LAID_SPREADER=names.has('074_laid_spreader.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -961,6 +964,8 @@ let _laidCourseLaps=1;
 // Windward-leeward start/finish line: null = below the leeward mark (the
 // default), else that % of the way from leeward to windward (migration 073)
 let _laidStartPct=null;
+// Windward-leeward spreader (offset) mark at the windward end (migration 074)
+let _laidSpreader=false;
 const LAID_COURSE_LABELS={windward_leeward:'Windward-Leeward',triangle:'Triangle',trapezoid:'Trapezoid'};
 let registeredBoatIds=new Set(); // boat IDs registered for the next race — used by the pre-login boat picker grid, always nextRace-scoped
 let mySelectedRaceRegistered=false; // is currentBoat registered for `selectedRace` specifically — the skipper dashboard's own race dropdown can point at a different (often past) race than nextRace
@@ -10415,7 +10420,8 @@ function renderRoCoursePreview(){
       wrap.innerHTML='<div class="ro-preview-empty">Pick a course shape above to preview</div>';
       return;
     }
-    wrap.innerHTML=buildLaidCourseSvg(_laidCourseType, resolveWindDeg(), _laidCourseLaps, _laidCourseType==='windward_leeward'?_laidStartPct:null);
+    const wl=_laidCourseType==='windward_leeward';
+    wrap.innerHTML=buildLaidCourseSvg(_laidCourseType, resolveWindDeg(), _laidCourseLaps, wl?_laidStartPct:null, wl&&_laidSpreader);
     return;
   }
   if(!courseMarks.length){
@@ -10447,6 +10453,8 @@ function setLaidCourseType(type){
   });
   const row=document.getElementById('laidStartRow');
   if(row) row.style.display=type==='windward_leeward'&&SCHEMA_HAS_LAID_START_OFFSET?'':'none';
+  const spRow=document.getElementById('laidSpreaderRow');
+  if(spRow) spRow.style.display=type==='windward_leeward'&&SCHEMA_HAS_LAID_SPREADER?'':'none';
   renderRoCoursePreview();
 }
 // Start/finish position control (windward-leeward): read it into _laidStartPct
@@ -10467,6 +10475,15 @@ function setLaidStartPct(pct){
   if(pctEl&&_laidStartPct) pctEl.value=_laidStartPct;
   _syncLaidStartUi();
 }
+function updateLaidSpreader(on){
+  _laidSpreader=!!on;
+  renderRoCoursePreview();
+}
+function setLaidSpreader(on){
+  _laidSpreader=!!on;
+  const cb=document.getElementById('laidSpreader');
+  if(cb) cb.checked=_laidSpreader;
+}
 function _syncLaidStartUi(){
   const pr=document.getElementById('laidStartPctRow'), hint=document.getElementById('laidStartHint');
   if(pr) pr.style.display=_laidStartPct?'':'none';
@@ -10484,7 +10501,7 @@ function updateLaidLaps(v){
 // schematic view of the course SHAPE (dashed legs = "not to exact bearing"),
 // reusing the same visual language (colours, wind/north arrows) as
 // buildCourseSvg so it feels consistent with the real mark-based diagram.
-function buildLaidCourseSvg(courseType, wDeg, laps, startPct){
+function buildLaidCourseSvg(courseType, wDeg, laps, startPct, spreader){
   // Wider than the other course types need on their own so a true
   // equilateral triangle (mark 2 pulled a full sin(60°)·side off the 1-3
   // axis, per RRS Appendix S's actual 60-60-60 proportions) still has
@@ -10543,14 +10560,21 @@ function buildLaidCourseSvg(courseType, wDeg, laps, startPct){
     const lee={x:cx,y:206,label:'Leeward',colour:GRN};
     // Line above the leeward mark: startPct of the way from leeward to windward
     if(startPct) sf.y=lee.y-(lee.y-windY)*startPct/100;
-    pts=[p1,lee];
+    // Optional spreader (offset) mark: same place as the trapezoid's — left
+    // of and just below windward. With it the beat (leeward -> windward) and
+    // the run (spreader -> leeward) are different lines, each sailed one way,
+    // so they're drawn as single filleted lines instead of the two-lane
+    // "running track" a plain up-and-down leg gets.
+    const sp=spreader?{x:cx-42,y:windY+22,label:'Spreader',colour:YEL}:null;
+    const top=sp?[p1,sp]:[p1]; // what "going round the windward end" visits
+    pts=sp?[p1,sp,lee]:[p1,lee];
     legs=[sf];
-    for(let i=0;i<laps;i++) legs.push(p1,lee);
+    for(let i=0;i<laps;i++) legs.push(...top,lee);
     // With the line between the marks the fleet finishes UPWIND — round the
     // last leeward mark and beat up to the line. Below the leeward mark the
-    // finish stays downwind from the windward mark, as before.
+    // finish stays downwind from the windward end, as before.
     if(startPct) legs.push(sf);
-    else legs.push(p1,sf);
+    else legs.push(...top,sf);
   }
 
   let svgParts=[];
@@ -10582,6 +10606,46 @@ function buildLaidCourseSvg(courseType, wDeg, laps, startPct){
   const trims=new Map();
   const R_FILLET=11, LANE=10;
 
+  // Windward-leeward WITH a spreader: an explicit, geometrically true track.
+  // Every mark is rounded to port, i.e. anticlockwise as drawn: the run comes
+  // down the LEFT of the leeward mark and loops under it, the beat goes up the
+  // RIGHT side, over the top of windward, above and round the spreader, and
+  // back down. Each mark is a circle of radius LANE; each leg is the straight
+  // line touching its two marks on the port side (offset LANE to the left of
+  // the direction of travel), joined by an arc round each mark. Start/finish
+  // are points, offset the same way, so the start and the beat share one lane
+  // and an upwind finish arrives up it. Segments sailed again on later laps
+  // are drawn once. Every other layout keeps the generic drawing below.
+  let customRoute=false;
+  if(courseType==='windward_leeward'&&spreader){
+    customRoute=true;
+    const ST='rgba(0,180,216,0.7)';
+    const off=(a,b)=>{ const dx=b.x-a.x, dy=b.y-a.y, l=Math.hypot(dx,dy)||1; return {x:-dy/l*LANE, y:dx/l*LANE}; };
+    const ends=[];
+    for(let i=0;i<legs.length-1;i++){
+      const a=legs[i], b=legs[i+1], n=off(a,b);
+      ends.push({a,b,A:{x:a.x+n.x,y:a.y+n.y},B:{x:b.x+n.x,y:b.y+n.y}});
+    }
+    const segs=new Set(), arcs=new Set();
+    ends.forEach((e,i)=>{
+      const k=idOf.get(e.a)+'>'+idOf.get(e.b);
+      if(!segs.has(k)){
+        segs.add(k);
+        svgParts.push(`<line x1="${e.A.x.toFixed(1)}" y1="${e.A.y.toFixed(1)}" x2="${e.B.x.toFixed(1)}" y2="${e.B.y.toFixed(1)}" stroke="${ST}" stroke-width="1.8" marker-end="url(#lca)"/>`);
+      }
+      const nx=ends[i+1];
+      if(!nx||!pts.includes(e.b)) return;
+      const ka=k+'>'+idOf.get(nx.b);
+      if(arcs.has(ka)) return;
+      arcs.add(ka);
+      const m=e.b;
+      const aIn=Math.atan2(e.B.y-m.y,e.B.x-m.x), aOut=Math.atan2(nx.A.y-m.y,nx.A.x-m.x);
+      const delta=(((aIn-aOut)%(2*Math.PI))+2*Math.PI)%(2*Math.PI); // anticlockwise sweep, as drawn
+      if(delta<0.01) return;
+      svgParts.push(`<path d="M${e.B.x.toFixed(1)},${e.B.y.toFixed(1)} A${LANE},${LANE} 0 ${delta>Math.PI?1:0},0 ${nx.A.x.toFixed(1)},${nx.A.y.toFixed(1)}" fill="none" stroke="${ST}" stroke-width="1.8"/>`);
+    });
+  }
+
   // Which undirected leg-keys get sailed in both directions somewhere in
   // the route (repeat laps on a W/L-type leg) vs. only ever one way. Only
   // counts between two real marks — the start/finish point reuses the
@@ -10612,7 +10676,7 @@ function buildLaidCourseSvg(courseType, wDeg, laps, startPct){
   // on that side rather than trying to line up with the lane's small
   // sideways offset — close enough for a conceptual diagram.
   const seenCorner=new Set();
-  for(let i=1;i<legs.length-1;i++){
+  for(let i=1;!customRoute&&i<legs.length-1;i++){
     const mark=legs[i];
     if(!pts.includes(mark)) continue; // only real course marks get rounding treatment
     const prev=legs[i-1], next=legs[i+1];
@@ -10648,7 +10712,7 @@ function buildLaidCourseSvg(courseType, wDeg, laps, startPct){
 
   // Draw each leg exactly once, whichever way it's actually sailed.
   const drawnLegs=new Set();
-  for(let i=0;i<legs.length-1;i++){
+  for(let i=0;!customRoute&&i<legs.length-1;i++){
     const a=legs[i], b=legs[i+1];
     const ia=idOf.get(a), ib=idOf.get(b);
     const k=ia<ib?ia+'-'+ib:ib+'-'+ia;
@@ -10854,8 +10918,8 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
     const trapezoidLegs=trapezoidStops.join(' – ');
     const legText={
       windward_leeward:c.startOffsetPct
-        ?'Start/Finish ('+c.startOffsetPct+'% up from leeward) – Windward – Leeward'+(laps>1?' (× '+laps+')':'')+' – Finish (upwind)'
-        :'Start/Finish – Windward – Leeward'+(laps>1?' (× '+laps+')':'')+' – Windward – Finish',
+        ?'Start/Finish ('+c.startOffsetPct+'% up from leeward) – Windward'+(c.spreader?' – Spreader':'')+' – Leeward'+(laps>1?' (× '+laps+')':'')+' – Finish (upwind)'
+        :'Start/Finish – Windward'+(c.spreader?' – Spreader':'')+' – Leeward'+(laps>1?' (× '+laps+')':'')+' – Windward'+(c.spreader?' – Spreader':'')+' – Finish',
       triangle:'Start/Finish – '+triangleLegs+' – Finish',
       trapezoid:'Start – '+trapezoidLegs+' – Finish'
     }[c.courseType]||'';
@@ -10882,7 +10946,7 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
           🌊 Laid course — marks are set on the day; positions below are conceptual, not exact bearings.
         </div>
         ${c.notes?`<div style="margin-top:10px;padding:9px 12px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.25);border-radius:8px;font-size:.82rem;color:var(--gold)">📋 ${c.notes}</div>`:''}
-        <div style="margin-top:14px;${isStale?'opacity:0.6':''}">${buildLaidCourseSvg(c.courseType,c.windDeg,laps,c.courseType==='windward_leeward'?c.startOffsetPct:null)}</div>
+        <div style="margin-top:14px;${isStale?'opacity:0.6':''}">${buildLaidCourseSvg(c.courseType,c.windDeg,laps,c.courseType==='windward_leeward'?c.startOffsetPct:null,c.courseType==='windward_leeward'&&c.spreader)}</div>
         <div style="margin-top:10px;font-size:.85rem;color:var(--white);line-height:1.5;text-align:center">${legText}</div>
       </div>
     `;
@@ -11184,7 +11248,8 @@ function _buildCoursePayload(id){
       finishLineId:selectedFinishLineId,
       courseType:_laidCourseType,
       laps:_laidCourseLaps,
-      startOffsetPct:_laidCourseType==='windward_leeward'?_laidStartPct:null
+      startOffsetPct:_laidCourseType==='windward_leeward'?_laidStartPct:null,
+      spreader:_laidCourseType==='windward_leeward'&&_laidSpreader
     };
   }
   const name='S/F – '+courseMarks.map(x=>{const m=MARKS.find(mk=>mk.id===x.id);return m?m.name:x.id;}).join(' – ')+' – Finish';
@@ -11244,6 +11309,7 @@ async function loadDraftIfExists(){
     const lapsInput=document.getElementById('laidLaps');
     if(lapsInput) lapsInput.value=_laidCourseLaps;
     setLaidStartPct(row.start_offset_pct||null);
+    setLaidSpreader(!!row.spreader);
     if(row.notes){const n=document.getElementById('courseNotes');if(n)n.value=row.notes;}
     if(row.start_line_id) selectedStartLineId=row.start_line_id;
     if(row.finish_line_id) selectedFinishLineId=row.finish_line_id;
@@ -11340,6 +11406,7 @@ function _buildCourseTemplatePayload(name){
       course_type:_laidCourseType,
       laps:_laidCourseLaps,
       ...(SCHEMA_HAS_LAID_START_OFFSET?{start_offset_pct:_laidCourseType==='windward_leeward'?_laidStartPct:null}:{}),
+      ...(SCHEMA_HAS_LAID_SPREADER?{spreader:_laidCourseType==='windward_leeward'&&_laidSpreader}:{}),
       start_line_id:selectedStartLineId||null,
       finish_line_id:selectedFinishLineId||null,
       notes:notes.trim()
@@ -11384,6 +11451,7 @@ function loadCourseTemplateIntoBuilder(id){
     const lapsInput=document.getElementById('laidLaps');
     if(lapsInput) lapsInput.value=_laidCourseLaps;
     setLaidStartPct(t.start_offset_pct||null);
+    setLaidSpreader(!!t.spreader);
   } else {
     setCourseMode('marks');
     courseMarks=t.marks.map(m=>({...m}));
@@ -11687,6 +11755,7 @@ function clearCourse(){
   _laidCourseType=null;
   _laidCourseLaps=1;
   setLaidStartPct(null);
+  setLaidSpreader(false);
   const lapsInput=document.getElementById('laidLaps');
   if(lapsInput) lapsInput.value=1;
   ['windward_leeward','triangle','trapezoid'].forEach(t=>{
