@@ -14728,7 +14728,9 @@ async function sbCancelArmedStartsForFleet(fleetId){
   // entirely rather than send fleet_id=is.null. That correctly falls back
   // to the exact old global behavior: cancel any pending row, unscoped.
   const fleetQ=SCHEMA_HAS_FLEETS?(fleetId?'&fleet_id=eq.'+encodeURIComponent(fleetId):'&fleet_id=is.null'):'';
-  return sbFetch('/rest/v1/race_starts?status=in.(armed,postponed)'+fleetQ+'&start_time=gt.'+encodeURIComponent(new Date().toISOString()),{method:'PATCH',
+  // A postponement is cleared whatever its time (its original gun may have
+  // passed while AP was up); an armed start only while it's still to come.
+  return sbFetch('/rest/v1/race_starts?or=(status.eq.postponed,and(status.eq.armed,start_time.gt.'+encodeURIComponent(new Date().toISOString())+'))'+fleetQ,{method:'PATCH',
     headers:{...SBH,'Prefer':'return=minimal'},
     body:JSON.stringify({status:'cancelled'})});
 }
@@ -14843,9 +14845,14 @@ async function renderRoStartsLog(){
       wrap.innerHTML=
         '<div style="background:rgba(244,162,97,.1);border:1px solid rgba(244,162,97,.35);border-radius:12px;padding:14px">'+
           '<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--warn);margin-bottom:6px">Postponed (AP)</div>'+
-          '<div style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px">AP flying — no time set</div>'+
-          '<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px">Set a new time below to resume, or cancel</div>'+
-          '<button class="btn btn-ghost" style="width:100%;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+relevant.id+')">✕ Cancel</button>'+
+          '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'+apPennantSmall()+
+            '<div><div style="font-size:.95rem;color:var(--white);font-weight:700;margin-bottom:2px">AP flying — racing postponed</div>'+
+            '<div style="font-size:.85rem;color:var(--muted)">Lower AP to start: the warning signal follows one minute later</div></div>'+
+          '</div>'+
+          '<div style="display:flex;gap:8px">'+
+            '<button class="btn btn-primary" style="flex:2;padding:10px" onclick="roLowerAp('+relevant.id+')">⬇ Lower AP — warning in 1 min</button>'+
+            '<button class="btn btn-ghost" style="flex:1;padding:10px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+relevant.id+')">✕ Cancel</button>'+
+          '</div>'+
         '</div>';
     } else {
       wrap.innerHTML=
@@ -14873,6 +14880,7 @@ async function renderRoStartsLog(){
       const actions=pending?
         '<div style="display:flex;gap:6px;margin-top:8px">'+
           (r.status==='armed'?'<button class="btn btn-ghost" style="flex:1;padding:6px;font-size:.85rem;color:var(--warn);border-color:rgba(244,162,97,.4)" onclick="roPostponeStartRow('+r.id+')">⏸ Postpone</button>':'')+
+          (r.status==='postponed'?'<button class="btn btn-primary" style="flex:2;padding:6px;font-size:.85rem" onclick="roLowerAp('+r.id+')">⬇ Lower AP — warning in 1 min</button>':'')+
           '<button class="btn btn-ghost" style="flex:1;padding:6px;font-size:.85rem;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="roCancelStartRow('+r.id+')">✕ Cancel</button>'+
         '</div>':'';
       return '<div style="background:var(--navy);border-radius:10px;padding:10px 12px;margin-bottom:6px'+(pending?';border:1px solid rgba(45,198,83,.25)':'')+'">'+
@@ -14884,6 +14892,58 @@ async function renderRoStartsLog(){
         actions+
       '</div>';
     }).join('');
+}
+
+// The Answering Pennant as a small inline swatch for the RO's cards (the
+// full-size one is renderApPennantGraphic, on the start display).
+function apPennantSmall(){
+  const stripes='linear-gradient(90deg,'+FLAG_RED+' 0% 20%,#fff 20% 40%,'+FLAG_RED+' 40% 60%,#fff 60% 80%,'+FLAG_RED+' 80% 100%)';
+  return '<div title="AP — Answering Pennant" style="width:54px;aspect-ratio:3/2;flex-shrink:0;border-radius:3px;box-shadow:0 2px 6px rgba(0,0,0,.4);background:'+stripes+';clip-path:polygon(0 0,100% 50%,0 100%)"></div>';
+}
+
+// AP before any sequence: postpone racing for the selected fleet (or the
+// club) with no start time yet — the usual case, since AP normally goes up
+// ashore or before the warning signal. The row needs a start_time; a
+// placeholder later today is stored and never shown (a postponed start
+// displays "AP", not a time).
+async function roPostponeNow(){
+  if(activeFleets().length&&!_roStartFleet){toast('Select a fleet');return;}
+  if(!confirm('Hoist AP? Racing'+(activeFleets().length?' for this fleet':'')+' is postponed until you lower it.'))return;
+  await sbCancelArmedStartsForFleet(_roStartFleet);
+  const fields={
+    start_time:new Date(Date.now()+2*3600000).toISOString(),
+    flag_system:_roStartFlagSystem,
+    class_flag:_roStartClassFlag,
+    status:'postponed'
+  };
+  if(SCHEMA_HAS_FLEETS) fields.fleet_id=_roStartFleet;
+  if(SCHEMA_HAS_SEQUENCE_MINS) fields.sequence_mins=_roStartSequenceMins;
+  const r=await sbArmStart(fields);
+  if(r&&r._err){toast('⚠ Could not postpone — '+r._err.slice(0,60));return;}
+  toast('⏸ AP — racing postponed');
+  await renderRoStartsLog();
+  refreshRoStartSeqTile();
+}
+
+// Lower AP (RRS Race Signals: "the warning signal will be made 1 minute
+// after removal"): re-arm with the same fleet, flags and sequence length so
+// the warning signal falls exactly one minute from now.
+async function roLowerAp(id){
+  const rows=await sbFetch('/rest/v1/race_starts?id=eq.'+encodeURIComponent(id)+'&select=*');
+  const row=Array.isArray(rows)&&rows[0];
+  if(!row||row.status!=='postponed'){toast('That start is no longer postponed');await renderRoStartsLog();return;}
+  const seq=row.sequence_mins||_roStartSequenceMins||5;
+  const startTime=new Date(Date.now()+60000+seq*60000);
+  if(!confirm('Lower AP now? Warning signal in 1 minute, start at '+startTime.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',second:'2-digit',timeZone:'Europe/Dublin'})+'.'))return;
+  await sbCancelArmedStartsForFleet(row.fleet_id||null);
+  const fields={start_time:startTime.toISOString(),flag_system:row.flag_system,class_flag:row.class_flag,status:'armed'};
+  if(SCHEMA_HAS_FLEETS) fields.fleet_id=row.fleet_id||null;
+  if(SCHEMA_HAS_SEQUENCE_MINS) fields.sequence_mins=seq;
+  const r=await sbArmStart(fields);
+  if(r&&r._err){toast('⚠ Could not lower AP — '+r._err.slice(0,60));return;}
+  toast('⬇ AP down — warning signal in 1 minute');
+  await renderRoStartsLog();
+  refreshRoStartSeqTile();
 }
 
 async function roPostponeStartRow(id){

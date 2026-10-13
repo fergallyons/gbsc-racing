@@ -1566,6 +1566,9 @@
     </div>
 
     <button class="btn btn-primary" style="width:100%;padding:13px" onclick="roArmStart()">🚦 Arm Start Sequence</button>
+    <!-- AP before any sequence — the usual case (wind, fleet not ready...) -->
+    <button class="btn btn-ghost" style="width:100%;padding:12px;margin-top:10px;color:var(--warn);border-color:rgba(244,162,97,.45)" onclick="roPostponeNow()">⏸ Postpone (AP) — no start time yet</button>
+    <div style="font-size:.8rem;color:var(--muted);margin-top:6px;line-height:1.4">Hoists AP now for the selected fleet. When you lower it, the warning signal follows one minute later.</div>
   </div>
 </div>
 
