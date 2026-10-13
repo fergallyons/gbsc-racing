@@ -10705,21 +10705,27 @@ function buildLaidCourseSvg(courseType, wDeg, laps, startPct){
     svgParts.push(`<text x="${lx}" y="${p.y+3}" text-anchor="${labelRight?'start':'end'}" fill="${p.colour}" font-family="Barlow Condensed,sans-serif" font-size="9" font-weight="700">${p.label}</text>`);
   });
 
+  // A laid course is set straight into the wind, so the diagram's "up" IS
+  // the wind direction: the wind arrow always blows straight down the course
+  // from the windward mark (labelled with its true bearing), and the north
+  // arrow is turned to match — so the compass stays right instead of the
+  // wind arrow pointing across a course drawn vertically. No wind known:
+  // north up, no wind arrow, as before.
   // North arrow (top-right)
   {
-    const nx=SVG_W-18,ny=32,nh=14;
-    svgParts.push(`<line x1="${nx}" y1="${ny+nh/2}" x2="${nx}" y2="${ny-nh/2}" stroke="rgba(180,200,220,0.55)" stroke-width="1.5" marker-end="url(#lca)"/>`);
-    svgParts.push(`<text x="${nx}" y="${ny+nh/2+10}" text-anchor="middle" fill="rgba(122,143,166,0.65)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">N</text>`);
+    const nx=SVG_W-18,ny=30,nh=14;
+    const nRad=(wDeg!=null?-wDeg:0)*Math.PI/180; // north's bearing relative to diagram-up
+    const tx=nx+Math.sin(nRad)*nh/2, ty=ny-Math.cos(nRad)*nh/2;  // tip
+    const bx=nx-Math.sin(nRad)*nh/2, by=ny+Math.cos(nRad)*nh/2;  // tail
+    svgParts.push(`<line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${tx.toFixed(1)}" y2="${ty.toFixed(1)}" stroke="rgba(180,200,220,0.55)" stroke-width="1.5" marker-end="url(#lca)"/>`);
+    svgParts.push(`<text x="${(nx+Math.sin(nRad)*(nh/2+8)).toFixed(1)}" y="${(ny-Math.cos(nRad)*(nh/2+8)+3).toFixed(1)}" text-anchor="middle" fill="rgba(122,143,166,0.65)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">N</text>`);
   }
 
-  // Wind arrow (top-left)
+  // Wind arrow (top-left) — blowing down the course
   if(wDeg!=null){
-    const wCX=20,wCY=24,wLen=13;
-    const wRad=(wDeg+180)*Math.PI/180;
-    const arrowX=(wCX+Math.sin(wRad)*wLen).toFixed(1);
-    const arrowY=(wCY-Math.cos(wRad)*wLen).toFixed(1);
-    svgParts.push(`<line x1="${wCX}" y1="${wCY}" x2="${arrowX}" y2="${arrowY}" stroke="rgba(255,170,0,0.75)" stroke-width="2" marker-end="url(#lca)"/>`);
-    svgParts.push(`<text x="${wCX}" y="${wCY+13}" text-anchor="middle" fill="rgba(255,170,0,0.75)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${wDeg}°</text>`);
+    const wCX=20,wCY=22,wLen=13;
+    svgParts.push(`<line x1="${wCX}" y1="${wCY-wLen/2}" x2="${wCX}" y2="${wCY+wLen/2}" stroke="rgba(255,170,0,0.75)" stroke-width="2" marker-end="url(#lca)"/>`);
+    svgParts.push(`<text x="${wCX}" y="${wCY+wLen/2+11}" text-anchor="middle" fill="rgba(255,170,0,0.75)" font-family="Barlow Condensed,sans-serif" font-size="8" font-weight="700">${wDeg}°</text>`);
   }
 
   // Laps badge
