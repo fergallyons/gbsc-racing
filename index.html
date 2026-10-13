@@ -1329,6 +1329,23 @@
         <input type="number" id="laidLaps" min="1" max="10" value="1" oninput="updateLaidLaps(this.value)"
           style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
       </div>
+      <!-- Windward-leeward only, needs migration 073 (SCHEMA_HAS_LAID_START_OFFSET) -->
+      <div id="laidStartRow" style="display:none;margin-top:10px">
+        <div class="ro-row">
+          <label>Start/Finish</label>
+          <select id="laidStartPos" onchange="updateLaidStartPos()"
+            style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+            <option value="below">Below the leeward mark</option>
+            <option value="above">Above the leeward mark</option>
+          </select>
+        </div>
+        <div class="ro-row" id="laidStartPctRow" style="display:none">
+          <label>% up the course</label>
+          <input type="number" id="laidStartPct" min="1" max="90" value="20" oninput="updateLaidStartPos()"
+            style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:6px 10px">
+        </div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:4px;line-height:1.4" id="laidStartHint"></div>
+      </div>
     </div>
     <!-- Live course preview — updates as marks are added -->
     <div id="roCoursePreview" style="margin:14px 0 4px">
