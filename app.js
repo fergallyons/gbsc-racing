@@ -10471,7 +10471,7 @@ function _syncLaidStartUi(){
   const pr=document.getElementById('laidStartPctRow'), hint=document.getElementById('laidStartHint');
   if(pr) pr.style.display=_laidStartPct?'':'none';
   if(hint) hint.textContent=_laidStartPct
-    ?'The line sits '+_laidStartPct+'% of the way from the leeward mark to the windward mark.'
+    ?'The line sits '+_laidStartPct+'% of the way from the leeward mark to the windward mark. Boats finish upwind: round the last leeward mark and sail up to the line.'
     :'';
 }
 function updateLaidLaps(v){
@@ -10546,7 +10546,11 @@ function buildLaidCourseSvg(courseType, wDeg, laps, startPct){
     pts=[p1,lee];
     legs=[sf];
     for(let i=0;i<laps;i++) legs.push(p1,lee);
-    legs.push(p1,sf);
+    // With the line between the marks the fleet finishes UPWIND — round the
+    // last leeward mark and beat up to the line. Below the leeward mark the
+    // finish stays downwind from the windward mark, as before.
+    if(startPct) legs.push(sf);
+    else legs.push(p1,sf);
   }
 
   let svgParts=[];
@@ -10843,7 +10847,9 @@ function renderCourseDiagram(targetId,courseOverride,raceOverride){
     trapezoidStops.push('1 (Windward)','2 (Spreader)','4 (Leeward)');
     const trapezoidLegs=trapezoidStops.join(' – ');
     const legText={
-      windward_leeward:'Start/Finish'+(c.startOffsetPct?' ('+c.startOffsetPct+'% up from leeward)':'')+' – Windward – Leeward'+(laps>1?' (× '+laps+')':'')+' – Windward – Finish',
+      windward_leeward:c.startOffsetPct
+        ?'Start/Finish ('+c.startOffsetPct+'% up from leeward) – Windward – Leeward'+(laps>1?' (× '+laps+')':'')+' – Finish (upwind)'
+        :'Start/Finish – Windward – Leeward'+(laps>1?' (× '+laps+')':'')+' – Windward – Finish',
       triangle:'Start/Finish – '+triangleLegs+' – Finish',
       trapezoid:'Start – '+trapezoidLegs+' – Finish'
     }[c.courseType]||'';
