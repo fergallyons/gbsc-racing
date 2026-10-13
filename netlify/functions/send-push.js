@@ -34,6 +34,10 @@
 //   { type: "ocs_detected", boatIds: [...], boatName: "Silver Fox" }
 //   { type: "protest_filed_ro", boatName: "Wanderer", protesteeName: "Silver Fox", kind: "Protest", raceLabel: "..." }
 //   { type: "test", endpoint: "https://..." }   — to that one device only
+//   { type: "results_published", title, general, perBoat: {boatId: text}, sig }
+//       — from results-watch.js only: sig is an HMAC-SHA256 of the payload
+//         keyed with the club's service key, so nobody else can send it.
+//         Each boat's skipper gets its own line; crew subscribers get `general`.
 //
 // boatIds (optional): restricts delivery to those boats' own 'skipper'-role
 // subscription instead of broadcasting to every subscriber with a matching
@@ -68,6 +72,7 @@ const TARGET_ROLES = {
   // "Send a test notification" — delivered only to the endpoint in the
   // request (any role), so it can't page anyone else.
   test:                       ['skipper', 'crew', 'ro'],
+  results_published:          ['skipper', 'crew'],
 };
 
 exports.handler = async (event) => {
@@ -146,6 +151,8 @@ exports.handler = async (event) => {
   }
 
   webpush.setVapidDetails('mailto:noreply@example.com', pubKey, privKey);
+
+  if (body.type === 'results_published') return sendResults(body, { sbUrl, serviceKey });
 
   const BOAT_SCOPED_TYPES = ['protest_filed', 'protest_hearing_scheduled', 'protest_decision', 'ocs_detected'];
   if (boatIds.length > 0 && !roles.includes('skipper')) {
@@ -229,6 +236,65 @@ exports.handler = async (event) => {
   if (body.type === 'test') return json(200, { sent, failed, deleted: staleIds.length, matched: subs.length, errors });
   return json(200, { sent, failed, deleted: staleIds.length });
 };
+
+// "Results are up" (results-watch.js): personalised per boat, so it can't
+// use the one-payload-for-everyone path below.
+async function sendResults(body, { sbUrl, serviceKey }) {
+  const title = typeof body.title === 'string' ? body.title.slice(0, 80) : '';
+  const general = typeof body.general === 'string' ? body.general.slice(0, 160) : '';
+  const perBoat = {};
+  if (body.perBoat && typeof body.perBoat === 'object') {
+    Object.entries(body.perBoat).forEach(([id, text]) => {
+      if (/^[a-z0-9_-]{1,60}$/.test(id) && typeof text === 'string') perBoat[id] = text.slice(0, 160);
+    });
+  }
+  const expect = crypto.createHmac('sha256', serviceKey)
+    .update(JSON.stringify({ type: 'results_published', title: body.title, general: body.general, perBoat: body.perBoat }))
+    .digest('hex');
+  const sig = typeof body.sig === 'string' ? body.sig : '';
+  if (sig.length !== expect.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expect))) {
+    return json(403, { error: 'results_published must come from results-watch' });
+  }
+  if (!title || !general) return json(400, { error: 'title and general are required' });
+
+  const boatIds = Object.keys(perBoat);
+  const headers = { apikey: serviceKey, Authorization: 'Bearer ' + serviceKey };
+  let rows = [];
+  try {
+    const q = '/rest/v1/push_subscriptions?select=id,endpoint,p256dh,auth,role,boat_id&or=(role.eq.crew' +
+      (boatIds.length ? ',and(role.eq.skipper,boat_id.in.(' + boatIds.join(',') + '))' : '') + ')';
+    const r = await fetch(sbUrl + q, { headers });
+    if (!r.ok) return json(502, { error: 'could not load subscribers: ' + r.status });
+    rows = await r.json();
+  } catch (e) {
+    return json(502, { error: 'could not load subscribers' });
+  }
+  // One message per device; a device that is a racing boat's skipper gets
+  // that boat's own line rather than the general one.
+  const byEndpoint = new Map();
+  (rows || []).forEach(row => {
+    const text = row.role === 'skipper' && perBoat[row.boat_id] ? perBoat[row.boat_id] : general;
+    const prev = byEndpoint.get(row.endpoint);
+    if (!prev || (prev.text === general && text !== general)) byEndpoint.set(row.endpoint, { row, text });
+  });
+
+  let sent = 0, failed = 0;
+  const staleIds = [];
+  await Promise.all([...byEndpoint.values()].map(async ({ row, text }) => {
+    const sub = { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } };
+    try {
+      await webpush.sendNotification(sub, JSON.stringify({ title, body: text, tag: 'results' }));
+      sent++;
+    } catch (e) {
+      failed++;
+      if (e.statusCode === 404 || e.statusCode === 410) staleIds.push(row.id);
+    }
+  }));
+  if (staleIds.length) {
+    fetch(sbUrl + '/rest/v1/push_subscriptions?id=in.(' + staleIds.join(',') + ')', { method: 'DELETE', headers }).catch(() => {});
+  }
+  return json(200, { sent, failed, deleted: staleIds.length });
+}
 
 function json(statusCode, body) {
   return {

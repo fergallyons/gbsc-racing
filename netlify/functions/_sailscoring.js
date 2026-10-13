@@ -35,9 +35,10 @@ function hostSlug(event) {
 // club only — see envForSlug in _club.js
 const envFor = envForSlug;
 
-function apiBase(event) {
-  return (envFor(hostSlug(event), 'SAILSCORING_BASE_URL') || 'https://app.sailscoring.ie').replace(/\/+$/, '');
+function apiBaseForSlug(slug) {
+  return (envFor(slug, 'SAILSCORING_BASE_URL') || 'https://app.sailscoring.ie').replace(/\/+$/, '');
 }
+function apiBase(event) { return apiBaseForSlug(hostSlug(event)); }
 
 async function readCfgFromClubDb(slug) {
   let cfg = null;
@@ -57,8 +58,8 @@ async function readCfgFromClubDb(slug) {
   };
 }
 
-async function getCfg(event) {
-  const slug = hostSlug(event);
+async function getCfg(event) { return getCfgForSlug(hostSlug(event)); }
+async function getCfgForSlug(slug) {
   const hit = cfgCache[slug];
   if (hit && Date.now() - hit.at < CFG_TTL_MS) return hit;
   let cfg = {};
@@ -75,16 +76,19 @@ async function getCfg(event) {
 
 // GET an /api/v1 path. Resolves { status, body } (body parsed JSON or null);
 // status 0 means no key is configured, so nothing was sent.
-async function apiGet(event, path) {
-  const { key, workspace } = await getCfg(event);
+async function apiGet(event, path) { return apiGetForSlug(hostSlug(event), path); }
+// Same, for a club named directly — scheduled functions (results-watch)
+// have no request hostname to resolve a club from.
+async function apiGetForSlug(slug, path) {
+  const { key, workspace } = await getCfgForSlug(slug);
   if (!key) return { status: 0, body: null };
   const headers = { Accept: 'application/json', Authorization: 'Bearer ' + key };
   if (workspace) headers['x-sailscoring-workspace'] = workspace;
-  const res = await fetch(apiBase(event) + '/api/v1' + path, { headers });
+  const res = await fetch(apiBaseForSlug(slug) + '/api/v1' + path, { headers });
   const text = await res.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch (e) { body = null; }
   return { status: res.status, body };
 }
 
-module.exports = { apiBase, apiGet, hostSlug };
+module.exports = { apiBase, apiGet, apiGetForSlug, hostSlug };

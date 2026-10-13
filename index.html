@@ -1716,6 +1716,16 @@
         publishes there appears in Results automatically.
       </div>
     </div>
+    <!-- Needs migration 069 (SCHEMA_HAS_SS_API_KEY) — hidden by checkSchemaCapabilities() otherwise -->
+    <div id="ssApiKeyWrap" style="display:none;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:16px;background:var(--navy-mid)">
+      <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">🔑 Sail Scoring API key</label>
+      <input type="password" id="ssApiKeyInput" placeholder="Paste the key Sail Scoring issued" autocomplete="off"
+        style="margin-top:8px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;outline:none;width:100%;box-sizing:border-box;">
+      <div id="ssApiKeyStatus" style="font-size:.8rem;margin-top:6px;line-height:1.4"></div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
+        Lets the app find newly published series and send <b>"results are up"</b> notifications. Stored in the club's own database, write-only — it can't be read back out of the app. Leave blank to keep the saved key.
+      </div>
+    </div>
     <div style="font-size:.85rem;color:var(--muted);margin-bottom:12px;line-height:1.5">
       <b style="color:var(--white)">Series addresses</b> — only needed for a series outside the club's workspace:
       paste the <b style="color:var(--white)">Data (.sailscoring.json)</b> link from the footer of a series' published results page.

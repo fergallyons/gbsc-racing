@@ -8,6 +8,10 @@
 [functions."detect-finishes"]
   schedule = "* * * * *"
 
+# "Results are up" push notifications for Sail Scoring clubs (results-watch.js)
+[functions."results-watch"]
+  schedule = "*/10 * * * *"
+
 [[edge_functions]]
   path = "/club-config.js"
   function = "club-config"

@@ -885,9 +885,9 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
     SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false,
-    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false, SCHEMA_HAS_BRANDING=false, SCHEMA_HAS_LAID_START_OFFSET=false, SCHEMA_HAS_LAID_SPREADER=false;
+    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false, SCHEMA_HAS_BRANDING=false, SCHEMA_HAS_LAID_START_OFFSET=false, SCHEMA_HAS_LAID_SPREADER=false, SCHEMA_HAS_SS_API_KEY=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql,070_club_branding.sql,073_laid_start_offset.sql,074_laid_spreader.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql,070_club_branding.sql,073_laid_start_offset.sql,074_laid_spreader.sql,069_ss_api_key.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -914,6 +914,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_BRANDING=names.has('070_club_branding.sql');
   SCHEMA_HAS_LAID_START_OFFSET=names.has('073_laid_start_offset.sql');
   SCHEMA_HAS_LAID_SPREADER=names.has('074_laid_spreader.sql');
+  SCHEMA_HAS_SS_API_KEY=names.has('069_ss_api_key.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -929,6 +930,8 @@ async function checkSchemaCapabilities(){
   if(roProtestBtn) roProtestBtn.style.display=SCHEMA_HAS_RO_PROTEST?'':'none';
   const halKeyWrap=document.getElementById('ro-hal-api-key-wrap');
   if(halKeyWrap) halKeyWrap.style.display=SCHEMA_HAS_HAL_API_KEY?'block':'none';
+  const ssKeyWrap=document.getElementById('ssApiKeyWrap');
+  if(ssKeyWrap) ssKeyWrap.style.display=SCHEMA_HAS_SS_API_KEY?'block':'none';
   const brandWrap=document.getElementById('ro-branding-wrap');
   if(brandWrap) brandWrap.style.display=SCHEMA_HAS_BRANDING?'block':'none';
 }
@@ -13579,6 +13582,19 @@ function loadSsConfigPanel(){
   if(wsSt) wsSt.textContent='';
   const note=document.getElementById('ssConfigToggleNote');
   if(note) note.style.display=ssResultsSource()==='sailscoring'?'none':'block';
+  const keyIn=document.getElementById('ssApiKeyInput');
+  if(keyIn) keyIn.value='';
+  refreshSsApiKeyStatus();
+}
+// Write-only key (migration 069), same pattern as the Halsail key: only the
+// generated ss_api_key_set flag is readable from the browser.
+async function refreshSsApiKeyStatus(){
+  const el=document.getElementById('ssApiKeyStatus');
+  if(!el||!SCHEMA_HAS_SS_API_KEY) return;
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=ss_api_key_set');
+  const isSet=Array.isArray(r)&&r[0]&&r[0].ss_api_key_set===true;
+  el.style.color=isSet?'var(--success)':'var(--muted)';
+  el.textContent=isSet?'✓ A key is saved':'No key saved yet';
 }
 function ssConfigAddRow(){
   document.getElementById('ssConfigList').insertAdjacentHTML('beforeend',ssConfigRowHtml(''));
@@ -13620,6 +13636,13 @@ async function saveSsConfig(){
   if(bad){ toast('⚠ Fix the highlighted addresses first — nothing saved'); return; }
   await saveFeatureSetting('ssSeriesUrls',ok);
   await saveFeatureSetting('ssWorkspace',wsParsed.slug);
+  const keyIn=document.getElementById('ssApiKeyInput');
+  const keyVal=keyIn?keyIn.value.trim():'';
+  if(SCHEMA_HAS_SS_API_KEY&&keyVal){
+    const r=await sbFetch('/rest/v1/settings?id=eq.club',{method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify({ss_api_key:keyVal})});
+    if(r&&r._err) toast('⚠ Sail Scoring API key not saved — '+r._err.slice(0,60));
+    else { keyIn.value=''; refreshSsApiKeyStatus(); }
+  }
   if(wsParsed.slug){
     wsSt.style.color='var(--muted)'; wsSt.textContent='Checking for a series list…';
     const found=await ssDiscoverSeries(wsParsed.slug);
