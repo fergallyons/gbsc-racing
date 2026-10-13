@@ -46,6 +46,7 @@
 //   503 { error }   — push not configured for this club (missing keys)
 
 const webpush = require('web-push');
+const crypto = require('crypto');
 const { resolveClubSlug, clubEnv } = require('./_club');
 
 const TARGET_ROLES = {
@@ -127,7 +128,24 @@ exports.handler = async (event) => {
     return json(503, { error: 'vapid_public_key not set for this club' });
   }
 
-  webpush.setVapidDetails('mailto:noreply@example.com', vapidPublicKey, vapidPrivateKey);
+  // The two halves must be a pair, or every push service rejects every
+  // message (FCM: 403 "invalid JWT") — which is how GBSC's alerts silently
+  // stopped. Check by deriving the public key from the private one; report
+  // which env var was used, never the key.
+  const privVar = process.env['VAPID_PRIVATE_KEY_' + slug.toUpperCase()] ? 'VAPID_PRIVATE_KEY_' + slug.toUpperCase() : 'VAPID_PRIVATE_KEY';
+  const privKey = String(vapidPrivateKey).trim().replace(/^["']|["']$/g, '');
+  const pubKey = String(vapidPublicKey).trim();
+  let derived = '';
+  try {
+    const ecdh = crypto.createECDH('prime256v1');
+    ecdh.setPrivateKey(Buffer.from(privKey, 'base64url'));
+    derived = ecdh.getPublicKey('base64url');
+  } catch (e) { derived = ''; }
+  if (derived !== pubKey) {
+    return json(500, { error: 'VAPID key mismatch: ' + privVar + ' is not the private half of the public key in this club settings — set it in Netlify and redeploy' });
+  }
+
+  webpush.setVapidDetails('mailto:noreply@example.com', pubKey, privKey);
 
   const BOAT_SCOPED_TYPES = ['protest_filed', 'protest_hearing_scheduled', 'protest_decision', 'ocs_detected'];
   if (boatIds.length > 0 && !roles.includes('skipper')) {
