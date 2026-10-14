@@ -54,7 +54,10 @@ export default async function handler(request, context) {
   }
 
   // Branding set in Club Settings (DB) wins over the env var — see lib/branding.js
-  const faviconUrl = iconUrl(withBranding(club, await dbBranding(club)));
+  const branded = withBranding(club, await dbBranding(club));
+  const faviconUrl = iconUrl(branded);
+  // iPhone home-screen icon: the club's own (opaque, 180 px) when it has one
+  const appleIcon = branded.appleTouchIcon || faviconUrl;
 
   let html = await response.text();
 
@@ -87,7 +90,7 @@ export default async function handler(request, context) {
     );
     html = html.replace(
       /(<link[^>]+rel=["']apple-touch-icon["'][^>]*href=["'])([^"']+)(["'])/i,
-      (_, pre, href, quote) => pre + faviconUrl + quote
+      (_, pre, href, quote) => pre + appleIcon + quote
     );
   }
 

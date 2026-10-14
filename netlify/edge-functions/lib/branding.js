@@ -24,7 +24,7 @@ export async function dbBranding(club) {
   let branding = {};
   try {
     const r = await fetch(
-      club.sbUrl + '/rest/v1/settings?id=eq.club&select=logo_url,favicon_url,primary_color,ro_color',
+      club.sbUrl + '/rest/v1/settings?id=eq.club&select=logo_url,favicon_url,primary_color,ro_color,app_icons:features->appIcons',
       { headers: { apikey: club.sbKey, Authorization: 'Bearer ' + club.sbKey }, signal: AbortSignal.timeout(TIMEOUT_MS) },
     );
     if (r.ok) {
@@ -40,6 +40,14 @@ export async function dbBranding(club) {
       if (url(row.favicon_url)) branding.faviconUrl = url(row.favicon_url);
       if (HEX.test(row.primary_color || '')) branding.primaryColor = row.primary_color;
       if (HEX.test(row.ro_color || '')) branding.roColor = row.ro_color;
+      // Installed-app icons (features.appIcons): standard + maskable at 192
+      // and 512 px, and the iPhone home-screen icon — see manifest.js
+      const ai = row.app_icons && typeof row.app_icons === 'object' ? row.app_icons : null;
+      if (ai) {
+        const icons = {};
+        ['icon192', 'icon512', 'maskable192', 'maskable512', 'apple'].forEach((k) => { if (url(ai[k])) icons[k] = url(ai[k]); });
+        if (Object.keys(icons).length) branding.appIcons = icons;
+      }
     }
   } catch (e) {
     return hit ? hit.branding : {}; // timeout/network: keep the last known value rather than flapping
@@ -74,6 +82,10 @@ export function withBranding(club, b) {
   }
   if (b.primaryColor) out.primaryColor = b.primaryColor;
   if (b.roColor) out.roColor = b.roColor;
+  if (b.appIcons) {
+    out.appIcons = b.appIcons;
+    if (b.appIcons.apple) out.appleTouchIcon = b.appIcons.apple;
+  }
   return out;
 }
 

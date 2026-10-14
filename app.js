@@ -4134,7 +4134,7 @@ function _reapplyBranding(){
     const ext = faviconUrl.split('.').pop().toLowerCase();
     const mime = ({svg:'image/svg+xml',png:'image/png',webp:'image/webp',gif:'image/gif',ico:'image/x-icon',jpg:'image/jpeg',jpeg:'image/jpeg'})[ext] || 'image/jpeg';
     if(fi){ fi.href=faviconUrl; fi.type=mime; }
-    if(ai)  ai.href=faviconUrl;
+    if(ai)  ai.href=_C.appleTouchIcon||faviconUrl; // iPhone icon (features.appIcons.apple)
   }
   const root=document.documentElement.style;
   if(_C.primaryColor){

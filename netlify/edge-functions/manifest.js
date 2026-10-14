@@ -37,14 +37,29 @@ export default async function handler(request) {
   }
 
   // Branding set in Club Settings (DB) wins over the env var — see lib/branding.js
-  const faviconUrl = iconUrl(withBranding(club, await dbBranding(club)));
+  const branded = withBranding(club, await dbBranding(club));
+  const faviconUrl = iconUrl(branded);
   const ext = faviconUrl ? faviconUrl.split('.').pop().toLowerCase() : '';
   const mimeMap = { svg: 'image/svg+xml', png: 'image/png', webp: 'image/webp', gif: 'image/gif', ico: 'image/x-icon', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
   const mime = mimeMap[ext] || 'image/svg+xml';
 
-  const icons = faviconUrl
-    ? [{ src: faviconUrl, sizes: 'any', type: mime, purpose: 'any' }]
-    : [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }];
+  // A club with proper app icons (features.appIcons) gets the full set:
+  // standard ("any") and maskable (full-bleed, emblem in the safe zone, so
+  // Android crops it to its icon shape instead of boxing it) at 192 + 512 px,
+  // which is also what Chrome looks for before offering "Install app".
+  // Otherwise the single favicon/logo, as before.
+  const ai = branded.appIcons || {};
+  const png = (src, size, purpose) => ({ src, sizes: size + 'x' + size, type: 'image/png', purpose });
+  const icons = (ai.icon512 || ai.maskable512)
+    ? [
+        ai.icon192 && png(ai.icon192, 192, 'any'),
+        ai.icon512 && png(ai.icon512, 512, 'any'),
+        ai.maskable192 && png(ai.maskable192, 192, 'maskable'),
+        ai.maskable512 && png(ai.maskable512, 512, 'maskable'),
+      ].filter(Boolean)
+    : faviconUrl
+      ? [{ src: faviconUrl, sizes: 'any', type: mime, purpose: 'any' }]
+      : [{ src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }];
 
   // Use club slug as unique app identifier so each club installs as a separate PWA.
   // start_url carries ?club= so launching from home screen loads the correct club.
