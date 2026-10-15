@@ -7956,29 +7956,42 @@ function renderSpHistory(body){
     return;
   }
 
-  // Build a paid set: race_key → {method, amount, source}
+  // Fees are per race DAY once migration 058 is in (SCHEMA_HAS_DAY_SCOPED_PAYMENTS):
+  // one payment covers every race that day, whichever race it was recorded
+  // against. Grouping by race_key here listed the second race of a two-race
+  // Sunday as "Unpaid — tap to pay" after the crew member had already paid
+  // for the day, inviting a second (real) Revolut/card payment. Attendance
+  // stays per race; the history rolls it up to one row per day.
+  const byDay=SCHEMA_HAS_DAY_SCOPED_PAYMENTS;
+  const groupOf=row=>byDay?(row.race_date||row.race_key):row.race_key;
+
+  // Build a paid set: race day (or race_key) → {method, amount, source}
   const paidMap={};
   (h.racePays||[]).forEach(rp=>{
-    paidMap[rp.race_key]={method:rp.method||'—',amount:rp.amount||0,source:'skipper'};
+    paidMap[groupOf(rp)]={method:rp.method||'—',amount:rp.amount||0,source:'skipper'};
   });
   (h.selfPays||[]).forEach(sp=>{
-    if(!paidMap[sp.race_key]) paidMap[sp.race_key]={method:sp.method||'—',amount:sp.amount||0,source:'self'};
+    if(!paidMap[groupOf(sp)]) paidMap[groupOf(sp)]={method:sp.method||'—',amount:sp.amount||0,source:'self'};
   });
 
   // Attended races — sorted newest first
   const attended=(h.attendees||[]).filter(a=>a.race_key);
 
   // Also include races where payment exists but no attendee record (skipper paid them directly)
-  const allRaceKeys=new Set([...attended.map(a=>a.race_key),...Object.keys(paidMap)]);
+  const allRaceKeys=new Set([...attended.map(groupOf),...Object.keys(paidMap)]);
 
-  // Build unified list
+  // Build unified list — one row per race day (or race), labels of that day's races joined
+  const rowsFor=(list,key)=>(list||[]).filter(x=>groupOf(x)===key);
   const raceList=[...allRaceKeys].map(key=>{
-    const att=attended.find(a=>a.race_key===key);
+    const att=rowsFor(attended,key);
     const pay=paidMap[key];
-    const dateStr=att?.race_date||(h.selfPays.find(s=>s.race_key===key)?.race_date)||(h.racePays.find(r=>r.race_key===key)?.race_date)||'';
-    const label=att?.race_name||(h.selfPays.find(s=>s.race_key===key)?.race_name)||(h.racePays.find(r=>r.race_key===key)?.race_name)||key;
+    const anyRow=att[0]||rowsFor(h.selfPays,key)[0]||rowsFor(h.racePays,key)[0]||{};
+    const dateStr=anyRow.race_date||'';
+    const raceNo=n=>+((n.match(/(\d+)\s*$/)||[])[1]||0);
+    const names=[...new Set((att.length?att:[anyRow]).map(x=>x.race_name).filter(Boolean))].sort((x,y)=>raceNo(x)-raceNo(y));
+    const label=!names.length?key:names.length===1?names[0]:names[0]+' & '+names.slice(1).map(n=>(n.match(/(\d+)\s*$/)||[])[1]||n).join(' & ');
     const date=dateStr?new Date(dateStr+'T00:00:00'):null;
-    return {key,label,date,wasOnBoard:!!att,paid:!!pay,payMethod:pay?.method,payAmount:pay?.amount,paySource:pay?.source};
+    return {key,label,date,wasOnBoard:att.length>0,paid:!!pay,payMethod:pay?.method,payAmount:pay?.amount,paySource:pay?.source};
   }).sort((a,b)=>(b.date||0)-(a.date||0));
 
   // Stats
@@ -7991,7 +8004,7 @@ function renderSpHistory(body){
   const statsHtml=`<div style="display:flex;gap:10px;margin-bottom:16px">
     <div style="flex:1;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--white)">${onBoardCount}</div>
-      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">Races</div>
+      <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700">${byDay?'Race days':'Races'}</div>
     </div>
     <div style="flex:1;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);border-radius:10px;padding:10px;text-align:center">
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--success)">${paidCount}</div>
@@ -8014,7 +8027,7 @@ function renderSpHistory(body){
     <div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:800;color:var(--warn);letter-spacing:.04em;text-transform:uppercase">No payment recorded</div>
       <div style="font-size:.85rem;color:rgba(255,255,255,.65);margin-top:3px;line-height:1.45">
-        You were listed on board for ${unpaidOnBoard.length} race${unpaidOnBoard.length>1?'s':''} with no payment found:
+        You were listed on board for ${unpaidOnBoard.length} race${byDay?' day':''}${unpaidOnBoard.length>1?'s':''} with no payment found:
         <strong style="color:var(--warn)">${unpaidOnBoard.map(r=>r.label).join(', ')}</strong>
       </div>
     </div>
@@ -8054,12 +8067,12 @@ function renderSpHistory(body){
   :`<div style="text-align:center;padding:24px 0;color:var(--muted);font-size:.85rem">No race history found yet.</div>`;
 
   // Pay now CTA for the current race
-  const currentRaceKey=race?raceKey(race):'';
+  const currentRaceKey=race?(byDay?dayDateStr(race.date):raceKey(race)):'';
   const alreadyPaid=!!paidMap[currentRaceKey];
   const payCtaHtml=race?`<div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)">
     ${alreadyPaid
       ?`<div style="text-align:center;padding:12px;border-radius:10px;background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.2);font-size:.85rem;color:var(--success);font-weight:700">
-          ✓ ${race.label} — already paid
+          ✓ ${race.label} — already paid${byDay?' (fees are per race day)':''}
         </div>`
       :`<button onclick="selfPayState.step=2;renderSelfPayPanel()"
           style="width:100%;padding:13px;border-radius:10px;border:none;background:var(--teal);
@@ -8074,8 +8087,11 @@ function renderSpHistory(body){
 }
 
 function spPayForRace(key){
-  // Resolve the race object from allRaces, or reconstruct a minimal one from the key
-  let race = allRaces.find(r => raceKey(r) === key);
+  // Resolve the race object from allRaces, or reconstruct a minimal one from the key.
+  // Per-day fees: the key is a race DAY (YYYY-MM-DD) — pay against that day's first race.
+  let race = /^\d{4}-\d{2}-\d{2}$/.test(key)
+    ? allRaces.filter(r => dayDateStr(r.date) === key).sort((a,b)=>a.date-b.date)[0]
+    : allRaces.find(r => raceKey(r) === key);
   if(!race){
     // Fallback: parse date + label from the key (YYYY-MM-DD_labelslug)
     const [datePart, ...rest] = key.split('_');
