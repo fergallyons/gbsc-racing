@@ -1,13 +1,16 @@
 // Scheduled function (see netlify.toml) — "Results are up" notifications.
 //
 // Every 10 minutes, for each club whose Results Source is Sail Scoring:
-//   1. find the club's published series. Sail Scoring's public series index
-//      (/p/<ws>/index.json) can't be used from a server — it answers non-
-//      browser requests with a 429 bot challenge — so this uses the
-//      Sail Scoring API with the club's key (_sailscoring.js; settings
-//      .ss_api_key, migration 069), plus any series addresses saved in
-//      Sail Scoring Setup (features.ssSeriesUrls). The series' public
-//      .sailscoring.json files themselves load fine server-side.
+//   1. find the club's published series: Sail Scoring's public series index
+//      (/p/<ws>/index.json, features.ssWorkspace). Each publication with an
+//      `api` link is read through the published results API
+//      (docs/public-api.md — keyless, the stable contract). If the index
+//      can't be read (it used to answer servers with a 429 bot challenge;
+//      it no longer did as of 2026-10-24), or for publications without an
+//      API link, this falls back to the Sail Scoring API with the club's
+//      key (_sailscoring.js; settings.ss_api_key, migration 069) and the
+//      series' public .sailscoring.json files, plus any series addresses
+//      saved in Sail Scoring Setup (features.ssSeriesUrls).
 //   2. count the races in each that have results (any finisher scored).
 //   3. compare with what it saw last time (results_watch, migration 075):
 //        - a series seen for the first time is only recorded, never
@@ -37,6 +40,31 @@ async function fetchJson(url, headers) {
   const r = await fetch(url, { headers: headers || { Accept: 'application/json' } });
   if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url.replace(/\?.*$/, ''));
   return r.json();
+}
+
+const SS_ORIGIN = 'https://app.sailscoring.ie';
+const API_RE = /^https:\/\/([a-z0-9-]+\.)*sailscoring\.ie\/api\/public\/v1\/publications\/[A-Za-z0-9_-]+$/;
+const DATA_RE = /^https:\/\/([a-z0-9-]+\.)*sailscoring\.ie\/.+\.sailscoring\.json$/i;
+
+// The club's publications from Sail Scoring's public index, as
+// [{seriesId, api, dataUrl, name}], or null if the index can't be read.
+// Rows in results_watch are keyed by the data file address where there is
+// one, so a series keeps its row if it gets an API link later.
+async function listFromIndex(ws) {
+  if (!/^[A-Za-z0-9_-]+$/.test(ws || '')) return null;
+  let idx;
+  try { idx = await fetchJson(SS_ORIGIN + '/p/' + ws + '/index.json'); }
+  catch (e) { console.warn('[' + ws + '] Sail Scoring index unavailable: ' + e.message); return null; }
+  if (!idx || !Array.isArray(idx.publications) || (typeof idx.version === 'number' && idx.version > 1)) return null;
+  return idx.publications
+    .filter(p => p && (API_RE.test(p.api || '') || DATA_RE.test(p.data || '')))
+    .sort((a, b) => String(b.publishedAt || '').localeCompare(String(a.publishedAt || '')))
+    .slice(0, MAX_SERIES)
+    .map(p => {
+      const dataUrl = DATA_RE.test(p.data || '') ? p.data : null;
+      const api = API_RE.test(p.api || '') ? p.api : null;
+      return { seriesId: dataUrl || api, api, dataUrl, name: p.name || '' };
+    });
 }
 
 // The club's series as [{seriesId, dataUrl, name}]: published, not orphaned,
@@ -109,6 +137,55 @@ function placesForRace(doc, i, boats) {
   return Object.fromEntries(Object.entries(lines).map(([id, parts]) => [id, boatName[id] + ': ' + parts.join(', ')]));
 }
 
+// Same as placesForRace, from the results API's /races/{n} (per fleet:
+// each boat's rank, points and code)
+function placesForApiRace(race, boats) {
+  const bySail = {}, byName = {};
+  boats.forEach(b => {
+    if (b.sail_number) bySail[sailKey(b.sail_number)] = b;
+    byName[nameKey(b.name)] = b;
+  });
+  const lines = {};
+  (race.fleets || []).forEach(f => {
+    if (!f || !f.fleet || f.subSeries) return;
+    (f.results || []).forEach(x => {
+      const c = (x && x.competitor) || {};
+      const boat = bySail[sailKey(c.sailNumber)] || (c.boatName && byName[nameKey(c.boatName)]);
+      if (!boat || (x.points == null && !x.code)) return;
+      const place = Number.isInteger(x.rank) ? x.rank : (x.points != null ? Math.floor(x.points) : null);
+      const what = x.code || (place ? ordinal(place) : null);
+      if (what) (lines[boat.id] = lines[boat.id] || []).push((f.fleet.name || f.fleet.key) + ' ' + what);
+    });
+  });
+  const boatName = Object.fromEntries(boats.map(b => [b.id, b.name]));
+  return Object.fromEntries(Object.entries(lines).map(([id, parts]) => [id, boatName[id] + ': ' + parts.join(', ')]));
+}
+
+// A series through the results API: its sailed races (those with results
+// in any fleet) and, on demand, one race's places per club boat
+async function readApiSeries(s) {
+  const list = await fetchJson(s.api + '/races');
+  const sailed = (list.races || []).filter(r => r && Number.isInteger(r.race) && Array.isArray(r.fleets) && r.fleets.length);
+  return {
+    count: sailed.length,
+    latest: sailed.length ? sailed[sailed.length - 1].race : null,
+    places: async (n, boats) => placesForApiRace(await fetchJson(s.api + '/races/' + n), boats),
+  };
+}
+// The same from a .sailscoring.json data file
+async function readDataSeries(s) {
+  const doc = await fetchJson(s.dataUrl + (s.dataUrl.includes('?') ? '&' : '?') + 't=' + Date.now());
+  const scored = scoredRaceIdx(doc);
+  const i = scored.length ? scored[scored.length - 1] : null;
+  const race = i != null ? (doc.races || [])[i] || {} : {};
+  return {
+    count: scored.length,
+    latest: i == null ? null : (race.raceNumber != null ? race.raceNumber : i + 1),
+    name: doc.series && doc.series.name,
+    places: async (n, boats) => placesForRace(doc, i, boats),
+  };
+}
+
 async function notify(slug, serviceKey, payload) {
   const base = process.env.URL || process.env.DEPLOY_PRIME_URL;
   if (!base) { console.warn('[' + slug + '] results push skipped: no process.env.URL'); return null; }
@@ -139,46 +216,55 @@ async function processClub(slug, config) {
   catch (e) { return { slug, skipped: 'results_watch table missing (migration 075)' }; }
   const known = Object.fromEntries(watched.map(w => [w.series_id, w]));
 
-  const series = await listSeries(slug, known, features);
-  if (!series.length) return { slug, skipped: 'no series found (Sail Scoring API key or saved addresses needed)' };
+  // The public index and results API first; the keyed API if the index
+  // can't be read. Saved addresses not in either are added as data files.
+  let series = await listFromIndex(features.ssWorkspace);
+  if (series) {
+    const saved = Array.isArray(features.ssSeriesUrls) ? features.ssSeriesUrls : [];
+    saved.forEach(u => {
+      if (typeof u === 'string' && DATA_RE.test(u) && !series.some(s => s.dataUrl === u)) series.push({ seriesId: u, api: null, dataUrl: u, name: '' });
+    });
+  } else {
+    series = await listSeries(slug, known, features);
+  }
+  if (!series.length) return { slug, skipped: 'no series found (Sail Scoring workspace, API key or saved addresses needed)' };
 
   let boats = null;
   const done = [];
   for (const s of series) {
-    let doc;
-    try { doc = await fetchJson(s.dataUrl + (s.dataUrl.includes('?') ? '&' : '?') + 't=' + Date.now()); }
-    catch (e) { done.push({ series: s.name || s.dataUrl, error: e.message }); continue; }
-    const scored = scoredRaceIdx(doc);
-    const name = (doc.series && doc.series.name) || s.name || 'Series';
+    let rd;
+    try { rd = s.api ? await readApiSeries(s) : await readDataSeries(s); }
+    catch (e) { done.push({ series: s.name || s.api || s.dataUrl, error: e.message }); continue; }
+    const scored = rd.count;
+    const name = s.name || rd.name || 'Series';
     const row = known[s.seriesId];
     const upsert = fields => fetch(config.sbUrl + '/rest/v1/results_watch', {
       method: 'POST',
       headers: { ...h, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify({ series_id: s.seriesId, data_url: s.dataUrl, name, updated_at: new Date().toISOString(), ...fields }),
+      body: JSON.stringify({ series_id: s.seriesId, data_url: s.dataUrl || s.api, name, updated_at: new Date().toISOString(), ...fields }),
     });
 
     if (!row) { // first sight: record, don't announce
-      await upsert({ scored_races: scored.length, last_notified_race: null });
-      done.push({ series: name, recorded: scored.length });
+      await upsert({ scored_races: scored, last_notified_race: null });
+      done.push({ series: name, recorded: scored });
       continue;
     }
-    if (scored.length <= row.scored_races) {
-      if (scored.length !== row.scored_races) await upsert({ scored_races: scored.length }); // a race un-scored: just track it
+    if (scored <= row.scored_races) {
+      if (scored !== row.scored_races) await upsert({ scored_races: scored }); // a race un-scored: just track it
       continue;
     }
 
     // New race(s) with results: announce the latest one
-    const i = scored[scored.length - 1];
-    const race = (doc.races || [])[i] || {};
-    const raceNo = race.raceNumber != null ? race.raceNumber : i + 1;
-    const newCount = scored.length - row.scored_races;
+    const raceNo = rd.latest;
+    const newCount = scored - row.scored_races;
     if (!boats) boats = await fetchJson(config.sbUrl + '/rest/v1/boats?select=id,name,sail_number', h).catch(() => []);
     const title = '🏆 ' + (newCount > 1 ? 'Results are up' : 'Race ' + raceNo + ' results');
     const general = (newCount > 1 ? newCount + ' new races scored, latest Race ' + raceNo : 'Race ' + raceNo + ' results are up') + ' — ' + name;
-    const perBoat = Object.fromEntries(Object.entries(placesForRace(doc, i, boats))
+    const places = await rd.places(raceNo, boats).catch(e => { console.warn('[' + slug + '] places for ' + name + ' R' + raceNo + ': ' + e.message); return {}; });
+    const perBoat = Object.fromEntries(Object.entries(places)
       .map(([id, line]) => [id, line + ' · Race ' + raceNo + ', ' + name]));
     const res = await notify(slug, serviceKey, { title, general, perBoat });
-    await upsert({ scored_races: scored.length, last_notified_race: raceNo });
+    await upsert({ scored_races: scored, last_notified_race: raceNo });
     done.push({ series: name, announced: raceNo, boats: Object.keys(perBoat).length, push: res && res.slice(0, 120) });
   }
   return { slug, series: series.length, done };

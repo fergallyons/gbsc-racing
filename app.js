@@ -9267,16 +9267,22 @@ function ratingsSourceLabel(){
 // From the club's Sail Scoring series: each boat's ECHO in the latest series
 // it raced in — the rating applied in its most recent race and, for ECHO
 // scored in Sail Scoring, the next ECHO that race produced. Reuses the
-// Results tab's already-loaded series when there are any.
+// Results tab's already-loaded series when there are any. Read from the
+// series' data files: the results API has no next ECHO (newTcf) yet.
 async function loadSailScoringCurrentEcho(){
   const out={current:{},next:{}};
-  let models=(ssModels||[]).map(m=>m.model).filter(Boolean);
-  if(!models.length){
+  let srcs=(ssModels||[]).map(m=>m.model).filter(Boolean);
+  if(!srcs.length){
     const ws=ssWorkspace();
     const discovered=ws?await ssDiscoverSeries(ws):null;
-    const urls=[...new Set([...(discovered||[]),...ssSourceUrls()])];
-    models=(await Promise.all(urls.map(u=>ssFetchExport(u).catch(()=>null)))).filter(Boolean);
+    srcs=ssMergeSources(discovered).filter(s=>s.data).map(s=>({data:s.data}));
   }
+  // A data-file model as is; an API model's data file (already loaded with
+  // its race detail, or fetched now)
+  const models=(await Promise.all(srcs.map(m=>
+    !m.api&&m.fleets?m
+    :m.dataModel?m.dataModel
+    :m.data?ssFetchExport(m.data).catch(()=>null):null))).filter(Boolean);
   const lastDate=m=>m.races.reduce((d,r)=>r.date>d?r.date:d,m.endDate||'');
   models.sort((a,b)=>lastDate(a).localeCompare(lastDate(b))); // oldest first, so the latest series wins
   models.forEach(m=>m.fleets.forEach(f=>{
@@ -12986,9 +12992,13 @@ function buildResultsTable(data, seriesLabel, fleetLabel, wrap, seriesId, handic
 // ═══════════════════════════════════════════════════════════════
 // SAIL SCORING RESULTS SOURCE — alternative to Halsail
 // ═══════════════════════════════════════════════════════════════
-// Reads the public, CORS-open `.sailscoring.json` file Sail Scoring publishes
-// beside each series' results page (format: github.com/sailscoring/sailscoring,
-// docs/public-export-format.md). No key, no server proxy. Opt-in per club via
+// Reads Sail Scoring's published results API (docs/public-api.md in
+// github.com/sailscoring/sailscoring — versioned, additive-only, the stable
+// contract for apps) and, for publications without an API link or when it
+// fails, the public `.sailscoring.json` file beside each series' results
+// page (docs/public-export-format.md — not a stable API). Both are CORS-open
+// and keyless, so no server proxy. The data file is still read for one thing
+// the API lacks: the next ECHO each race produces (newTcf). Opt-in per club via
 // settings.features.resultsSource ('halsail' | 'sailscoring' | 'none') plus
 // ssWorkspace / ssSeriesUrls — all in the existing features JSON, so no
 // migration. Only when resultsSource is 'sailscoring' does the Results tab
@@ -13048,13 +13058,15 @@ function ssParseWorkspaceInput(raw){
   return {slug};
 }
 
-// Reads Sail Scoring's series index for the workspace. Returns an array of
-// data-file addresses, or null when the index isn't available / isn't in a
-// shape we recognise — callers then fall back to the manually saved
+// Reads Sail Scoring's series index for the workspace (docs/public-index-
+// format.md). Returns [{api, data}] — `api` the publication's results API
+// address (absent on publications made before the API existed, until
+// they're republished), `data` its .sailscoring.json address (null if the
+// series publishes none) — or null when the index isn't available / isn't
+// in a shape we recognise, and callers fall back to the manually saved
 // addresses. Format (version 1): { version, workspace, seasons:[{label,
-// current, index}], publications:[{name, season, url, pages, data, fleets,
-// publishedAt, firstRaceDate, lastRaceDate}] } — `data` is the
-// .sailscoring.json address, or null for a publication without one (skipped).
+// current, index}], publications:[{name, season, url, pages, data, api,
+// fleets, publishedAt, firstRaceDate, lastRaceDate}] }.
 // Current season first, then the whole workspace.
 async function ssDiscoverSeries(ws){
   const year=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Dublin'}).slice(0,4);
@@ -13067,15 +13079,34 @@ async function ssDiscoverSeries(ws){
       if(typeof j.version==='number'&&j.version>1) continue;
       const list=Array.isArray(j)?j:(['publications','series','entries','items'].map(k=>j[k]).find(Array.isArray)||null);
       if(!list) continue;
-      const urls=[];
+      const out=[];
       list.forEach(e=>{
-        const v=e&&typeof e.data==='string'?ssValidateUrl(e.data.startsWith('/')?SS_ORIGIN+e.data:e.data):null;
-        if(v&&v.url&&!urls.includes(v.url)) urls.push(v.url);
+        if(!e) return;
+        const v=typeof e.data==='string'?ssValidateUrl(e.data.startsWith('/')?SS_ORIGIN+e.data:e.data):null;
+        const data=(v&&v.url)||null;
+        const api=ssValidApiUrl(e.api);
+        if((api||data)&&!out.some(s=>(api&&s.api===api)||(data&&s.data===data))) out.push({api,data});
       });
-      if(urls.length) return urls.slice(0,15);
+      if(out.length) return out.slice(0,15);
     }catch(e){ /* try the next path, else fall back */ }
   }
   return null;
+}
+// The index's sources plus any data-file addresses saved in Sail Scoring
+// Setup that it doesn't already cover
+function ssMergeSources(discovered){
+  const out=[...(discovered||[])];
+  ssSourceUrls().forEach(u=>{
+    const v=ssValidateUrl(u), data=v.url||u;
+    if(!out.some(s=>s.data===data)) out.push({api:null,data});
+  });
+  return out;
+}
+function ssValidApiUrl(raw){
+  if(typeof raw!=='string') return null;
+  let u; try{ u=new URL(raw); }catch(e){ return null; }
+  if(u.protocol!=='https:'||(u.hostname!=='sailscoring.ie'&&!u.hostname.endsWith('.sailscoring.ie'))) return null;
+  return /^\/api\/public\/v1\/publications\/[A-Za-z0-9_-]+$/.test(u.pathname)?u.origin+u.pathname:null;
 }
 // escHtml() returns '' for the number 0 — a 0 score or rank must still show
 function ssEsc(v){ return escHtml(v==null?'':String(v)); }
@@ -13090,21 +13121,135 @@ function ssValidateUrl(raw){
   return {url:u.toString()};
 }
 
-async function ssFetchExport(url){
+async function ssGetJson(url){
   const ctl=new AbortController();
   const timer=setTimeout(()=>ctl.abort(),15000);
   try{
-    // no-cache = always revalidate (the file is ETag'd), so a fresh publish shows immediately
+    // no-cache = always revalidate (data file and API are ETag'd — the
+    // browser sends If-None-Match itself), so a fresh publish shows immediately
     const r=await fetch(url,{cache:'no-cache',signal:ctl.signal});
     if(!r.ok) throw new Error(r.status===404?'Not found — has the series been published?':r.status===429?'Sail Scoring is rate-limiting requests — try again shortly':'HTTP '+r.status);
-    let raw;
-    try{ raw=await r.json(); }catch(e){ throw new Error('Response was not valid JSON'); }
-    return ssParseExport(raw,url);
+    try{ return await r.json(); }catch(e){ throw new Error('Response was not valid JSON'); }
   }catch(e){
     if(e&&e.name==='AbortError') throw new Error('Timed out reaching Sail Scoring');
     if(e instanceof TypeError) throw new Error('Could not reach Sail Scoring');
     throw e;
   }finally{ clearTimeout(timer); }
+}
+async function ssFetchExport(url){ return ssParseExport(await ssGetJson(url),url); }
+
+// ── Published results API (docs/public-api.md) ──
+// A publication plus its standings is enough for the series table; ratings,
+// times and next ECHO come per race (ssLoadDetail) for the series on show.
+async function ssFetchApi(src){
+  const [pub,st]=await Promise.all([ssGetJson(src.api),ssGetJson(src.api+'/standings')]);
+  return ssParseApi(pub,st,src);
+}
+// Codes the API puts in a score's single `code` that are scored finishes,
+// not non-finishes: redress, and penalties added to a finishing place
+const SS_PENALTY_RE=/^(SCP|ZFP|ZPF|DPI|STP)$/i;
+// Same neutral model as ssParseExport(), plus api/data/labels. Race columns
+// are the union of every fleet's races by race number (a fleet that sat
+// races out has its own column labels — kept per fleet in `labels`).
+function ssParseApi(pub,st,src){
+  if(!pub||typeof pub!=='object'||!st||!Array.isArray(st.tables)) throw new Error('Unexpected reply from Sail Scoring');
+  let tables=st.tables.filter(t=>t&&t.fleet&&Array.isArray(t.races)&&Array.isArray(t.rows));
+  if(tables.some(t=>!t.subSeries)) tables=tables.filter(t=>!t.subSeries); // whole-series tables only
+  const byNo={};
+  tables.forEach(t=>t.races.forEach(r=>{
+    if(r&&Number.isInteger(r.race)&&!byNo[r.race]) byNo[r.race]={number:r.race,date:r.date||''};
+  }));
+  const races=Object.values(byNo).sort((a,b)=>a.number-b.number);
+  const idxOf={}; races.forEach((r,i)=>{ idxOf[r.number]=i; });
+  const sysOf={};
+  (Array.isArray(pub.fleets)?pub.fleets:[]).forEach(f=>{ if(f&&f.key) sysOf[f.key]=f.scoringSystem; });
+  const fleets=tables.map(t=>{
+    const labels=races.map(()=>null);
+    const col=t.races.map(r=>{
+      const i=r&&Number.isInteger(r.race)?idxOf[r.race]:undefined;
+      if(i!=null) labels[i]=r.label||null;
+      return i;
+    });
+    const rows=t.rows.filter(Boolean).map(r=>{
+      const c=r.competitor||{};
+      const cells=races.map(()=>({pts:null,code:null,discard:false,excluded:false,penalty:null,redress:false}));
+      (Array.isArray(r.scores)?r.scores:[]).forEach((s,j)=>{
+        const i=col[j];
+        if(i==null||!s) return;
+        const code=s.code||null;
+        const redress=!!code&&/^RDG/i.test(code);
+        const penalty=code&&!redress&&SS_PENALTY_RE.test(code)?code:null;
+        cells[i]={pts:typeof s.points==='number'?s.points:null,code:redress||penalty?null:code,
+          discard:!!s.discarded,excluded:!!s.excluded,penalty,redress};
+      });
+      const people=Array.isArray(c.helms)&&c.helms.length?c.helms:(Array.isArray(c.names)?c.names:[]);
+      return {
+        sailKey:ssSailKey(c.sailNumber),baseRating:null,
+        rank:r.rank,unranked:r.rank==null,sail:c.sailNumber||'',
+        boat:c.boatName||'',helm:people.join(', '),
+        club:(Array.isArray(c.clubs)&&c.clubs[0])||'',
+        rating:null,next:null,net:r.net,total:r.total,cells,
+      };
+    });
+    return {name:t.fleet.name||t.fleet.key,key:t.fleet.key,system:t.scoringSystem||sysOf[t.fleet.key]||'',order:0,labels,rows};
+  });
+  const dates=races.map(r=>r.date).filter(Boolean).sort();
+  return {
+    url:src.api,api:src.api,data:pub.data||src.data||null,
+    pageUrl:pub.page||pub.url||'',
+    name:pub.name||'Series',venue:'',startDate:dates[0]||'',endDate:dates[dates.length-1]||'',
+    exportedAt:st.publishedAt||pub.publishedAt||'',final:pub.status==='final',version:null,newer:false,
+    races,fleets,
+  };
+}
+
+// The API's standings carry no ratings or times — those are per race
+// (/races/{n}: each boat's finish, elapsed and corrected time and the rating
+// applied). Fetched once per series, when it's first shown. The next ECHO a
+// race produces isn't in the API (raised with Sail Scoring 2026-10), so
+// it's still read from the series' data file, when it has one.
+function ssLoadDetail(model){
+  if(!model||!model.api) return Promise.resolve();
+  if(!model._detail) model._detail=(async()=>{
+    const [details,dm]=await Promise.all([
+      Promise.all(model.races.map(r=>ssGetJson(model.api+'/races/'+r.number).catch(()=>null))),
+      model.data?ssFetchExport(model.data).catch(()=>null):Promise.resolve(null),
+    ]);
+    details.forEach((d,i)=>{
+      if(!d||!Array.isArray(d.fleets)) return;
+      const byFleet={};
+      d.fleets.forEach(f=>{
+        if(!f||!f.fleet||f.subSeries||byFleet[f.fleet.key]) return;
+        const results={};
+        (Array.isArray(f.results)?f.results:[]).forEach(x=>{
+          const k=x&&x.competitor&&ssSailKey(x.competitor.sailNumber);
+          if(k) results[k]={finishTime:x.finishTime||null,elapsedSecs:ssHmsToSecs(x.elapsed),
+            correctedSecs:ssHmsToSecs(x.corrected),rating:typeof x.rating==='number'?x.rating:null};
+        });
+        byFleet[f.fleet.key]={startTime:f.startTime||'',ratingLabel:f.ratingLabel||'',results};
+      });
+      model.races[i].api=byFleet;
+    });
+    model.dataModel=dm;
+    // Each boat's rating in the table: the one applied in the latest race it
+    // has one for; next ECHO from the data file's fleet of the same name
+    model.fleets.forEach(fl=>{
+      const dfl=dm&&dm.fleets.find(f=>f.key===fl.name);
+      fl.rows.forEach(row=>{
+        for(let i=model.races.length-1;i>=0;i--){
+          const a=model.races[i].api&&model.races[i].api[fl.key];
+          const x=a&&a.results[row.sailKey];
+          if(x&&x.rating!=null){ row.rating=x.rating; break; }
+        }
+        if(fl.system==='echo'&&dfl){
+          const d=dfl.rows.find(r=>r.sailKey===row.sailKey);
+          row.next=d?d.next:null;
+        }
+      });
+    });
+    model.detailReady=true;
+  })();
+  return model._detail;
 }
 
 // Converts a PublicSeriesExport (any version — see SS_MAX_VERSION) into a
@@ -13225,7 +13370,7 @@ function ssParseExport(raw,url){
 async function loadSailScoringResults(){
   const ws=ssWorkspace();
   const discovered=ws?await ssDiscoverSeries(ws):null;
-  const urls=[...new Set([...(discovered||[]),...ssSourceUrls()])];
+  const sources=ssMergeSources(discovered);
   const sel=document.getElementById('resultSeriesSelect');
   const wrap=document.getElementById('resultsContent');
   const ircBtnEl=document.getElementById('ircBtn'), echoBtnEl=document.getElementById('echoBtn');
@@ -13235,7 +13380,7 @@ async function loadSailScoringResults(){
   if(elink){const url=(clubSettings.estella_url||'').trim();if(url){elink.href=url;elink.style.display='flex';}else{elink.style.display='none';}}
   sel.innerHTML='<option value="">Loading…</option>';
   wrap.innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading '+escHtml(_C.short||'club')+' results from Sail Scoring…</div></div>';
-  if(!urls.length){
+  if(!sources.length){
     sel.innerHTML='<option value="">—</option>';
     wrap.innerHTML=`<div class="empty-state"><div class="icon">🏆</div>
       <div style="margin-bottom:10px">No series found<br><span style="font-size:.85rem;color:var(--muted)">Sail Scoring's series list isn't available for this workspace yet.${isRO?' Add a series address in Sail Scoring Setup.':''}</span></div>
@@ -13243,9 +13388,18 @@ async function loadSailScoringResults(){
     return;
   }
 
-  ssModels=await Promise.all(urls.map(async url=>{
-    try{ return {url,model:await ssFetchExport(url),error:null}; }
-    catch(e){ return {url,model:null,error:(e&&e.message)||'Failed to load'}; }
+  // The results API where the publication has one; its data file otherwise,
+  // or if the API fails (the file carries the same results)
+  ssModels=await Promise.all(sources.map(async src=>{
+    const url=src.api||src.data;
+    try{ return {url,model:src.api?await ssFetchApi(src):await ssFetchExport(src.data),error:null}; }
+    catch(e){
+      if(src.api&&src.data){
+        console.warn('Sail Scoring API failed, using the data file instead',src.api,e);
+        try{ return {url,model:await ssFetchExport(src.data),error:null}; }catch(e2){ /* report the API's error */ }
+      }
+      return {url,model:null,error:(e&&e.message)||'Failed to load'};
+    }
   }));
   if(ssModels.every(m=>!m.model)){
     sel.innerHTML='<option value="">—</option>';
@@ -13286,6 +13440,13 @@ function ssSelectSeries(i){
   }
   ssRenderFleetPills();
   ssRenderResults();
+  // API series: ratings (and next ECHO) arrive with the per-race detail
+  if(m.model.api&&!m.model.detailReady) ssLoadDetail(m.model).then(()=>{
+    if(ssModels[ssCurrentIdx]!==m) return;
+    ssRenderResults();
+    const sheet=document.getElementById('ssRaceSheet');
+    if(sheet&&sheet.classList.contains('open')) ssRenderRaceSheet();
+  });
 }
 
 function ssPillStyle(active){
@@ -13332,7 +13493,7 @@ function ssRenderResults(){
 
   // Tap a race column for that race's detail (ssOpenRace)
   const raceHeaders=model.races.map((r,i)=>
-    `<th class="num" onclick="ssOpenRace(${i})" style="min-width:32px;cursor:pointer;color:var(--teal);text-decoration:underline dotted;text-underline-offset:3px" title="${escHtml((r.date?'Race '+r.number+' · '+r.date:'Race '+r.number)+' — tap for race details')}">R${ssEsc(r.number)}</th>`).join('');
+    `<th class="num" onclick="ssOpenRace(${i})" style="min-width:32px;cursor:pointer;color:var(--teal);text-decoration:underline dotted;text-underline-offset:3px" title="${escHtml((r.date?'Race '+r.number+' · '+r.date:'Race '+r.number)+' — tap for race details')}">${ssEsc((fleet.labels&&fleet.labels[i])||'R'+r.number)}</th>`).join('');
 
   const showNext=fleet.system==='echo'&&fleet.rows.some(r=>r.next!=null);
   const fmtR=v=>(Math.round(v*1000)/1000).toString();
@@ -13405,7 +13566,9 @@ function ssRenderResults(){
 // the fleet on show: each boat's finish time, elapsed and corrected time,
 // time behind the winner, rating (ECHO applied → next) and points.
 // Positions/points are Sail Scoring's own (standings, incl. penalties and
-// redress); times are worked out here from the file's start and finish
+// redress). For API series, times, corrected times and ratings are Sail
+// Scoring's own, from /races/{n}. For data-file series they're worked out
+// here from the file's start and finish
 // times. The file only carries a per-race rating for ECHO fleets — IRC and
 // fixed-TCF fleets carry one rating per boat, which is wrong for races
 // before a mid-series rating change — so the corrected times are checked
@@ -13437,7 +13600,10 @@ function ssOpenRace(i){
   const model=ssModels[ssCurrentIdx]&&ssModels[ssCurrentIdx].model;
   if(!model||!model.races[i]) return;
   ssRaceIdx=i;
-  ssRenderRaceSheet();
+  if(model.api&&!model.detailReady){
+    document.getElementById('ssRaceSheetBody').innerHTML='<div class="empty-state"><div class="icon" style="font-size:1.6rem">⏳</div><div>Loading race details…</div></div>';
+    ssLoadDetail(model).then(()=>{ if(ssModels[ssCurrentIdx]&&ssModels[ssCurrentIdx].model===model) ssRenderRaceSheet(); });
+  } else ssRenderRaceSheet();
   document.getElementById('ssRaceSheet').classList.add('open');
 }
 function ssRaceStep(d){
@@ -13460,20 +13626,30 @@ function ssRenderRaceSheet(){
   const race=model.races[ssRaceIdx];
   const sys=fleet.system;
   const isEcho=sys==='echo';
-  const startTime=(race.startByFleet||{})[fleet.key]||'';
+  // API series: Sail Scoring's own times, corrected times and the rating
+  // each boat raced under (null if this race's detail didn't load). Next
+  // ECHO only from the data file, matched by race number and fleet name.
+  const viaApi=!!model.api;
+  const api=viaApi?((race.api||{})[fleet.key]||null):null;
+  const startTime=api?api.startTime:((race.startByFleet||{})[fleet.key]||'');
   const startSecs=ssHmsToSecs(startTime);
-  const echo=(race.echo||{})[fleet.key]||{};
+  let echo=(race.echo||{})[fleet.key]||{};
+  if(viaApi){
+    const dr=model.dataModel&&model.dataModel.races.find(x=>x.number===race.number);
+    echo=(dr&&dr.echo[fleet.name])||{};
+  }
 
   const entries=fleet.rows.map(r=>{
     const c=r.cells[ssRaceIdx]||{};
-    const fin=(race.finishes||{})[r.sailKey]||null;
+    const fin=api?(api.results[r.sailKey]||null):((race.finishes||{})[r.sailKey]||null);
     let elapsed=fin&&fin.elapsedSecs!=null?fin.elapsedSecs:null;
     if(elapsed==null&&fin&&fin.finishTime&&startSecs!=null){
       const f=ssHmsToSecs(fin.finishTime);
       if(f!=null) elapsed=f-startSecs<0?f-startSecs+86400:f-startSecs;
     }
     const e=echo[r.sailKey];
-    const rating=isEcho?(e?e.applied:null):r.baseRating;
+    const rating=api?(fin&&fin.rating!=null?fin.rating:(isEcho&&e?e.applied:null))
+      :(isEcho?(e?e.applied:null):r.baseRating);
     // The standings' code is authoritative. The finishes array can't be
     // trusted for it: Sail Scoring exports every finisher of an
     // elapsed-time race (no finish clock time) with resultCode "DNF" while
@@ -13481,7 +13657,7 @@ function ssRenderRaceSheet(){
     const code=c.pts!=null?(c.code||null):((fin&&fin.code)||null);
     const finished=!code&&!c.excluded&&elapsed!=null;
     return {r,c,fin,code,finished,elapsed,rating,next:isEcho&&e?e.next:null,
-      corrected:finished?ssCorrected(sys,elapsed,rating):null};
+      corrected:!finished?null:api?(fin&&fin.correctedSecs!=null?fin.correctedSecs:null):ssCorrected(sys,elapsed,rating)};
   }).filter(x=>x.c.pts!=null||x.fin); // boats with nothing at all in this race aren't listed
 
   // Finishers by Sail Scoring's points (their order is the official result),
@@ -13506,8 +13682,11 @@ function ssRenderRaceSheet(){
   // per boat, so corrected times there could be wrong even with the order
   // agreeing — never shown. ECHO fleets carry the applied rating per race.
   const ratingPerRaceKnown=sys!=='tcf';
-  const showCorr=timesAgree&&ratingPerRaceKnown&&sys!=='scratch';
-  const best=showCorr?Math.min(...clean.map(x=>x.corrected)):null;
+  // The API's corrected times are Sail Scoring's own — no check needed
+  const showCorr=api?finishers.some(x=>x.corrected!=null)
+    :(!viaApi&&timesAgree&&ratingPerRaceKnown&&sys!=='scratch');
+  const pool=api?finishers.filter(x=>x.corrected!=null):clean;
+  const best=showCorr?Math.min(...pool.map(x=>x.corrected)):null;
 
   const fmtR=v=>v==null?'':Number(v).toFixed(3);
   const myName=currentBoat&&!isRO?normBoatName(currentBoat.name):'';
@@ -13531,7 +13710,7 @@ function ssRenderRaceSheet(){
     }
     if(showCorr||isEcho){
       const rt=isEcho&&x.rating!=null?'ECHO '+fmtR(x.rating)+(x.next!=null?' → '+fmtR(x.next):'')
-        :(x.rating!=null?fmtR(x.rating):'');
+        :(x.rating!=null?(api&&api.ratingLabel?escHtml(api.ratingLabel)+' ':'')+fmtR(x.rating):'');
       if(rt) bits.push(rt);
     }
     const ptsLabel=x.c.pts==null?'—':(x.c.discard?'('+x.c.pts+')':String(x.c.pts));
@@ -13556,7 +13735,9 @@ function ssRenderRaceSheet(){
   const navBtn=(d,label,dis)=>`<button onclick="ssRaceStep(${d})" ${dis?'disabled':''} style="background:transparent;border:1px solid var(--border);border-radius:8px;color:${dis?'var(--border)':'var(--teal)'};padding:6px 12px;font-size:1rem;cursor:${dis?'default':'pointer'}">${label}</button>`;
   const pills=model.fleets.length>1?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px">${model.fleets.map((f,i)=>
     `<button onclick="ssRaceFleet(${i})" style="${ssPillStyle(i===ssCurrentFleetIdx)}">${escHtml(f.name)}</button>`).join('')}</div>`:'';
-  const note=!showCorr&&finishers.length&&sys!=='scratch'
+  const note=viaApi
+    ?(api?'':`<div style="font-size:.78rem;color:var(--muted);margin:6px 0 10px;line-height:1.4">Times for this race couldn't be loaded from Sail Scoring. Places and points are Sail Scoring's.</div>`)
+    :!showCorr&&finishers.length&&sys!=='scratch'
     ?`<div style="font-size:.78rem;color:var(--muted);margin:6px 0 10px;line-height:1.4">${ratingPerRaceKnown
       ?"Corrected times aren't shown for this race — the ratings in the results file don't reproduce Sail Scoring's finishing order (e.g. a rating changed part-way through the series)."
       :"Corrected times aren't shown — this fleet's rating can change from race to race and the results file doesn't record which one each race used."} Places and points are Sail Scoring's.</div>`:'';
