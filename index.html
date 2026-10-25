@@ -1709,6 +1709,17 @@
     <div id="ssConfigToggleNote" style="display:none;font-size:.85rem;color:var(--gold);margin-bottom:12px">
       Results Source isn't set to <b>Sail Scoring</b> in Features — saved series won't show until it is.
     </div>
+    <!-- Connected-app access (migration 076, ss-connect.js) — filled by refreshSsConnection() -->
+    <div id="ssConnWrap" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:16px;background:var(--navy-mid)">
+      <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">🔗 Connection</label>
+      <div id="ssConnStatus" style="font-size:.85rem;margin-top:8px;line-height:1.45;color:var(--muted)">Checking…</div>
+      <div id="ssConnBtns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+      <div id="ssRegWrap" style="margin-top:12px"></div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:8px;line-height:1.4">
+        Lets RaceOps act in the club's Sail Scoring workspace. You sign in at Sail Scoring and choose the workspace;
+        what the app changes there is recorded as you, "via RaceOps". You can disconnect here or from your Sail Scoring account page.
+      </div>
+    </div>
     <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:16px;background:var(--navy-mid)">
       <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Club workspace</label>
       <input type="text" id="ssWorkspaceInput" placeholder="Paste any results link, e.g. https://app.sailscoring.ie/p/…/2026" autocomplete="off"

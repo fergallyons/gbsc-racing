@@ -13782,6 +13782,104 @@ function loadSsConfigPanel(){
   const keyIn=document.getElementById('ssApiKeyInput');
   if(keyIn) keyIn.value='';
   refreshSsApiKeyStatus();
+  refreshSsConnection(false);
+}
+
+// ── Sail Scoring connection (connected-app OAuth, migration 076) ──
+// ss-connect.js holds and checks everything server side; the browser only
+// ever sees whether the club is connected and to which workspace. Every
+// call carries this login's RO or Club Admin PIN, which the function
+// checks against the club's database.
+function _ssConnPin(){ return _currentRoPin||_currentAdminPin||''; }
+async function _ssConnCall(action,extra){
+  try{
+    const r=await fetch(_clubFnUrl('ss-connect'),{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,pin:_ssConnPin(),...(extra||{})})});
+    let body=null; try{ body=await r.json(); }catch(e){}
+    return {status:r.status,body:body||{}};
+  }catch(e){ return {status:0,body:{message:'Could not reach the server'}}; }
+}
+function _ssConnBtn(label,onclick,primary){
+  return `<button class="btn ${primary?'btn-primary':'btn-ghost'}" style="padding:8px 14px" onclick="${onclick}">${label}</button>`;
+}
+// The club's registration with Sail Scoring (ss_client): Sail Scoring
+// issues each club's client id (and secret) for that club's own callback.
+// Open by default until the club is registered, folded away after.
+const SS_CALLBACK_PATH='/.netlify/functions/ss-oauth-callback';
+let _ssRegOpen=false;
+function _ssRegHtml(reg){
+  const r=reg||{};
+  const inputStyle="margin-top:4px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:9px 11px;outline:none;width:100%;box-sizing:border-box;";
+  const label=t=>`<label style="display:block;margin-top:10px;font-size:.78rem;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase">${t}</label>`;
+  return `<div style="border-top:1px solid var(--border);padding-top:10px">
+    <div style="font-size:.85rem;color:var(--white);font-weight:600">Sail Scoring registration</div>
+    <div style="font-size:.8rem;color:var(--muted);margin-top:4px;line-height:1.4">From Sail Scoring when it registers this club's RaceOps. Give them the redirect URI below exactly as shown.</div>
+    ${label('Redirect URI')}
+    <input id="ssRegRedirect" type="url" autocomplete="off" style="${inputStyle}" value="${escHtml(r.redirectUri||(location.origin+SS_CALLBACK_PATH))}">
+    ${label('Client ID')}
+    <input id="ssRegClientId" type="text" autocomplete="off" style="${inputStyle}" value="${escHtml(r.clientId||'')}" placeholder="Issued by Sail Scoring">
+    ${label('Client secret')}
+    <input id="ssRegSecret" type="password" autocomplete="new-password" style="${inputStyle}" placeholder="${r.hasSecret?'Saved — leave blank to keep it':'Issued with the client ID, if any'}">
+    <div style="font-size:.78rem;color:var(--muted);margin-top:4px">Stored in the club's own database and never shown again.</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-primary" style="padding:8px 14px" onclick="ssSaveRegistration()">Save registration</button>
+      ${r.clientId?'<button class="btn btn-ghost" style="padding:8px 14px" onclick="_ssRegOpen=false;refreshSsConnection(false)">Cancel</button>':''}
+    </div>
+  </div>`;
+}
+async function ssSaveRegistration(){
+  const v=id=>((document.getElementById(id)||{}).value||'').trim();
+  const {status,body}=await _ssConnCall('register',{clientId:v('ssRegClientId'),clientSecret:v('ssRegSecret'),redirectUri:v('ssRegRedirect')});
+  if(status!==200){ toast('⚠ '+(body.message||'Could not save (HTTP '+status+')')); return; }
+  toast('✓ Sail Scoring registration saved');
+  _ssRegOpen=false;
+  refreshSsConnection(false);
+}
+async function refreshSsConnection(check){
+  const st=document.getElementById('ssConnStatus'), btns=document.getElementById('ssConnBtns'), regEl=document.getElementById('ssRegWrap');
+  if(!st||!btns) return;
+  st.style.color='var(--muted)'; st.textContent=check?'Testing the connection…':'Checking…'; btns.innerHTML='';
+  if(regEl) regEl.innerHTML='';
+  const {status,body}=await _ssConnCall('status',{check:!!check});
+  const say=(msg,colour)=>{ st.style.color=colour||'var(--muted)'; st.innerHTML=msg; };
+  if(status===403){ say('Sign in again as RO or Club Admin to manage the connection.'); return; }
+  if(status!==200){ say('⚠ '+escHtml(body.message||'Could not check the connection (HTTP '+status+')'),'var(--warn)'); return; }
+  if(body.migration===false){ say('Needs database migration 076 before the club can connect.'); return; }
+  // Registration: the form while unregistered (or being edited), else a link to edit it
+  if(regEl){
+    regEl.innerHTML=(!body.configured||_ssRegOpen)?_ssRegHtml(body.registration)
+      :`<button onclick="_ssRegOpen=true;refreshSsConnection(false)" style="background:none;border:none;padding:0;color:var(--teal);font-size:.8rem;cursor:pointer;text-decoration:underline">Registration: client ${escHtml((body.registration&&body.registration.clientId)||'')} — edit</button>`;
+  }
+  if(!body.configured&&!body.connected){ say("Not registered with Sail Scoring yet — enter the details Sail Scoring issued for this club below."); return; }
+  if(body.connected){
+    const ws=body.workspace?escHtml(body.workspace.name)+' <span style="color:var(--muted)">('+escHtml(body.workspace.slug)+')</span>':'its workspace';
+    const since=body.connectedAt?' · since '+new Date(body.connectedAt).toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Dublin'}):'';
+    const tested=body.check==='ok'?' · ✓ tested just now':(body.check?' · ⚠ test failed: '+escHtml(body.check):'');
+    say('✓ Connected to '+ws+'<span style="color:var(--muted)">'+escHtml(since)+tested+'</span>','var(--success)');
+    btns.innerHTML=_ssConnBtn('Test','refreshSsConnection(true)')+_ssConnBtn('Reconnect','ssConnect()')+_ssConnBtn('Disconnect','ssDisconnect()');
+    return;
+  }
+  if(body.lapsed){
+    say('⚠ The connection has ended'+(body.lastError?' — '+escHtml(body.lastError):'')+'. Reconnect to carry on.','var(--warn)');
+    btns.innerHTML=_ssConnBtn('Reconnect','ssConnect()',true)+_ssConnBtn('Remove','ssDisconnect()');
+    return;
+  }
+  say('Not connected.');
+  btns.innerHTML=_ssConnBtn('Connect to Sail Scoring','ssConnect()',true);
+}
+async function ssConnect(){
+  const st=document.getElementById('ssConnStatus');
+  if(st){ st.style.color='var(--muted)'; st.textContent='Opening Sail Scoring…'; }
+  const {status,body}=await _ssConnCall('start',{returnTo:location.origin+location.pathname+location.search});
+  if(status===200&&body.url){ location.href=body.url; return; }
+  toast('⚠ '+(body.message||'Could not start connecting (HTTP '+status+')'));
+  refreshSsConnection(false);
+}
+async function ssDisconnect(){
+  if(!confirm('Disconnect RaceOps from Sail Scoring? The app will stop acting in the club\'s workspace until someone connects again.')) return;
+  const {status,body}=await _ssConnCall('disconnect');
+  toast(status===200?'Disconnected from Sail Scoring':'⚠ '+(body.message||'Could not disconnect'));
+  refreshSsConnection(false);
 }
 // Write-only key (migration 069), same pattern as the Halsail key: only the
 // generated ss_api_key_set flag is readable from the browser.
@@ -17124,6 +17222,20 @@ function startCountdown(){
 // ═══════════════════════════════════════════════════════════════
 loadWindWidget();
 loadLivePortWeather();
+// Back from Sail Scoring's sign-in (ss-oauth-callback.js adds ?ss_connect=):
+// say how it went and tidy the address bar, keeping ?club= and the rest
+(function handleSsConnectReturn(){
+  const params=new URLSearchParams(window.location.search);
+  const outcome=params.get('ss_connect');
+  if(!outcome) return;
+  const msg=params.get('ss_connect_msg')||'';
+  params.delete('ss_connect'); params.delete('ss_connect_msg');
+  const rest=params.toString();
+  history.replaceState({},'',window.location.pathname+(rest?'?'+rest:''));
+  setTimeout(()=>toast(outcome==='ok'?'✓ Connected to Sail Scoring'
+    :outcome==='denied'?'Sail Scoring connection not allowed'
+    :'⚠ Could not connect to Sail Scoring'+(msg?' — '+msg.slice(0,60):'')),800);
+})();
 // Handle Stripe success redirect — auto-confirm Card payment without extra tap.
 // Two flows share this entry point:
 //   • Single-crew self-pay (sp_pending in sessionStorage) → writes self_payments row
