@@ -15892,9 +15892,13 @@ function playStartHorn(isLong){
 
 // ── Session logging ──────────────────────────────────────────────
 async function sbStartSession(type, boatId, boatName){
-  const r=await sbFetch('/rest/v1/session_logs',{method:'POST',
+  const post=t=>sbFetch('/rest/v1/session_logs',{method:'POST',
     headers:{...SBH,'Prefer':'return=representation'},
-    body:JSON.stringify({session_type:type,boat_id:boatId||null,boat_name:boatName||null})});
+    body:JSON.stringify({session_type:t,boat_id:boatId||null,boat_name:boatName||null})});
+  let r=await post(type);
+  // 'admin' needs migration 077 — before it, the check constraint refuses
+  // it (23514), so log the Club Admin as an RO session instead
+  if(type==='admin'&&r&&r._err&&/23514|session_type_check/.test(String(r._err))) r=await post('ro');
   return Array.isArray(r)&&r.length?r[0].id:null;
 }
 async function sbEndSession(sessionId){
