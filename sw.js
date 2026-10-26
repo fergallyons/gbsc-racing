@@ -24,6 +24,12 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
+  // Only the app's own http(s) GETs are cached. Browser extensions make
+  // requests through the page too (e.g. a chrome-extension:// font), and
+  // Cache.put refuses those schemes — and any non-GET — with an uncaught
+  // TypeError. Let the browser handle them untouched.
+  if (!url.startsWith('http') || e.request.method !== 'GET') return;
+
   // Halsail has its own proxy fallback in halFetch() that triggers on TypeError (CORS failure).
   // If the SW catches the network error and returns a 503 Response instead, halFetch() sees
   // a non-ok response rather than a TypeError and never retries via the proxy. Pass through.
