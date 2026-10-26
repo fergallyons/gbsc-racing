@@ -13857,7 +13857,16 @@ async function refreshSsConnection(check){
   st.style.color='var(--muted)'; st.textContent=check?'Testing the connection…':'Checking…'; btns.innerHTML='';
   if(regEl) regEl.innerHTML='';
   const {status,body}=await _ssConnCall('status',{check:!!check});
-  const say=(msg,colour)=>{ st.style.color=colour||'var(--muted)'; st.innerHTML=msg; };
+  // The last Connect attempt's failure (handleSsConnectReturn), shown in
+  // full under whatever the status is, for half an hour
+  let lastFail='';
+  try{
+    const lr=JSON.parse(sessionStorage.getItem('ssConnectResult')||'null');
+    if(lr&&lr.outcome!=='ok'&&Date.now()-lr.at<30*60000)
+      lastFail='<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:rgba(230,57,70,.1);border:1px solid rgba(230,57,70,.35);color:var(--white);font-size:.8rem;line-height:1.45">'
+        +'<b>Last attempt '+(lr.outcome==='denied'?'not allowed':'failed')+'</b>'+(lr.msg?': '+escHtml(lr.msg):'')+'</div>';
+  }catch(e){}
+  const say=(msg,colour)=>{ st.style.color=colour||'var(--muted)'; st.innerHTML=msg+lastFail; };
   if(status===403){ say('Sign in again as RO or Club Admin to manage the connection.'); return; }
   if(status!==200){ say('⚠ '+escHtml(body.message||'Could not check the connection (HTTP '+status+')'),'var(--warn)'); return; }
   if(body.migration===false){ say('Needs database migration 076 before the club can connect.'); return; }
@@ -13887,6 +13896,7 @@ async function refreshSsConnection(check){
 async function ssConnect(){
   const st=document.getElementById('ssConnStatus');
   if(st){ st.style.color='var(--muted)'; st.textContent='Opening Sail Scoring…'; }
+  try{ sessionStorage.removeItem('ssConnectResult'); }catch(e){}
   const {status,body}=await _ssConnCall('start',{returnTo:location.origin+location.pathname+location.search});
   if(status===200&&body.url){ location.href=body.url; return; }
   toast('⚠ '+(body.message||'Could not start connecting (HTTP '+status+')'));
@@ -17255,9 +17265,11 @@ loadLivePortWeather();
   params.delete('ss_connect'); params.delete('ss_connect_msg');
   const rest=params.toString();
   history.replaceState({},'',window.location.pathname+(rest?'?'+rest:''));
+  // Kept for the Connection card, which shows the reason in full
+  try{ sessionStorage.setItem('ssConnectResult',JSON.stringify({outcome,msg,at:Date.now()})); }catch(e){}
   setTimeout(()=>toast(outcome==='ok'?'✓ Connected to Sail Scoring'
     :outcome==='denied'?'Sail Scoring connection not allowed'
-    :'⚠ Could not connect to Sail Scoring'+(msg?' — '+msg.slice(0,60):'')),800);
+    :'⚠ Could not connect to Sail Scoring — details in Sail Scoring Setup'),800);
 })();
 // Handle Stripe success redirect — auto-confirm Card payment without extra tap.
 // Two flows share this entry point:
