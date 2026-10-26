@@ -13835,7 +13835,7 @@ function _ssRegHtml(reg){
     ${label('Client ID')}
     <input id="ssRegClientId" type="text" autocomplete="off" style="${inputStyle}" value="${escHtml(r.clientId||'')}" placeholder="Issued by Sail Scoring">
     ${label('Client secret')}
-    <input id="ssRegSecret" type="password" autocomplete="new-password" style="${inputStyle}" placeholder="${r.hasSecret?'Saved — leave blank to keep it':'Issued with the client ID, if any'}">
+    <input id="ssRegSecret" type="password" autocomplete="new-password" style="${inputStyle}" placeholder="${r.hasSecret?'Saved — leave blank to keep it':'Issued with the client ID'}">
     <div style="font-size:.78rem;color:var(--muted);margin-top:4px">Stored in the club's own database and never shown again.</div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn btn-primary" style="padding:8px 14px" onclick="ssSaveRegistration()">Save registration</button>
@@ -13867,6 +13867,7 @@ async function refreshSsConnection(check){
       :`<button onclick="_ssRegOpen=true;refreshSsConnection(false)" style="background:none;border:none;padding:0;color:var(--teal);font-size:.8rem;cursor:pointer;text-decoration:underline">Registration: client ${escHtml((body.registration&&body.registration.clientId)||'')} — edit</button>`;
   }
   if(!body.configured&&!body.connected){ say("Not registered with Sail Scoring yet — enter the details Sail Scoring issued for this club below."); return; }
+  if(body.refreshLock===false){ say('Needs database migration 078 before the club can connect.'); return; }
   if(body.connected){
     const ws=body.workspace?escHtml(body.workspace.name)+' <span style="color:var(--muted)">('+escHtml(body.workspace.slug)+')</span>':'its workspace';
     const since=body.connectedAt?' · since '+new Date(body.connectedAt).toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric',timeZone:'Europe/Dublin'}):'';

@@ -9,7 +9,7 @@
 //   POST { action: 'register', pin, clientId, clientSecret?, redirectUri,
 //          scopes? }                          save the club's registration
 //                                             (ss_client); a blank secret
-//                                             keeps the saved one, '-' clears it
+//                                             keeps the saved one
 //
 // The registration is per club, issued by Sail Scoring for the club's own
 // redirect URI. Status reports the client id and redirect URI (neither is
@@ -30,7 +30,7 @@
 const crypto = require('crypto');
 const { resolveClubSlug } = require('./_club');
 const {
-  oauthBase, oauthClient, writeClient, pkcePair, clubDb, readConnection, revokeToken, wsApi,
+  oauthBase, oauthClient, writeClient, pkcePair, clubDb, readConnection, revokeToken, wsApi, hasRefreshLock,
 } = require('./_sailscoring');
 
 const CALLBACK_PATH = '/.netlify/functions/ss-oauth-callback';
@@ -102,8 +102,9 @@ exports.handler = async (event) => {
     if (!okUri) return json(400, { error: 'invalid', message: 'Redirect URI must be https://<this app>' + CALLBACK_PATH });
     const fields = { client_id: clientId, redirect_uri: redirectUri, scopes: String(req.scopes || '').trim() || null };
     const secret = String(req.clientSecret || '').trim();
-    if (secret === '-') fields.client_secret = null;
-    else if (secret) fields.client_secret = secret;
+    // Sail Scoring only accepts the id and secret together (HTTP Basic)
+    if (!secret && !client.secret) return json(400, { error: 'invalid', message: 'Enter the client secret Sail Scoring issued with the client id' });
+    if (secret) fields.client_secret = secret;
     try { await writeClient(slug, fields); } catch (e) { return json(500, { error: 'internal', message: e.message }); }
     return json(200, { ok: true });
   }
@@ -114,6 +115,8 @@ exports.handler = async (event) => {
     catch (e) { return json(200, { configured: client.configured, migration: /076/.test(e.message) ? false : null, error: e.message }); }
     const out = {
       configured: client.configured, migration: true,
+      // 078: one token renewal at a time — connecting waits for it
+      refreshLock: await hasRefreshLock(slug),
       registration: { clientId: client.id, redirectUri: client.redirectUri, hasSecret: !!client.secret, scopes: client.scopes },
       connected: !!conn && conn.status === 'connected',
       lapsed: !!conn && conn.status === 'lapsed',
@@ -131,7 +134,8 @@ exports.handler = async (event) => {
   }
 
   if (req.action === 'start') {
-    if (!client.configured) return json(503, { error: 'not-configured', message: "RaceOps isn't registered with Sail Scoring yet" });
+    if (!client.configured) return json(503, { error: 'not-configured', message: "Enter the club's Sail Scoring client id and secret first" });
+    if (!(await hasRefreshLock(slug))) return json(503, { error: 'not-configured', message: 'Needs database migration 078 first' });
     const returnTo = safeReturn(req.returnTo, slug);
     if (!returnTo) return json(400, { error: 'invalid', message: 'Unrecognised return address' });
     const { verifier, challenge } = pkcePair();

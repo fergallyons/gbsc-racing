@@ -12,6 +12,11 @@
 [functions."results-watch"]
   schedule = "*/10 * * * *"
 
+# Keeps each club's Sail Scoring connection alive over quiet spells: a grant
+# ends after 180 days without a token renewal (ss-keepalive.js) — Mondays 04:00 UTC
+[functions."ss-keepalive"]
+  schedule = "0 4 * * 1"
+
 [[edge_functions]]
   path = "/club-config.js"
   function = "club-config"

@@ -63,7 +63,7 @@ exports.handler = async (event) => {
   try {
     const fields = tokenFields(tok.body, null);
     await writeConnection(slug, {
-      ...fields, status: 'connected', last_error: null, connected_at: new Date().toISOString(),
+      ...fields, status: 'connected', last_error: null, connected_at: new Date().toISOString(), refresh_lock_until: null,
       workspace_id: null, workspace_slug: null, workspace_name: null,
     });
     // The workspace the grant names (one per grant)

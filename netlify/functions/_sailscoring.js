@@ -101,14 +101,18 @@ async function apiGetForSlug(slug, path) {
 //
 // Each club's RaceOps is registered with Sail Scoring separately, and its
 // registration lives in the club's own database (ss_client, entered in
-// Sail Scoring Setup): client id, secret (an app with a server gets one;
-// without it the client is public and relies on PKCE alone), the redirect
-// URI exactly as registered, and optionally the scopes to ask for.
+// Sail Scoring Setup): client id, secret, the redirect URI exactly as
+// registered, and optionally the scopes to ask for. Sail Scoring takes the
+// id and secret only in an HTTP Basic header at the token endpoint, so a
+// club isn't ready to connect until both are saved.
 // SAILSCORING_BASE_URL[_<SLUG>] still overrides the host (a test instance).
 
 const crypto = require('crypto');
 
-const DEFAULT_SCOPES = 'read races publish offline_access';
+// submissions = handing recorded finishes to the scorer (Sail Scoring #671)
+const DEFAULT_SCOPES = 'read races submissions publish offline_access';
+const TOKEN_PATH = '/api/auth/oauth2/token';
+const REFRESH_LOCK_MS = 30 * 1000;
 
 function oauthBase(slug) {
   return apiBaseForSlug(slug);
@@ -127,7 +131,7 @@ async function oauthClient(slug) {
     redirectUri: row.redirect_uri || '',
     scopes: row.scopes || DEFAULT_SCOPES,
     issuer: oauthBase(slug) + '/api/auth',
-    configured: !!(row.client_id && row.redirect_uri),
+    configured: !!(row.client_id && row.client_secret && row.redirect_uri),
   };
 }
 async function writeClient(slug, fields) {
@@ -179,6 +183,12 @@ async function readConnection(slug) {
   if (!r.ok) throw new Error(r.status === 404 ? 'migration 076 not applied' : 'ss_connection HTTP ' + r.status);
   return (Array.isArray(r.body) && r.body[0]) || null;
 }
+// Whether migration 078 (the renewal lock) is applied — renewing without it
+// isn't safe, so connecting waits for it
+async function hasRefreshLock(slug) {
+  const r = await clubDb(slug).req('ss_connection?select=refresh_lock_until&limit=1');
+  return r.ok;
+}
 async function writeConnection(slug, fields) {
   const r = await clubDb(slug).req('ss_connection', {
     method: 'POST',
@@ -188,16 +198,22 @@ async function writeConnection(slug, fields) {
   if (!r.ok) throw new Error('could not save the Sail Scoring connection (HTTP ' + r.status + ')');
 }
 
-// POST to the token or revocation endpoint (form-encoded). A confidential
-// client authenticates with HTTP Basic; a public one names itself.
+// POST to the token or revocation endpoint (form-encoded), the client id
+// and secret in an HTTP Basic header — the only way Sail Scoring accepts
+// them (each form-encoded first, as RFC 6749 2.3.1 says).
 async function oauthPost(slug, path, params) {
   const c = await oauthClient(slug);
   if (!c.configured) return { status: 0, ok: false, body: { error: 'not-configured' } };
-  const headers = { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' };
-  const form = new URLSearchParams(params);
-  if (c.secret) headers.Authorization = 'Basic ' + Buffer.from(encodeURIComponent(c.id) + ':' + encodeURIComponent(c.secret)).toString('base64');
-  else form.set('client_id', c.id);
-  const res = await fetch(oauthBase(slug) + path, { method: 'POST', headers, body: form.toString() });
+  const enc = v => encodeURIComponent(v).replace(/%20/g, '+');
+  const res = await fetch(oauthBase(slug) + path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'application/json',
+      Authorization: 'Basic ' + Buffer.from(enc(c.id) + ':' + enc(c.secret)).toString('base64'),
+    },
+    body: new URLSearchParams(params).toString(),
+  });
   const text = await res.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch (e) { body = null; }
@@ -207,8 +223,9 @@ function tokenFields(body, prev) {
   return {
     access_token: body.access_token,
     access_expires_at: new Date(Date.now() + (Number(body.expires_in) || 3600) * 1000).toISOString(),
-    // Renewal hands back a new refresh token; keep the old one only if it didn't
+    // Every renewal hands back a new refresh token; keep the old one only if it didn't
     refresh_token: body.refresh_token || (prev && prev.refresh_token) || null,
+    refreshed_at: body.refresh_token ? new Date().toISOString() : ((prev && prev.refreshed_at) || null),
     scope: body.scope || (prev && prev.scope) || null,
   };
 }
@@ -216,7 +233,7 @@ function tokenFields(body, prev) {
 // Code from the sign-in redirect → tokens
 async function exchangeCode(slug, code, verifier) {
   const c = await oauthClient(slug);
-  return oauthPost(slug, '/api/auth/oauth2/token', {
+  return oauthPost(slug, TOKEN_PATH, {
     grant_type: 'authorization_code', code, redirect_uri: c.redirectUri, code_verifier: verifier,
   });
 }
@@ -228,37 +245,105 @@ async function revokeToken(slug, token, hint) {
   catch (e) { console.warn('_sailscoring: revoke failed: ' + e.message); }
 }
 
-// A usable access token for the club: { token, conn } or { error } where
-// error is 'not-connected' | 'lapsed' | 'unavailable'. Renews an expiring
-// token. Renewal replaces the refresh token, so two functions renewing at
-// once can't both succeed: the loser re-reads the row and uses the token the
-// winner stored. A refused renewal means the grant has ended (signed out
-// for 90 days, or disconnected at Sail Scoring) — the row is marked lapsed
-// and the RO reconnects.
-async function getAccessToken(slug, force) {
-  const conn = await readConnection(slug);
-  if (!conn || (!conn.access_token && !conn.refresh_token)) return { error: 'not-connected' };
-  if (conn.status === 'lapsed') return { error: 'lapsed', conn };
-  if (!force && conn.access_token && Date.parse(conn.access_expires_at) - Date.now() > 60 * 1000) return { token: conn.access_token, conn };
-  if (!conn.refresh_token) {
-    await writeConnection(slug, { status: 'lapsed', last_error: 'Access expired and there is no refresh token — reconnect' });
-    return { error: 'lapsed', conn };
+// ── Renewal, one at a time per club ──
+// Each renewal returns a new refresh token and retires the old one, and Sail
+// Scoring treats a retired refresh token presented again as stolen: it ends
+// every grant that account gave RaceOps. So:
+//   - a renewal first claims the club's lock (migration 078), a conditional
+//     update only one function can win; the rest wait for its result and
+//     never send the refresh token they read;
+//   - the new refresh token is stored before the new access token is used,
+//     with retries, since losing it would leave only the retired one.
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const accessFresh = c => !!(c && c.access_token && Date.parse(c.access_expires_at) - Date.now() > 60 * 1000);
+
+// The claimed row (current as of the claim), or null if someone holds it
+async function claimRefresh(slug) {
+  const now = new Date();
+  const r = await clubDb(slug).req(
+    'ss_connection?id=eq.club&status=eq.connected&or=(refresh_lock_until.is.null,refresh_lock_until.lt.' + encodeURIComponent(now.toISOString()) + ')',
+    { method: 'PATCH', headers: { Prefer: 'return=representation' },
+      body: { refresh_lock_until: new Date(now.getTime() + REFRESH_LOCK_MS).toISOString() } });
+  return r.ok && Array.isArray(r.body) && r.body[0] ? r.body[0] : null;
+}
+async function releaseRefresh(slug, extra) {
+  try { await writeConnection(slug, { refresh_lock_until: null, ...(extra || {}) }); }
+  catch (e) { console.warn('[' + slug + '] could not release the Sail Scoring renewal lock: ' + e.message); }
+}
+async function renew(slug, row) {
+  let r;
+  try { r = await oauthPost(slug, TOKEN_PATH, { grant_type: 'refresh_token', refresh_token: row.refresh_token }); }
+  catch (e) {
+    console.warn('[' + slug + '] Sail Scoring token renewal failed: ' + e.message);
+    await releaseRefresh(slug);
+    return { error: 'unavailable', conn: row };
   }
-  const r = await oauthPost(slug, '/api/auth/oauth2/token', { grant_type: 'refresh_token', refresh_token: conn.refresh_token });
   if (r.ok && r.body && r.body.access_token) {
-    const fields = tokenFields(r.body, conn);
-    await writeConnection(slug, { ...fields, status: 'connected', last_error: null });
-    return { token: fields.access_token, conn: { ...conn, ...fields } };
+    const fields = { ...tokenFields(r.body, row), status: 'connected', last_error: null, refresh_lock_until: null };
+    for (let i = 0; ; i++) {
+      try { await writeConnection(slug, fields); break; }
+      catch (e) {
+        if (i >= 4) {
+          // The new refresh token is lost: the stored one is retired, and
+          // presenting it would end the grant. Mark it lapsed instead.
+          console.error('[' + slug + '] could not store the renewed Sail Scoring token: ' + e.message);
+          await releaseRefresh(slug, { status: 'lapsed', last_error: 'A renewed token could not be saved — reconnect in Sail Scoring Setup' });
+          return { error: 'lapsed', conn: row };
+        }
+        await sleep(500 * (i + 1));
+      }
+    }
+    return { token: fields.access_token, conn: { ...row, ...fields } };
   }
   if (r.status === 400 || r.status === 401) {
-    const again = await readConnection(slug);
-    if (again && again.refresh_token !== conn.refresh_token && again.access_token && again.status === 'connected') {
-      return { token: again.access_token, conn: again };
-    }
-    await writeConnection(slug, { status: 'lapsed', last_error: 'Sail Scoring ended the connection (' + ((r.body && r.body.error) || r.status) + ') — reconnect in Sail Scoring Setup' });
-    return { error: 'lapsed', conn };
+    // Sail Scoring has ended the grant (180 days without a renewal,
+    // disconnected, or a retired token seen): the club reconnects
+    await releaseRefresh(slug, { status: 'lapsed', last_error: 'Sail Scoring ended the connection (' + ((r.body && r.body.error) || r.status) + ') — reconnect in Sail Scoring Setup' });
+    return { error: 'lapsed', conn: row };
   }
   console.warn('[' + slug + '] Sail Scoring token renewal HTTP ' + r.status);
+  await releaseRefresh(slug);
+  return { error: 'unavailable', conn: row };
+}
+
+// A usable access token for the club: { token, conn } or { error } where
+// error is 'not-connected' | 'lapsed' | 'unavailable'. Renews an expiring
+// token, or — with force — one Sail Scoring has just refused (staleToken:
+// the refused one; if another function has already replaced it, that newer
+// token is used instead of renewing again).
+async function getAccessToken(slug, opts) {
+  const o = { ...(opts || {}) };
+  let conn = await readConnection(slug);
+  for (let round = 0; round < 3; round++) {
+    if (!conn || (!conn.access_token && !conn.refresh_token)) return { error: 'not-connected' };
+    if (conn.status === 'lapsed') return { error: 'lapsed', conn };
+    const refused = o.force && (!o.staleToken || o.staleToken === conn.access_token);
+    if (accessFresh(conn) && !refused) return { token: conn.access_token, conn };
+    if (!conn.refresh_token) {
+      await writeConnection(slug, { status: 'lapsed', last_error: 'Access expired and there is no refresh token — reconnect' });
+      return { error: 'lapsed', conn };
+    }
+    const claimed = await claimRefresh(slug);
+    if (claimed) {
+      // Renewed by someone else between our read and the claim: use theirs
+      if (claimed.refresh_token !== conn.refresh_token && accessFresh(claimed)) {
+        await releaseRefresh(slug);
+        return { token: claimed.access_token, conn: claimed };
+      }
+      return renew(slug, claimed);
+    }
+    // Another function is renewing: wait for its token (never send ours)
+    const before = conn.refresh_token;
+    const until = Date.now() + REFRESH_LOCK_MS + 2000;
+    while (Date.now() < until) {
+      await sleep(750);
+      conn = await readConnection(slug);
+      if (!conn || conn.status === 'lapsed') break;
+      if (conn.refresh_token !== before && accessFresh(conn)) return { token: conn.access_token, conn };
+      if (!conn.refresh_lock_until || Date.parse(conn.refresh_lock_until) < Date.now()) break; // its lock lapsed: try to claim
+    }
+    o.force = false; // a newer token from the other renewal will do
+  }
   return { error: 'unavailable', conn };
 }
 
@@ -284,7 +369,7 @@ async function wsApi(slug, method, path, opts) {
   if (!t.token) return { status: 0, body: null, error: t.error };
   let r = await call(t.token, t.conn);
   if (r.status === 401) {
-    t = await getAccessToken(slug, true);
+    t = await getAccessToken(slug, { force: true, staleToken: t.token });
     if (!t.token) return { status: 0, body: null, error: t.error };
     r = await call(t.token, t.conn);
   }
@@ -293,6 +378,6 @@ async function wsApi(slug, method, path, opts) {
 
 module.exports = {
   apiBase, apiGet, apiGetForSlug, hostSlug,
-  oauthBase, oauthClient, writeClient, pkcePair, clubDb, readConnection, writeConnection,
+  oauthBase, oauthClient, writeClient, pkcePair, clubDb, readConnection, writeConnection, hasRefreshLock,
   exchangeCode, revokeToken, tokenFields, getAccessToken, wsApi,
 };
