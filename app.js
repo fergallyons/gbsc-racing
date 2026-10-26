@@ -1144,7 +1144,7 @@ async function patchRaceTimesFromHalsail(){
   updateGuestDashCancellation();
   if(!cancelledTodayRace){
     const raceEl=document.getElementById('loginRaceLabel');
-    if(raceEl&&nextRace) raceEl.textContent=getRaceEyebrow(nextRace)+': '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'});
+    if(raceEl) raceEl.textContent=nextRace?getRaceEyebrow(nextRace)+': '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'}):NO_RACING_MSG;
   }
 
   // If the patch changed which race is "current", re-render the registration list —
@@ -1160,8 +1160,11 @@ function updateWeatherVisibility(){
   const sub=document.getElementById('wx-tile-sub');
   if(sub) sub.textContent=isPast?'Check back before next race':'Wind, tide & forecast';
 }
+// Shown wherever the current race would be when there's none — nothing
+// coming up and nothing in the last 48h (getNextRace() returns null)
+const NO_RACING_MSG='No racing currently scheduled';
 function getRaceEyebrow(race){
-  if(!race) return 'Next Race';
+  if(!race) return 'Racing';
   const diff=race.date-new Date();
   if(diff > 3600000)  return 'Next Race';
   if(diff > 0)        return 'Starting Soon';
@@ -1173,7 +1176,8 @@ function getNextRace(){
   // Priority 1: upcoming race within 48h → registration/pre-race mode (takes over from linger)
   // Priority 2: past race within 48h → post-race mode (protests, payments, results)
   // Priority 3: next future race (idle state)
-  // Priority 4: last race of season (off-season fallback)
+  // Otherwise null: nothing scheduled — the app says NO_RACING_MSG rather
+  // than carrying on showing the season's last race as if it were current
   if(!allRaces.length) return null;
   const now=new Date();
   const WINDOW_MS=48*3600*1000;
@@ -1181,14 +1185,13 @@ function getNextRace(){
   if(upcoming) return upcoming;
   const recent=[...allRaces].reverse().find(r=>r.date<=now&&now-r.date<=WINDOW_MS);
   if(recent) return recent;
-  const next=allRaces.find(r=>r.date>now);
-  if(next) return next;
-  return allRaces[allRaces.length-1];
+  return allRaces.find(r=>r.date>now)||null;
 }
 // Fleet-scoped sibling of getNextRace() — deliberately NOT a refactor of
 // it (getNextRace() has ~14 existing zero-argument call sites; changing
-// its signature risks all of them). Duplicates its exact 4-tier
-// date-window logic against a fleet-pre-filtered race list instead.
+// its signature risks all of them). Duplicates its exact date-window
+// logic (null when nothing's scheduled) against a fleet-pre-filtered race
+// list instead.
 // A race with no fleet tag is visible to every boat (matches today's
 // implicit single-fleet behavior); a boat with no fleet, or a club with
 // no fleet-tagged races at all, collapses to getNextRace()'s own result.
@@ -1202,9 +1205,7 @@ function getNextRaceForBoat(boat){
   if(upcoming) return upcoming;
   const recent=[...scoped].reverse().find(r=>r.date<=now&&now-r.date<=WINDOW_MS);
   if(recent) return recent;
-  const next=scoped.find(r=>r.date>now);
-  if(next) return next;
-  return scoped[scoped.length-1];
+  return scoped.find(r=>r.date>now)||null;
 }
 // Every race sharing date's calendar day (local time), sorted by start
 // time — purely additive, feeds "N races today" UI affordances. Does NOT
@@ -1270,7 +1271,7 @@ async function buildBoatGrid(){
 
   // Show next race label
   const raceEl=document.getElementById('loginRaceLabel');
-  if(nextRace&&raceEl) raceEl.textContent='Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'});
+  if(raceEl) raceEl.textContent=nextRace?'Next race: '+nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'}):NO_RACING_MSG;
   if(nextRace) showSponsor(nextRace.label);
   renderDocs();
 
@@ -1341,7 +1342,7 @@ async function buildBoatGrid(){
   renderRegisteredTab(); // boats now loaded — starting line will resolve correctly
 
   // Load registration badges in background
-  sbLoadRegistrations(nextRace).then(regs=>{
+  if(nextRace) sbLoadRegistrations(nextRace).then(regs=>{
     registeredBoatIds=new Set((regs||[]).map(r=>r.boat_id));
     renderBoatGrid();
     updateHomeChips();
@@ -1407,8 +1408,9 @@ async function registerForRace(){
 function updateRegisterButton(){
   const btn=document.getElementById('registerBtn'); if(!btn)return;
   const isPast=selectedRace&&selectedRace.date<new Date();
-  if(isPast){
-    // Registration is a pre-race action — nothing to do once the race has happened
+  if(isPast||!selectedRace){
+    // Registration is a pre-race action — nothing to do once the race has
+    // happened, or when no racing is scheduled
     btn.style.display='none';
     const crewRow=document.getElementById('lookingForCrewRow');
     if(crewRow) crewRow.style.display='none';
@@ -2847,7 +2849,7 @@ async function confirmSeriesPayment(seriesName){
 async function renderRegisteredTab(){
   const label=document.getElementById('regRaceLabel'); // legacy — may be null in new dashboard
   const list=document.getElementById('registeredList');
-  if(!nextRace){if(list)list.innerHTML='<div class="empty-state"><div class="icon">📅</div><div>No upcoming race found</div></div>';return;}
+  if(!nextRace){if(list)list.innerHTML='<div class="empty-state"><div class="icon">📅</div><div>'+NO_RACING_MSG+'</div></div>';return;}
   if(label) label.textContent=nextRace.label+' · '+nextRace.date.toLocaleDateString('en-IE',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Dublin'});
   list.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading…</div></div>';
   const regs=await sbLoadRegistrations(nextRace);
@@ -3411,12 +3413,13 @@ function updateSkipperDash(){
     }
     if(crewRaceName) crewRaceName.textContent=r.label;
   } else {
-    nameEl.textContent='No upcoming race';
+    nameEl.textContent=NO_RACING_MSG;
     if(metaEl) metaEl.textContent='';
     if(crewRaceName) crewRaceName.textContent='—';
   }
   const isPast=r&&r.date<new Date();
-  if(regEl){
+  if(regEl&&!r) regEl.innerHTML='';
+  else if(regEl){
     if(isPast&&!mySelectedRaceRegistered){
       regEl.innerHTML='<span class="dash-reg-pill unregistered">Race concluded</span>';
     } else {
@@ -3441,9 +3444,9 @@ function updateGuestDashCancellation(){
     if(guestCard) guestCard.classList.add('race-cancelled');
   } else {
     if(el&&nextRace) el.textContent=nextRace.label;
-    else if(el) el.textContent='No races scheduled';
-    if(mel&&nextRace) mel.textContent=nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'});
-    if(tel&&nextRace) tel.textContent=nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'});
+    else if(el) el.textContent=NO_RACING_MSG;
+    if(mel) mel.textContent=nextRace?nextRace.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'}):'';
+    if(tel) tel.textContent=nextRace?nextRace.date.toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'}):'';
     if(ge){ ge.textContent=getRaceEyebrow(nextRace); ge.classList.remove('cancelled'); }
     if(guestCard) guestCard.classList.remove('race-cancelled');
   }
@@ -3475,7 +3478,7 @@ async function publishResults(){
 function updateROResultsStatus(){
   const el=document.getElementById('roResultsStatus');
   if(!el)return;
-  if(!nextRace){el.textContent='No upcoming race';el.style.color='';return;}
+  if(!nextRace){el.textContent=NO_RACING_MSG;el.style.color='';return;}
   const blocked=isResultsBlocked();
   el.textContent=blocked?'Embargoed':'Published ✓';
   el.style.color=blocked?'var(--warn)':'var(--success)';
@@ -3486,8 +3489,8 @@ function updateRODash(){
   const r=nextRace;
   const nameEl=document.getElementById('roDashRaceName');
   const metaEl=document.getElementById('roDashMeta');
-  if(nameEl&&r){ nameEl.textContent=r.label; }
-  if(metaEl&&r){ metaEl.textContent=r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'}); }
+  if(nameEl) nameEl.textContent=r?r.label:NO_RACING_MSG;
+  if(metaEl) metaEl.textContent=r?r.date.toLocaleDateString('en-IE',{weekday:'long',day:'numeric',month:'long',timeZone:'Europe/Dublin'}):'';
   updateROResultsStatus();
   refreshRoStartSeqTile();
   renderRoTodayRaces();
@@ -3608,8 +3611,14 @@ function roReportRaceChanged(){
 function buildRaceDropdown(){
   // allRaces populated from DB by loadRaceSchedule()
   const nr=nextRace||getNextRace();
-  const ci=allRaces.indexOf(nr)>=0?allRaces.indexOf(nr):0;
+  // Nothing scheduled: select no race (the dashboard says so) rather than
+  // defaulting to the season's first; past races stay pickable below
+  const ci=allRaces.indexOf(nr)>=0?allRaces.indexOf(nr):'';
   const sel=document.getElementById('raceDropdown'); sel.innerHTML='';
+  if(ci===''){
+    const o=document.createElement('option');o.value='';o.textContent=NO_RACING_MSG;
+    sel.appendChild(o);
+  }
   // Group by series name dynamically — no hardcoded group keys
   const og={};
   allRaces.forEach((r,i)=>{
@@ -3628,7 +3637,14 @@ function buildRaceDropdown(){
   sel.value=ci; onRaceSelect(sel,true);
 }
 async function onRaceSelect(el,silent){
-  const i=parseInt(el.value);if(isNaN(i))return;
+  const i=parseInt(el.value);
+  if(isNaN(i)||!allRaces[i]){
+    // The "nothing scheduled" placeholder
+    selectedRace=null;
+    document.getElementById('raceBadge').textContent='';
+    if(!isRO&&!isGuest){ updateSkipperDash(); refreshMyRaceRegistration(); }
+    return;
+  }
   selectedRace=allRaces[i];
   document.getElementById('raceBadge').textContent=selectedRace.date.toLocaleDateString('en-IE',{day:'numeric',month:'short',timeZone:'Europe/Dublin'});
   if(!isRO&&!isGuest){
@@ -3649,7 +3665,7 @@ async function onRaceSelect(el,silent){
 // needs to stay nextRace-scoped) since the skipper's own race dropdown can
 // point at a different — often past — race.
 async function refreshMyRaceRegistration(){
-  if(!currentBoat||!selectedRace){ mySelectedRaceRegistered=false; return; }
+  if(!currentBoat||!selectedRace){ mySelectedRaceRegistered=false; if(currentBoat) updateRegisterButton(); return; }
   if(nextRace&&raceKey(selectedRace)===raceKey(nextRace)){
     // Already-loaded nextRace data — show it immediately, no flash, while the fetch below confirms it
     mySelectedRaceRegistered=registeredBoatIds.has(currentBoat.id);
@@ -6784,7 +6800,7 @@ function openCrewWantedPanel(){
 async function loadAndRenderCrewWanted(){
   const list=document.getElementById('crewWantedList'); if(!list) return;
   list.innerHTML='<div class="empty-state"><div class="icon">🔍</div>Loading…</div>';
-  if(!nextRace){ list.innerHTML='<div class="empty-state"><div class="icon">📅</div>No upcoming race found</div>'; return; }
+  if(!nextRace){ list.innerHTML='<div class="empty-state"><div class="icon">📅</div>'+NO_RACING_MSG+'</div>'; return; }
   const regs=await sbLoadRegistrations(nextRace);
   const wanted=(regs||[]).filter(r=>r.looking_for_crew);
   // Update tile subtitles
@@ -17173,6 +17189,8 @@ function updateEstellaLink(){
 
 function updateHomeChips(){
   const chips=document.getElementById('guestDashChips'); if(!chips)return;
+  // Nothing scheduled: no registrations or course to report on
+  if(!nextRace){ chips.innerHTML=''; refreshStartSeqData(); return; }
   const count=registeredBoatIds.size;
   const state=getCourseState();
   const regChip=count>0
