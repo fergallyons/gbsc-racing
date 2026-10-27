@@ -636,6 +636,8 @@
         <div style="font-size:.8rem;color:var(--muted);margin-top:1px">View live or replay on eStela →</div>
       </div>
     </a>
+    <!-- RO only, opened from the RO Results tile (openRoResults): the day's races in Sail Scoring with start/cancel/publish controls -->
+    <div id="ssRoControls" style="display:none;margin-bottom:18px"></div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
       <div style="flex:1;min-width:0;">
         <div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px">Series</div>
@@ -1057,6 +1059,12 @@
       <div class="dash-card-icon">🏁</div>
       <div class="dash-card-label">Finish Line</div>
       <div class="dash-card-sub" id="finishRecordStatus">No finishes recorded</div>
+    </div>
+    <!-- Sail Scoring clubs only (applyFeatures): the Results view plus race-day controls in Sail Scoring -->
+    <div id="tile-ro-ssResults" class="dash-card ro-card" style="display:none" onclick="openRoResults()">
+      <div class="dash-card-icon">🏆</div>
+      <div class="dash-card-label">Results</div>
+      <div class="dash-card-sub">Starts, cancel, publish</div>
     </div>
     <div id="tile-ro-racingCancelled" class="dash-card ro-card" onclick="toggleRacingCancelled()" style="display:none">
       <div class="dash-card-icon">🏁</div>
@@ -1618,9 +1626,11 @@
       </div>
     </div>
     <div style="font-size:.85rem;color:var(--muted);line-height:1.5;margin-bottom:14px">
-      Tap a boat as it crosses the line to record its finish time — tap again to undo. Use the status buttons for anything that isn't a normal finish. Works fully offline; export to CSV once you're back in range.
+      Tap a boat as it crosses the line to record its finish time — tap again to undo. Use the status buttons for anything that isn't a normal finish. Works fully offline; once you're back in range, send it to Sail Scoring or export a CSV.
     </div>
     <div id="finishRecordList"></div>
+    <!-- Sail Scoring clubs: hand the recording to the scorer (renderSsFinishSend) -->
+    <div id="ssFinishSend" style="display:none;margin-top:16px"></div>
     <div class="publish-bar" style="margin-top:16px">
       <button class="btn btn-ro" style="flex:1;padding:12px" onclick="exportFinishRecordCsv()">⬇ Export CSV for HalSail</button>
       <button class="btn btn-ghost" style="padding:12px 14px" onclick="clearFinishRecords()">Clear</button>

@@ -30,7 +30,7 @@
 const crypto = require('crypto');
 const { resolveClubSlug } = require('./_club');
 const {
-  oauthBase, oauthClient, writeClient, pkcePair, clubDb, readConnection, revokeToken, wsApi, hasRefreshLock,
+  oauthBase, oauthClient, writeClient, pkcePair, clubDb, readConnection, revokeToken, wsApi, hasRefreshLock, roPinOk,
 } = require('./_sailscoring');
 
 const CALLBACK_PATH = '/.netlify/functions/ss-oauth-callback';
@@ -43,20 +43,7 @@ const json = (statusCode, body) => ({
   body: JSON.stringify(body),
 });
 
-async function rpcTrue(cfg, fn, pin) {
-  try {
-    const res = await fetch(cfg.sbUrl + '/rest/v1/rpc/' + fn, {
-      method: 'POST',
-      headers: { apikey: cfg.sbKey, Authorization: 'Bearer ' + cfg.sbKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_pin: pin }),
-    });
-    return res.ok && (await res.json()) === true;
-  } catch (e) { return false; }
-}
-async function pinOk(cfg, pin) {
-  if (typeof pin !== 'string' || !/^\d{4,8}$/.test(pin) || !cfg.sbKey) return false;
-  return (await rpcTrue(cfg, 'verify_ro_pin', pin)) || (await rpcTrue(cfg, 'verify_admin_pin', pin));
-}
+const pinOk = roPinOk;
 
 // Where to send the RO back after signing in: a page of this app, on a
 // hostname that serves this club (HOSTNAME_MAP), or on a shared host with

@@ -376,7 +376,26 @@ async function wsApi(slug, method, path, opts) {
   return r;
 }
 
+// True when `pin` is the club's RO or Club Admin PIN, checked by the club's
+// own database (verify_ro_pin 040 / verify_admin_pin 042) with its anon key.
+// Every function acting for the club in Sail Scoring requires it.
+async function rpcTrue(cfg, fn, pin) {
+  try {
+    const res = await fetch(cfg.sbUrl + '/rest/v1/rpc/' + fn, {
+      method: 'POST',
+      headers: { apikey: cfg.sbKey, Authorization: 'Bearer ' + cfg.sbKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_pin: pin }),
+    });
+    return res.ok && (await res.json()) === true;
+  } catch (e) { return false; }
+}
+async function roPinOk(cfg, pin) {
+  if (typeof pin !== 'string' || !/^\d{4,8}$/.test(pin) || !cfg || !cfg.sbKey) return false;
+  return (await rpcTrue(cfg, 'verify_ro_pin', pin)) || (await rpcTrue(cfg, 'verify_admin_pin', pin));
+}
+
 module.exports = {
+  roPinOk,
   apiBase, apiGet, apiGetForSlug, hostSlug,
   oauthBase, oauthClient, writeClient, pkcePair, clubDb, readConnection, writeConnection, hasRefreshLock,
   exchangeCode, revokeToken, tokenFields, getAccessToken, wsApi,

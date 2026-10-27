@@ -4178,6 +4178,8 @@ function applyAllFeatureVisibility(){
   const _rs=ssResultsSource(f);
   const ssTile=document.getElementById('tile-ro-ssConfig');
   if(ssTile) ssTile.style.display=_rs==='sailscoring'?'':'none';
+  const ssResTile=document.getElementById('tile-ro-ssResults');
+  if(ssResTile) ssResTile.style.display=_rs==='sailscoring'?'':'none';
   const halCfgTile=document.getElementById('tile-ro-halConfig');
   if(halCfgTile) halCfgTile.style.display=_rs==='halsail'?'':'none';
   // Every FEAT.* behavior flag set here must have an else-reset to its
@@ -12305,6 +12307,8 @@ async function loadResultsIfNeeded(){
   try{ await _settingsReady; }catch(e){ /* settings failed — go with what we have */ }
   const _src=ssResultsSource();
   ssActive=_src==='sailscoring';
+  const roCtl=document.getElementById('ssRoControls');
+  if(roCtl&&(!isRO||!ssActive)) roCtl.style.display='none'; // RO race-day controls: openRoResults() only
   // 'none' = no integrated results at all; 'halsail' with no club ID behaves the same
   if(_src==='none'||(_src==='halsail'&&!HAL_CLUB)){
     document.getElementById('resultSeriesSelect').innerHTML='<option value="">—</option>';
@@ -13907,6 +13911,132 @@ async function ssDisconnect(){
   const {status,body}=await _ssConnCall('disconnect');
   toast(status===200?'Disconnected from Sail Scoring':'⚠ '+(body.message||'Could not disconnect'));
   refreshSsConnection(false);
+}
+
+// ── RO race-day controls in Sail Scoring (ss-ro.js) ─────────────────────
+// The RO's Results tile opens the same Results view crew see, with the
+// day's races in Sail Scoring above it: each start's gun (change it, or
+// cancel the start), cancelling a race that has no finishes yet, and
+// republishing each series. These read Sail Scoring through the club's
+// connection, so they see the day's races before anything is published.
+// Every call carries this login's RO/Admin PIN, checked server side.
+let _ssRoDay=null; // the last 'day' reply: {date, races, series}
+async function _ssRoCall(action,extra){
+  try{
+    const r=await fetch(_clubFnUrl('ss-ro'),{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,pin:_ssConnPin(),...(extra||{})})});
+    let body=null; try{ body=await r.json(); }catch(e){}
+    return {status:r.status,body:body||{}};
+  }catch(e){ return {status:0,body:{message:'Could not reach the server — check your connection'}}; }
+}
+function _ssRoToday(){ return new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Dublin'}); }
+function openRoResults(){
+  openPanel('resultsPanel');
+  loadResultsIfNeeded();
+  const el=document.getElementById('ssRoControls');
+  if(el) el.style.display='block';
+  ssRoLoadDay((_ssRoDay&&_ssRoDay.date)||_ssRoToday());
+}
+async function ssRoLoadDay(date){
+  const el=document.getElementById('ssRoControls'); if(!el) return;
+  _ssRoDay={date,races:null,series:[]};
+  ssRoRender('Loading the day from Sail Scoring…');
+  const {status,body}=await _ssRoCall('day',{date});
+  if(!_ssRoDay||_ssRoDay.date!==date) return; // another date picked meanwhile
+  if(status!==200){ ssRoRender('⚠ '+(body.message||'Could not reach Sail Scoring (HTTP '+status+')')); return; }
+  _ssRoDay={date,races:body.races||[],series:body.series||[]};
+  ssRoRender();
+}
+function _ssRoBtn(label,onclick,tone){
+  const colour=tone==='danger'?'color:var(--danger);border-color:rgba(230,57,70,.4);':tone==='primary'?'':'';
+  return `<button class="btn ${tone==='primary'?'btn-primary':'btn-ghost'}" style="padding:6px 10px;font-size:.8rem;${colour}" onclick="${onclick}">${label}</button>`;
+}
+function ssRoRender(message){
+  const el=document.getElementById('ssRoControls'); if(!el||!_ssRoDay) return;
+  const d=_ssRoDay;
+  const head=`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px;font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ro,var(--gold))">Race day in Sail Scoring</div>
+      <input type="date" value="${escHtml(d.date)}" onchange="if(this.value)ssRoLoadDay(this.value)"
+        style="background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:6px 8px">
+      <button class="btn btn-ghost" style="padding:6px 10px" onclick="ssRoLoadDay('${escHtml(d.date)}')" title="Reload">↺</button>
+    </div>`;
+  let body='';
+  if(message) body=`<div style="font-size:.85rem;color:var(--muted);margin-top:10px">${message.startsWith('⚠')?'<span style="color:var(--warn)">'+escHtml(message)+'</span>':escHtml(message)}</div>`;
+  else if(!d.races.length) body=`<div style="font-size:.85rem;color:var(--muted);margin-top:10px">No races in Sail Scoring on this day. The scorer adds races there; they appear here once they do.</div>`;
+  else body=d.series.map(s=>{
+    const races=d.races.map((r,i)=>({r,i})).filter(x=>x.r.seriesId===s.id);
+    const pub=s.publication;
+    const pubLine=pub
+      ?`Published ${pub.publishedAt?new Date(pub.publishedAt).toLocaleString('en-IE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'}):''}${pub.url?` · <a href="${escHtml(pub.url)}" target="_blank" rel="noopener" style="color:var(--teal)">view</a>`:''}`
+      :'Not published yet — publish it once in Sail Scoring';
+    return `<div style="margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--navy)">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:var(--white)">${escHtml(s.name)}</div>
+          <div style="font-size:.78rem;color:var(--muted)">${pubLine}</div>
+        </div>
+        ${pub?_ssRoBtn('📢 Publish results',`ssRoPublish('${escHtml(s.id)}')`,'primary'):''}
+      </div>
+      ${races.map(({r,i})=>{
+        const subs=r.submissions||[];
+        const subLine=subs.length?subs.map(x=>'Finish sheet rev '+x.revision+' · '+(x.status==='pending'?'waiting for the scorer':x.status)).join('<br>'):'';
+        const finLine=r.finishes==null?'':(r.finishes?r.finishes+' finish'+(r.finishes===1?'':'es')+' in the results':'No finishes yet');
+        return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;font-family:'Barlow Condensed',sans-serif;font-weight:800;color:var(--white)">Race ${escHtml(r.number)}${r.name?' · '+escHtml(r.name):''}</div>
+            ${r.finishes===0?_ssRoBtn('✕ Cancel race',`ssRoCancelRace(${i})`,'danger'):''}
+          </div>
+          ${r.starts.map((st,j)=>`<div id="ssRoStart_${i}_${j}" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px">
+              <div style="flex:1;min-width:120px;font-size:.85rem;color:var(--white)">${escHtml(st.fleets.join(', ')||'Start')} · <b>${escHtml(st.startTime||'no time')}</b></div>
+              ${_ssRoBtn('🕐 Change time',`ssRoEditStart(${i},${j})`)}${_ssRoBtn('✕',`ssRoCancelStart(${i},${j})`,'danger')}
+            </div>`).join('')||'<div style="font-size:.85rem;color:var(--muted);margin-top:6px">No starts</div>'}
+          ${finLine||subLine?`<div style="font-size:.78rem;color:var(--muted);margin-top:6px;line-height:1.45">${escHtml(finLine)}${finLine&&subLine?'<br>':''}${subLine}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div style="border:1px solid rgba(254,224,30,.35);border-radius:12px;padding:12px;background:var(--navy-mid)">${head}${body}</div>`;
+}
+function ssRoEditStart(i,j){
+  const r=_ssRoDay.races[i], st=r&&r.starts[j]; if(!st) return;
+  const row=document.getElementById('ssRoStart_'+i+'_'+j); if(!row) return;
+  row.innerHTML=`<div style="flex:1;min-width:120px;font-size:.85rem;color:var(--white)">${escHtml(st.fleets.join(', ')||'Start')}</div>
+    <input type="time" step="1" id="ssRoTime_${i}_${j}" value="${escHtml(st.startTime||'')}"
+      style="background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-size:.9rem;padding:5px 8px">
+    ${_ssRoBtn('Save',`ssRoSaveStart(${i},${j})`,'primary')}${_ssRoBtn('Cancel','ssRoRender()')}`;
+}
+async function ssRoSaveStart(i,j){
+  const r=_ssRoDay.races[i], st=r&&r.starts[j]; if(!st) return;
+  let t=((document.getElementById('ssRoTime_'+i+'_'+j)||{}).value||'').trim();
+  if(/^\d\d:\d\d$/.test(t)) t+=':00';
+  if(!/^\d\d:\d\d:\d\d$/.test(t)){ toast('Enter a time'); return; }
+  if(!confirm('Move the '+(st.fleets.join(', ')||'')+' gun for '+r.seriesName+' Race '+r.number+' to '+t+'?')) return;
+  const {status,body}=await _ssRoCall('startTime',{raceId:r.id,startId:st.id,startTime:t});
+  toast(status===200?'✓ Start time changed in Sail Scoring':'⚠ '+(body.message||'Could not change it (HTTP '+status+')'));
+  ssRoLoadDay(_ssRoDay.date);
+}
+async function ssRoCancelStart(i,j){
+  const r=_ssRoDay.races[i], st=r&&r.starts[j]; if(!st) return;
+  if(!confirm('Cancel the '+(st.fleets.join(', ')||'')+' start in '+r.seriesName+' Race '+r.number+'? It is removed from the race in Sail Scoring.')) return;
+  const {status,body}=await _ssRoCall('deleteStart',{raceId:r.id,startId:st.id});
+  toast(status===200?'Start cancelled in Sail Scoring':'⚠ '+(body.message||'Could not cancel it (HTTP '+status+')'));
+  ssRoLoadDay(_ssRoDay.date);
+}
+async function ssRoCancelRace(i){
+  const r=_ssRoDay.races[i]; if(!r) return;
+  if(!confirm('Cancel '+r.seriesName+' Race '+r.number+'? It is deleted from the series in Sail Scoring, and later races are renumbered.')) return;
+  const {status,body}=await _ssRoCall('deleteRace',{seriesId:r.seriesId,raceId:r.id});
+  toast(status===200?'Race cancelled in Sail Scoring':'⚠ '+(body.message||'Could not cancel it (HTTP '+status+')'));
+  ssRoLoadDay(_ssRoDay.date);
+}
+async function ssRoPublish(seriesId){
+  const s=(_ssRoDay.series||[]).find(x=>x.id===seriesId); if(!s) return;
+  if(!confirm('Publish the results of '+s.name+' now? Everyone sees them straight away.')) return;
+  const {status,body}=await _ssRoCall('publish',{seriesId});
+  if(status!==200){ toast('⚠ '+(body.message||'Could not publish (HTTP '+status+')')); return; }
+  toast('📢 '+s.name+' published');
+  ssRoLoadDay(_ssRoDay.date);
+  setTimeout(()=>{ if(ssActive) loadSailScoringResults(); },3000); // the published API clears its cache on publish
 }
 // Write-only key (migration 069), same pattern as the Halsail key: only the
 // generated ss_api_key_set flag is readable from the browser.
@@ -16869,6 +16999,7 @@ function _saveFinishRecords(){
   if(!_finishRecordRace) return;
   try{ localStorage.setItem(_finishRecordKey(_finishRecordRace),JSON.stringify(_finishRecords)); }catch(e){}
   updateFinishRecordTile();
+  if(document.getElementById('ssFinishSend')?.style.display==='block') renderSsFinishSend(); // "changed since last send"
 }
 
 let _autoFinishPollTimer=null;
@@ -16929,6 +17060,7 @@ async function _loadFinishRecordDataForRace(){
   });
   await refreshAutoFinishes();
   renderFinishRecordList();
+  renderSsFinishSend();
   stopAutoFinishPolling();
   if(_finishRecordRace.automated){
     _autoFinishPollTimer=setInterval(async()=>{ await refreshAutoFinishes(); renderFinishRecordList(); },20000);
@@ -17103,6 +17235,105 @@ async function exportFinishRecordCsv(){
   a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
   toast('⬇ CSV downloaded — upload it in HalSail\'s results import');
+}
+
+// ── Finish Line → Sail Scoring (ss-ro.js 'submit') ─────────────────────
+// For Sail Scoring clubs the recording goes to the scorer as a finish-sheet
+// submission on the race in Sail Scoring: nothing is written to the results
+// directly — the scorer reviews it, then applies or dismisses it. Each send
+// is the whole recording at the next revision of one submission (its id is
+// ours), so resending after more boats finish, or after an undo, simply
+// replaces the last one; a phone reconnecting late can't overwrite a newer
+// send. Which Sail Scoring race, the submission id and the last revision
+// sent are kept per app race, beside the recording itself.
+let _ssFinishDay=null; // {date, races, error} — the day's races in Sail Scoring, for the race picker
+function _ssFinishStateKey(){ return _finishRecordRace?_finishRecordKey(_finishRecordRace)+'_ss':null; }
+function _ssFinishState(){
+  const k=_ssFinishStateKey(); if(!k) return {};
+  try{ return JSON.parse(localStorage.getItem(k)||'{}')||{}; }catch(e){ return {}; }
+}
+function _ssFinishSave(st){
+  const k=_ssFinishStateKey(); if(!k) return;
+  try{ localStorage.setItem(k,JSON.stringify(st)); }catch(e){}
+}
+// The recording as submission rows: finishers in crossing order, then the
+// boats with a status
+function _ssFinishRows(){
+  const recs=_finishRecordBoats.map(b=>({b,rec:_finishRecords[b.id]})).filter(x=>x.rec&&(x.rec.time||x.rec.status));
+  const fin=recs.filter(x=>x.rec.time).sort((a,b)=>a.rec.time.localeCompare(b.rec.time));
+  const non=recs.filter(x=>!x.rec.time&&x.rec.status);
+  return fin.map(x=>({id:x.b.id,sailNumber:x.b.sailNumber||'',boatName:x.b.name,finishTime:x.rec.time}))
+    .concat(non.map(x=>({id:x.b.id,sailNumber:x.b.sailNumber||'',boatName:x.b.name,resultCode:x.rec.status})));
+}
+async function renderSsFinishSend(reload){
+  const wrap=document.getElementById('ssFinishSend'); if(!wrap) return;
+  if(!isRO||ssResultsSource()!=='sailscoring'||!_finishRecordRace){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+  const date=dayDateStr(_finishRecordRace.date);
+  if(reload||!_ssFinishDay||_ssFinishDay.date!==date){
+    wrap.innerHTML='<div style="color:var(--muted);font-size:.85rem">Finding the race in Sail Scoring…</div>';
+    const {status,body}=await _ssRoCall('day',{date});
+    _ssFinishDay={date,races:status===200?(body.races||[]):[],error:status===200?'':(body.message||'Could not reach Sail Scoring (HTTP '+status+')')};
+    if(!_finishRecordRace||dayDateStr(_finishRecordRace.date)!==date) return; // race changed meanwhile
+  }
+  const st=_ssFinishState();
+  const races=_ssFinishDay.races;
+  // Default: the one remembered for this app race, else the only race that day
+  if(!st.raceId&&races.length===1){ st.raceId=races[0].id; st.seriesId=races[0].seriesId; _ssFinishSave(st); }
+  const rows=_ssFinishRows();
+  const changed=st.sentRows!==JSON.stringify(rows);
+  const opt=r=>`<option value="${escHtml(r.id)}"${r.id===st.raceId?' selected':''}>${escHtml(r.seriesName)} · Race ${escHtml(r.number)}${r.starts.length?' · '+escHtml(r.starts.map(s=>(s.startTime||'').slice(0,5)).filter(Boolean).join(', ')):''}</option>`;
+  const statusLine=st.revision
+    ?`Sent revision ${st.revision}${st.sentAt?' at '+new Date(st.sentAt).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'}):''} · <b>${escHtml(st.status==='applied'?'applied by the scorer':st.status==='dismissed'?'dismissed by the scorer':'waiting for the scorer')}</b>`
+      +(st.unknown&&st.unknown.length?`<div style="color:var(--gold);margin-top:3px">Sail numbers the scorer will need to match: ${escHtml(st.unknown.join(', '))}</div>`:'')
+      +(changed?'<div style="color:var(--warn);margin-top:3px">Changed since — send again to update it</div>':'')
+    :(rows.length?'Not sent yet':'Nothing recorded yet');
+  wrap.innerHTML=`<div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--navy-mid)">
+    <div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Sail Scoring</div>
+    ${_ssFinishDay.error?`<div style="font-size:.85rem;color:var(--warn);margin-top:8px">${escHtml(_ssFinishDay.error)}</div>`
+      :!races.length?`<div style="font-size:.85rem;color:var(--muted);margin-top:8px">No race in Sail Scoring on ${escHtml(date)} — the scorer adds the day's races there.</div>`
+      :`<select id="ssFinishRace" onchange="ssFinishPickRace(this.value)" style="margin-top:8px;width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:7px 10px">
+          ${st.raceId?'':'<option value="">Choose the race in Sail Scoring…</option>'}${races.map(opt).join('')}
+        </select>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.85rem;color:var(--white)">
+          <input type="checkbox" id="ssFinishComplete" ${st.complete?'checked':''} onchange="_ssFinishSave({..._ssFinishState(),complete:this.checked})"> All boats accounted for
+        </label>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary" style="flex:1;padding:11px" onclick="ssSendFinishes()" ${st.raceId&&rows.length?'':'disabled'}>📤 Send to Sail Scoring</button>
+          ${st.revision?'<button class="btn btn-ghost" style="padding:11px 12px" onclick="ssCheckFinishes()" title="Check with the scorer">↺</button>':''}
+        </div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:8px;line-height:1.45">${statusLine}</div>`}
+    <div style="font-size:.75rem;color:var(--muted);margin-top:8px;line-height:1.4">The scorer reviews it in Sail Scoring before anything reaches the results. Send again any time — each send replaces the last.</div>
+  </div>`;
+}
+function ssFinishPickRace(id){
+  const r=(_ssFinishDay&&_ssFinishDay.races||[]).find(x=>x.id===id);
+  if(!r) return;
+  const st=_ssFinishState();
+  // A different race is a new submission
+  if(st.raceId!==r.id) _ssFinishSave({raceId:r.id,seriesId:r.seriesId});
+  renderSsFinishSend();
+}
+async function ssSendFinishes(){
+  const st=_ssFinishState();
+  const rows=_ssFinishRows();
+  if(!st.raceId||!rows.length) return;
+  const complete=!!(document.getElementById('ssFinishComplete')||{}).checked;
+  const submissionId=st.submissionId||crypto.randomUUID();
+  const {status,body}=await _ssRoCall('submit',{raceId:st.raceId,seriesId:st.seriesId,submissionId,revision:(st.revision||0)+1,rows,complete});
+  if(status!==200||!body.submission){ toast('⚠ '+(body.message||'Could not send (HTTP '+status+')')); return; }
+  const s=body.submission;
+  _ssFinishSave({...st,submissionId:s.id||submissionId,revision:s.revision,status:s.status,unknown:s.unknownSailNumbers||[],complete,sentRows:JSON.stringify(rows),sentAt:Date.now()});
+  toast('✓ Sent to Sail Scoring — revision '+s.revision);
+  renderSsFinishSend();
+}
+async function ssCheckFinishes(){
+  const st=_ssFinishState();
+  if(!st.raceId||!st.submissionId) return;
+  const {status,body}=await _ssRoCall('submission',{raceId:st.raceId,submissionId:st.submissionId});
+  if(status!==200){ toast('⚠ '+(body.message||'Could not check (HTTP '+status+')')); return; }
+  if(body.submission) _ssFinishSave({...st,status:body.submission.status,unknown:body.submission.unknownSailNumbers||st.unknown});
+  renderSsFinishSend();
 }
 
 function updateFinishRecordTile(){
