@@ -992,7 +992,9 @@ async function loadRaceSchedule(){
     const d=dublinInstant(r.race_date, r.start_hour||19, r.start_min||0);
     return {id:r.id, label:r.label, date:d, series:r.series||'',
       protestDeadline: r.protest_deadline?new Date(r.protest_deadline):null,
-      automated: !!r.automated, fleetId: r.fleet_id||null, raceDayId: r.race_day_id||null};
+      automated: !!r.automated, fleetId: r.fleet_id||null, raceDayId: r.race_day_id||null,
+      // Synced from Sail Scoring (ss-sync.js, migration 079)
+      ssRaceId: r.ss_race_id||null, ssSeriesId: r.ss_series_id||null};
   });
   // The query above only orders by race_date+sort_order — sort_order
   // defaults to 99 for every race, so it's not a reliable tie-breaker
@@ -5186,13 +5188,13 @@ async function renderRaceScheduleList(){
       html+=`<div class="race-mgmt-row${cancelled?' cancelled':''}" data-id="${r.id}">
         <div class="race-mgmt-info">
           <div class="race-mgmt-label">${r.automated?'🤖 ':''}${fleetName?'🚩 '+escHtml(fleetName)+' — ':''}${areaName?'📍 '+escHtml(areaName)+' — ':''}${r.label}</div>
-          <div class="race-mgmt-date">${dateStr} · ${hh}:${mm}</div>
+          <div class="race-mgmt-date">${dateStr} · ${hh}:${mm}${r.ss_race_id?' · <span style="color:var(--teal)" title="Date, start time and series follow Sail Scoring — change or cancel it there, or from the RO Results tile">⛵ Sail Scoring</span>':''}</div>
         </div>
         <div class="race-mgmt-actions">
           <button class="race-mgmt-btn edit" onclick="openEditRaceForm(${r.id})" title="Edit">✏️</button>
-          <button class="race-mgmt-btn ${cancelled?'uncancel':'cancel'}"
+          ${r.ss_race_id?'':`<button class="race-mgmt-btn ${cancelled?'uncancel':'cancel'}"
             onclick="toggleRaceCancelled(${r.id},${r.active})"
-            title="${cancelled?'Restore':'Cancel'}">${cancelled?'↩':'✕'}</button>
+            title="${cancelled?'Restore':'Cancel'}">${cancelled?'↩':'✕'}</button>`}
         </div>
       </div>`;
     });
@@ -13930,6 +13932,25 @@ async function _ssRoCall(action,extra){
   }catch(e){ return {status:0,body:{message:'Could not reach the server — check your connection'}}; }
 }
 function _ssRoToday(){ return new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Dublin'}); }
+// The app's race list was just brought in step with Sail Scoring (ss-ro.js
+// syncs after every change, or on 'sync'): reload it and what shows it
+async function ssAppRacesChanged(){
+  await loadRaceSchedule();
+  try{ updateGuestDashCancellation(); updateHomeChips(); updateRODash(); renderCalendar(); }catch(e){ console.warn('refresh after Sail Scoring sync',e); }
+}
+function _ssSyncSummary(s){
+  if(!s) return '';
+  if(s.error||s.skipped) return 'calendar not updated: '+(s.error||s.skipped);
+  const bits=[s.added&&s.added+' added',s.linked&&s.linked+' linked',s.updated&&s.updated+' updated',s.deactivated&&s.deactivated+' removed'].filter(Boolean);
+  return bits.length?'calendar: '+bits.join(', '):'calendar already up to date';
+}
+async function ssRoSync(){
+  toast('Updating the calendar from Sail Scoring…');
+  const {status,body}=await _ssRoCall('sync');
+  if(status!==200){ toast('⚠ '+(body.message||'Could not update (HTTP '+status+')')); return; }
+  toast('✓ '+_ssSyncSummary(body.sync).replace(/^./,c=>c.toUpperCase()));
+  await ssAppRacesChanged();
+}
 function openRoResults(){
   openPanel('resultsPanel');
   loadResultsIfNeeded();
@@ -13959,6 +13980,10 @@ function ssRoRender(message){
       <input type="date" value="${escHtml(d.date)}" onchange="if(this.value)ssRoLoadDay(this.value)"
         style="background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:6px 8px">
       <button class="btn btn-ghost" style="padding:6px 10px" onclick="ssRoLoadDay('${escHtml(d.date)}')" title="Reload">↺</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.78rem;color:var(--muted)">
+      <div style="flex:1;line-height:1.4">The app's calendar follows Sail Scoring automatically every 15 minutes, and after each change here.</div>
+      ${_ssRoBtn('⟳ Update now','ssRoSync()')}
     </div>`;
   let body='';
   if(message) body=`<div style="font-size:.85rem;color:var(--muted);margin-top:10px">${message.startsWith('⚠')?'<span style="color:var(--warn)">'+escHtml(message)+'</span>':escHtml(message)}</div>`;
@@ -14013,6 +14038,7 @@ async function ssRoSaveStart(i,j){
   if(!confirm('Move the '+(st.fleets.join(', ')||'')+' gun for '+r.seriesName+' Race '+r.number+' to '+t+'?')) return;
   const {status,body}=await _ssRoCall('startTime',{raceId:r.id,startId:st.id,startTime:t});
   toast(status===200?'✓ Start time changed in Sail Scoring':'⚠ '+(body.message||'Could not change it (HTTP '+status+')'));
+  if(status===200&&body.sync) ssAppRacesChanged();
   ssRoLoadDay(_ssRoDay.date);
 }
 async function ssRoCancelStart(i,j){
@@ -14020,6 +14046,7 @@ async function ssRoCancelStart(i,j){
   if(!confirm('Cancel the '+(st.fleets.join(', ')||'')+' start in '+r.seriesName+' Race '+r.number+'? It is removed from the race in Sail Scoring.')) return;
   const {status,body}=await _ssRoCall('deleteStart',{raceId:r.id,startId:st.id});
   toast(status===200?'Start cancelled in Sail Scoring':'⚠ '+(body.message||'Could not cancel it (HTTP '+status+')'));
+  if(status===200&&body.sync) ssAppRacesChanged();
   ssRoLoadDay(_ssRoDay.date);
 }
 async function ssRoCancelRace(i){
@@ -14027,6 +14054,7 @@ async function ssRoCancelRace(i){
   if(!confirm('Cancel '+r.seriesName+' Race '+r.number+'? It is deleted from the series in Sail Scoring, and later races are renumbered.')) return;
   const {status,body}=await _ssRoCall('deleteRace',{seriesId:r.seriesId,raceId:r.id});
   toast(status===200?'Race cancelled in Sail Scoring':'⚠ '+(body.message||'Could not cancel it (HTTP '+status+')'));
+  if(status===200&&body.sync) ssAppRacesChanged();
   ssRoLoadDay(_ssRoDay.date);
 }
 async function ssRoPublish(seriesId){
@@ -16989,6 +17017,20 @@ function _finishRecordKey(race){
   // on this one origin, and finish data must never leak between clubs.
   return 'finishRecord_'+(_C.slug||'club')+'_'+raceKey(race);
 }
+
+// A race synced from Sail Scoring (ss-sync.js) with no boats registered in
+// the app records against its series' Sail Scoring entry list instead, so
+// each boat goes to the scorer as its entry. The list is kept on the phone:
+// opened once ashore, the panel still works out of range.
+function _ssFlCacheKey(){ return 'ssFinishCache_'+(_C.slug||'club'); }
+function _ssFlCache(){ try{ return JSON.parse(localStorage.getItem(_ssFlCacheKey())||'{}')||{}; }catch(e){ return {}; } }
+function _ssFlCacheSet(c){ try{ localStorage.setItem(_ssFlCacheKey(),JSON.stringify(c)); }catch(e){} }
+async function _ssFinishEntries(seriesId){
+  const {status,body}=await _ssRoCall('entries',{seriesId});
+  const c=_ssFlCache(); c.entries=c.entries||{};
+  if(status===200){ c.entries[seriesId]=body.entries||[]; _ssFlCacheSet(c); return c.entries[seriesId]; }
+  return c.entries[seriesId]||null;
+}
 function _loadFinishRecords(race){
   try{
     const raw=localStorage.getItem(_finishRecordKey(race));
@@ -17052,9 +17094,18 @@ async function _loadFinishRecordDataForRace(){
   _finishRecords=_loadFinishRecords(_finishRecordRace);
   const list=document.getElementById('finishRecordList');
   list.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted);font-size:.85rem">Loading registered boats…</div>';
-  const regs=await sbLoadRegistrations(_finishRecordRace);
+  const race=_finishRecordRace;
+  const regs=await sbLoadRegistrations(race);
   const regIds=new Set((regs||[]).map(r=>r.boat_id));
   _finishRecordBoats=boats.filter(b=>regIds.has(b.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!_finishRecordBoats.length&&race.ssSeriesId&&isRO&&ssResultsSource()==='sailscoring'){
+    // Nobody registered in the app: the series' entry list in Sail Scoring
+    list.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted);font-size:.85rem">Loading the entry list from Sail Scoring…</div>';
+    const entries=await _ssFinishEntries(race.ssSeriesId);
+    if(_finishRecordRace!==race) return; // switched race meanwhile
+    _finishRecordBoats=(entries||[]).map(e=>({id:e.id,name:e.boatName||e.sailNumber||'Entry',sailNumber:e.sailNumber||'',
+      ssCompetitorId:e.id,ssFleet:(e.fleets&&e.fleets[0])||''})).sort((a,b)=>a.name.localeCompare(b.name));
+  }
   _finishRecordBoats.forEach(b=>{
     if(!_finishRecords[b.id]) _finishRecords[b.id]={sailNumber:b.sailNumber||'',name:b.name,time:null,status:''};
   });
@@ -17135,7 +17186,13 @@ function renderFinishRecordList(){
   const sectionHtml=(boatList,heading)=>{
     if(!boatList.length) return '';
     let html=heading?`<div style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:14px 0 8px">${heading}</div>`:'';
-    if(!activeFleets().length){
+    // Boats from a Sail Scoring entry list: grouped by its fleets
+    const ssFleets=[...new Set(_finishRecordBoats.map(b=>b.ssFleet||''))];
+    if(_finishRecordBoats.some(b=>b.ssCompetitorId)){
+      html+=ssFleets.length<2?boatList.map(rowHtml).join('')
+        :ssFleets.map(fn=>{ const g=boatList.filter(b=>(b.ssFleet||'')===fn); return g.length
+          ?`<div style="font-size:.85rem;color:var(--teal);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin:8px 0 4px">${escHtml(fn||'Other')} (${g.length})</div>`+g.map(rowHtml).join(''):''; }).join('');
+    } else if(!activeFleets().length){
       html+=boatList.map(rowHtml).join('');
     } else {
       html+=groupBoatsByFleet(boatList).map(g=>
@@ -17262,8 +17319,9 @@ function _ssFinishRows(){
   const recs=_finishRecordBoats.map(b=>({b,rec:_finishRecords[b.id]})).filter(x=>x.rec&&(x.rec.time||x.rec.status));
   const fin=recs.filter(x=>x.rec.time).sort((a,b)=>a.rec.time.localeCompare(b.rec.time));
   const non=recs.filter(x=>!x.rec.time&&x.rec.status);
-  return fin.map(x=>({id:x.b.id,sailNumber:x.b.sailNumber||'',boatName:x.b.name,finishTime:x.rec.time}))
-    .concat(non.map(x=>({id:x.b.id,sailNumber:x.b.sailNumber||'',boatName:x.b.name,resultCode:x.rec.status})));
+  const who=b=>({id:b.id,sailNumber:b.sailNumber||'',boatName:b.name,...(b.ssCompetitorId?{competitorId:b.ssCompetitorId}:{})});
+  return fin.map(x=>({...who(x.b),finishTime:x.rec.time}))
+    .concat(non.map(x=>({...who(x.b),resultCode:x.rec.status})));
 }
 async function renderSsFinishSend(reload){
   const wrap=document.getElementById('ssFinishSend'); if(!wrap) return;
@@ -17276,13 +17334,21 @@ async function renderSsFinishSend(reload){
     _ssFinishDay={date,races:status===200?(body.races||[]):[],error:status===200?'':(body.message||'Could not reach Sail Scoring (HTTP '+status+')')};
     if(!_finishRecordRace||dayDateStr(_finishRecordRace.date)!==date) return; // race changed meanwhile
   }
-  const st=_ssFinishState();
-  const races=_ssFinishDay.races;
+  let st=_ssFinishState();
+  let races=_ssFinishDay.races;
+  const linked=_finishRecordRace.ssRaceId;
+  if(linked){
+    // Synced from Sail Scoring: it's that race, no choosing
+    races=races.filter(r=>r.id===linked);
+    if(st.raceId!==linked){ st={raceId:linked,seriesId:_finishRecordRace.ssSeriesId}; _ssFinishSave(st); }
+    // Out of range the day can't be loaded, but the race is known
+    if(!races.length) races=[{id:linked,seriesId:_finishRecordRace.ssSeriesId,seriesName:_finishRecordRace.label,number:null,starts:[]}];
+  }
   // Default: the one remembered for this app race, else the only race that day
   if(!st.raceId&&races.length===1){ st.raceId=races[0].id; st.seriesId=races[0].seriesId; _ssFinishSave(st); }
   const rows=_ssFinishRows();
   const changed=st.sentRows!==JSON.stringify(rows);
-  const opt=r=>`<option value="${escHtml(r.id)}"${r.id===st.raceId?' selected':''}>${escHtml(r.seriesName)} · Race ${escHtml(r.number)}${r.starts.length?' · '+escHtml(r.starts.map(s=>(s.startTime||'').slice(0,5)).filter(Boolean).join(', ')):''}</option>`;
+  const opt=r=>`<option value="${escHtml(r.id)}"${r.id===st.raceId?' selected':''}>${escHtml(r.seriesName)}${r.number!=null?' · Race '+escHtml(r.number):''}${r.starts.length?' · '+escHtml(r.starts.map(s=>(s.startTime||'').slice(0,5)).filter(Boolean).join(', ')):''}</option>`;
   const statusLine=st.revision
     ?`Sent revision ${st.revision}${st.sentAt?' at '+new Date(st.sentAt).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'}):''} · <b>${escHtml(st.status==='applied'?'applied by the scorer':st.status==='dismissed'?'dismissed by the scorer':'waiting for the scorer')}</b>`
       +(st.unknown&&st.unknown.length?`<div style="color:var(--gold);margin-top:3px">Sail numbers the scorer will need to match: ${escHtml(st.unknown.join(', '))}</div>`:'')
@@ -17290,7 +17356,7 @@ async function renderSsFinishSend(reload){
     :(rows.length?'Not sent yet':'Nothing recorded yet');
   wrap.innerHTML=`<div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--navy-mid)">
     <div style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">Sail Scoring</div>
-    ${_ssFinishDay.error?`<div style="font-size:.85rem;color:var(--warn);margin-top:8px">${escHtml(_ssFinishDay.error)}</div>`
+    ${_ssFinishDay.error&&!linked?`<div style="font-size:.85rem;color:var(--warn);margin-top:8px">${escHtml(_ssFinishDay.error)}</div>`
       :!races.length?`<div style="font-size:.85rem;color:var(--muted);margin-top:8px">No race in Sail Scoring on ${escHtml(date)} — the scorer adds the day's races there.</div>`
       :`<select id="ssFinishRace" onchange="ssFinishPickRace(this.value)" style="margin-top:8px;width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:7px 10px">
           ${st.raceId?'':'<option value="">Choose the race in Sail Scoring…</option>'}${races.map(opt).join('')}

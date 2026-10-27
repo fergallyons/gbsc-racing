@@ -17,6 +17,10 @@
 [functions."ss-keepalive"]
   schedule = "0 4 * * 1"
 
+# The app's race list follows Sail Scoring for Sail Scoring clubs (ss-sync.js)
+[functions."ss-sync"]
+  schedule = "*/15 * * * *"
+
 [[edge_functions]]
   path = "/club-config.js"
   function = "club-config"

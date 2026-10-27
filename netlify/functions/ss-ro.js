@@ -19,6 +19,10 @@
 //     sail number or boat name matches one, else by the sail number written
 //     down. Each send is the whole recording at a higher revision.
 //   POST { action: 'submission', pin, raceId, submissionId }  where the scorer is
+//   POST { action: 'entries', pin, seriesId }   the series' entry list, for
+//     the Finish Line when nobody registered for a synced race in the app
+//   POST { action: 'sync', pin }   bring the app's race list in step with
+//     Sail Scoring now (_sssync.js) — also run after each change above
 //
 // Every action needs the club's RO or Club Admin PIN (roPinOk). The club
 // comes from the hostname or ?club= (resolveClubSlug); the PIN is checked
@@ -28,6 +32,7 @@
 const crypto = require('crypto');
 const { resolveClubSlug } = require('./_club');
 const { clubDb, wsApi, roPinOk } = require('./_sailscoring');
+const { syncClub } = require('./_sssync');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -52,6 +57,11 @@ function failure(r, what) {
   return json(r.status >= 400 && r.status < 600 ? r.status : 502, {
     error: b.error || 'sailscoring', message: what + ' — Sail Scoring said: ' + (b.message || ('HTTP ' + r.status)) + detail,
   });
+}
+// The app's race list follows a change the RO just made; a failure here
+// doesn't undo the change, it's only reported
+async function syncAfter(slug) {
+  try { return await syncClub(slug); } catch (e) { return { error: e.message }; }
 }
 const sailKey = s => String(s == null ? '' : s).replace(/[^a-z0-9]/gi, '').toUpperCase();
 const nameKey = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -114,7 +124,9 @@ async function buildFinishes(slug, seriesId, rows) {
   });
   return rows.map(row => {
     const id = String(row.id || '').slice(0, 64);
-    const competitorId = bySail[sailKey(row.sailNumber)] || byName[nameKey(row.boatName)] || null;
+    // A row recorded against the Sail Scoring entry list already names its entry
+    const competitorId = (UUID.test(String(row.competitorId || '')) && row.competitorId)
+      || bySail[sailKey(row.sailNumber)] || byName[nameKey(row.boatName)] || null;
     const f = { id };
     if (competitorId) f.competitorId = competitorId;
     else f.sailNumber = String(row.sailNumber || row.boatName || '?').slice(0, 40);
@@ -141,17 +153,42 @@ exports.handler = async (event) => {
     return day(slug, req.date);
   }
 
+  if (a === 'sync') {
+    const r = await syncClub(slug);
+    return r.error || r.skipped ? json(r.error ? 502 : 409, { error: 'sync', message: r.error || r.skipped, ...r }) : json(200, { ok: true, sync: r });
+  }
+
+  if (a === 'entries') {
+    // A series' entry list for the Finish Line: entry id, sail number,
+    // boat name and the fleets it's entered in (excluded entries left out)
+    if (!UUID.test(req.seriesId || '')) return bad('Unknown series');
+    const [c, fl] = await Promise.all([
+      wsApi(slug, 'GET', '/series/' + enc(req.seriesId) + '/competitors'),
+      wsApi(slug, 'GET', '/series/' + enc(req.seriesId) + '/fleets'),
+    ]);
+    if (c.status !== 200) return failure(c, 'Could not load the entry list');
+    const fleets = {};
+    (fl.status === 200 && fl.body && Array.isArray(fl.body.fleets) ? fl.body.fleets : []).forEach(f => { if (f && f.id) fleets[f.id] = f.name || ''; });
+    const entries = (Array.isArray(c.body && c.body.competitors) ? c.body.competitors : [])
+      .filter(x => x && UUID.test(String(x.id || '')) && !x.excluded)
+      .map(x => ({ id: x.id, sailNumber: x.sailNumber || '', boatName: x.boatName || '',
+        fleets: (x.fleetIds || []).map(f => fleets[f]).filter(Boolean) }));
+    return json(200, { entries });
+  }
+
   if (a === 'startTime') {
     if (!UUID.test(req.raceId || '') || !UUID.test(req.startId || '')) return bad('Unknown start');
     if (!TIME.test(req.startTime || '')) return bad('Start time must be HH:MM or HH:MM:SS');
     const r = await wsApi(slug, 'PATCH', '/races/' + enc(req.raceId) + '/starts/' + enc(req.startId), { body: { startTime: req.startTime } });
-    return r.status === 200 ? json(200, { ok: true, start: { id: r.body.id, startTime: r.body.startTime } }) : failure(r, 'Could not change the start time');
+    if (r.status !== 200) return failure(r, 'Could not change the start time');
+    return json(200, { ok: true, start: { id: r.body.id, startTime: r.body.startTime }, sync: await syncAfter(slug) });
   }
 
   if (a === 'deleteStart') {
     if (!UUID.test(req.raceId || '') || !UUID.test(req.startId || '')) return bad('Unknown start');
     const r = await wsApi(slug, 'DELETE', '/races/' + enc(req.raceId) + '/starts/' + enc(req.startId));
-    return r.status >= 200 && r.status < 300 ? json(200, { ok: true }) : failure(r, 'Could not cancel the start');
+    if (r.status < 200 || r.status >= 300) return failure(r, 'Could not cancel the start');
+    return json(200, { ok: true, sync: await syncAfter(slug) });
   }
 
   if (a === 'deleteRace') {
@@ -162,7 +199,8 @@ exports.handler = async (event) => {
     const n = Array.isArray(fin.body && fin.body.finishes) ? fin.body.finishes.length : 0;
     if (n) return json(409, { error: 'conflict', message: 'This race has ' + n + ' finish' + (n === 1 ? '' : 'es') + ' in Sail Scoring — cancel it there if it really should go' });
     const r = await wsApi(slug, 'DELETE', '/series/' + enc(req.seriesId) + '/races/' + enc(req.raceId));
-    return r.status >= 200 && r.status < 300 ? json(200, { ok: true }) : failure(r, 'Could not cancel the race');
+    if (r.status < 200 || r.status >= 300) return failure(r, 'Could not cancel the race');
+    return json(200, { ok: true, sync: await syncAfter(slug) });
   }
 
   if (a === 'publish') {
