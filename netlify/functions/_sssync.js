@@ -19,10 +19,11 @@
 // series archived) is made inactive, never deleted: registrations,
 // payments and finish recordings hang off it.
 //
-// The label is set when a race is added and otherwise left alone, unless
-// its date moves: registrations, payments and finish recordings are keyed
-// by date + label (raceKey() in app.js), so relabelling an unmoved race
-// would cut them off.
+// Labels follow Sail Scoring too ("<series> — Wed Oct 28", plus the first
+// gun when the series races more than once that day). A synced race is
+// keyed by its Sail Scoring id (raceKey() in app.js), not its label, so
+// relabelling never cuts it off from its registrations, payments or
+// finish recordings.
 
 const { clubDb, readConnection, wsApi } = require('./_sailscoring');
 
@@ -36,11 +37,13 @@ function addDays(ymd, n) {
   return d.toISOString().slice(0, 10);
 }
 // "Winter Series — Wed Oct 28", the app's own label style
-function makeLabel(seriesName, ymd) {
+// …and its first gun when it isn't the series' only race that day
+function makeLabel(seriesName, ymd, gun) {
   const d = new Date(ymd + 'T12:00:00Z');
   const wd = d.toLocaleDateString('en-GB', { weekday: 'short', timeZone: 'UTC' });
   const mo = d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' });
-  return seriesName + ' — ' + wd + ' ' + mo + ' ' + d.getUTCDate();
+  const t = gun ? ' ' + String(gun.start_hour).padStart(2, '0') + ':' + String(gun.start_min).padStart(2, '0') : '';
+  return seriesName + ' — ' + wd + ' ' + mo + ' ' + d.getUTCDate() + t;
 }
 // The race's first gun, as start_hour/start_min, or null when no start has a time
 function firstGun(race) {
@@ -89,6 +92,8 @@ async function syncClub(slug) {
 
   for (const x of ssRaces.sort((a, b) => a.date.localeCompare(b.date))) {
     const gun = firstGun(x);
+    const shared = ssRaces.filter(o => o.seriesId === x.seriesId && o.date === x.date).length > 1;
+    const label = makeLabel(x.seriesName, x.date, shared ? gun : null);
     let row = byLink[x.id];
     if (!row) {
       // Link an app race entered by hand for the same day, if it's clearly this one
@@ -97,14 +102,14 @@ async function syncClub(slug) {
       row = (gun && sameDay.find(r => r.start_hour === gun.start_hour && r.start_min === gun.start_min))
         || (sameDay.length === 1 && ssSameDay.length === 1 ? sameDay[0] : null);
       if (row) {
-        const res = await patch(row.id, { ss_race_id: x.id, ss_series_id: x.seriesId, series: x.seriesName, active: true, ...(gun || {}) });
+        const res = await patch(row.id, { ss_race_id: x.id, ss_series_id: x.seriesId, series: x.seriesName, label, active: true, ...(gun || {}) });
         if (!res.ok) return { error: 'Could not link a race (HTTP ' + res.status + ')', ...out };
         row.ss_race_id = x.id; byLink[x.id] = row;
         out.linked++;
         continue;
       }
       const res = await db.req('races', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: {
-        label: makeLabel(x.seriesName, x.date), race_date: x.date, series: x.seriesName, active: true,
+        label, race_date: x.date, series: x.seriesName, active: true,
         ss_race_id: x.id, ss_series_id: x.seriesId, ...(gun || {}),
       } });
       if (!res.ok) return { error: 'Could not add a race (HTTP ' + res.status + ')', ...out };
@@ -113,7 +118,8 @@ async function syncClub(slug) {
     }
     // Linked: date, gun and series follow Sail Scoring
     const fields = {};
-    if (row.race_date !== x.date) { fields.race_date = x.date; fields.label = makeLabel(x.seriesName, x.date); }
+    if (row.race_date !== x.date) fields.race_date = x.date;
+    if (row.label !== label) fields.label = label;
     if (gun && (row.start_hour !== gun.start_hour || row.start_min !== gun.start_min)) Object.assign(fields, gun);
     if (row.series !== x.seriesName) fields.series = x.seriesName;
     if (!row.active) fields.active = true;

@@ -1221,7 +1221,12 @@ function getRacesForDay(date){
   return allRaces.filter(r=>r.date.toDateString()===key).sort((a,b)=>a.date-b.date);
 }
 function raceKey(r){
-  // Stable string key for a race — used as registration identifier
+  // Stable string key for a race — used as registration identifier.
+  // A race synced from Sail Scoring is keyed by its Sail Scoring race id:
+  // the sync labels races "<series> — <date>", so two races on one day in
+  // one series would otherwise share one key — and with it registrations,
+  // payments and finish recordings. Mirrored in detect-finishes.js.
+  if(r.ssRaceId) return r.date.toISOString().split('T')[0]+'_ss'+String(r.ssRaceId).replace(/[^a-z0-9]/gi,'').toLowerCase();
   return r.date.toISOString().split('T')[0]+'_'+r.label.replace(/[^a-z0-9]/gi,'').toLowerCase().slice(0,20);
 }
 // Calendar-day string for a race's date — the day-scoped identity fee/

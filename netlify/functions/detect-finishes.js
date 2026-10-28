@@ -66,6 +66,7 @@ async function fetchJson(url, headers) {
 
 function raceKeyFor(race) {
   // Mirrors app.js's raceKey() exactly — must stay in sync with it.
+  if (race.ss_race_id) return race.race_date + '_ss' + String(race.ss_race_id).replace(/[^a-z0-9]/gi, '').toLowerCase();
   return race.race_date + '_' + race.label.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 20);
 }
 
