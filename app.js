@@ -17083,6 +17083,45 @@ function _finishRecordKey(race){
 function _ssFlCacheKey(){ return 'ssFinishCache_'+(_C.slug||'club'); }
 function _ssFlCache(){ try{ return JSON.parse(localStorage.getItem(_ssFlCacheKey())||'{}')||{}; }catch(e){ return {}; } }
 function _ssFlCacheSet(c){ try{ localStorage.setItem(_ssFlCacheKey(),JSON.stringify(c)); }catch(e){} }
+// The Finish Line's roster for a race synced from Sail Scoring. Sail
+// Scoring's entry list is the master — it's who the scorer can score — and
+// RaceOps registrations order it:
+//   registered  entries that also registered for this race in RaceOps
+//               (matched by sail number, then boat name): listed first
+//   other       entries that didn't register: folded away below, so a
+//               boat that turns up unregistered can still be recorded
+//   unentered   RaceOps registrations with no Sail Scoring entry:
+//               flagged, still recordable, sent by sail number for the
+//               scorer to add
+// A boat that is a RaceOps boat keeps its RaceOps id, so auto-detected
+// finishes and anything already recorded line up; an entry with no
+// RaceOps boat is "ss:<entry id>".
+function _ssCombinedRoster(entries,registered){
+  const sk=v=>String(v||'').replace(/[^a-z0-9]/gi,'').toUpperCase();
+  const fleetOf=e=>(e.fleets&&e.fleets[0])||'';
+  const used=new Set();
+  const entryFor=b=>{
+    const s=sk(b.sailNumber), n=normBoatName(b.name);
+    return (s&&entries.find(e=>!used.has(e.id)&&sk(e.sailNumber)===s))
+      ||(n&&entries.find(e=>!used.has(e.id)&&normBoatName(e.boatName)===n))||null;
+  };
+  const out=[];
+  registered.forEach(b=>{
+    const e=entryFor(b);
+    if(e){ used.add(e.id); out.push({...b,ssCompetitorId:e.id,ssFleet:fleetOf(e),group:'registered'}); }
+    else out.push({...b,group:'unentered'});
+  });
+  entries.forEach(e=>{
+    if(used.has(e.id)) return;
+    const s=sk(e.sailNumber), n=normBoatName(e.boatName);
+    const b=boats.find(x=>(s&&sk(x.sailNumber)===s)||(!sk(x.sailNumber)&&n&&normBoatName(x.name)===n));
+    out.push({id:b?b.id:'ss:'+e.id,name:e.boatName||(b&&b.name)||e.sailNumber||'Entry',sailNumber:e.sailNumber||'',
+      ssCompetitorId:e.id,ssFleet:fleetOf(e),group:'other'});
+  });
+  return out;
+}
+let _ssOthersOpen=false; // "Others in the series" folded open, kept across re-renders
+
 async function _ssFinishEntries(seriesId){
   const {status,body}=await _ssRoCall('entries',{seriesId});
   const c=_ssFlCache(); c.entries=c.entries||{};
@@ -17156,15 +17195,18 @@ async function _loadFinishRecordDataForRace(){
   const race=_finishRecordRace;
   const regs=await sbLoadRegistrations(race);
   const regIds=new Set((regs||[]).map(r=>r.boat_id));
-  _finishRecordBoats=boats.filter(b=>regIds.has(b.id)).sort((a,b)=>a.name.localeCompare(b.name));
-  if(!_finishRecordBoats.length&&race.ssSeriesId&&isRO&&ssResultsSource()==='sailscoring'){
-    // Nobody registered in the app: the series' entry list in Sail Scoring
+  const registered=boats.filter(b=>regIds.has(b.id));
+  _finishRecordBoats=registered;
+  if(race.ssSeriesId&&isRO&&ssResultsSource()==='sailscoring'){
+    // A race synced from Sail Scoring: its series' entry list there is the
+    // roster (who can be scored), with RaceOps registrations deciding who
+    // comes first (_ssCombinedRoster)
     list.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted);font-size:.85rem">Loading the entry list from Sail Scoring…</div>';
     const entries=await _ssFinishEntries(race.ssSeriesId);
     if(_finishRecordRace!==race) return; // switched race meanwhile
-    _finishRecordBoats=(entries||[]).map(e=>({id:e.id,name:e.boatName||e.sailNumber||'Entry',sailNumber:e.sailNumber||'',
-      ssCompetitorId:e.id,ssFleet:(e.fleets&&e.fleets[0])||''})).sort((a,b)=>a.name.localeCompare(b.name));
+    if(entries) _finishRecordBoats=_ssCombinedRoster(entries,registered);
   }
+  _finishRecordBoats.sort((a,b)=>a.name.localeCompare(b.name));
   _finishRecordBoats.forEach(b=>{
     if(!_finishRecords[b.id]) _finishRecords[b.id]={sailNumber:b.sailNumber||'',name:b.name,time:null,status:''};
   });
@@ -17230,7 +17272,7 @@ function renderFinishRecordList(){
     return `<div style="background:var(--card);border:1px solid ${borderColour};border-radius:10px;padding:8px 10px;margin-bottom:6px;display:flex;align-items:center;gap:8px">
       <div onclick="recordFinish('${b.id}')" style="flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:8px">
         <div style="min-width:0">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1rem;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(b.name)}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1rem;color:var(--white);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(b.name)}${b.group==='unentered'?' <span title="Not entered in Sail Scoring" style="color:var(--gold)">⚠</span>':''}</div>
           <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;color:${b.sailNumber?'var(--gold)':'var(--muted)'}">${escHtml(b.sailNumber||'No sail no.')}</div>
         </div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:${pendingAuto&&!rec.time?'.85rem':'1.1rem'};font-weight:800;color:${timeColour};flex-shrink:0;text-align:right;white-space:nowrap">${timeText}</div>
@@ -17245,8 +17287,9 @@ function renderFinishRecordList(){
   const sectionHtml=(boatList,heading)=>{
     if(!boatList.length) return '';
     let html=heading?`<div style="font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:14px 0 8px">${heading}</div>`:'';
-    // Boats from a Sail Scoring entry list: grouped by its fleets
-    const ssFleets=[...new Set(_finishRecordBoats.map(b=>b.ssFleet||''))];
+    // Boats from a Sail Scoring entry list: grouped by its fleets, where
+    // this section has more than one
+    const ssFleets=[...new Set(boatList.map(b=>b.ssFleet||''))];
     if(_finishRecordBoats.some(b=>b.ssCompetitorId)){
       html+=ssFleets.length<2?boatList.map(rowHtml).join('')
         :ssFleets.map(fn=>{ const g=boatList.filter(b=>(b.ssFleet||'')===fn); return g.length
@@ -17267,7 +17310,21 @@ function renderFinishRecordList(){
   const pendingCount=remaining.filter(b=>_autoFinishes[b.id]).length;
   let html='';
   if(pendingCount>1) html+=`<button onclick="acceptAllAutoFinishes()" style="width:100%;padding:10px;margin-bottom:12px;background:rgba(0,174,239,.12);border:1px solid rgba(0,174,239,.35);border-radius:10px;color:var(--teal);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;cursor:pointer">🤖 Accept all ${pendingCount} detected finishes</button>`;
-  html+=sectionHtml(remaining,'');
+  // Synced races: registered boats first, then registrations Sail Scoring
+  // has no entry for, then the rest of the series' entries folded away
+  const remReg=remaining.filter(b=>b.group!=='other'&&b.group!=='unentered');
+  const remUnentered=remaining.filter(b=>b.group==='unentered');
+  const remOther=remaining.filter(b=>b.group==='other');
+  html+=sectionHtml(remReg,'');
+  if(remUnentered.length) html+=sectionHtml(remUnentered,`⚠ Registered, not entered in Sail Scoring (${remUnentered.length})`)
+    +'<div style="font-size:.78rem;color:var(--muted);margin:-2px 0 8px;line-height:1.4">Record them as usual — they go to the scorer by sail number to add to the entries.</div>';
+  if(remOther.length){
+    const open=_ssOthersOpen||!remReg.length&&!remUnentered.length;
+    html+=`<details ${open?'open':''} ontoggle="_ssOthersOpen=this.open" style="margin-top:12px">
+      <summary style="cursor:pointer;font-size:.9rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700;padding:6px 0">Others in the series — not registered (${remOther.length})</summary>
+      ${sectionHtml(remOther,'')}
+    </details>`;
+  }
   html+=sectionHtml(finished,`Finished (${finished.length})`);
   html+=sectionHtml(nonFinishers,`Not Finishing (${nonFinishers.length})`);
   list.innerHTML=html;
@@ -17539,7 +17596,8 @@ async function ssCheckFinishes(){
 function updateFinishRecordTile(){
   const sub=document.getElementById('finishRecordStatus'); if(!sub) return;
   const recorded=Object.values(_finishRecords).filter(r=>r&&(r.time||r.status)).length;
-  const total=_finishRecordBoats.length;
+  // Unregistered series entries aren't expected out — they count once recorded
+  const total=_finishRecordBoats.filter(b=>b.group!=='other'||(_finishRecords[b.id]&&(_finishRecords[b.id].time||_finishRecords[b.id].status))).length;
   sub.textContent=total?(recorded+' of '+total+' recorded'):'No finishes recorded';
 }
 
