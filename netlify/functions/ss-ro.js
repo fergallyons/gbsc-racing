@@ -12,12 +12,14 @@
 //     refused while it has finishes, so recorded results can't be lost
 //   POST { action: 'publish', pin, seriesId }    republish a published series
 //   POST { action: 'submit', pin, raceId, seriesId, submissionId, revision,
-//          rows, complete }
+//          rows, complete, starts?, recordedBy? }
 //     hand the Finish Line's recording to the scorer as a finish-sheet
 //     submission: rows [{ id, sailNumber, boatName, finishTime | resultCode }]
 //     in crossing order; boats are named by Sail Scoring entry id where the
 //     sail number or boat name matches one, else by the sail number written
-//     down. Each send is the whole recording at a higher revision.
+//     down. Each send is the whole recording at a higher revision. starts
+//     [{ startId, startTime }] are the guns as fired on the water;
+//     recordedBy names the RO on duty.
 //   POST { action: 'submission', pin, raceId, submissionId }  where the scorer is
 //   POST { action: 'entries', pin, seriesId }   the series' entry list, for
 //     the Finish Line when nobody registered for a synced race in the app
@@ -223,11 +225,17 @@ exports.handler = async (event) => {
       if (!row || !row.id) return bad('Every row needs an id');
       if (row.resultCode ? !RESULT_CODES.includes(row.resultCode) : !TIME.test(row.finishTime || '')) return bad('Bad finish for ' + (row.boatName || row.sailNumber || row.id));
     }
+    // Start times taken on the water (the start sequence's actual guns), by start id
+    const starts = (Array.isArray(req.starts) ? req.starts : []).slice(0, 20)
+      .filter(x => x && UUID.test(String(x.startId || '')) && TIME.test(String(x.startTime || '')))
+      .map(x => ({ startId: x.startId, startTime: x.startTime }));
+    // Who recorded it: the RO on duty, where the app knows their name
+    const recordedBy = (typeof req.recordedBy === 'string' && req.recordedBy.trim()) ? req.recordedBy.trim().slice(0, 80) : 'RaceOps Finish Line';
     let revision = Math.max(1, parseInt(req.revision, 10) || 1);
     const finishes = await buildFinishes(slug, req.seriesId, rows);
     const path = '/races/' + enc(req.raceId) + '/submissions/' + enc(req.submissionId);
     const send = () => wsApi(slug, 'PUT', path, { body: {
-      revision, recordedBy: 'RaceOps Finish Line', starts: [], finishes, complete: !!req.complete,
+      revision, recordedBy, starts, finishes, complete: !!req.complete,
     } });
     let r = await send();
     if (r.status === 409) {

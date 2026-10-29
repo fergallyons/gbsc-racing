@@ -710,6 +710,7 @@ const FEAT={
   livePortWeather: !!(_C.features&&_C.features.livePortWeather),  // true = show live Port of Galway station data (GBSC-only hardware)
   feeWizard: !!(_C.features&&_C.features.feeWizard),               // true = guided declare/collect/review/submit flow replaces the passive Race Fees panel (GBSC-only, needs SCHEMA_HAS_DAY_SCOPED_PAYMENTS too)
   rnli: !!(_C.features&&_C.features.rnli),                         // true = crew-level RNLI contribution tiles (GBSC-only, needs SCHEMA_HAS_RNLI too)
+  orcRatings: !!(_C.features&&_C.features.orcRatings),             // true = each boat's ORC certificate (GPH, ToT) in Handicaps and the boat card
 };
 
 // Map from feature key → tile element IDs that applyAllFeatureVisibility() shows/hides.
@@ -771,6 +772,7 @@ const FEAT_DEFAULTS={
   feeWizard:false, // opt-in — GBSC-only, needs migration 058 applied too; other clubs must stay unaffected
   rnli:false, // opt-in — GBSC-only, needs migration 061 applied too; other clubs must stay unaffected
   crewTurnout:false, // opt-in — publicly ranks named crew by races attended; a club must choose this, not inherit it
+  orcRatings:false, // opt-in — only clubs scoring (or wanting to show) ORC
   crew:true, fees:true, protest:true, boatSettings:true, feeHistory:true,
   selfPay:true, weather:true, calendar:true, documents:true, results:true,
   crewWanted:true, crewAvailable:true, newSailors:true, handicaps:true,
@@ -783,6 +785,7 @@ const FEAT_CATALOG=[
   {key:'livePortWeather', label:'Live Port of Galway Weather (Race Weather tab)', type:'bool', group:'Behaviour'},
   {key:'feeWizard', label:'Guided Fee Wizard — declare crew, collect funds, review, submit', type:'bool', group:'Behaviour'},
   {key:'rnli', label:'RNLI Contributions — crew-level donate flow (Revolut + Card)', type:'bool', group:'Behaviour'},
+  {key:'orcRatings', label:'ORC Ratings — each boat\'s ORC certificate (GPH, ToT) in Handicaps and the boat card', type:'bool', group:'Behaviour'},
   {key:'resultsSource', label:'Results Source — where the Results tab gets its standings', type:'select', group:'Behaviour',
     options:[{value:'halsail',label:'Halsail'},{value:'sailscoring',label:'Sail Scoring'},{value:'none',label:'None (club website link only)'}]},
   {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
@@ -850,6 +853,7 @@ function liftVeil(){
     if(f.livePortWeather!==undefined) FEAT.livePortWeather=!!f.livePortWeather;
     if(f.feeWizard!==undefined) FEAT.feeWizard=!!f.feeWizard;
     if(f.rnli!==undefined) FEAT.rnli=!!f.rnli;
+    if(f.orcRatings!==undefined) FEAT.orcRatings=!!f.orcRatings;
   }catch(e){}
   liftVeil();
 })();
@@ -4225,6 +4229,9 @@ function applyAllFeatureVisibility(){
   else FEAT.feeWizard=(FEAT_DEFAULTS.feeWizard===true);
   if(f.rnli!==undefined) FEAT.rnli=!!f.rnli;
   else FEAT.rnli=(FEAT_DEFAULTS.rnli===true);
+  if(f.orcRatings!==undefined) FEAT.orcRatings=!!f.orcRatings;
+  else FEAT.orcRatings=(FEAT_DEFAULTS.orcRatings===true);
+  document.querySelectorAll('.dash-orc').forEach(el=>{ el.style.display=FEAT.orcRatings?'':'none'; });
   // If the Weather panel is already open when this flag flips (e.g. an RO
   // toggles it live in Settings → Features), re-render it immediately
   // rather than waiting for the next manual open — both loadRaceWeather()
@@ -9255,6 +9262,44 @@ async function generatePaymentReport(){
 let _handicapsLoaded=false;
 function normBoatName(s){ return (s||'').toLowerCase().replace(/[^a-z0-9]/g,''); }
 
+// ── ORC ratings (feature orcRatings; netlify/functions/orc-ratings.js) ──
+// ORC certificates in their simplest form — GPH (seconds per mile) and the
+// two time-on-time single numbers, inshore and offshore — from ORC's own
+// register for Ireland, cached on the device for a day (ORC asks clients
+// to fetch at most daily). A boat is matched by sail number, then by sail
+// number digits and name together, then by name alone (flagged, since two
+// boats can share a name).
+const ORC_TTL_MS=24*3600*1000;
+async function loadOrcCerts(){
+  if(!FEAT.orcRatings) return [];
+  const key='__orc_certs_IRL';
+  const cached=_ttlCacheGet(key,ORC_TTL_MS);
+  if(cached) return cached;
+  const res=await fetch('/.netlify/functions/orc-ratings?country=IRL');
+  const data=await res.json();
+  if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
+  _ttlCacheSet(key,data.certs||[]);
+  return data.certs||[];
+}
+function orcCertFor(boat,certs){
+  if(!boat||!certs||!certs.length) return null;
+  const sk=v=>String(v||'').replace(/[^a-z0-9]/gi,'').toUpperCase();
+  const digits=v=>String(v||'').replace(/\D/g,'');
+  const bs=sk(boat.sailNumber), bd=digits(boat.sailNumber), bn=normBoatName(boat.name);
+  const exact=bs&&certs.find(c=>sk(c.sailNo)===bs);
+  if(exact) return exact;
+  const both=bd&&certs.find(c=>digits(c.sailNo)===bd&&normBoatName(c.yachtName)===bn);
+  if(both) return both;
+  const byName=bn&&certs.find(c=>normBoatName(c.yachtName)===bn);
+  return byName?{...byName,byNameOnly:true}:null;
+}
+function orcSummary(c){
+  if(!c) return '';
+  const f=(v,d)=>v==null?'—':Number(v).toFixed(d);
+  return 'ORC '+(c.certType==='INTL'?'International':'Club')+' · GPH '+f(c.gph,1)+' · ToT '+f(c.totInshore,4)+' inshore / '+f(c.totOffshore,4)+' offshore'
+    +(c.byNameOnly?' (matched by name — check sail no. '+c.sailNo+')':'');
+}
+
 async function loadHandicaps(){
   const body=document.getElementById('handicapsBody');
   if(!body||_handicapsLoaded) return;
@@ -9264,14 +9309,15 @@ async function loadHandicaps(){
     // ratings API for the wrong club would silently return GBSC's own
     // fleet data mislabeled as this club's. Empty just returns nothing.
     const clubName=_C.name||'';
-    const [res,halEcho]=await Promise.all([
+    const [res,halEcho,orc]=await Promise.all([
       fetch('/.netlify/functions/echo-irc-ratings?club='+encodeURIComponent(clubName)),
-      loadClubCurrentEcho()
+      loadClubCurrentEcho(),
+      loadOrcCerts().catch(e=>{ console.warn('ORC ratings',e); return null; }) // ORC is extra: its failure doesn't hide IRC/ECHO
     ]);
     const data=await res.json();
     if(!res.ok||data.error) throw new Error(data.error||'HTTP '+res.status);
     _handicapsLoaded=true;
-    renderHandicaps(data.boats||[],halEcho,data.fetchedAt);
+    renderHandicaps(data.boats||[],halEcho,data.fetchedAt,orc);
   }catch(e){
     body.innerHTML='<div class="empty-state" style="margin:0;padding:18px"><div class="icon">⚠</div><div>Could not load ratings — '+escHtml(String(e.message||e)).slice(0,80)+'</div></div>';
   }
@@ -9322,7 +9368,7 @@ async function loadSailScoringCurrentEcho(){
   return out;
 }
 
-function renderHandicaps(nationalBoats,halEcho,fetchedAt){
+function renderHandicaps(nationalBoats,halEcho,fetchedAt,orcCerts){
   const body=document.getElementById('handicapsBody');
   if(!body) return;
   const byNorm={};
@@ -9373,6 +9419,7 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
         <div style="font-size:.88rem;font-weight:700;color:${r.found?'var(--white)':'var(--danger)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(r.boat.name)}</div>
         ${r.match?`<div style="font-size:.85rem;color:var(--muted)">${escHtml(r.match.model||'')}${r.match.sailNo?' · '+escHtml(r.match.sailNo):''}</div>`
           :`<div style="font-size:.85rem;color:var(--danger)">⚠ No rating found</div>`}
+        ${(()=>{ const oc=FEAT.orcRatings&&orcCertFor(r.boat,orcCerts||[]); return oc?`<div style="font-size:.78rem;color:var(--teal)">${escHtml(orcSummary(oc))}</div>`:''; })()}
       </div>
       <div style="text-align:right;flex-shrink:0;min-width:46px">
         <div style="font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Base ECHO</div>
@@ -9400,7 +9447,7 @@ function renderHandicaps(nationalBoats,halEcho,fetchedAt){
       const src=ratingsSourceLabel();
       return 'Boat names are matched against Irish Sailing'+(src?' and '+src:'')+' automatically — a mismatch here may just mean a naming difference, not a missing certificate.'
         +(src?' Current ECHO is the handicap used in each boat\'s most recent race; Next is the ECHO that race produced — the number that will apply next time out. Both are blank for boats that haven\'t raced under '+src+' scoring yet this season'+(src==='Sail Scoring'?', and Next is blank for series scored on a fixed ECHO':'')+'.':'');
-    })()}<br>Sources: Irish Sailing ECHO/IRC Ratings${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE',{timeZone:'Europe/Dublin'})+')':''}${ratingsSourceLabel()?' · '+ratingsSourceLabel():''}</div>`;
+    })()}<br>Sources: Irish Sailing ECHO/IRC Ratings${FEAT.orcRatings?(orcCerts?' · ORC certificates (ORC, Ireland)':' · ORC certificates could not be loaded'):''}${fetchedAt?' (updated '+new Date(fetchedAt).toLocaleDateString('en-IE',{timeZone:'Europe/Dublin'})+')':''}${ratingsSourceLabel()?' · '+ratingsSourceLabel():''}</div>`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -9503,6 +9550,11 @@ async function loadBoatSummaryStrip(){
     if(ircEl) ircEl.textContent=irc||'—';
     if(echoEl) echoEl.textContent=nextEcho!=null?nextEcho:'—';
     if(typeEl) typeEl.textContent=(match&&match.model)?match.model:' ';
+    if(FEAT.orcRatings){
+      const oc=orcCertFor(currentBoat,await loadOrcCerts().catch(()=>[]));
+      const orcEl=document.getElementById('dash-orc');
+      if(orcEl){ orcEl.textContent=oc&&oc.totInshore!=null?Number(oc.totInshore).toFixed(4):'—'; orcEl.parentElement.title=oc?orcSummary(oc):'No ORC certificate found'; }
+    }
   }catch(e){
     // Silent — passive dashboard card, not worth an error toast on every load
   }
@@ -13989,7 +14041,8 @@ function ssRoRender(message){
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.78rem;color:var(--muted)">
       <div style="flex:1;line-height:1.4">The app's calendar follows Sail Scoring automatically every 15 minutes, and after each change here.</div>
       ${_ssRoBtn('⟳ Update now','ssRoSync()')}
-    </div>`;
+    </div>
+    ${_roOnDutyInput()}`;
   let body='';
   if(message) body=`<div style="font-size:.85rem;color:var(--muted);margin-top:10px">${message.startsWith('⚠')?'<span style="color:var(--warn)">'+escHtml(message)+'</span>':escHtml(message)}</div>`;
   else if(!d.races.length) body=`<div style="font-size:.85rem;color:var(--muted);margin-top:10px">No races in Sail Scoring on this day. The scorer adds races there; they appear here once they do.</div>`;
@@ -17097,6 +17150,7 @@ async function _loadFinishRecordDataForRace(){
     return;
   }
   _finishRecords=_loadFinishRecords(_finishRecordRace);
+  _ssGunRows.date=null; // re-read the start sequence's guns
   const list=document.getElementById('finishRecordList');
   list.innerHTML='<div style="text-align:center;padding:16px;color:var(--muted);font-size:.85rem">Loading registered boats…</div>';
   const race=_finishRecordRace;
@@ -17328,6 +17382,65 @@ function _ssFinishRows(){
   return fin.map(x=>({...who(x.b),finishTime:x.rec.time}))
     .concat(non.map(x=>({...who(x.b),resultCode:x.rec.status})));
 }
+// The RO on duty, by name: Sail Scoring sees the club's account for every
+// change, so the app records who was on duty (Mark's "Connecting through a
+// club's account"). Kept on the device for the day, entered in the Finish
+// Line or the RO Results tile, and sent as a submission's recordedBy.
+function _roOnDutyKey(){ return 'roOnDuty_'+(_C.slug||'club'); }
+function roOnDuty(){
+  try{ const v=JSON.parse(localStorage.getItem(_roOnDutyKey())||'null'); return v&&v.date===_ssRoToday()?v.name:''; }catch(e){ return ''; }
+}
+function setRoOnDuty(name){
+  try{ localStorage.setItem(_roOnDutyKey(),JSON.stringify({name:String(name||'').trim().slice(0,60),date:_ssRoToday()})); }catch(e){}
+}
+function _roOnDutyInput(){
+  return `<input type="text" placeholder="Officer on duty — your name" value="${escHtml(roOnDuty())}" maxlength="60" onchange="setRoOnDuty(this.value)"
+    style="width:100%;box-sizing:border-box;margin-top:8px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px;outline:none">`;
+}
+
+// The guns as actually fired, from the start sequence (race_starts), for the
+// Sail Scoring starts of a race: each Sail Scoring start takes the last gun
+// fired for one of its fleets (or for all fleets, with none set) between 20
+// minutes before its scheduled time and 45 minutes after — stopping short
+// of the same fleets' next start that day — so a general recall's restart
+// wins over the recalled gun, and the 11:30 race's gun isn't taken for the
+// 11:00. Sent with the finishes so the scorer has the real start.
+let _ssGunRows={date:null,rows:[]};
+async function _ssLoadGuns(date){
+  if(_ssGunRows.date===date) return _ssGunRows.rows;
+  const from=dublinInstant(date,0,0), to=new Date(from.getTime()+24*3600000);
+  const r=await sbFetch('/rest/v1/race_starts?start_time=gte.'+encodeURIComponent(from.toISOString())+'&start_time=lt.'+encodeURIComponent(to.toISOString())+'&order=start_time.asc');
+  _ssGunRows={date,rows:Array.isArray(r)?r:[]};
+  return _ssGunRows.rows;
+}
+function _ssGunTimes(race,dayRaces,rows){
+  const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const fleetName=id=>((fleets||[]).find(f=>f.id===id)||{}).name||'';
+  const now=Date.now();
+  const fired=rows.filter(r=>r.status==='armed'&&new Date(r.start_time).getTime()<=now);
+  const secs=t=>{ const [h,m,s]=String(t).split(':').map(Number); return h*3600+m*60+(s||0); };
+  const dayStarts=(dayRaces||[]).flatMap(r=>(r.starts||[]).map(s=>({...s,raceId:r.id}))).filter(s=>s.startTime);
+  const dayBase=dublinInstant(dayDateStr(_finishRecordRace.date),0,0).getTime();
+  const out=[];
+  (race.starts||[]).forEach(s=>{
+    if(!s.startTime) return;
+    const names=new Set((s.fleets||[]).map(norm));
+    const shares=o=>(o.fleets||[]).some(f=>names.has(norm(f)));
+    const sched=secs(s.startTime);
+    const nextOwn=dayStarts.filter(o=>o.id!==s.id&&shares(o)&&secs(o.startTime)>sched).map(o=>secs(o.startTime)).sort((a,b)=>a-b)[0];
+    const lo=dayBase+(sched-20*60)*1000;
+    const hi=dayBase+Math.min(sched+45*60,nextOwn!=null?nextOwn-5*60:Infinity)*1000;
+    const gun=fired.filter(r=>{
+      const t=new Date(r.start_time).getTime();
+      if(t<lo||t>hi) return false;
+      return !r.fleet_id||names.has(norm(fleetName(r.fleet_id)));
+    }).pop();
+    if(gun) out.push({startId:s.id,fleets:s.fleets||[],
+      startTime:new Date(gun.start_time).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'Europe/Dublin'})});
+  });
+  return out;
+}
+
 async function renderSsFinishSend(reload){
   const wrap=document.getElementById('ssFinishSend'); if(!wrap) return;
   if(!isRO||ssResultsSource()!=='sailscoring'||!_finishRecordRace){ wrap.style.display='none'; return; }
@@ -17353,6 +17466,15 @@ async function renderSsFinishSend(reload){
   if(!st.raceId&&races.length===1){ st.raceId=races[0].id; st.seriesId=races[0].seriesId; _ssFinishSave(st); }
   const rows=_ssFinishRows();
   const changed=st.sentRows!==JSON.stringify(rows);
+  // The start sequence's guns for the chosen race
+  const chosen=races.find(r=>r.id===st.raceId);
+  const guns=chosen?_ssGunTimes(chosen,_ssFinishDay.races,await _ssLoadGuns(date)):[];
+  const gunLine=!chosen?'':guns.length
+    ?`<label style="display:flex;align-items:flex-start;gap:8px;margin-top:8px;font-size:.82rem;color:var(--white);line-height:1.4">
+        <input type="checkbox" ${st.noGuns?'':'checked'} onchange="_ssFinishSave({..._ssFinishState(),noGuns:!this.checked})" style="margin-top:2px">
+        <span>Include the start sequence's guns: ${guns.map(g=>escHtml((g.fleets.join(', ')||'Start')+' '+g.startTime)).join(' · ')}</span>
+      </label>`
+    :'<div style="font-size:.78rem;color:var(--muted);margin-top:8px">No start-sequence guns found for this race — the scorer uses the scheduled times.</div>';
   const opt=r=>`<option value="${escHtml(r.id)}"${r.id===st.raceId?' selected':''}>${escHtml(r.seriesName)}${r.number!=null?' · Race '+escHtml(r.number):''}${r.starts.length?' · '+escHtml(r.starts.map(s=>(s.startTime||'').slice(0,5)).filter(Boolean).join(', ')):''}</option>`;
   const statusLine=st.revision
     ?`Sent revision ${st.revision}${st.sentAt?' at '+new Date(st.sentAt).toLocaleTimeString('en-IE',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Dublin'}):''} · <b>${escHtml(st.status==='applied'?'applied by the scorer':st.status==='dismissed'?'dismissed by the scorer':'waiting for the scorer')}</b>`
@@ -17366,6 +17488,8 @@ async function renderSsFinishSend(reload){
       :`<select id="ssFinishRace" onchange="ssFinishPickRace(this.value)" style="margin-top:8px;width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow Condensed',sans-serif;font-size:.9rem;padding:7px 10px">
           ${st.raceId?'':'<option value="">Choose the race in Sail Scoring…</option>'}${races.map(opt).join('')}
         </select>
+        ${gunLine}
+        ${_roOnDutyInput()}
         <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.85rem;color:var(--white)">
           <input type="checkbox" id="ssFinishComplete" ${st.complete?'checked':''} onchange="_ssFinishSave({..._ssFinishState(),complete:this.checked})"> All boats accounted for
         </label>
@@ -17391,7 +17515,12 @@ async function ssSendFinishes(){
   if(!st.raceId||!rows.length) return;
   const complete=!!(document.getElementById('ssFinishComplete')||{}).checked;
   const submissionId=st.submissionId||crypto.randomUUID();
-  const {status,body}=await _ssRoCall('submit',{raceId:st.raceId,seriesId:st.seriesId,submissionId,revision:(st.revision||0)+1,rows,complete});
+  const race=(_ssFinishDay&&_ssFinishDay.races||[]).find(r=>r.id===st.raceId);
+  const starts=st.noGuns||!race||!_finishRecordRace?[]
+    :_ssGunTimes(race,_ssFinishDay.races,await _ssLoadGuns(dayDateStr(_finishRecordRace.date))).map(g=>({startId:g.startId,startTime:g.startTime}));
+  const who=roOnDuty();
+  const {status,body}=await _ssRoCall('submit',{raceId:st.raceId,seriesId:st.seriesId,submissionId,revision:(st.revision||0)+1,rows,complete,
+    starts,recordedBy:who?'RaceOps · '+who:''});
   if(status!==200||!body.submission){ toast('⚠ '+(body.message||'Could not send (HTTP '+status+')')); return; }
   const s=body.submission;
   _ssFinishSave({...st,submissionId:s.id||submissionId,revision:s.revision,status:s.status,unknown:s.unknownSailNumbers||[],complete,sentRows:JSON.stringify(rows),sentAt:Date.now()});
