@@ -784,7 +784,7 @@ const FEAT_CATALOG=[
   {key:'autoRegister', label:'Auto-Register All Boats — no sign-up, every boat is assumed racing', type:'bool', group:'Behaviour'},
   {key:'livePortWeather', label:'Live Port of Galway Weather (Race Weather tab)', type:'bool', group:'Behaviour'},
   {key:'feeWizard', label:'Guided Fee Wizard — declare crew, collect funds, review, submit', type:'bool', group:'Behaviour'},
-  {key:'rnli', label:'RNLI Contributions — crew-level donate flow (Revolut + Card)', type:'bool', group:'Behaviour'},
+  {key:'rnli', label:'RNLI Contributions — crew-level donate flow (Stripe)', type:'bool', group:'Behaviour'},
   {key:'orcRatings', label:'ORC Ratings — each boat\'s ORC certificate (GPH, ToT) in Handicaps and the boat card', type:'bool', group:'Behaviour'},
   {key:'resultsSource', label:'Results Source — where the Results tab gets its standings', type:'select', group:'Behaviour',
     options:[{value:'halsail',label:'Halsail'},{value:'sailscoring',label:'Sail Scoring'},{value:'none',label:'None (club website link only)'}]},
@@ -2826,7 +2826,7 @@ function showSeriesPaymentForm(seriesName){
       <div class="ro-row" style="margin-bottom:10px">
         <label style="min-width:70px;font-size:.85rem">Method</label>
         <select id="sfMethod" style="flex:1;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--navy);color:var(--white);font-size:.9rem">
-          <option>Cash</option><option>Revolut</option><option>Card</option>
+          <option>Cash</option><option>Card</option>
         </select>
       </div>
       <div style="display:flex;gap:8px">
@@ -4279,9 +4279,6 @@ function getBoatPin(id){
   try{ const c=localStorage.getItem('cfg_'+id); return c?JSON.parse(c).pin||'0000':'0000'; }catch(e){ return'0000'; }
 }
 
-function getRevolutUser(){
-  return boatConfig.revolut_user||'';
-}
 function getWhatsapp(){
   return boatConfig.whatsapp||'';
 }
@@ -4293,20 +4290,16 @@ function getStripeLink(type){
 function hasAnyStripeLink(){
   return !!(clubSettings.stripe_link_member||clubSettings.stripe_link_student||clubSettings.stripe_link_visitor);
 }
-function getRORevolutUser(){ return clubSettings.ro_revolut_user||''; }
-function getRnliRevolutUser(){ return clubSettings.rnli_revolut_user||''; }
-// Loads rnli_revolut_user via its own small, isolated request rather than
-// folding it into SETTINGS_SELECT/sbLoadClubSettings()'s fullSelect — an
-// unknown column there 400s and drops the WHOLE select to a much narrower
-// legacy fallback, silently losing sponsors/branding/fees/etc. for every
-// club, confirmed live 2026-09-02. Safe to call unconditionally: no-ops
-// until SCHEMA_HAS_RNLI (migration 061) is true.
-async function loadRnliRevolutUser(){
-  if(!SCHEMA_HAS_RNLI) return;
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=rnli_revolut_user');
-  if(Array.isArray(r)&&r[0]) clubSettings.rnli_revolut_user=r[0].rnli_revolut_user||'';
-}
-// Same isolated-request treatment, own migration (062) + own flag — a
+// Revolut direct payment (revolut.me links) was retired 2026-11-05 — Revolut
+// Pay is now enabled on the club's Stripe account, so it shows up inside the
+// card checkout. The revolut_user / ro_revolut_user / rnli_revolut_user DB
+// columns are left in place but no longer read or offered in the UI.
+//
+// Loaded via its own small, isolated request rather than folding it into
+// SETTINGS_SELECT/sbLoadClubSettings()'s fullSelect — an unknown column
+// there 400s and drops the WHOLE select to a much narrower legacy fallback,
+// silently losing sponsors/branding/fees/etc. for every club, confirmed live
+// 2026-09-02. Own migration (062) + own flag — a
 // starting "credible base" folded into the displayed running total
 // (rnliRefreshTotals()), never into rnli_contributions itself (that
 // table is a real per-gift ledger, a base figure isn't a real gift).
@@ -4372,19 +4365,13 @@ function updateRacingCancelledTile(){
   tile.style.borderColor=on?'rgba(230,57,70,.4)':'';
 }
 
-async function saveBoatSettings(revolut_user,whatsapp,bowOffsetM){
-  // revolut_user is gated by the pin verified at login (migration 040) —
-  // payment-redirect field, not a plain anon-writable column anymore.
-  // whatsapp/bow_offset_m aren't sensitive, so they stay direct field writes.
+async function saveBoatSettings(whatsapp,bowOffsetM){
+  // whatsapp/bow_offset_m aren't sensitive, so they're direct field writes.
   if(!_currentBoatPin) return false;
-  const ok=await sbRpc('set_boat_revolut_user',{p_boat_id:currentBoat.id,p_current_pin:_currentBoatPin,p_revolut_user:revolut_user});
-  if(ok!==true) return false;
-  boatConfig.revolut_user=revolut_user;
   boatConfig.whatsapp=whatsapp;
   try{
     const c=localStorage.getItem('cfg_'+currentBoat?.id)||'{}';
     const obj=JSON.parse(c);
-    obj.revolut_user=revolut_user;
     obj.whatsapp=whatsapp;
     localStorage.setItem('cfg_'+currentBoat?.id,JSON.stringify(obj));
   }catch(e){}
@@ -4510,7 +4497,6 @@ async function checkNotifSupport(){
 }
 
 async function openSettingsSheet(){
-  document.getElementById('settings-revolut').value=getRevolutUser();
   document.getElementById('settings-whatsapp').value=getWhatsapp();
   document.getElementById('settings-bow-offset').value=currentBoat?(currentBoat.bowOffsetM!=null?currentBoat.bowOffsetM:6):6;
   // Notification toggle state
@@ -4936,7 +4922,6 @@ function toggleHelpSection(id){
   chev.classList.toggle('open',!isOpen);
 }
 async function saveSettings(){
-  const rev=document.getElementById('settings-revolut').value.trim().replace(/^@/,'');
   const wa=document.getElementById('settings-whatsapp').value.trim();
   const bowOffsetRaw=document.getElementById('settings-bow-offset').value.trim();
   const bowOffset=bowOffsetRaw===''?6:parseFloat(bowOffsetRaw);
@@ -4944,7 +4929,7 @@ async function saveSettings(){
     toast('⚠ Bow offset must be between 0 and 30 metres');
     return;
   }
-  const ok=await saveBoatSettings(rev,wa,bowOffset);
+  const ok=await saveBoatSettings(wa,bowOffset);
   closeSheet('settingsSheet');
   toast(ok?'Settings saved ✓':'⚠ Could not save — try logging in again');
 }
@@ -4961,8 +4946,6 @@ async function openROClubSettings(){
   setVal('ro-estella-url',clubSettings.estella_url||'');
   setVal('ro-results-url',clubSettings.results_url||'');
   setVal('ro-worldtides-key',clubSettings.worldtides_key||'');
-  setVal('ro-revolut-user',clubSettings.ro_revolut_user||'');
-  setVal('ro-rnli-revolut-user',clubSettings.rnli_revolut_user||'');
   setVal('ro-hal-club',clubSettings.hal_club||'');
   setVal('ro-hal-api-key','');
   refreshHalApiKeyStatus();
@@ -5054,48 +5037,40 @@ function saveROClubSettings(){
   const estellaVal=getVal('ro-estella-url');
   const resultsUrlVal=getVal('ro-results-url');
   const tidesKeyVal=getVal('ro-worldtides-key');
-  const roRevolutVal=getVal('ro-revolut-user').replace(/^@/,'');
-  const rnliRevolutVal=getVal('ro-rnli-revolut-user').replace(/^@/,'');
   const halClubVal=getVal('ro-hal-club');
   const noticeboardVal=getVal('ro-noticeboard-url');
   const tideStationVal=getVal('ro-tide-station');
   const vapidKeyVal=getVal('ro-vapid-key');
 
-  // Stripe links + RO's own Revolut handle are payment-redirect fields —
-  // gated behind the RO pin verified at login (migration 040), via RPC
-  // rather than the plain settings PATCH used for everything else below.
+  // Stripe links are payment-redirect fields — gated behind the RO pin
+  // verified at login (migration 040), via RPC rather than the plain
+  // settings PATCH used for everything else below.
   const newMemberVal  = memberVal  !==''?memberVal  :clubSettings.stripe_link_member||'';
   const newStudentVal = studentVal !==''?studentVal :clubSettings.stripe_link_student||'';
   const newVisitorVal = visitorVal !==''?visitorVal :clubSettings.stripe_link_visitor||'';
-  // Same "blank keeps existing value" rule as the stripe links above — a
-  // blank Revolut field previously overwrote a real saved handle with '',
-  // silently clearing RNLI donation collection until re-entered.
-  const newRoRevolutVal   = roRevolutVal   !==''?roRevolutVal   :clubSettings.ro_revolut_user||'';
-  const newRnliRevolutVal = rnliRevolutVal !==''?rnliRevolutVal :clubSettings.rnli_revolut_user||'';
   // Club Settings is a Club Admin tile; set_ro_payment_settings accepts the
   // RO or the Admin PIN since 071
   const payAuthPin=_currentAdminPin||_currentRoPin;
   if(payAuthPin){
-    // set_ro_payment_settings only grew the p_rnli_revolut_user parameter in
-    // migration 061 — a club still on the old 5-arg DB function 404s
-    // (PGRST202) on a 6th named param with no fallback, breaking payment
-    // settings saves entirely, confirmed live 2026-09-02. Send the 6th arg
-    // only once SCHEMA_HAS_RNLI confirms this club's DB has caught up.
+    // The RPC still takes the retired Revolut handles (DB signature
+    // unchanged — Revolut direct payment was retired 2026-11-05). Pass null:
+    // the function COALESCEs, so the stored values are left untouched.
+    // p_rnli_revolut_user only exists from migration 061 on — a club still on
+    // the old 5-arg function 404s (PGRST202) on a 6th named param, confirmed
+    // live 2026-09-02, so send it only once SCHEMA_HAS_RNLI says it's there.
     const roPayParams={
       p_current_pin:payAuthPin,
       p_stripe_link_member:newMemberVal,
       p_stripe_link_student:newStudentVal,
       p_stripe_link_visitor:newVisitorVal,
-      p_ro_revolut_user:newRoRevolutVal
+      p_ro_revolut_user:null
     };
-    if(SCHEMA_HAS_RNLI) roPayParams.p_rnli_revolut_user=newRnliRevolutVal;
+    if(SCHEMA_HAS_RNLI) roPayParams.p_rnli_revolut_user=null;
     sbRpc('set_ro_payment_settings',roPayParams).then(ok=>{
       if(ok!==true){ toast('⚠ Payment settings not saved — try logging in again'); return; }
       clubSettings.stripe_link_member=newMemberVal;
       clubSettings.stripe_link_student=newStudentVal;
       clubSettings.stripe_link_visitor=newVisitorVal;
-      clubSettings.ro_revolut_user=newRoRevolutVal;
-      if(SCHEMA_HAS_RNLI) clubSettings.rnli_revolut_user=newRnliRevolutVal;
     });
   } else {
     toast('⚠ Payment settings not saved — try logging in again');
@@ -5345,11 +5320,10 @@ async function saveRace(){
 // ═══════════════════════════════════════════════════════════════
 // CREW SELF-PAY — public flow: pick boat → pick yourself → pay
 // ═══════════════════════════════════════════════════════════════
-let _cpBoatConfig=null;
 let _cpStep=1;
 
 function openCrewPaySheet(){
-  _cpStep=1; _cpBoatConfig=null;
+  _cpStep=1;
   document.getElementById('crewPayBack').style.display='none';
   document.getElementById('crewPayTitle').textContent='💳 Pay Race Fees';
   _crewPayRenderBoats();
@@ -5402,12 +5376,7 @@ async function crewPaySelectBoat(boatId){
   const content=document.getElementById('crewPayContent');
   content.innerHTML='<div class="empty-state"><div class="icon">⏳</div><div>Loading crew…</div></div>';
 
-  // Fetch boat revolut_user and selected crew in parallel
-  const [cfg,crewRows]=await Promise.all([
-    sbFetch('/rest/v1/boats?id=eq.'+boatId+'&select=revolut_user'),
-    sbFetch('/rest/v1/crew?boat_id=eq.'+boatId+'&selected=eq.true&order=first.asc')
-  ]);
-  _cpBoatConfig={revolut_user:(cfg&&cfg[0]&&cfg[0].revolut_user)||''};
+  const crewRows=await sbFetch('/rest/v1/crew?boat_id=eq.'+boatId+'&selected=eq.true&order=first.asc');
 
   // Fall back to full roster if skipper hasn't marked anyone as selected
   let crew=crewRows&&crewRows.length?crewRows:[];
@@ -5462,7 +5431,6 @@ function crewPaySelectSelf(idx){
   _cpStep=3;
   document.getElementById('crewPayTitle').textContent='Hi, '+c.first+' 👋';
 
-  const rev=_cpBoatConfig&&_cpBoatConfig.revolut_user;
   const stripeUrl=(
     c.type==='student'?clubSettings.stripe_link_student:
     c.type==='visitor'?clubSettings.stripe_link_visitor:
@@ -5473,18 +5441,6 @@ function crewPaySelectSelf(idx){
        <div style="text-align:center;font-family:'Barlow Condensed',sans-serif;font-size:2.4rem;font-weight:800;color:var(--danger);margin-bottom:18px">€${amt}</div>`
     :`<div style="text-align:center;font-size:.9rem;color:var(--success);font-weight:700;margin-bottom:18px">No fee due ✓</div>`;
 
-  const revBtn=rev&&amt
-    ?`<a href="https://revolut.me/${rev}?amount=${Math.round(amt*100)}&currency=EUR" target="_blank" rel="noopener"
-        style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-        background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:14px;
-        padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
-        margin-bottom:6px;box-shadow:0 4px 24px rgba(110,64,216,.4);">
-        <span style="font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">💜 Open Revolut</span>
-        <span style="font-size:.85rem;font-weight:400;opacity:.85">€${amt} pre-filled — just confirm &amp; send</span>
-      </a>
-      <div style="text-align:center;font-size:.85rem;color:#a78bfa;margin-bottom:14px;letter-spacing:.02em">Send to <strong>@${rev}</strong></div>`
-    :'';
-
   const stripeBtn=stripeUrl&&amt
     ?`<a href="${stripeUrl}" target="_blank" rel="noopener"
         style="display:flex;align-items:center;justify-content:center;gap:10px;
@@ -5492,19 +5448,19 @@ function crewPaySelectSelf(idx){
         padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
         font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
         margin-bottom:12px;box-shadow:0 4px 24px rgba(13,110,253,.3);">
-        💳 Pay €${amt} by Card / Apple Pay
+        💳 Pay €${amt} by Card / Apple Pay / Revolut
       </a>`
     :'';
 
-  const noOpts=!rev&&!stripeUrl&&amt
+  const noOpts=!stripeUrl&&amt
     ?`<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
         border-radius:12px;padding:16px;text-align:center;font-size:.85rem;color:var(--muted)">
-        Payment links haven't been set up for this boat yet.<br>
-        <span style="font-size:.85rem">Ask your skipper to add their Revolut username in Settings.</span>
+        Online payment hasn't been set up yet.<br>
+        <span style="font-size:.85rem">Pay your skipper by cash for now.</span>
       </div>`
     :'';
 
-  document.getElementById('crewPayContent').innerHTML=feeNote+revBtn+stripeBtn+noOpts;
+  document.getElementById('crewPayContent').innerHTML=feeNote+stripeBtn+noOpts;
 }
 
 async function browseEstelaRaces(){
@@ -5729,7 +5685,6 @@ function renderRaceFeesPanel(){
   const unpaidGuests=guests.filter(p=>!p.paid);
   const outstanding=unpaid.reduce((a,p)=>a+fee(p),0)+unpaidGuests.reduce((a,p)=>a+fee(p),0);
   const race=(selectedRace||nextRace)?.label||'Race';
-  const revUser=getRevolutUser();
 
   // ── Summary ─────────────────────────────────────────────────
   let summary;
@@ -5739,24 +5694,10 @@ function renderRaceFeesPanel(){
   } else {
     const paid=[...sel,...guests].filter(p=>p.paid);
     const cashAmt=paid.filter(p=>p.payMethod&&p.payMethod.startsWith('Cash')).reduce((a,p)=>a+fee(p),0);
-    const revAmt=paid.filter(p=>p.payMethod&&p.payMethod.startsWith('Revolut')).reduce((a,p)=>a+fee(p),0);
-    const toSubmit=cashAmt+revAmt;
-    const roRev=getRORevolutUser();
-    const roRevLink=roRev?`https://revolut.me/${roRev}?amount=${Math.round(revAmt*100)}&currency=EUR`:'';
+    const toSubmit=cashAmt;
     let submitLines='';
     if(cashAmt) submitLines+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0">
       <span>💵 Cash — hand envelope to RO</span><span style="font-weight:800">€${cashAmt}</span></div>`;
-    if(revAmt){
-      const revAction=roRevLink
-        ?`<a href="${roRevLink}" target="_blank" rel="noopener"
-            style="font-family:'Barlow Condensed',sans-serif;font-size:.82rem;font-weight:800;
-            padding:4px 10px;border-radius:6px;border:1px solid rgba(110,64,216,.5);
-            background:rgba(110,64,216,.18);color:#a78bfa;text-decoration:none;white-space:nowrap">
-            💜 Open Revolut</a>`
-        :'<span style="font-size:.85rem;color:var(--muted)">Send via Revolut</span>';
-      submitLines+=`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 0">
-        <span>💜 Revolut — send €${revAmt} to RO</span>${revAction}</div>`;
-    }
     const submitCard=toSubmit>0
       ?`<div style="margin-top:12px;padding:12px 14px;background:rgba(232,160,32,.08);border:1px solid rgba(232,160,32,.3);border-radius:10px;font-size:.82rem;color:var(--white)">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:800;color:var(--ro);letter-spacing:.04em;margin-bottom:6px">SUBMIT TO RACE OFFICER · €${toSubmit}</div>
@@ -5786,7 +5727,6 @@ function renderRaceFeesPanel(){
       letter-spacing:.03em;padding:11px 6px;border-radius:10px;cursor:pointer;width:100%;${style}">
       ${label}</button>`;
 
-  const revStyle='background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);color:#a78bfa';
   const cashStyle='background:rgba(45,198,83,.12);border:1px solid rgba(45,198,83,.4);color:var(--success)';
   const cardStyle='background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);color:var(--teal)';
   const offStyle='background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default';
@@ -5809,9 +5749,6 @@ function renderRaceFeesPanel(){
           background:transparent;color:var(--muted);cursor:pointer">Undo</button>
       </div>`;
     } else {
-      const revBtn=revUser
-        ?rfBtn('💜 Revolut',`rfPayRevolut('${p.id}')`,revStyle)
-        :rfBtn('💜 Revolut',`toast('Set your Revolut @username in Settings ⚙')`,offStyle);
       const cashBtn=rfBtn('💵 Cash',`rfMarkPaid('${p.id}','Cash')`,cashStyle);
       const stripeLink=getStripeLink(p.type);
       const cardBtn=stripeLink
@@ -5826,8 +5763,8 @@ function renderRaceFeesPanel(){
           </div>
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${amt}</span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-          ${revBtn}${cashBtn}${cardBtn}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          ${cashBtn}${cardBtn}
         </div>
       </div>`;
     }
@@ -5852,9 +5789,6 @@ function renderRaceFeesPanel(){
           background:transparent;color:var(--muted);cursor:pointer">Undo</button>
       </div>`;
     } else {
-      const revBtn=revUser
-        ?rfBtn('💜 Revolut',`rfGuestPayRevolut('${p.id}')`,revStyle)
-        :rfBtn('💜 Revolut',`toast('Set your Revolut @username in Settings ⚙')`,offStyle);
       const cashBtn=rfBtn('💵 Cash',`rfGuestMarkPaid('${p.id}','Cash')`,cashStyle);
       const stripeLink=getStripeLink(p.type);
       const cardBtn=stripeLink
@@ -5869,8 +5803,8 @@ function renderRaceFeesPanel(){
           </div>
           <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:800;color:var(--danger)">€${amt}</span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-          ${revBtn}${cashBtn}${cardBtn}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          ${cashBtn}${cardBtn}
         </div>
       </div>`;
     }
@@ -5958,7 +5892,6 @@ function rfGuestUnpay(id){
   const race=selectedRace||nextRace;
   if(race){ sbDeleteRacePayment(id,raceKey(race),dayDateStr(race.date)); }
 }
-function rfGuestPayRevolut(id){ rfGuestMarkPaid(id,'Revolut'); }
 function rfGuestPayCard(id){ rfGuestMarkPaid(id,'Card'); }
 function rfMarkAllCash(){
   const unpaid=roster.filter(p=>p.selected&&!p.paid);
@@ -5981,10 +5914,6 @@ function rfMarkAllCash(){
     autoSaveRaceRecord();
     if(roster.filter(q=>q.selected).every(q=>q.paid)) incrementVisitorOutings();
   }
-}
-function rfPayRevolut(id){
-  // Skipper confirms they received a Revolut payment — just mark paid
-  rfMarkPaid(id,'Revolut');
 }
 function rfPayCard(id){
   // Skipper confirms card payment received — just mark paid
@@ -6020,7 +5949,6 @@ function renderBulkPaySheet(){
   const unpaid=roster.filter(p=>p.selected&&!p.paid);
   const chosen=unpaid.filter(p=>_bulkSel.has(p.id));
   const total=chosen.reduce((a,p)=>a+fee(p),0);
-  const revUser=getRevolutUser();
   const hasStripe=hasAnyStripeLink(); // signal that Stripe is enabled at the club
 
   const typeLabel=p=>p.type==='full'?'Member':p.type==='crew'?'Crew Member':p.type==='student'?'Student':p.type==='visitor'?'Visitor':'Junior';
@@ -6052,11 +5980,6 @@ function renderBulkPaySheet(){
 
   const cashBtn=`<button onclick="rfBulkPayConfirm('Cash')"
     style="${btnStyle('rgba(45,198,83,.12)','rgba(45,198,83,.4)','var(--success)')}">💵 Cash</button>`;
-  const revBtn=revUser
-    ?`<button onclick="rfBulkPayConfirm('Revolut')"
-        style="${btnStyle('rgba(110,64,216,.18)','rgba(110,64,216,.5)','#a78bfa')}">💜 Revolut</button>`
-    :`<button onclick="toast('Set your Revolut @username in Settings ⚙')"
-        style="${offStyle}">💜 Revolut</button>`;
   const cardBtn=hasStripe
     ?`<button onclick="rfBulkPayConfirm('Card')"
         style="${btnStyle('rgba(0,174,239,.1)','rgba(0,174,239,.35)','var(--teal)')}">💳 Card</button>`
@@ -6067,7 +5990,7 @@ function renderBulkPaySheet(){
     `<div style="font-size:.85rem;color:var(--muted);margin-bottom:12px;line-height:1.5">Tick the crew this payment covers. Each will get their own payment record but share a transaction reference.</div>`+
     `<div style="max-height:40vh;overflow-y:auto">${rows||'<div class="empty-state">No unpaid crew</div>'}</div>`+
     totalLine+
-    `<div style="display:flex;gap:8px;margin-bottom:10px">${cashBtn}${revBtn}${cardBtn}</div>`+
+    `<div style="display:flex;gap:8px;margin-bottom:10px">${cashBtn}${cardBtn}</div>`+
     `<button class="btn btn-ghost" style="width:100%;padding:11px" onclick="closeSheet('bulkPaySheet')">Cancel</button>`;
 }
 
@@ -6082,7 +6005,7 @@ async function rfBulkPayConfirm(method){
   const key=raceKey(race);
   const raceDate=race.date.toISOString().split('T')[0];
 
-  // Helper — write all rows + update local state, shared by Cash/Revolut
+  // Helper — write all rows + update local state
   const writeAllRows=(paidMethod)=>{
     chosen.forEach(p=>{ p.paid=true; p.payMethod=paidMethod; });
     renderCrew(); renderRaceFeesPanel();
@@ -6101,21 +6024,6 @@ async function rfBulkPayConfirm(method){
 
   if(method==='Cash'){
     writeAllRows('Cash');
-    return;
-  }
-
-  if(method==='Revolut'){
-    const revUser=getRevolutUser();
-    if(!revUser){ toast('Set your Revolut @username in Settings ⚙'); return; }
-    // Open Revolut with the summed amount. Revolut's amount param is in
-    // minor units (cents), like the rest of their API — passing a bare
-    // euro figure (e.g. 20 for €20) opens Revolut showing €0.20, confirmed
-    // live 2026-09-03 via the RNLI give flow's identical bug.
-    const url=`https://revolut.me/${revUser}?amount=${Math.round(total*100)}&currency=EUR`;
-    window.open(url,'_blank');
-    // Skipper confirms after the payment arrives in their Revolut
-    if(!confirm(`Opening Revolut for €${total}. After the payment is received, tap OK to mark ${chosen.length} crew paid.`)) return;
-    writeAllRows('Revolut');
     return;
   }
 
@@ -6198,32 +6106,6 @@ function showStripeQR(firstName,stripeLink,amt){
         <img src="${qrUrl}" style="width:200px;height:200px;display:block">
       </div>
       <button onclick="document.getElementById('_stripeQROverlay').remove()"
-        style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
-        border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
-        font-size:.95rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Close</button>
-    </div>`;
-  el.addEventListener('click',e=>{if(e.target===el)el.remove();});
-  document.body.appendChild(el);
-}
-
-// ── Revolut QR modal ──────────────────────────────────────────
-function showRevolutQR(firstName,revLink,amt){
-  const existing=document.getElementById('_revolutQROverlay');
-  if(existing) existing.remove();
-  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(revLink);
-  const el=document.createElement('div');
-  el.id='_revolutQROverlay';
-  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px;';
-  el.innerHTML=`
-    <div style="background:#112240;border:1px solid rgba(110,64,216,.4);border-radius:16px;padding:24px;max-width:300px;width:100%;text-align:center;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#f0f4f8;margin-bottom:4px">💜 Revolut — ${firstName}</div>
-      <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:4px">Ask them to scan with their camera</div>
-      <div style="font-size:.85rem;color:#a78bfa;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-weight:600">Amount: €${amt}</div>
-      <div style="background:white;border-radius:10px;padding:12px;display:inline-block;margin-bottom:16px">
-        <img src="${qrUrl}" style="width:200px;height:200px;display:block">
-      </div>
-      <div style="font-size:.85rem;color:#7a8fa6;margin-bottom:14px">${revLink}</div>
-      <button onclick="document.getElementById('_revolutQROverlay').remove()"
         style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
         border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
         font-size:.95rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Close</button>
@@ -6508,7 +6390,6 @@ function fwPeople(){
 function fwRenderCollect(){
   const body=document.getElementById('feeWizardBody'); if(!body) return;
   const people=fwPeople();
-  const revUser=getRevolutUser();
   const due=people.reduce((a,p)=>a+fee(p),0);
   const collected=people.filter(p=>p.paidVia).reduce((a,p)=>a+fee(p),0);
   const rows=people.map(p=>{
@@ -6527,15 +6408,13 @@ function fwRenderCollect(){
         <button onclick="fwUnpay('${p.id}')" style="font-size:.85rem;font-weight:700;padding:4px 9px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer">Undo</button>
       </div>`;
     }
-    const revBtn=revUser?`onclick="fwMarkPaid('${p.id}','Revolut')"`:`onclick="toast('Set your Revolut @username in Settings ⚙')"`;
     return `<div style="padding:12px 0;border-bottom:1px solid var(--border)">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
         <div class="cc-avatar" style="width:32px;height:32px;font-size:.85rem;flex-shrink:0">${ini(p)}</div>
         <div style="flex:1"><div style="font-size:.92rem;font-weight:700">${escHtml(p.first)} ${escHtml(p.last)}</div></div>
         <span style="font-weight:800;color:var(--danger)">€${fee(p)}</span>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
-        <button ${revBtn} style="padding:10px 4px;border-radius:9px;font-size:.85rem;font-weight:800;background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);color:#a78bfa;cursor:pointer">💜 Revolut</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button onclick="fwMarkPaid('${p.id}','Cash')" style="padding:10px 4px;border-radius:9px;font-size:.85rem;font-weight:800;background:rgba(39,174,96,.12);border:1px solid rgba(39,174,96,.4);color:var(--success);cursor:pointer">💵 Cash</button>
         <button onclick="fwMarkPaid('${p.id}','Card')" style="padding:10px 4px;border-radius:9px;font-size:.85rem;font-weight:800;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);color:var(--teal);cursor:pointer">💳 Card</button>
       </div>
@@ -6604,7 +6483,7 @@ function fwRenderReview(){
       <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Self-paid via app</span><b style="color:var(--white)">€${self}</b></div>
       <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Collected — cash</span><b style="color:var(--white)">€${cash}</b></div>
       <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Collected — card</span><b style="color:var(--white)">€${card}</b></div>
-      <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Collected — Revolut</span><b style="color:var(--white)">€${revolut}</b></div>
+      ${revolut?`<div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Collected — Revolut</span><b style="color:var(--white)">€${revolut}</b></div>`:''}
       <div style="height:1px;background:rgba(255,255,255,.08);margin:8px 0"></div>
       <div style="display:flex;justify-content:space-between;font-size:.85rem;padding:6px 0;color:var(--muted)"><span>Still owing</span><b style="color:${owing.length?'var(--warn)':'var(--success)'}">${owing.length?escHtml(owing.map(p=>p.first).join(', ')):'Nobody — all settled'}</b></div>
     </div>
@@ -8175,48 +8054,16 @@ function spStep2(){
     </div>`;
   }
 
-  // Fetch the boat's Revolut config for payment options
-  const revUser=selfPayState.boatRevUser||'';
-  // Trigger async load if not already loaded
-  if(!selfPayState.boatRevLoaded){
-    selfPayState.boatRevLoaded=true;
-    sbLoadBoatConfig(selfPayState.boatId).then(cfg=>{
-      if(cfg) selfPayState.boatRevUser=cfg.revolut_user||'';
-      // Re-render if still on this step
-      if(selfPayState.step===2){
-        const body=document.getElementById('selfPayBody');
-        if(body) body.innerHTML=spStep2();
-      }
-    });
-  }
-
   const stripeLink=getStripeLink(p.type);
   const btnBase='width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;cursor:pointer;margin-bottom:10px;text-align:left';
-
-  const revBtn=revUser
-    ?`<button onclick="spDoRevolut()"
-        style="${btnBase};background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);color:#a78bfa">
-        <span style="font-size:1.6rem">💜</span>
-        <div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay by Revolut</div>
-          <div style="font-size:.85rem;opacity:.8">Send €${amt} to @${revUser}</div>
-        </div>
-      </button>`
-    :`<button disabled style="${btnBase};background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default">
-        <span style="font-size:1.6rem">💜</span>
-        <div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Revolut</div>
-          <div style="font-size:.85rem">Not configured — ask skipper</div>
-        </div>
-      </button>`;
 
   const cardBtn=stripeLink
     ?`<button onclick="spDoCard()"
         style="${btnBase};background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);color:var(--teal)">
         <span style="font-size:1.6rem">💳</span>
         <div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay by Card</div>
-          <div style="font-size:.85rem;opacity:.8">Secure online payment · €${amt}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Pay Online</div>
+          <div style="font-size:.85rem;opacity:.8">Card, Apple Pay or Revolut · €${amt}</div>
         </div>
       </button>`
     :`<button disabled style="${btnBase};background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;cursor:default">
@@ -8238,16 +8085,10 @@ function spStep2(){
 
   return summary+
     `<div style="font-size:.82rem;color:var(--muted);margin-bottom:14px;text-align:center">How would you like to pay?</div>`+
-    revBtn+cardBtn+cashBtn;
+    cardBtn+cashBtn;
 }
 
 // ── Payment action helpers ────────────────────────────────────
-function spDoRevolut(){
-  const revUser=selfPayState.boatRevUser||'';
-  const amt=FEES[selfPayState.person.type]||0;
-  window.open('https://revolut.me/'+revUser+'?amount='+Math.round(amt*100)+'&currency=EUR','_blank');
-  spShowAwaitConfirm('Revolut');
-}
 function spDoCard(){
   const p=selfPayState.person;
   const b=selfPayState.boat;
@@ -8263,35 +8104,6 @@ function spDoCard(){
   }
   // Navigate in same tab so Stripe success_url redirect returns to this app
   window.location.href=getStripeLink(p.type);
-}
-function spShowAwaitConfirm(method){
-  const p=selfPayState.person;
-  const amt=FEES[p.type]||0;
-  const icon=method==='Revolut'?'💜':'💳';
-  const body=document.getElementById('selfPayBody');
-  if(!body) return;
-  body.innerHTML=
-    `<div style="text-align:center;padding:30px 0">
-      <div style="font-size:2.5rem;margin-bottom:12px">${icon}</div>
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:8px">
-        ${method} payment opened
-      </div>
-      <div style="font-size:.85rem;color:var(--muted);margin-bottom:28px">
-        Complete your €${amt} payment, then tap below to record it
-      </div>
-      <button onclick="spConfirm('${method}')"
-        style="width:100%;padding:14px;border-radius:12px;background:var(--teal);border:none;
-        color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:1rem;
-        font-weight:800;letter-spacing:.04em;cursor:pointer;margin-bottom:10px">
-        ✅ I've paid — record it
-      </button>
-      <button onclick="renderSelfPayPanel()"
-        style="width:100%;padding:12px;border-radius:12px;background:transparent;
-        border:1px solid var(--border);color:var(--muted);cursor:pointer;
-        font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700">
-        ← Back to options
-      </button>
-    </div>`;
 }
 
 async function spConfirm(method){
@@ -8348,9 +8160,8 @@ function spStep3(){
 // RNLI CONTRIBUTIONS — crew-level, no login required. GBSC only
 // (FEAT.rnli + SCHEMA_HAS_RNLI). Deliberately no boat/crew picker, unlike
 // self-pay above — this isn't tied to fee accounting, just tap an amount
-// and give. Revolut uses its own dedicated account (getRnliRevolutUser(),
-// separate from the RO's own fee-forwarding one); Card reuses the club's
-// existing Stripe account via the same create-bulk-checkout function
+// and give. Card (which includes Revolut Pay since 2026-11-05) reuses the
+// club's existing Stripe account via the same create-bulk-checkout function
 // race-fee bulk-pay already uses — a single "RNLI Contribution" line
 // item, no boat/race context required.
 // ═══════════════════════════════════════════════════════════════
@@ -8369,20 +8180,19 @@ function openRnliPanel(){
   openPanel('rnliPanel');
 }
 function rnliBack(){
-  if(rnliState.step==='pay'||rnliState.step==='awaitRevolut'){ rnliState.step='amount'; renderRnliPanel(); }
+  if(rnliState.step==='pay'){ rnliState.step='amount'; renderRnliPanel(); }
   else { closePanel('rnliPanel'); }
 }
 function renderRnliPanel(){
-  // The two "asking" steps carry the real RNLI mark; awaitRevolut/done are
-  // process-state screens (in progress / succeeded) where the distinct
-  // emoji is more useful at a glance than the brand mark would be.
+  // The two "asking" steps carry the real RNLI mark; done is a
+  // process-state screen where the distinct emoji is more useful at a
+  // glance than the brand mark would be.
   const rnliLogo='<img src="logos/rnli-flag.svg" alt="" style="height:1.1em;width:auto;vertical-align:-2px;margin-right:6px;border-radius:1px">';
-  const titles={amount:rnliLogo+'RNLI Fundraiser',pay:rnliLogo+'RNLI Fundraiser',awaitRevolut:'💜 Complete on Revolut',done:'✅ Thank You'};
+  const titles={amount:rnliLogo+'RNLI Fundraiser',pay:rnliLogo+'RNLI Fundraiser',done:'✅ Thank You'};
   const t=document.getElementById('rnliTitle'); if(t) t.innerHTML=titles[rnliState.step]||(rnliLogo+'RNLI Fundraiser');
   const body=document.getElementById('rnliBody'); if(!body) return;
   if(rnliState.step==='amount') body.innerHTML=rnliRenderAmount();
   else if(rnliState.step==='pay') body.innerHTML=rnliRenderPay();
-  else if(rnliState.step==='awaitRevolut') body.innerHTML=rnliRenderAwaitRevolut();
   else if(rnliState.step==='done') body.innerHTML=rnliRenderDone();
 }
 
@@ -8426,27 +8236,13 @@ function rnliSubmitCustomAmount(){
 
 function rnliRenderPay(){
   const amt=rnliState.amount;
-  const revUser=getRnliRevolutUser();
-  const revBtn=revUser
-    ?`<button onclick="rnliDoRevolut()" style="width:100%;display:flex;align-items:center;gap:14px;
-        padding:16px;border-radius:12px;background:rgba(110,64,216,.18);border:1px solid rgba(110,64,216,.5);
-        color:#a78bfa;cursor:pointer;margin-bottom:10px;text-align:left">
-        <span style="font-size:1.6rem">💜</span>
-        <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Give by Revolut</div>
-        <div style="font-size:.85rem;opacity:.8">Send €${amt} directly</div></div></button>`
-    :`<button disabled style="width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;
-        background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;
-        cursor:default;margin-bottom:10px;text-align:left">
-        <span style="font-size:1.6rem">💜</span>
-        <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Revolut</div>
-        <div style="font-size:.85rem">Not configured yet</div></div></button>`;
   const cardBtn=hasAnyStripeLink()
     ?`<button onclick="rnliDoCard()" style="width:100%;display:flex;align-items:center;gap:14px;
         padding:16px;border-radius:12px;background:rgba(0,174,239,.1);border:1px solid rgba(0,174,239,.35);
         color:var(--teal);cursor:pointer;text-align:left">
         <span style="font-size:1.6rem">💳</span>
-        <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Give by Card</div>
-        <div style="font-size:.85rem;opacity:.8">Secure online payment · €${amt}</div></div></button>`
+        <div><div style="font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800">Give Online</div>
+        <div style="font-size:.85rem;opacity:.8">Card, Apple Pay or Revolut · €${amt}</div></div></button>`
     :`<button disabled style="width:100%;display:flex;align-items:center;gap:14px;padding:16px;border-radius:12px;
         background:transparent;border:1px dashed rgba(255,255,255,.12);color:var(--muted);opacity:.4;
         cursor:default;text-align:left">
@@ -8458,28 +8254,7 @@ function rnliRenderPay(){
       <div style="font-size:.85rem;color:var(--muted);margin-bottom:4px">Giving to the RNLI</div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:800;color:var(--white)">€${amt}</div>
     </div>
-    ${revBtn}${cardBtn}`;
-}
-
-function rnliDoRevolut(){
-  // amount param is minor units (cents) — confirmed live 2026-09-03 (user
-  // reported €20 opening Revolut showing €0.20). Same fix in rfBulkPayConfirm().
-  window.open('https://revolut.me/'+getRnliRevolutUser()+'?amount='+Math.round(rnliState.amount*100)+'&currency=EUR','_blank');
-  rnliState.step='awaitRevolut';
-  renderRnliPanel();
-}
-function rnliRenderAwaitRevolut(){
-  return `<div style="text-align:center;padding:30px 0">
-    <div style="font-size:2.5rem;margin-bottom:12px">💜</div>
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:800;margin-bottom:8px">Revolut opened</div>
-    <div style="font-size:.85rem;color:var(--muted);margin-bottom:28px">Complete your €${rnliState.amount} contribution, then tap below to record it</div>
-    <button onclick="rnliConfirm('Revolut')" style="width:100%;padding:14px;border-radius:12px;background:var(--teal);
-      border:none;color:var(--navy-dark);font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:800;
-      letter-spacing:.04em;cursor:pointer;margin-bottom:10px">✅ I've given — record it</button>
-    <button onclick="rnliState.step='pay';renderRnliPanel()" style="width:100%;padding:12px;border-radius:12px;
-      background:transparent;border:1px solid var(--border);color:var(--muted);cursor:pointer;
-      font-family:'Barlow Condensed',sans-serif;font-size:.9rem;font-weight:700">← Back</button>
-  </div>`;
+    ${cardBtn}`;
 }
 
 async function rnliConfirm(method,paymentRef){
@@ -8575,7 +8350,6 @@ function openSharePayLink(){
   const data={
     boat:currentBoat.name,
     race:selectedRace?selectedRace.label:'Race',
-    rev:getRevolutUser(),
     crew:sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p)}))
   };
   // base64url: no +/= chars — iOS truncates URLs at '='
@@ -8608,131 +8382,6 @@ function shareToWhatsApp(){
 // ── LEGACY stubs — kept so any old HTML refs don't break ──────
 function openCollectSheet(){ openRaceFeesPanel(); }
 function markAllCash(){ rfMarkAllCash(); }
-
-// ── Collect Payments sheet ────────────────────────────────────
-function openCollectSheet_REMOVED(){
-  const sel=roster.filter(p=>p.selected);
-  if(!sel.length){toast('No crew selected');return;}
-  const list=document.getElementById('collectList');
-  list.innerHTML='';
-  const revUser=getRevolutUser();
-  sel.forEach(p=>{
-    const amt=fee(p);
-    const isPaid=p.paid;
-    const row=document.createElement('div');
-    row.id='cr-'+p.id;
-    row.style.cssText='padding:10px 0;border-bottom:1px solid var(--border);';
-    // Paid state
-    if(isPaid){
-      row.innerHTML=
-        '<div style="display:flex;align-items:center;justify-content:space-between;padding:2px 0">'+
-          '<div style="display:flex;align-items:center;gap:10px">'+
-            '<div class="cc-avatar" style="width:34px;height:34px;font-size:.85rem">'+ini(p)+'</div>'+
-            '<div>'+
-              '<div style="font-size:.95rem;font-weight:700">'+p.first+' '+p.last+'</div>'+
-              '<div style="font-size:.85rem;color:var(--success);font-weight:600">✓ '+(p.payMethod||'Paid')+'</div>'+
-            '</div>'+
-          '</div>'+
-          '<div style="display:flex;align-items:center;gap:10px">'+
-            '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.3rem;font-weight:800;color:var(--success)">€'+amt+'</span>'+
-            '<button onclick="unpayCrewCollect(\''+p.id+'\')" style="font-size:.85rem;font-family:Barlow Condensed,sans-serif;font-weight:700;padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;letter-spacing:.03em;">Undo</button>'+
-          '</div>'+
-        '</div>';
-    } else {
-      // Payment buttons
-      const revLink=revUser?`https://revolut.me/${revUser}?amount=${Math.round(amt*100)}&currency=EUR`:'';
-      const stripeLink=getStripeLink(p.type);
-      // WhatsApp links — only when crew has a phone number
-      const waRevLink=p.phone&&revLink
-        ?'https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(
-            `Hi ${p.first} — your GBSC racing fee is €${amt}. Tap to pay via Revolut: ${revLink} ⛵`)
-        :'';
-      const waStripeLink=p.phone&&stripeLink
-        ?'https://wa.me/'+fmtWaPhone(p.phone)+'?text='+encodeURIComponent(
-            `Hi ${p.first} — your GBSC racing fee is €${amt}. Tap to pay by card: ${stripeLink} ⛵`)
-        :'';
-      // shared button label style helpers
-      const btnLabel=(text,sub,color)=>
-        '<span style="font-family:Barlow Condensed,sans-serif;font-size:.9rem;font-weight:800;'+
-        'letter-spacing:.04em;text-transform:uppercase;color:'+color+'">'+text+'</span>'+
-        '<span style="font-size:.85rem;color:'+color+';opacity:.75;letter-spacing:.02em">'+sub+'</span>';
-      row.innerHTML=
-        // ── Name / amount header ──────────────────────────────
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
-          '<div style="display:flex;align-items:center;gap:10px">'+
-            '<div class="cc-avatar" style="width:34px;height:34px;font-size:.85rem">'+ini(p)+'</div>'+
-            '<div>'+
-              '<div style="font-size:.95rem;font-weight:700">'+p.first+' '+p.last+'</div>'+
-              '<div style="font-size:.85rem;color:var(--muted)">'+(p.type==='visitor'?'Visitor':'Member')+'</div>'+
-            '</div>'+
-          '</div>'+
-          '<span style="font-family:Barlow Condensed,sans-serif;font-size:1.5rem;font-weight:800;color:var(--danger)">€'+amt+'</span>'+
-        '</div>'+
-        // ── Payment buttons ───────────────────────────────────
-        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px">'+
-
-          // ── Revolut ──
-          (waRevLink?
-            '<a href="'+waRevLink+'" target="_blank" '+
-            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
-            'background:rgba(110,64,216,.2);border:1px solid rgba(110,64,216,.5);border-radius:10px;'+
-            'padding:11px 6px;text-decoration:none;cursor:pointer;">'+
-            btnLabel('Revolut','WhatsApp','#a78bfa')+'</a>'
-          :revLink?
-            '<button onclick="showRevolutQR(\''+p.first+'\',\''+revLink+'\',\''+amt+'\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
-            'background:rgba(110,64,216,.2);border:1px solid rgba(110,64,216,.5);border-radius:10px;'+
-            'padding:11px 6px;cursor:pointer;">'+
-            btnLabel('Revolut','QR Code','#a78bfa')+'</button>'
-          :
-            '<button onclick="toast(\'Set your Revolut @username in Skipper Settings\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
-            'background:transparent;border:1px dashed var(--border);border-radius:10px;'+
-            'padding:11px 6px;cursor:pointer;opacity:.35;">'+
-            btnLabel('Revolut','not set','var(--muted)')+'</button>'
-          )+
-
-          // ── Cash ──
-          '<button onclick="markPaidCollect(\''+p.id+'\',\'Cash\')" '+
-          'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
-          'background:rgba(45,198,83,.1);border:1px solid rgba(45,198,83,.4);border-radius:10px;'+
-          'padding:11px 6px;cursor:pointer;">'+
-          btnLabel('Cash','mark paid','var(--success)')+'</button>'+
-
-          // ── Card ──
-          (stripeLink&&waStripeLink?
-            '<a href="'+waStripeLink+'" target="_blank" '+
-            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
-            'background:rgba(0,180,216,.1);border:1px solid rgba(0,180,216,.4);border-radius:10px;'+
-            'padding:11px 6px;text-decoration:none;cursor:pointer;">'+
-            btnLabel('Card','WhatsApp','var(--teal)')+'</a>'
-          :stripeLink?
-            '<button onclick="showStripeQR(\''+p.first+'\',\''+stripeLink+'\',\''+amt+'\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
-            'background:rgba(0,180,216,.08);border:1px solid rgba(0,180,216,.3);border-radius:10px;'+
-            'padding:11px 6px;cursor:pointer;">'+
-            btnLabel('Card','QR Code','var(--teal)')+'</button>'
-          :
-            '<button onclick="toast(\'Card payment links not configured — see RO Club Settings\')" '+
-            'style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;'+
-            'background:transparent;border:1px dashed var(--border);border-radius:10px;'+
-            'padding:11px 6px;cursor:pointer;opacity:.35;">'+
-            btnLabel('Card','not set','var(--muted)')+'</button>'
-          )+
-
-        '</div>'+
-        // ── Mark as Paid (manual confirmation after Revolut/Card) ──
-        '<button onclick="markPaidCollect(\''+p.id+'\',\'Confirmed\')" '+
-        'style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;'+
-        'background:rgba(45,198,83,.08);border:1px solid rgba(45,198,83,.3);border-radius:10px;'+
-        'padding:9px 12px;cursor:pointer;font-family:Barlow Condensed,sans-serif;font-size:.88rem;'+
-        'font-weight:800;color:var(--success);letter-spacing:.06em;text-transform:uppercase;">'+
-        '✓ Mark as Paid</button>';
-    }
-    list.appendChild(row);
-  });
-  document.getElementById('collectSheet').classList.add('open');
-}
 
 function markPaidCollect(id,method){
   const p=roster.find(r=>r.id===id); if(!p)return;
@@ -8779,7 +8428,6 @@ function openPNSheet(id,preset){
   document.getElementById('pn-name').textContent=p.first+' '+p.last;
   document.getElementById('pn-note').value='';
   document.querySelectorAll('.pm-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('pn-revolut-link').style.display='none';
   document.getElementById('pn-stripe-link').style.display='none';
   if(preset){
     const btn=document.getElementById('pm-'+preset.toLowerCase().replace(/\s.*/,''));
@@ -8807,34 +8455,8 @@ function fmtWaPhone(ph){
   return d;
 }
 function showPayMethodExtras(m,p){
-  const revDiv=document.getElementById('pn-revolut-link');
   const stripeDiv=document.getElementById('pn-stripe-link');
-  revDiv.style.display='none'; stripeDiv.style.display='none';
-  if(m==='Revolut'){
-    const revUser=getRevolutUser();
-    if(revUser&&p){
-      if(isMobile()){
-        document.getElementById('pn-revolut-btn').href=`https://revolut.me/${revUser}?amount=${Math.round(fee(p)*100)}&currency=EUR`;
-        revDiv.style.display='block';
-      } else {
-        revDiv.innerHTML=`<div style="background:rgba(110,64,216,.08);border:1px solid rgba(110,64,216,.25);
-          border-radius:10px;padding:12px;text-align:center;">
-          <div style="font-size:1.2rem;margin-bottom:4px">📱</div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;color:#a78bfa;margin-bottom:3px">
-            Revolut — Mobile Only
-          </div>
-          <div style="font-size:.85rem;color:var(--muted)">
-            Ask the crew member to open Revolut on their phone,<br>
-            or use the QR Pay Link instead.
-          </div>
-          <div style="font-size:.85rem;color:#a78bfa;margin-top:6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;letter-spacing:.04em">
-            revolut.me/@${revUser} · enter €${fee(p)} in the app
-          </div>
-        </div>`;
-        revDiv.style.display='block';
-      }
-    }
-  }
+  stripeDiv.style.display='none';
   if(m==='Card/Apple/Google'){
     stripeDiv.style.display='block';
   }
@@ -8874,31 +8496,6 @@ function showStripeQR(firstName, stripeLink, amt){
   document.body.appendChild(el);
 }
 
-function showRevolutQR(firstName, revLink, amt){
-  const existing=document.getElementById('_revolutQROverlay');
-  if(existing) existing.remove();
-  const qrUrl='https://api.qrserver.com/v1/create-qr-code/?size=220x220&data='+encodeURIComponent(revLink);
-  const el=document.createElement('div');
-  el.id='_revolutQROverlay';
-  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px;';
-  el.innerHTML=`
-    <div style="background:#112240;border:1px solid rgba(110,64,216,.4);border-radius:16px;padding:24px;max-width:300px;width:100%;text-align:center;">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:#f0f4f8;margin-bottom:4px">💜 Revolut — ${firstName}</div>
-      <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:4px">Ask them to scan with their camera</div>
-      <div style="font-size:.85rem;color:#a78bfa;margin-bottom:16px;font-family:'Barlow Condensed',sans-serif;font-weight:600">Amount: €${amt}</div>
-      <div style="background:white;border-radius:10px;padding:12px;display:inline-block;margin-bottom:16px">
-        <img src="${qrUrl}" style="width:200px;height:200px;display:block">
-      </div>
-      <div style="font-size:.8rem;color:#7a8fa6;margin-bottom:14px">${revLink}</div>
-      <button onclick="document.getElementById('_revolutQROverlay').remove()"
-        style="width:100%;padding:12px;background:transparent;border:1px solid rgba(255,255,255,.2);
-        border-radius:10px;color:#7a8fa6;cursor:pointer;font-family:'Barlow Condensed',sans-serif;
-        font-size:.95rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;">Close</button>
-    </div>`;
-  el.addEventListener('click',e=>{if(e.target===el)el.remove();});
-  document.body.appendChild(el);
-}
-
 // ── Share Payment Link / QR ───────────────────────────────────
 function openSharePayLink(){
   const sel=roster.filter(p=>p.selected);
@@ -8912,7 +8509,6 @@ function openSharePayLink(){
   const data={
     boat: currentBoat.name,
     race: selectedRace?selectedRace.label:'Race',
-    rev: getRevolutUser(),
     crew: sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p)}))
   };
   // base64url encoding: no +, /, or = characters — iOS truncates URLs at '='
@@ -9573,7 +9169,7 @@ async function loadBoatSummaryStrip(){
 // Fetched/saved via its own isolated request rather than folded into
 // BOATS_SELECT — an unknown column there 400s the WHOLE boat roster for
 // every club that hasn't applied 066 yet (same reasoning as every other
-// SCHEMA_HAS_* isolated fetch in this app — see loadRnliRevolutUser()'s
+// SCHEMA_HAS_* isolated fetch in this app — see loadRnliBaseAmount()'s
 // comment for the actual incident that taught this lesson, confirmed live
 // 2026-09-02).
 //
@@ -14281,23 +13877,11 @@ function showCrewPayPage(data){
   // ── Step 2: Personal payment screen ───────────────────────────
   window._cpStep2=function(idx){
     const c=data.crew[idx];
-    const revUrl=data.rev?`https://revolut.me/${data.rev}?amount=${Math.round(c.a*100)}&currency=EUR`:'';
-    // Prefer clubSettings (loaded at startup); fall back to embedded stripeLinks for old shared URLs
+    // Prefer clubSettings (loaded at startup); fall back to embedded stripeLinks for old shared URLs.
+    // Old shared links may still carry a `rev` (Revolut handle) — ignored since
+    // Revolut direct payment was retired 2026-11-05 (Revolut Pay is in Stripe).
     const sl=data.stripeLinks||{};
     const stripeUrl=getStripeLink(c.t)||(c.t==='student'?sl.student:c.t==='visitor'?sl.visitor:sl.member)||data.stripe||'';
-
-    const revBtn=revUrl?`
-      <a href="${revUrl}" target="_blank"
-        style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
-        background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:14px;
-        padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
-        margin-bottom:6px;box-shadow:0 4px 24px rgba(110,64,216,.4);">
-        <span style="font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase">💜 Open Revolut</span>
-        <span style="font-size:.85rem;font-weight:400;opacity:.85">€${c.a} pre-filled — just confirm &amp; send</span>
-      </a>
-      <div style="text-align:center;font-size:.8rem;color:#a78bfa;margin-bottom:12px;letter-spacing:.02em">
-        Send to <strong>@${data.rev}</strong>
-      </div>`:'';
 
     const stripeBtn=stripeUrl?`
       <a href="${stripeUrl}" target="_blank"
@@ -14306,10 +13890,10 @@ function showCrewPayPage(data){
         padding:18px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
         font-size:1.2rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
         margin-bottom:12px;box-shadow:0 4px 24px rgba(13,110,253,.3);">
-        💳 Pay €${c.a} by Card / Apple Pay / Google Pay
+        💳 Pay €${c.a} by Card / Apple Pay / Revolut
       </a>`:'';
 
-    const noOptions=!revUrl&&!stripeUrl?`
+    const noOptions=!stripeUrl?`
       <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
         border-radius:12px;padding:16px;text-align:center;font-size:.9rem;color:#7a8fa6;margin-bottom:12px;">
         Pay your skipper directly by cash or bank transfer
@@ -14328,7 +13912,7 @@ function showCrewPayPage(data){
             color:#00b4d8;line-height:1;margin-bottom:6px">€${c.a}</div>
           <div style="font-size:.8rem;color:#7a8fa6;text-transform:uppercase;letter-spacing:.06em">${memberLabel(c.t)}</div>
         </div>
-        ${revBtn}${stripeBtn}${noOptions}
+        ${stripeBtn}${noOptions}
         <button onclick="window._cpBack()"
           style="display:block;width:100%;padding:13px;background:transparent;
           border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#7a8fa6;cursor:pointer;
@@ -16968,7 +16552,7 @@ async function unarchiveProtest(id){
     history.pushState({gbsc:_depth}, '');
 
     // Dynamic QR overlays
-    const qr = document.getElementById('_revolutQROverlay') || document.getElementById('_stripeQROverlay');
+    const qr = document.getElementById('_stripeQROverlay');
     if(qr){ qr.remove(); return; }
 
     // Bottom sheets (.overlay.open) — skip pin overlays
@@ -17864,12 +17448,12 @@ showTab('registeredTab', null);
 // promise removes the ordering race entirely — whichever of the two
 // consumers awaits it first just waits for the same in-flight request.
 const _schemaCapabilitiesReady=checkSchemaCapabilities();
-// RNLI running total + Revolut handle — independent of the race-schedule
+// RNLI running total — independent of the race-schedule
 // chain below, just needs FEAT.rnli (from _settingsReady) and
-// SCHEMA_HAS_RNLI (from _schemaCapabilitiesReady) both resolved; both
-// callees no-op while either is still off, so safe to fire unconditionally.
+// SCHEMA_HAS_RNLI (from _schemaCapabilitiesReady) both resolved; the
+// callee no-ops while either is still off, so safe to fire unconditionally.
 Promise.all([_schemaCapabilitiesReady,_settingsReady]).then(()=>{
-  Promise.all([loadRnliRevolutUser(),loadRnliBaseAmount()]).then(rnliRefreshTotals);
+  loadRnliBaseAmount().then(rnliRefreshTotals);
   // Same "fire once both are ready, no-ops until its own migration is in"
   // shape as the RNLI pair above — shows the full-screen notice on this
   // fresh load if the RO left racing marked cancelled.

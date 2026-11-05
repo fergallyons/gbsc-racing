@@ -313,12 +313,6 @@ main{max-width:680px;margin:0 auto;padding:20px 16px 40px;}
 .val-sm{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;}
 .c-ok{color:var(--success);} .c-bad{color:var(--danger);}
 .pay-actions{margin-top:16px;display:flex;flex-direction:column;gap:10px;}
-.revolut-btn{display:flex;align-items:center;justify-content:center;gap:10px;
-  background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border:none;
-  border-radius:10px;padding:14px;font-family:'Barlow Condensed',sans-serif;
-  font-size:1rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-  cursor:pointer;transition:opacity .2s;width:100%;}
-.revolut-btn:hover{opacity:.9;}
 
 /* ─── NEW SAILORS CTA BUTTON ──────────────────────────────── */
 .new-sailor-cta{width:100%;display:flex;align-items:center;justify-content:space-between;

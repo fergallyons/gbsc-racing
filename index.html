@@ -445,7 +445,7 @@
     <div id="tile-sk-settings" class="dash-card" onclick="openSettingsSheet()">
       <div class="dash-card-icon">⚙</div>
       <div class="dash-card-label">Settings</div>
-      <div class="dash-card-sub">Revolut username</div>
+      <div class="dash-card-sub">WhatsApp, bow offset</div>
     </div>
   </div>
   <div style="text-align:center;padding:12px 0 4px">
@@ -2201,19 +2201,8 @@
     <div class="sheet-title">Record Payment — <span id="pn-name"></span></div>
     <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">How did they pay?</div>
     <div class="pm-grid">
-      <button class="pm-btn" id="pm-revolut" onclick="pickMethod(this,'Revolut')">💜 Revolut</button>
       <button class="pm-btn" id="pm-cash"    onclick="pickMethod(this,'Cash')">💵 Cash</button>
       <button class="pm-btn" id="pm-stripe"  onclick="pickMethod(this,'Card/Apple/Google')">💳 Card</button>
-    </div>
-    <div id="pn-revolut-link" style="display:none;margin-bottom:12px">
-      <a id="pn-revolut-btn" href="#" target="_blank"
-        style="display:flex;align-items:center;justify-content:center;gap:8px;
-        background:linear-gradient(135deg,#191c82,#6e40d8);color:white;border-radius:10px;
-        padding:12px;text-decoration:none;font-family:'Barlow Condensed',sans-serif;
-        font-size:.95rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">
-        💜 Open Revolut Request
-      </a>
-      <div style="font-size:.8rem;color:var(--muted);text-align:center;margin-top:5px">Opens Revolut on crew member's phone</div>
     </div>
     <div id="pn-stripe-link" style="display:none;margin-bottom:12px">
       <div style="background:var(--card);border:1px dashed var(--border);border-radius:10px;padding:12px;text-align:center;font-size:.82rem;color:var(--muted)">
@@ -2337,7 +2326,7 @@
     <div class="sheet-handle"></div>
     <div class="sheet-title">📲 Request Payment from Crew</div>
     <div style="font-size:.82rem;color:var(--muted);margin-bottom:14px">
-      Show this QR to your crew — each person taps their name and is taken directly to Revolut to pay their fee.
+      Show this QR to your crew — each person taps their name and pays their fee online (card, Apple Pay or Revolut).
     </div>
     <div id="shareQR" style="background:white;border-radius:12px;padding:16px;text-align:center;margin-bottom:14px"></div>
     <div id="shareLinkBox" style="display:none"></div>
@@ -2353,19 +2342,6 @@
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title">⚙ Skipper Settings</div>
-    <div class="form-group" style="margin-bottom:16px">
-      <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
-        💜 Your Revolut @username
-      </label>
-      <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
-        <span style="color:var(--muted);font-size:1rem;font-weight:700">@</span>
-        <input type="text" id="settings-revolut" placeholder="yourname"
-          style="flex:1;background:var(--navy);border:1px solid var(--border);border-radius:8px;
-          color:var(--white);font-family:'Barlow',sans-serif;font-size:.95rem;padding:9px 12px;
-          outline:none;box-sizing:border-box;">
-      </div>
-      <div style="font-size:.8rem;color:var(--muted);margin-top:5px">Used to generate Revolut payment request links for your crew</div>
-    </div>
     <div class="form-group" style="margin-bottom:16px">
       <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
         💬 Your WhatsApp Number
@@ -2581,32 +2557,6 @@
 
     <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
       <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
-        💜 RO Revolut Username
-      </label>
-      <input type="text" id="ro-revolut-user" placeholder="@username"
-        style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
-        color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
-        outline:none;width:100%;box-sizing:border-box;">
-      <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
-        Shown to skippers as a direct link when submitting collected Revolut fees to the RO.
-      </div>
-    </div>
-
-    <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
-      <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
-        🚢 RNLI Revolut Username
-      </label>
-      <input type="text" id="ro-rnli-revolut-user" placeholder="@username"
-        style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
-        color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
-        outline:none;width:100%;box-sizing:border-box;">
-      <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
-        A separate, dedicated Revolut account for RNLI contributions — not the RO account above. Shown to crew when they choose to give by Revolut.
-      </div>
-    </div>
-
-    <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
-      <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
         🕐 Pre-Race Window
       </label>
       <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
@@ -2813,9 +2763,8 @@
     <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px">How are you settling the total with the club?</div>
 
     <div style="font-size:.8rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Settlement method</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
       <button class="settle-btn" id="sb-cash"    onclick="toggleSettle('cash')"   >💵<br>Cash</button>
-      <button class="settle-btn" id="sb-revolut" onclick="toggleSettle('revolut')">💜<br>Revolut</button>
       <button class="settle-btn" id="sb-website" onclick="toggleSettle('website')">🌐<br>Website</button>
     </div>
 
@@ -3072,8 +3021,7 @@
         <p>Fees can be collected by the skipper directly, or crew can pay independently. Everything saves to the database in real time — no submit step required.</p>
 
         <div style="font-size:.85rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;margin-top:4px">Skipper — Race Fees panel</div>
-        <p>Select your crew in the Crew Roster, then tap <strong>Race Fees</strong>. Each crew member has three buttons:</p>
-        <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Revolut</strong> — opens your Revolut.me link. Once you see the payment arrive, tap the button to record it.</div></div>
+        <p>Select your crew in the Crew Roster, then tap <strong>Race Fees</strong>. Each crew member has two buttons:</p>
         <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Cash</strong> — immediately marks as paid. Use when you physically receive the money.</div></div>
         <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text"><strong>Card</strong> — opens the Stripe card payment link. Record it once you confirm the payment came through.</div></div>
         <div class="help-tip" style="margin-bottom:12px">
@@ -3083,14 +3031,14 @@
         <div style="font-size:.85rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Crew — Pay Race Fees (self-pay)</div>
         <p>Crew members can pay independently using the <strong>Pay Race Fees</strong> tile on the home screen — no skipper login needed.</p>
         <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Select your boat and your name</div></div>
-        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Choose <strong>Revolut</strong>, <strong>Card</strong> or <strong>Cash</strong></div></div>
-        <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">Card payments redirect to Stripe and confirm automatically on return. Revolut opens the payment link — tap <strong>I've paid</strong> once done.</div></div>
+        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Choose <strong>Pay Online</strong> (card, Apple Pay or Revolut) or <strong>Cash</strong></div></div>
+        <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">Online payments go through Stripe and confirm automatically on return.</div></div>
 
         <div style="font-size:.85rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px;margin-top:12px">Send payment link to crew</div>
         <p>In the Race Fees panel, tap <strong>📲 Send payment link to crew</strong> to share a link your crew can use to self-pay at their convenience — useful before race night.</p>
 
         <div class="help-tip">
-          <p>⚙ <strong>Setup:</strong> Add your Revolut <strong>@username</strong> in Skipper Settings. Card payment links are configured by the Club Admin in Club Settings.</p>
+          <p>⚙ <strong>Setup:</strong> Online payment links (card, Apple Pay, Revolut Pay — all via Stripe) are configured by the Club Admin in Club Settings.</p>
         </div>
       </div>
     </div>
@@ -3154,7 +3102,7 @@
         <p>Both are on the login screen: <strong>Race Officer</strong> (RO PIN) runs race day; <strong>Club Admin</strong> (Admin PIN) sets the club up — boats &amp; PINs, schedule, marks, fees, results and club settings.</p>
         <div style="font-size:.85rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">First-time setup (Club Admin)</div>
         <div class="help-step"><div class="help-step-num">1</div><div class="help-step-text">Log in as <strong>Club Admin</strong> and tap <strong>Club Settings</strong></div></div>
-        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Add <strong>card payment links</strong> for member, student and visitor rates (e.g. Stripe or Revolut payment links)</div></div>
+        <div class="help-step"><div class="help-step-num">2</div><div class="help-step-text">Add <strong>card payment links</strong> for member, student and visitor rates (Stripe payment links — Revolut Pay is enabled inside Stripe)</div></div>
         <div class="help-step"><div class="help-step-num">3</div><div class="help-step-text">Set the <strong>pre-race window</strong> — how many hours before a race the course is shown as "Live" to skippers</div></div>
         <div style="font-size:.85rem;font-weight:700;color:var(--white);letter-spacing:.06em;text-transform:uppercase;margin:12px 0 8px">Race day</div>
         <div class="help-step"><div class="help-step-num">•</div><div class="help-step-text">Use <strong>Course Builder</strong> to set and publish the course before the start</div></div>

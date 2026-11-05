@@ -14,7 +14,7 @@ See [docs/FEATURE_SPEC.md](docs/FEATURE_SPEC.md) for the full feature catalog (w
 | Database | Supabase (PostgreSQL) — one project per club |
 | Hosting | Netlify (static site + Edge Functions + Functions) |
 | Results/handicaps | HalSail, Irish Sailing national ratings register |
-| Payments | Stripe (Payment Links + bulk checkout) · Revolut deep links · cash |
+| Payments | Stripe (Payment Links + bulk checkout; card, Apple/Google Pay, Revolut Pay) · cash |
 | Push notifications | Web Push (VAPID), per-club key pair |
 
 ## Repo layout

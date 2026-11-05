@@ -49,7 +49,7 @@ The app has no user accounts or logins in the traditional sense — access is PI
 - **News Feed** — short news items with optional links, surfaced as a ticker banner across every dashboard.
 
 **Advanced**
-- **Club Settings** — single admin screen for: Stripe payment links per membership tier, Revolut usernames, race fee amounts per tier, visitor-outing cap, "years aboard before becoming a full member" threshold, HalSail club ID, start/wind/tide coordinates, tide station and datum offset, WorldTides API key, noticeboard and results links, eStela race-tracker link, pre-race registration window, and the club's push-notification key.
+- **Club Settings** — single admin screen for: Stripe payment links per membership tier, race fee amounts per tier, visitor-outing cap, "years aboard before becoming a full member" threshold, HalSail club ID, start/wind/tide coordinates, tide station and datum offset, WorldTides API key, noticeboard and results links, eStela race-tracker link, pre-race registration window, and the club's push-notification key.
 - **Usage Stats** — logins by role, unique boats, sessions per month, session duration.
 - **Start Timer** — deep-links to a third-party voice-announced starting-sequence app (Android/iOS/web).
 - **Features** — the live, in-app toggle screen for every configurable feature (see §4).
@@ -63,7 +63,7 @@ The app has no user accounts or logins in the traditional sense — access is PI
 - **Race Fees / Fee History** — collect and submit crew fees for the current race (or series, depending on billing model — see §4a), and view the boat's own payment record.
 - **Crew Roster** — add/edit crew with a membership type (Full / Crew / Student / Visitor / Junior); tracks visitor-outing counts against the club's cap and crew years-aboard against the "new member" threshold; fees recalculate live from the club's fee schedule.
 - **Crew Wanted / Available Crew** — see boats looking for crew, and sailors available to crew, with one-tap contact.
-- **Settings** — Revolut username, boat photo, sail number, PIN change.
+- **Settings** — boat photo, sail number, PIN change.
 - **Declaration Gate** *(optional, per club)* — forces a season safety declaration before the dashboard is usable, with club-supplied links to Sailing Instructions/RRS/safety documents.
 - **Push notifications** — opt in on this device to be notified when a course is published.
 
@@ -82,7 +82,7 @@ No PIN required — open to anyone with the club's app link.
 
 - **Course, Start Sequence, Results, Handicaps** — same live views as skippers.
 - **Race Weather** — wind, tide and forecast for the next race.
-- **Pay Race Fees** — crew can pay their own fee directly (Stripe or Revolut) instead of routing through the skipper.
+- **Pay Race Fees** — crew can pay their own fee directly (Stripe) instead of routing through the skipper.
 - **Calendar** — race schedule.
 - **Documents** — sailing instructions and club documents.
 - **Notifications** — opt in to "course published" alerts.
@@ -102,10 +102,10 @@ All of the above are per-club configuration — a new club supplies its own HalS
 ## 7. Payments
 
 - **Stripe** — a Payment Link per membership tier (Full/Crew, Student, Visitor), opened directly or shown as a QR code; plus a bulk-checkout flow so one card transaction can mark several crew as paid at once, with a clean line-itemised receipt.
-- **Revolut** — manual, username-based deep link (`revolut.me/<club-or-boat-username>`); payment is confirmed by hand afterward.
+- **Revolut** — offered as Revolut Pay inside the Stripe checkout (enable it in the club's Stripe dashboard). The old `revolut.me` deep links were retired in November 2026.
 - **Cash** — recorded manually by the skipper or RO.
 
-Payment configuration (Stripe links, Revolut usernames, fee amounts per tier) is entirely per-club — no amounts are hardcoded in the app itself.
+Payment configuration (Stripe links, fee amounts per tier) is entirely per-club — no amounts are hardcoded in the app itself.
 
 ## 8. Push notifications
 
