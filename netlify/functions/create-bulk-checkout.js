@@ -20,7 +20,12 @@
 //     paymentRef: "<uuid>",            // echoed back via session metadata
 //     boatId:     "silver_fox",
 //     raceKey:    "2026-06-04",
-//     description:"GBSC race fees — Silver Fox · 4 crew"
+//     description:"GBSC race fees — Silver Fox · 4 crew",
+//     // For stripe-webhook.js (server-side recording — see that file):
+//     kind:      "bulk" | "rnli",
+//     raceName:  "Thursday Series — 4 Jun",   // bulk only
+//     raceDate:  "2026-06-04",                // bulk only
+//     crew:      [{ id: "<crew id>", amount: 4 }, ...]  // bulk only, € per crew
 //   }
 //
 // Response:
@@ -44,7 +49,8 @@ exports.handler = async (event) => {
   try { body = JSON.parse(event.body || '{}'); }
   catch { return json(400, { error: 'Invalid JSON' }); }
 
-  const { items, returnUrl, cancelUrl, paymentRef, boatId, raceKey, description } = body;
+  const { items, returnUrl, cancelUrl, paymentRef, boatId, raceKey, description,
+          kind, raceName, raceDate, crew } = body;
 
   // ── Validate inputs ──────────────────────────────────────────
   if (!Array.isArray(items) || items.length === 0) {
@@ -82,6 +88,22 @@ exports.handler = async (event) => {
   if (boatId)  form.set('metadata[boat_id]',  String(boatId));
   if (raceKey) form.set('metadata[race_key]', String(raceKey));
   if (description) form.set('payment_intent_data[description]', description.slice(0, 200));
+  // Markers stripe-webhook.js records the payment from. Stripe caps each
+  // metadata value at 500 chars, so the crew list is chunked into crew_0…n.
+  if (kind === 'bulk' || kind === 'rnli') form.set('metadata[kind]', kind);
+  if (kind === 'bulk') {
+    if (raceName) form.set('metadata[race_name]', String(raceName).slice(0, 120));
+    if (raceDate) form.set('metadata[race_date]', String(raceDate).slice(0, 10));
+    const pairs = (Array.isArray(crew) ? crew : [])
+      .filter(c => c && /^[A-Za-z0-9_-]{1,64}$/.test(String(c.id)) && Number.isInteger(c.amount) && c.amount >= 0)
+      .map(c => `${c.id}:${c.amount}`);
+    let chunk = '', n = 0;
+    for (const p of pairs) {
+      if (chunk && (chunk.length + 1 + p.length) > 480) { form.set(`metadata[crew_${n++}]`, chunk); chunk = ''; }
+      chunk = chunk ? chunk + ';' + p : p;
+    }
+    if (chunk) form.set(`metadata[crew_${n}]`, chunk);
+  }
 
   items.forEach((it, i) => {
     form.set(`line_items[${i}][price_data][currency]`,                 'eur');

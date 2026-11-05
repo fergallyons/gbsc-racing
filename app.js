@@ -889,9 +889,9 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
     SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false,
-    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false, SCHEMA_HAS_BRANDING=false, SCHEMA_HAS_LAID_START_OFFSET=false, SCHEMA_HAS_LAID_SPREADER=false, SCHEMA_HAS_SS_API_KEY=false;
+    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false, SCHEMA_HAS_BRANDING=false, SCHEMA_HAS_LAID_START_OFFSET=false, SCHEMA_HAS_LAID_SPREADER=false, SCHEMA_HAS_SS_API_KEY=false, SCHEMA_HAS_STRIPE_WEBHOOK_SECRET=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql,070_club_branding.sql,073_laid_start_offset.sql,074_laid_spreader.sql,069_ss_api_key.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql,070_club_branding.sql,073_laid_start_offset.sql,074_laid_spreader.sql,069_ss_api_key.sql,081_stripe_webhook_secret.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -915,6 +915,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_BOAT_INFO=names.has('066_boat_info.sql');
   SCHEMA_HAS_RO_PROTEST=names.has('067_ro_protest.sql');
   SCHEMA_HAS_HAL_API_KEY=names.has('068_hal_api_key.sql');
+  SCHEMA_HAS_STRIPE_WEBHOOK_SECRET=names.has('081_stripe_webhook_secret.sql');
   SCHEMA_HAS_BRANDING=names.has('070_club_branding.sql');
   SCHEMA_HAS_LAID_START_OFFSET=names.has('073_laid_start_offset.sql');
   SCHEMA_HAS_LAID_SPREADER=names.has('074_laid_spreader.sql');
@@ -934,6 +935,8 @@ async function checkSchemaCapabilities(){
   if(roProtestBtn) roProtestBtn.style.display=SCHEMA_HAS_RO_PROTEST?'':'none';
   const halKeyWrap=document.getElementById('ro-hal-api-key-wrap');
   if(halKeyWrap) halKeyWrap.style.display=SCHEMA_HAS_HAL_API_KEY?'block':'none';
+  const whsecWrap=document.getElementById('ro-stripe-whsec-wrap');
+  if(whsecWrap) whsecWrap.style.display=SCHEMA_HAS_STRIPE_WEBHOOK_SECRET?'block':'none';
   const ssKeyWrap=document.getElementById('ssApiKeyWrap');
   if(ssKeyWrap) ssKeyWrap.style.display=SCHEMA_HAS_SS_API_KEY?'block':'none';
   const brandWrap=document.getElementById('ro-branding-wrap');
@@ -4290,6 +4293,26 @@ function getStripeLink(type){
 function hasAnyStripeLink(){
   return !!(clubSettings.stripe_link_member||clubSettings.stripe_link_student||clubSettings.stripe_link_visitor);
 }
+// Tags a Stripe Payment Link with who is paying for which race, so the
+// stripe-webhook function can record the payment server-side even if the
+// payer's browser never returns to the app (new tab, Revolut Pay handing back
+// to another browser, closed tab). Stripe allows client_reference_id up to
+// 200 chars of [A-Za-z0-9_-] — exactly base64url's alphabet. race_date is
+// recovered server-side from the race key's YYYY-MM-DD prefix (raceKey()).
+// Returns the plain link if anything is missing, so paying still works.
+function stripeLinkWithRef(link,boatId,crewId,raceKeyVal,raceName){
+  if(!link||!boatId||!crewId||!raceKeyVal) return link||'';
+  try{
+    const enc=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    let name=String(raceName||'');
+    let ref='sp1_'+enc({b:boatId,c:String(crewId),k:raceKeyVal,n:name});
+    while(ref.length>200&&name.length){ name=name.slice(0,Math.max(0,name.length-8)); ref='sp1_'+enc({b:boatId,c:String(crewId),k:raceKeyVal,n:name}); }
+    if(ref.length>200) return link;
+    const u=new URL(link);
+    u.searchParams.set('client_reference_id',ref);
+    return u.toString();
+  }catch(e){ return link; }
+}
 // Revolut direct payment (revolut.me links) was retired 2026-11-05 — Revolut
 // Pay is now enabled on the club's Stripe account, so it shows up inside the
 // card checkout. The revolut_user / ro_revolut_user / rnli_revolut_user DB
@@ -4389,6 +4412,17 @@ async function refreshHalApiKeyStatus(){
   const isSet=Array.isArray(r)&&r[0]&&r[0].hal_api_key_set===true;
   el.style.color=isSet?'var(--success)':'var(--muted)';
   el.textContent=isSet?'✓ A key is saved':'No key saved yet';
+}
+// Stripe webhook signing secret (migration 081): never readable by the app,
+// only the generated _set flag; written via a PIN-gated RPC, since whoever
+// sets it can sign events stripe-webhook.js will trust.
+async function refreshStripeWebhookStatus(){
+  const el=document.getElementById('ro-stripe-whsec-status');
+  if(!el||!SCHEMA_HAS_STRIPE_WEBHOOK_SECRET) return;
+  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=stripe_webhook_secret_set');
+  const isSet=Array.isArray(r)&&r[0]&&r[0].stripe_webhook_secret_set===true;
+  el.style.color=isSet?'var(--success)':'var(--muted)';
+  el.textContent=isSet?'✓ A signing secret is saved':'No signing secret saved yet — Stripe payments are only recorded when the payer returns to the app';
 }
 // ── Club Settings → Branding (migration 070) ──────────────────────────
 // Logo is uploaded to the public club-assets bucket (new timestamped file
@@ -4949,6 +4983,8 @@ async function openROClubSettings(){
   setVal('ro-hal-club',clubSettings.hal_club||'');
   setVal('ro-hal-api-key','');
   refreshHalApiKeyStatus();
+  setVal('ro-stripe-whsec','');
+  refreshStripeWebhookStatus();
   refreshBrandingForm();
   setVal('ro-fee-full',clubSettings.fee_full??'');
   setVal('ro-fee-crew',clubSettings.fee_crew??'');
@@ -5074,6 +5110,20 @@ function saveROClubSettings(){
     });
   } else {
     toast('⚠ Payment settings not saved — try logging in again');
+  }
+
+  const whsecVal=getVal('ro-stripe-whsec');
+  if(SCHEMA_HAS_STRIPE_WEBHOOK_SECRET&&whsecVal!==''){
+    if(!/^whsec_[A-Za-z0-9]+$/.test(whsecVal)){
+      toast('⚠ Webhook secret not saved — it should start with whsec_');
+    } else if(!payAuthPin){
+      toast('⚠ Webhook secret not saved — try logging in again');
+    } else {
+      sbRpc('set_stripe_webhook_secret',{p_current_pin:payAuthPin,p_secret:whsecVal}).then(ok=>{
+        if(ok!==true) toast('⚠ Webhook secret not saved — try logging in again');
+        else refreshStripeWebhookStatus();
+      });
+    }
   }
 
   const halApiKeyVal=getVal('ro-hal-api-key');
@@ -5431,10 +5481,11 @@ function crewPaySelectSelf(idx){
   _cpStep=3;
   document.getElementById('crewPayTitle').textContent='Hi, '+c.first+' 👋';
 
-  const stripeUrl=(
+  const stripeUrl=stripeLinkWithRef((
     c.type==='student'?clubSettings.stripe_link_student:
     c.type==='visitor'?clubSettings.stripe_link_visitor:
-    clubSettings.stripe_link_member)||'';
+    clubSettings.stripe_link_member)||'',
+    crewPaySelectBoat._lastBoatId,c.id,nextRace?raceKey(nextRace):'',nextRace?nextRace.label:'');
 
   const feeNote=amt
     ?`<div style="text-align:center;font-size:.85rem;color:var(--muted);margin-bottom:8px">Your fee for ${nextRace?nextRace.label:'this race'}</div>
@@ -6061,7 +6112,10 @@ async function rfBulkPayConfirm(method){
           paymentRef,
           boatId:currentBoat.id,
           raceKey:key,
-          description:`${currentBoat.name} — ${race.label} (${chosen.length} crew)`
+          description:`${currentBoat.name} — ${race.label} (${chosen.length} crew)`,
+          // For stripe-webhook.js — records the rows server-side too
+          kind:'bulk', raceName:race.label, raceDate,
+          crew:pending.crew
         })
       });
       const data=await r.json().catch(()=>({}));
@@ -8103,7 +8157,7 @@ function spDoCard(){
     })); }catch(e){}
   }
   // Navigate in same tab so Stripe success_url redirect returns to this app
-  window.location.href=getStripeLink(p.type);
+  window.location.href=stripeLinkWithRef(getStripeLink(p.type),b&&b.id,p&&p.id,race?raceKey(race):'',race?race.label:'');
 }
 
 async function spConfirm(method){
@@ -8298,7 +8352,8 @@ async function rnliDoCard(){
         returnUrl:`${origin}/?stripe_success=1&rnli_ref=${encodeURIComponent(paymentRef)}`,
         cancelUrl:origin+'/',
         paymentRef,
-        description:'RNLI Contribution'
+        description:'RNLI Contribution',
+        kind:'rnli', boatId:currentBoat?currentBoat.id:undefined
       })
     });
     const data=await r.json().catch(()=>({}));
@@ -8350,7 +8405,9 @@ function openSharePayLink(){
   const data={
     boat:currentBoat.name,
     race:selectedRace?selectedRace.label:'Race',
-    crew:sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p)}))
+    // b/k/i let the pay page tag each Stripe link for the webhook (stripeLinkWithRef)
+    b:currentBoat.id, k:selectedRace?raceKey(selectedRace):'',
+    crew:sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p),i:p.id}))
   };
   // base64url: no +/= chars — iOS truncates URLs at '='
   const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(data))))
@@ -8509,7 +8566,9 @@ function openSharePayLink(){
   const data={
     boat: currentBoat.name,
     race: selectedRace?selectedRace.label:'Race',
-    crew: sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p)}))
+    // b/k/i let the pay page tag each Stripe link for the webhook (stripeLinkWithRef)
+    b: currentBoat.id, k: selectedRace?raceKey(selectedRace):'',
+    crew: sel.filter(p=>!p.paid).map(p=>({n:p.first+' '+p.last,t:p.type,a:fee(p),i:p.id}))
   };
   // base64url encoding: no +, /, or = characters — iOS truncates URLs at '='
   const encoded=btoa(unescape(encodeURIComponent(JSON.stringify(data))))
@@ -13881,7 +13940,8 @@ function showCrewPayPage(data){
     // Old shared links may still carry a `rev` (Revolut handle) — ignored since
     // Revolut direct payment was retired 2026-11-05 (Revolut Pay is in Stripe).
     const sl=data.stripeLinks||{};
-    const stripeUrl=getStripeLink(c.t)||(c.t==='student'?sl.student:c.t==='visitor'?sl.visitor:sl.member)||data.stripe||'';
+    const stripeUrl=stripeLinkWithRef(getStripeLink(c.t)||(c.t==='student'?sl.student:c.t==='visitor'?sl.visitor:sl.member)||data.stripe||'',
+      data.b,c.i,data.k,data.race);
 
     const stripeBtn=stripeUrl?`
       <a href="${stripeUrl}" target="_blank"
@@ -17403,6 +17463,13 @@ loadLivePortWeather();
           return;
         }
         sessionStorage.removeItem('rnli_pending');
+        // stripe-webhook.js may already have recorded this gift server-side
+        const existing=await sbFetch('/rest/v1/rnli_contributions?payment_ref=eq.'+encodeURIComponent(rnliRef)+'&select=id');
+        if(Array.isArray(existing)&&existing.length){
+          toast(`✅ Thank you — €${pending.amount} given to the RNLI`);
+          rnliRefreshTotals();
+          return;
+        }
         await sbSaveRnliContribution({
           amount:pending.amount, method:'Card',
           boat_id:pending.boatId||null, payment_ref:rnliRef

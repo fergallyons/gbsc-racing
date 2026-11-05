@@ -105,6 +105,8 @@ All of the above are per-club configuration — a new club supplies its own HalS
 - **Revolut** — offered as Revolut Pay inside the Stripe checkout (enable it in the club's Stripe dashboard). The old `revolut.me` deep links were retired in November 2026.
 - **Cash** — recorded manually by the skipper or RO.
 
+Stripe payments are recorded two ways: the app records them when the payer's browser returns from Stripe, and the `stripe-webhook` Netlify function records them server-side from Stripe's `checkout.session.completed` event (so a payment still lands if the browser never comes back). Each Payment Link is tagged with a `client_reference_id` naming the boat, crew member and race; bulk and RNLI checkouts carry the same in their metadata. Per club: a Stripe webhook endpoint, with its signing secret entered in Club Settings (stored write-only in the club's database, migration 081; setup steps in the function's header).
+
 Payment configuration (Stripe links, fee amounts per tier) is entirely per-club — no amounts are hardcoded in the app itself.
 
 ## 8. Push notifications

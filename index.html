@@ -2496,6 +2496,21 @@
       <div style="font-size:.8rem;color:var(--muted);margin-top:5px">Non-members / visitors (e.g. €10)</div>
     </div>
 
+    <!-- Needs migration 081 (SCHEMA_HAS_STRIPE_WEBHOOK_SECRET) — hidden by checkSchemaCapabilities() otherwise -->
+    <div id="ro-stripe-whsec-wrap" style="display:none;border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
+      <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
+        🔑 Stripe Webhook Signing Secret
+      </label>
+      <input type="password" id="ro-stripe-whsec" placeholder="whsec_…" autocomplete="off"
+        style="margin-top:8px;background:var(--navy);border:1px solid var(--border);border-radius:8px;
+        color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:10px 12px;
+        outline:none;width:100%;box-sizing:border-box;">
+      <div id="ro-stripe-whsec-status" style="font-size:.8rem;margin-top:5px;line-height:1.4"></div>
+      <div style="font-size:.8rem;color:var(--muted);margin-top:5px;line-height:1.4">
+        Lets the club's server record Stripe payments even when the payer never comes back to the app. Stripe dashboard → Developers → Webhooks → your endpoint → Signing secret. Stored in your club's own database, write-only — it can't be read back out of the app. Leave blank to keep the existing secret.
+      </div>
+    </div>
+
     <div style="border-top:1px solid var(--border);margin-bottom:16px;padding-top:16px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0">
         <label style="font-size:.85rem;color:var(--muted);font-weight:600;letter-spacing:.08em;text-transform:uppercase">
