@@ -13694,7 +13694,7 @@ function ssRoRender(message){
       <button class="btn btn-ghost" style="padding:6px 10px" onclick="ssRoLoadDay('${escHtml(d.date)}')" title="Reload">↺</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.78rem;color:var(--muted)">
-      <div style="flex:1;line-height:1.4">The app's calendar follows Sail Scoring automatically every 15 minutes, and after each change here.</div>
+      <div style="flex:1;line-height:1.4">The app's calendar follows Sail Scoring automatically every few hours, and after each change here — tap Update now for right away.</div>
       ${_ssRoBtn('⟳ Update now','ssRoSync()')}
     </div>
     ${_roOnDutyInput()}`;
