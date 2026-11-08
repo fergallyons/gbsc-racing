@@ -17,9 +17,20 @@
 [functions."ss-keepalive"]
   schedule = "0 4 * * 1"
 
-# The app's race list follows Sail Scoring for Sail Scoring clubs (ss-sync.js)
+# The app's race list follows Sail Scoring for Sail Scoring clubs (ss-sync.js).
+# Every 4 hours, not every 15 minutes — Sail Scoring reported 2026-11-08 that
+# this sweep (the signed-in half of the integration; the public results-watch
+# calls are served from published files and don't hit their database) was
+# running ~96 times/day, every day including the off-season, and each run
+# wakes their scale-to-zero database for a 5-minute minimum before it can
+# sleep again: ~8 hours/day of forced-awake time, ~$75-80/year, for a sync
+# whose entire point is "without anyone pressing anything" — not instant.
+# An RO who wants it right now already has that: the Results tile's manual
+# "sync" (ss-ro.js) and every RO change made there run syncClub() directly,
+# unaffected by this schedule. 6 sweeps/day keeps that same guarantee at a
+# few hours' lag instead of 15 minutes, for a ~94% cut in wake-ups.
 [functions."ss-sync"]
-  schedule = "*/15 * * * *"
+  schedule = "0 */4 * * *"
 
 [[edge_functions]]
   path = "/club-config.js"
