@@ -24,8 +24,15 @@
 // keyed by its Sail Scoring id (raceKey() in app.js), not its label, so
 // relabelling never cuts it off from its registrations, payments or
 // finish recordings.
+//
+// How often: Sail Scoring's database sleeps when idle and every signed-in
+// call wakes it (Mark, 2026-11-08), so syncs go by how near racing is
+// (syncDue): every few hours around a race day, daily with racing in the
+// next fortnight, weekly otherwise. Each sweep also skips series that have
+// already finished. ss_connection.synced_at (migration 080) is the clock
+// the schedule and the RO's on-open sync share.
 
-const { clubDb, readConnection, wsApi } = require('./_sailscoring');
+const { clubDb, readConnection, writeConnection, wsApi } = require('./_sailscoring');
 
 const SYNC_BACK_DAYS = 2;
 const enc = encodeURIComponent;
@@ -64,13 +71,14 @@ async function syncClub(slug) {
 
   const from = addDays(dublinToday(), -SYNC_BACK_DAYS);
 
-  // Sail Scoring's upcoming races, every series that isn't archived
+  // Sail Scoring's upcoming races: every series that isn't archived or
+  // already over (its end date before the sync window)
   const sl = await wsApi(slug, 'GET', '/series');
   if (sl.status !== 200 || !sl.body || !Array.isArray(sl.body.series)) {
     return { error: 'Could not list the series (' + (sl.error || 'HTTP ' + sl.status) + ')' };
   }
   const ssRaces = [];
-  for (const s of sl.body.series.filter(x => x && x.id && !x.archived)) {
+  for (const s of sl.body.series.filter(x => x && x.id && !x.archived && !(x.endDate && x.endDate < from))) {
     const r = await wsApi(slug, 'GET', '/series/' + enc(s.id) + '/races');
     if (r.status !== 200 || !r.body || !Array.isArray(r.body.races)) {
       // Without every series, a missing race can't be told from a failed read
@@ -139,7 +147,30 @@ async function syncClub(slug) {
       if (res.ok) out.deactivated++;
     }
   }
+  // The clock syncDue() and the RO's on-open sync go by (080; harmless without it)
+  try { await writeConnection(slug, { synced_at: new Date().toISOString() }); } catch (e) { /* migration 080 not applied */ }
   return out;
 }
 
-module.exports = { syncClub, makeLabel };
+// Whether a scheduled sync is due, by how near racing is: { due, reason }.
+// Racing is any active race in the app's own list — reading that costs
+// Sail Scoring nothing. A race yesterday, today or tomorrow: every few
+// hours (each scheduled run); one in the next fortnight: daily; none:
+// weekly — next season's races still arrive within the week, or at once
+// when an RO opens the app or taps Update now.
+const HOUR = 3600 * 1000;
+async function syncDue(slug, conn) {
+  const db = clubDb(slug);
+  const today = dublinToday();
+  const r = await db.req('races?active=eq.true&race_date=gte.' + addDays(today, -1) + '&race_date=lte.' + addDays(today, 14)
+    + '&select=race_date&order=race_date.asc');
+  const dates = r.ok && Array.isArray(r.body) ? r.body.map(x => x.race_date) : [];
+  const near = dates.some(d => d <= addDays(today, 1));
+  const maxAge = near ? 3.5 * HOUR : dates.length ? 23 * HOUR : (7 * 24 - 1) * HOUR;
+  const last = conn && conn.synced_at ? Date.parse(conn.synced_at) : 0;
+  const due = !last || Date.now() - last >= maxAge;
+  const why = near ? 'racing today or tomorrow' : dates.length ? 'racing within a fortnight' : 'no racing in the next fortnight';
+  return { due, reason: why + (due ? '' : ', last synced ' + new Date(last).toISOString()) };
+}
+
+module.exports = { syncClub, syncDue, makeLabel };

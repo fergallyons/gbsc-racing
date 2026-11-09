@@ -1,7 +1,9 @@
 // Scheduled function (see netlify.toml) — keeps each Sail Scoring club's
 // race list in step with Sail Scoring (_sssync.js, migration 079), so races
 // the scorer adds, moves or deletes there reach the app's calendar without
-// anyone pressing anything. The RO can also run it at once from the Results
+// anyone pressing anything. It runs every 4 hours but only syncs when
+// syncDue() says racing needs it — every run around a race day, daily with
+// racing in the next fortnight, weekly otherwise. The RO can also run it at once from the Results
 // tile (ss-ro.js 'sync'), and every RO change made there runs it too.
 //
 // Like results-watch.js this walks every CLUB_CONFIG_<SLUG> env var; a club
@@ -9,8 +11,8 @@
 // hasn't applied 079, is skipped with a reason in the log.
 
 const { envForSlug } = require('./_club');
-const { clubDb } = require('./_sailscoring');
-const { syncClub } = require('./_sssync');
+const { clubDb, readConnection } = require('./_sailscoring');
+const { syncClub, syncDue } = require('./_sssync');
 
 async function processClub(slug) {
   const db = clubDb(slug);
@@ -19,7 +21,13 @@ async function processClub(slug) {
   const f = (s.ok && Array.isArray(s.body) && s.body[0] && s.body[0].features) || {};
   const src = f.resultsSource || (f.sailScoring ? 'sailscoring' : 'halsail');
   if (src !== 'sailscoring') return { slug, skipped: 'results source is ' + src };
-  return { slug, ...(await syncClub(slug)) };
+  // Only as often as racing needs (syncDue): each call wakes Sail Scoring's database
+  let conn = null;
+  try { conn = await readConnection(slug); } catch (e) { return { slug, skipped: e.message }; }
+  if (!conn || conn.status !== 'connected') return { slug, skipped: 'not connected to Sail Scoring' };
+  const d = await syncDue(slug, conn);
+  if (!d.due) return { slug, skipped: 'not due — ' + d.reason };
+  return { slug, reason: d.reason, ...(await syncClub(slug)) };
 }
 
 exports.handler = async () => {

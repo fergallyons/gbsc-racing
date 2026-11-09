@@ -4,13 +4,14 @@
 //   1. find the club's published series: Sail Scoring's public series index
 //      (/p/<ws>/index.json, features.ssWorkspace). Each publication with an
 //      `api` link is read through the published results API
-//      (docs/public-api.md — keyless, the stable contract). If the index
-//      can't be read (it used to answer servers with a 429 bot challenge;
-//      it no longer did as of 2026-10-24), or for publications without an
-//      API link, this falls back to the Sail Scoring API with the club's
-//      key (_sailscoring.js; settings.ss_api_key, migration 069) and the
-//      series' public .sailscoring.json files, plus any series addresses
-//      saved in Sail Scoring Setup (features.ssSeriesUrls).
+//      (docs/public-api.md — keyless, the stable contract); a publication
+//      without one through its public .sailscoring.json file, and so are
+//      any series addresses saved in Sail Scoring Setup
+//      (features.ssSeriesUrls). All of it is published files, which don't
+//      wake Sail Scoring's database. Nothing here signs in: the old keyed
+//      fallback (settings.ss_api_key, 069) did, every 10 minutes whenever
+//      the index couldn't be read, and was removed 2026-11-08 — if the
+//      index is down, this run uses the saved addresses alone.
 //   2. count the races in each that have results (any finisher scored).
 //   3. compare with what it saw last time (results_watch, migration 075):
 //        - a series seen for the first time is only recorded, never
@@ -28,7 +29,6 @@
 
 const crypto = require('crypto');
 const { envForSlug } = require('./_club');
-const { apiGetForSlug } = require('./_sailscoring');
 
 const MAX_SERIES = 20;
 
@@ -65,37 +65,6 @@ async function listFromIndex(ws) {
       const api = API_RE.test(p.api || '') ? p.api : null;
       return { seriesId: dataUrl || api, api, dataUrl, name: p.name || '' };
     });
-}
-
-// The club's series as [{seriesId, dataUrl, name}]: published, not orphaned,
-// newest first; data URLs come from the publish status, cached in
-// results_watch so each series costs one API call ever, not one per run.
-async function listSeries(slug, known, features) {
-  const out = [];
-  const pub = await apiGetForSlug(slug, '/published');
-  if (pub.status >= 200 && pub.status < 300 && Array.isArray(pub.body)) {
-    const pubs = pub.body
-      .filter(p => p && p.seriesId && !p.orphaned && !p.archived)
-      .sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0))
-      .slice(0, MAX_SERIES);
-    for (const p of pubs) {
-      let dataUrl = known[p.seriesId] && known[p.seriesId].data_url;
-      if (!dataUrl) {
-        const st = await apiGetForSlug(slug, '/series/' + encodeURIComponent(p.seriesId) + '/publish');
-        dataUrl = st.body && st.body.published && st.body.published.dataUrl;
-      }
-      if (dataUrl) out.push({ seriesId: p.seriesId, dataUrl, name: p.title || '' });
-    }
-  } else if (pub.status !== 0) {
-    console.warn('[' + slug + '] Sail Scoring API ' + pub.status + ' — falling back to saved series addresses');
-  }
-  const saved = Array.isArray(features.ssSeriesUrls) ? features.ssSeriesUrls : [];
-  saved.forEach(u => {
-    if (typeof u === 'string' && /^https:\/\/([a-z0-9-]+\.)*sailscoring\.ie\/.+\.sailscoring\.json$/i.test(u) && !out.some(s => s.dataUrl === u)) {
-      out.push({ seriesId: u, dataUrl: u, name: '' });
-    }
-  });
-  return out;
 }
 
 // Indices of races with at least one scored finisher in any fleet
@@ -216,18 +185,14 @@ async function processClub(slug, config) {
   catch (e) { return { slug, skipped: 'results_watch table missing (migration 075)' }; }
   const known = Object.fromEntries(watched.map(w => [w.series_id, w]));
 
-  // The public index and results API first; the keyed API if the index
-  // can't be read. Saved addresses not in either are added as data files.
-  let series = await listFromIndex(features.ssWorkspace);
-  if (series) {
-    const saved = Array.isArray(features.ssSeriesUrls) ? features.ssSeriesUrls : [];
-    saved.forEach(u => {
-      if (typeof u === 'string' && DATA_RE.test(u) && !series.some(s => s.dataUrl === u)) series.push({ seriesId: u, api: null, dataUrl: u, name: '' });
-    });
-  } else {
-    series = await listSeries(slug, known, features);
-  }
-  if (!series.length) return { slug, skipped: 'no series found (Sail Scoring workspace, API key or saved addresses needed)' };
+  // The public index and results API, plus saved addresses not in it as
+  // data files — all published files, never a signed-in call
+  const series = (await listFromIndex(features.ssWorkspace)) || [];
+  const saved = Array.isArray(features.ssSeriesUrls) ? features.ssSeriesUrls : [];
+  saved.forEach(u => {
+    if (typeof u === 'string' && DATA_RE.test(u) && !series.some(s => s.dataUrl === u)) series.push({ seriesId: u, api: null, dataUrl: u, name: '' });
+  });
+  if (!series.length) return { slug, skipped: 'no series found (Sail Scoring workspace or saved addresses needed)' };
 
   let boats = null;
   const done = [];

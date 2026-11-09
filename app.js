@@ -937,8 +937,6 @@ async function checkSchemaCapabilities(){
   if(halKeyWrap) halKeyWrap.style.display=SCHEMA_HAS_HAL_API_KEY?'block':'none';
   const whsecWrap=document.getElementById('ro-stripe-whsec-wrap');
   if(whsecWrap) whsecWrap.style.display=SCHEMA_HAS_STRIPE_WEBHOOK_SECRET?'block':'none';
-  const ssKeyWrap=document.getElementById('ssApiKeyWrap');
-  if(ssKeyWrap) ssKeyWrap.style.display=SCHEMA_HAS_SS_API_KEY?'block':'none';
   const brandWrap=document.getElementById('ro-branding-wrap');
   if(brandWrap) brandWrap.style.display=SCHEMA_HAS_BRANDING?'block':'none';
 }
@@ -2326,6 +2324,7 @@ async function enterApp(b,ro,admin){
   try{localStorage.setItem('gr_last',b.id);}catch(e){}
   _pushRekeyIfNeeded(); // background: move this device's alerts to the club's current VAPID key
   sbStartSession(isAdmin?'admin':ro?'ro':'skipper', ro?null:b.id, b.name).then(id=>{currentSessionId=id;}).catch(()=>{});
+  if(ro) ssSyncOnOpen(); // background: Sail Scoring race list, if it's been a while
   closeSheet('loginSheet');
   // Show boat tag, hide login button
   document.getElementById('loginBtn').style.display='none';
@@ -13513,9 +13512,6 @@ function loadSsConfigPanel(){
   if(wsSt) wsSt.textContent='';
   const note=document.getElementById('ssConfigToggleNote');
   if(note) note.style.display=ssResultsSource()==='sailscoring'?'none':'block';
-  const keyIn=document.getElementById('ssApiKeyInput');
-  if(keyIn) keyIn.value='';
-  refreshSsApiKeyStatus();
   refreshSsConnection(false);
 }
 
@@ -13656,6 +13652,17 @@ function _ssSyncSummary(s){
   const bits=[s.added&&s.added+' added',s.linked&&s.linked+' linked',s.updated&&s.updated+' updated',s.deactivated&&s.deactivated+' removed'].filter(Boolean);
   return bits.length?'calendar: '+bits.join(', '):'calendar already up to date';
 }
+// An RO signing in syncs the race list with Sail Scoring if the last sync
+// (scheduled or otherwise) is over 2 hours old — every call wakes Sail
+// Scoring's database, so a quiet off-season costs it nothing until an RO is
+// actually here, and a busy race day doesn't sync once per login.
+async function ssSyncOnOpen(){
+  try{ await _settingsReady; }catch(e){}
+  if(!isRO||ssResultsSource()!=='sailscoring') return;
+  const {status,body}=await _ssRoCall('sync',{maxAgeMinutes:120});
+  const s=body&&body.sync;
+  if(status===200&&body.ran&&s&&(s.added||s.linked||s.updated||s.deactivated)) ssAppRacesChanged();
+}
 async function ssRoSync(){
   toast('Updating the calendar from Sail Scoring…');
   const {status,body}=await _ssRoCall('sync');
@@ -13694,7 +13701,7 @@ function ssRoRender(message){
       <button class="btn btn-ghost" style="padding:6px 10px" onclick="ssRoLoadDay('${escHtml(d.date)}')" title="Reload">↺</button>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.78rem;color:var(--muted)">
-      <div style="flex:1;line-height:1.4">The app's calendar follows Sail Scoring automatically every few hours, and after each change here — tap Update now for right away.</div>
+      <div style="flex:1;line-height:1.4">The app's calendar follows Sail Scoring automatically — every few hours around race days, less often when there's no racing near — and after each change here. Tap Update now for right away.</div>
       ${_ssRoBtn('⟳ Update now','ssRoSync()')}
     </div>
     ${_roOnDutyInput()}`;
@@ -13779,16 +13786,6 @@ async function ssRoPublish(seriesId){
   ssRoLoadDay(_ssRoDay.date);
   setTimeout(()=>{ if(ssActive) loadSailScoringResults(); },3000); // the published API clears its cache on publish
 }
-// Write-only key (migration 069), same pattern as the Halsail key: only the
-// generated ss_api_key_set flag is readable from the browser.
-async function refreshSsApiKeyStatus(){
-  const el=document.getElementById('ssApiKeyStatus');
-  if(!el||!SCHEMA_HAS_SS_API_KEY) return;
-  const r=await sbFetch('/rest/v1/settings?id=eq.club&select=ss_api_key_set');
-  const isSet=Array.isArray(r)&&r[0]&&r[0].ss_api_key_set===true;
-  el.style.color=isSet?'var(--success)':'var(--muted)';
-  el.textContent=isSet?'✓ A key is saved':'No key saved yet';
-}
 function ssConfigAddRow(){
   document.getElementById('ssConfigList').insertAdjacentHTML('beforeend',ssConfigRowHtml(''));
 }
@@ -13829,13 +13826,6 @@ async function saveSsConfig(){
   if(bad){ toast('⚠ Fix the highlighted addresses first — nothing saved'); return; }
   await saveFeatureSetting('ssSeriesUrls',ok);
   await saveFeatureSetting('ssWorkspace',wsParsed.slug);
-  const keyIn=document.getElementById('ssApiKeyInput');
-  const keyVal=keyIn?keyIn.value.trim():'';
-  if(SCHEMA_HAS_SS_API_KEY&&keyVal){
-    const r=await sbFetch('/rest/v1/settings?id=eq.club',{method:'PATCH',headers:{...SBH,'Prefer':'return=minimal'},body:JSON.stringify({ss_api_key:keyVal})});
-    if(r&&r._err) toast('⚠ Sail Scoring API key not saved — '+r._err.slice(0,60));
-    else { keyIn.value=''; refreshSsApiKeyStatus(); }
-  }
   if(wsParsed.slug){
     wsSt.style.color='var(--muted)'; wsSt.textContent='Checking for a series list…';
     const found=await ssDiscoverSeries(wsParsed.slug);

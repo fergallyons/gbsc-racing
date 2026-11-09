@@ -29,6 +29,11 @@
 # "sync" (ss-ro.js) and every RO change made there run syncClub() directly,
 # unaffected by this schedule. 6 sweeps/day keeps that same guarantee at a
 # few hours' lag instead of 15 minutes, for a ~94% cut in wake-ups.
+# And each run only calls Sail Scoring when racing needs it (_sssync.js
+# syncDue, migration 080): every run with a race yesterday/today/tomorrow,
+# daily with racing in the next fortnight, weekly otherwise — about one
+# wake-up a week in the off-season. An RO opening the app also syncs if the
+# last one is a few hours old.
 [functions."ss-sync"]
   schedule = "0 */4 * * *"
 

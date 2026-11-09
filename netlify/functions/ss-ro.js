@@ -23,8 +23,9 @@
 //   POST { action: 'submission', pin, raceId, submissionId }  where the scorer is
 //   POST { action: 'entries', pin, seriesId }   the series' entry list, for
 //     the Finish Line when nobody registered for a synced race in the app
-//   POST { action: 'sync', pin }   bring the app's race list in step with
-//     Sail Scoring now (_sssync.js) — also run after each change above
+//   POST { action: 'sync', pin, maxAgeMinutes? }   bring the app's race
+//     list in step with Sail Scoring now (_sssync.js) — also run after each
+//     change above; with maxAgeMinutes, only if the last sync is older
 //
 // Every action needs the club's RO or Club Admin PIN (roPinOk). The club
 // comes from the hostname or ?club= (resolveClubSlug); the PIN is checked
@@ -33,7 +34,7 @@
 
 const crypto = require('crypto');
 const { resolveClubSlug } = require('./_club');
-const { clubDb, wsApi, roPinOk } = require('./_sailscoring');
+const { clubDb, wsApi, roPinOk, readConnection } = require('./_sailscoring');
 const { syncClub } = require('./_sssync');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -156,8 +157,19 @@ exports.handler = async (event) => {
   }
 
   if (a === 'sync') {
+    // maxAgeMinutes: only if the last sync is older than that — the app's
+    // sync when an RO opens it, which mustn't wake Sail Scoring's database
+    // for every login
+    const maxAge = parseInt(req.maxAgeMinutes, 10);
+    if (maxAge > 0) {
+      let conn = null;
+      try { conn = await readConnection(slug); } catch (e) { conn = null; }
+      const last = conn && conn.synced_at ? Date.parse(conn.synced_at) : 0;
+      if (!conn || conn.status !== 'connected') return json(200, { ok: true, ran: false, reason: 'not connected' });
+      if (last && Date.now() - last < maxAge * 60 * 1000) return json(200, { ok: true, ran: false, syncedAt: conn.synced_at });
+    }
     const r = await syncClub(slug);
-    return r.error || r.skipped ? json(r.error ? 502 : 409, { error: 'sync', message: r.error || r.skipped, ...r }) : json(200, { ok: true, sync: r });
+    return r.error || r.skipped ? json(r.error ? 502 : 409, { error: 'sync', message: r.error || r.skipped, ...r }) : json(200, { ok: true, ran: true, sync: r });
   }
 
   if (a === 'entries') {
