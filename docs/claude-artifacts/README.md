@@ -12,6 +12,13 @@ account loses access.
 | `out-of-the-blue-crew/` | Single page | `index.html` |
 | `sailpro-field-notes/` | Single page | `index.html` |
 
+## Skills
+
+- `skills/renville-pier-tide-window/SKILL.md`: the Renville pier tide-window
+  skill (an account skill, not part of this project). Add it to the personal
+  account's skills by uploading this folder (zip it if the upload asks for a
+  .zip).
+
 ## Republishing
 
 - **Single pages:** ask Claude to publish `index.html` as a new artifact.
