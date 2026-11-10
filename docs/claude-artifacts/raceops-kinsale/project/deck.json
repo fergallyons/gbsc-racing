@@ -1,0 +1,46 @@
+{
+  "v": 4,
+  "attachments": {},
+  "createdOnFiles": {
+    "at": "2026-11-06T12:00:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "faces": {
+    "oswald": {
+      "family": "Oswald",
+      "href": "https://fonts.googleapis.com/css2?family=Oswald:wght@400..700&display=swap"
+    },
+    "public-sans": {
+      "family": "Public Sans",
+      "href": "https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600&display=swap"
+    }
+  },
+  "lists": "css",
+  "order": [
+    "cover",
+    "today",
+    "what",
+    "night",
+    "clubs",
+    "demo",
+    "ro-gains",
+    "community",
+    "thanks"
+  ],
+  "sections": {
+    "s1": {
+      "description": "Opening: what RaceOps is and how it runs a race night",
+      "start": "cover"
+    },
+    "s2": {
+      "description": "Live demo",
+      "start": "demo"
+    },
+    "s3": {
+      "description": "Closing: benefits for race officers and the sailing community, and how a club joins",
+      "start": "ro-gains"
+    }
+  },
+  "title": "RaceOps — Kinsale"
+}

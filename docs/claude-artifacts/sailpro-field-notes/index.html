@@ -1,0 +1,422 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SailPro Field Notes</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --paper:#eef2f0;
+  --surface:#ffffff;
+  --surface-2:#e4eae7;
+  --line:#d3dcd8;
+  --ink:#16232a;
+  --muted:#5b6c6c;
+  --navy:#1b3a52;
+  --navy-ink:#0f2536;
+  --teal:#1e7f72;
+  --teal-soft:#e3f1ee;
+  --amber:#c97a1f;
+  --amber-soft:#faecd8;
+  --red-soft:#f7e6e2;
+  --red:#a8442e;
+  --shadow:0 1px 2px rgba(15,37,54,.06), 0 8px 24px -16px rgba(15,37,54,.2);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#10171b;
+    --surface:#161f24;
+    --surface-2:#1c262c;
+    --line:#2b373d;
+    --ink:#e7edec;
+    --muted:#93a3a3;
+    --navy:#6ea3c4;
+    --navy-ink:#bcd8e9;
+    --teal:#5cb8a8;
+    --teal-soft:#193029;
+    --amber:#e3a24e;
+    --amber-soft:#302517;
+    --red-soft:#301c17;
+    --red:#e08066;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -16px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#10171b;
+  --surface:#161f24;
+  --surface-2:#1c262c;
+  --line:#2b373d;
+  --ink:#e7edec;
+  --muted:#93a3a3;
+  --navy:#6ea3c4;
+  --navy-ink:#bcd8e9;
+  --teal:#5cb8a8;
+  --teal-soft:#193029;
+  --amber:#e3a24e;
+  --amber-soft:#302517;
+  --red-soft:#301c17;
+  --red:#e08066;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -16px rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+  margin:0;
+  padding-inline:20px;
+  padding-block:40px;
+}
+.page{max-width:800px;margin:0 auto}
+
+h1,h2,h3{font-family:'Fraunces',Georgia,serif;text-wrap:balance;margin:0}
+.masthead{
+  border-bottom:2px solid var(--ink);
+  padding-bottom:20px;
+  margin-bottom:36px;
+}
+.masthead-eyebrow{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:.72rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:14px;
+}
+.masthead h1{font-size:clamp(1.9rem,5vw,2.6rem);font-weight:700;line-height:1.05}
+.masthead p.dek{
+  font-size:1.05rem;
+  color:var(--muted);
+  max-width:62ch;
+  margin-top:12px;
+  line-height:1.55;
+}
+
+section{margin-bottom:44px}
+.section-label{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:.72rem;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:var(--teal);
+  margin-bottom:8px;
+}
+h2{font-size:1.5rem;font-weight:600;margin-bottom:14px}
+p{line-height:1.65;max-width:68ch}
+p.lead{font-size:1.02rem}
+
+.card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:10px;
+  box-shadow:var(--shadow);
+}
+
+/* ── snapshot strip ── */
+.snapshot{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:1px;
+  background:var(--line);
+  border:1px solid var(--line);
+  border-radius:10px;
+  overflow:hidden;
+  margin-top:18px;
+}
+.snap-cell{background:var(--surface);padding:16px 14px}
+.snap-num{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;font-size:1.5rem;font-weight:500;color:var(--navy)}
+.snap-label{font-size:.78rem;color:var(--muted);margin-top:2px;line-height:1.3}
+@media (max-width:560px){.snapshot{grid-template-columns:repeat(2,1fr)}}
+
+/* ── product map ── */
+.product-map{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.product-row{
+  display:grid;
+  grid-template-columns:150px 1fr;
+  gap:16px;
+  padding:14px 16px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--surface);
+  align-items:start;
+}
+.product-row .tag{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:.7rem;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  padding:3px 8px;
+  border-radius:5px;
+  display:inline-block;
+  white-space:nowrap;
+}
+.tag-relevant{background:var(--teal-soft);color:var(--teal)}
+.tag-adjacent{background:var(--surface-2);color:var(--muted)}
+.product-row .names{font-size:.92rem;font-weight:500}
+.product-row .names span.feat{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:.82rem;
+  background:var(--surface-2);
+  padding:2px 6px;
+  border-radius:4px;
+  margin:2px 4px 2px 0;
+  display:inline-block;
+  color:var(--ink);
+}
+.product-row .desc{font-size:.86rem;color:var(--muted);margin-top:6px;line-height:1.5}
+@media (max-width:560px){.product-row{grid-template-columns:1fr}}
+
+/* ── pricing aside ── */
+.aside{
+  background:var(--surface-2);
+  border-left:3px solid var(--navy);
+  border-radius:0 8px 8px 0;
+  padding:16px 18px;
+  font-size:.9rem;
+  color:var(--ink);
+  margin-top:16px;
+}
+.aside strong{color:var(--navy-ink)}
+.price-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed var(--line);font-family:'IBM Plex Mono',monospace;font-size:.85rem}
+.price-row:last-child{border-bottom:none}
+.price-row .amt{font-weight:500;white-space:nowrap}
+
+/* ── recommendation cards ── */
+.rec-list{display:flex;flex-direction:column;gap:14px;margin-top:18px}
+.rec{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:18px 20px;
+  box-shadow:var(--shadow);
+  position:relative;
+}
+.rec-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.rec-title{font-family:'Fraunces',serif;font-weight:600;font-size:1.12rem}
+.priority{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:.68rem;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  padding:3px 9px;
+  border-radius:20px;
+  white-space:nowrap;
+  flex-shrink:0;
+}
+.priority-high{background:var(--amber-soft);color:var(--amber)}
+.priority-medium{background:var(--teal-soft);color:var(--teal)}
+.rec-body{font-size:.92rem;color:var(--ink);margin-top:10px;line-height:1.6}
+.rec-body p{max-width:none}
+.rec-why{
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--line);
+  font-size:.85rem;
+  color:var(--muted);
+}
+.rec-why b{color:var(--ink);font-weight:600}
+code.inline{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:.82em;
+  background:var(--surface-2);
+  padding:1px 5px;
+  border-radius:4px;
+}
+
+/* ── skip list ── */
+.skip-list{display:flex;flex-direction:column;gap:2px;margin-top:16px}
+.skip-row{
+  display:grid;
+  grid-template-columns:180px 1fr;
+  gap:16px;
+  padding:12px 4px;
+  border-bottom:1px solid var(--line);
+  font-size:.88rem;
+}
+.skip-row:last-child{border-bottom:none}
+.skip-name{font-weight:600}
+.skip-why{color:var(--muted);line-height:1.55}
+@media (max-width:560px){.skip-row{grid-template-columns:1fr;gap:4px}}
+
+footer{
+  margin-top:56px;
+  padding-top:20px;
+  border-top:1px solid var(--line);
+  font-size:.8rem;
+  color:var(--muted);
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:8px;
+}
+a{color:var(--navy-ink)}
+</style>
+
+<div class="page">
+
+  <div class="masthead">
+    <div class="masthead-eyebrow">
+      <span>Competitive field notes — Race Ops</span>
+      <span>12–16 Sep 2026</span>
+    </div>
+    <h1>What SailPro builds that Race Ops doesn't</h1>
+    <p class="dek">A deep dive on sailpro.app — a small (~5K installs) mobile-first sailing platform spanning personal race instruments, a club race-control product, and a gamified activity layer. This note separates what's actually built for club race-day ops (SailPro's closest overlap with Race Ops) from what's aimed at individual racers, and ends with concrete, gbsc-racing-specific recommendations.</p>
+    <div class="snapshot">
+      <div class="snap-cell"><div class="snap-num">3</div><div class="snap-label">separate products under one brand — personal tools, club RaceControl, XP activity layer</div></div>
+      <div class="snap-cell"><div class="snap-num">$590–1,390</div><div class="snap-label">club licence, billed annually, by max competitor count</div></div>
+      <div class="snap-cell"><div class="snap-num">5K+</div><div class="snap-label">Google Play installs — a small player, not a category leader</div></div>
+      <div class="snap-cell"><div class="snap-num">3</div><div class="snap-label">concrete gaps found against our own code, cited below</div></div>
+    </div>
+  </div>
+
+  <section>
+    <div class="section-label">Lay of the land</div>
+    <h2>Three products, one brand</h2>
+    <p class="lead">SailPro's marketing site blurs this together, but the actual product splits cleanly into three tiers of relevance to a club-ops platform like Race Ops:</p>
+    <div class="product-map">
+      <div class="product-row">
+        <div><span class="tag tag-relevant">Club-facing</span></div>
+        <div class="names">
+          <span class="feat">RaceControl</span><span class="feat">RaceHub</span><span class="feat">FleetStart</span>
+          <div class="desc">A browser-based dashboard for the race officer: create races, build courses on a map, run a synchronised start, track the fleet live by phone GPS, replay after racing, and share a public viewer link. This is the direct competitor to Race Ops — see the recommendations below.</div>
+        </div>
+      </div>
+      <div class="product-row">
+        <div><span class="tag tag-adjacent">Personal tools</span></div>
+        <div class="names">
+          <span class="feat">Tactician</span><span class="feat">AnchorMe</span><span class="feat">BoatHub</span><span class="feat">CrewTalk</span><span class="feat">Racing Simulator</span>
+          <div class="desc">In-race instruments (compass, laylines, start-line timing), an anchor watch alarm, a per-boat tuning/setup logbook, in-app crew voice rooms, and a standalone training simulator. Built for an individual racer's own phone, not for a club running race night — off-mission for Race Ops.</div>
+        </div>
+      </div>
+      <div class="product-row">
+        <div><span class="tag tag-adjacent">Engagement</span></div>
+        <div class="names">
+          <span class="feat">SailPro XP</span><span class="feat">BerthABoat</span>
+          <div class="desc">A cross-club points/leaderboard/challenge layer for "sailing activity" beyond race day, plus an unrelated marina-berth booking marketplace. XP's underlying idea (reward turning up, not just finishing well) is the one piece worth borrowing — see Recommendation 4.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="aside">
+      <strong>Club pricing, for context</strong> — not something to copy, just useful to know what a club currently pays a competitor for this:
+      <div class="price-row"><span>Community · 20 competitors</span><span class="amt">$590/yr</span></div>
+      <div class="price-row"><span>Regional · 50 competitors, "most popular," adds FleetStart + course builder + analytics</span><span class="amt">$990/yr</span></div>
+      <div class="price-row"><span>Premier · 100 competitors, unlimited creators &amp; sponsor banner slots</span><span class="amt">$1,390/yr</span></div>
+      <div class="price-row"><span>Sailors joining a race</span><span class="amt">always free</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">Recommendations</div>
+    <h2>Worth building</h2>
+    <p class="lead">Ranked by how concrete the gap is against our own code, not by how impressive the feature sounds on SailPro's landing page.</p>
+
+    <div class="rec-list">
+
+      <div class="rec">
+        <div class="rec-head">
+          <div class="rec-title">1 · Push race-status changes instead of polling</div>
+          <span class="priority priority-high">High</span>
+        </div>
+        <div class="rec-body">
+          <p>SailPro's FleetStart pitch is exactly this: "changes made by the Race Officer are reflected across every competitor's device" the moment they happen. Our start sequence polls for postpone/recall/abandon on a timer rather than pushing them — a boat could be up to 15 seconds behind an RO's decision to postpone or abandon, at exactly the moment that matters most.</p>
+        </div>
+        <div class="rec-why">
+          <b>Where:</b> <code class="inline">refreshStartSeqData()</code> is driven by <code class="inline">setInterval(refreshStartSeqData, 15000)</code> at <code class="inline">app.js:13226</code> — confirmed no Supabase Realtime channel or push is wired to start-sequence state today. The countdown display itself is fine (it ticks locally off a shared timestamp) — it's specifically RO actions mid-sequence that lag.
+        </div>
+      </div>
+
+      <div class="rec">
+        <div class="rec-head">
+          <div class="rec-title">2 · Attach a track replay clip to a filed protest</div>
+          <span class="priority priority-high">High</span>
+        </div>
+        <div class="rec-body">
+          <p>SailPro doesn't have protest filing at all — but it explicitly sells its race replay for "protest discussions, safety review." We have the opposite gap: a real protest-filing workflow (RRS 61.2, redress, scoring enquiry) and a real GPS track replay with a scrubber, and the two don't know about each other. Letting a skipper or RO jump from a filed protest straight to the relevant few minutes of track replay would beat what either product does alone.</p>
+        </div>
+        <div class="rec-why">
+          <b>Where:</b> <code class="inline">submitProtest()</code> (<code class="inline">app.js:14001</code>) and the race tracker's replay/scrubber (<code class="inline">raceTrackerPanel</code>, <code class="inline">trackerScrubber</code>) are entirely separate code paths today — no shared timestamp or boat reference between them.
+        </div>
+      </div>
+
+      <div class="rec">
+        <div class="rec-head">
+          <div class="rec-title">3 · Save a built course as a reusable template</div>
+          <span class="priority priority-medium">Medium</span>
+        </div>
+        <div class="rec-body">
+          <p>SailPro clubs can "create marks, save regular club marks, build race courses and save those courses as templates" for faster weekly reuse. Our course-card mode already ships a pre-loaded library, but that's developer-curated per club, not something an RO builds once (in mark-builder or laid-course mode) and reuses next Wednesday without rebuilding it.</p>
+        </div>
+        <div class="rec-why">
+          <b>Where:</b> <code class="inline">sbSaveCourse()</code> (<code class="inline">app.js:473</code>) persists a course per-race; there's no separate "save as template" / "load from template" step in that flow today.
+        </div>
+      </div>
+
+      <div class="rec">
+        <div class="rec-head">
+          <div class="rec-title">4 · Turnout-based recognition, not just results</div>
+          <span class="priority priority-medium">Medium</span>
+        </div>
+        <div class="rec-body">
+          <p>SailPro XP's actual mechanism (points/leaderboard/challenges for showing up, not for winning) is a genuinely different lever than results-based standings — aimed at midweek turnout, not competitive standing. For a club already running "Crew Wanted / Available Crew" as a community feature, a light season-turnout badge or streak (races started, not races won) fits the same spirit without needing SailPro's full gamification machinery.</p>
+        </div>
+        <div class="rec-why">
+          <b>Why medium, not high:</b> speculative — worth a conversation about whether GBSC-style clubs want this at all before designing it. Flagging the idea, not the implementation.
+        </div>
+      </div>
+
+      <div class="rec">
+        <div class="rec-head">
+          <div class="rec-title">5 · Show the tracking sailor their own GPS signal quality</div>
+          <span class="priority priority-medium">Medium</span>
+        </div>
+        <div class="rec-body">
+          <p>SailPro's competitor screen shows a plain reassurance while tracking: "GPS Excellent · accuracy 3.5m · updated 2 seconds ago." Small, but it directly answers the one question a sailor has after tapping "share my position" — is this actually working? Today our GPS agent gives no such feedback once tracking starts.</p>
+        </div>
+        <div class="rec-why">
+          <b>Where:</b> confirmed no <code class="inline">accuracy</code> readout anywhere in the tracking UI (<code class="inline">app.js</code> — only internal use at line 1522 for the geolocation call options, never surfaced to the user).
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">Not worth chasing</div>
+    <h2>Deliberately skipping</h2>
+    <p class="lead">Named explicitly so a future pass doesn't re-litigate these — each is either off-mission for a club-ops platform or solves a problem this app's clubs don't have.</p>
+    <div class="skip-list">
+      <div class="skip-row">
+        <div class="skip-name">Racing Simulator, Tactician</div>
+        <div class="skip-why">Personal skill-building and in-race tactical instruments for an individual sailor's own phone — a different product category from running a club's race night.</div>
+      </div>
+      <div class="skip-row">
+        <div class="skip-name">BoatHub tuning logbook</div>
+        <div class="skip-why">Rig-tuning notes and performance history matter most to one-design fleets chasing tenths of a knot; GBSC-style clubs run mixed-handicap fleets where this has little payoff.</div>
+      </div>
+      <div class="skip-row">
+        <div class="skip-name">CrewTalk voice rooms</div>
+        <div class="skip-why">In-app walkie-talkie for crew. VHF is the actual norm on the water in Irish sailing clubs — an in-app substitute solves a problem nobody has.</div>
+      </div>
+      <div class="skip-row">
+        <div class="skip-name">Corporate banner-ad inventory</div>
+        <div class="skip-why">Part of SailPro's own SaaS revenue model (paid ad slots by tier). Race Ops already has a single-sponsor widget per club; building an ad marketplace serves a business model we don't have.</div>
+      </div>
+      <div class="skip-row">
+        <div class="skip-name">Proprietary tracking hardware resale</div>
+        <div class="skip-why">SailPro sells optional dedicated trackers alongside the phone-based option. Our GPS-agent-on-a-phone approach is the same low-cost model they lead with — no reason to add hardware.</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Sources: sailpro.app, sailpro.app/sailpro-for-clubs, Google Play listing</span>
+    <span>Race Ops references: app.js, docs/FEATURE_SPEC.md</span>
+  </footer>
+
+</div>
+
+</body></html>
