@@ -245,6 +245,48 @@ CREATE POLICY "race_days_delete" ON race_days FOR DELETE USING (true);
 GRANT SELECT, INSERT, UPDATE, DELETE ON race_days TO anon;
 
 
+-- ── race_day_safety ─────────────────────────────────────────
+-- Safety Oversight — digital Pre-Launch Dynamic Risk Assessment, scoped to
+-- a race_days row (migration 082). One row per SAVE, not per day: this is
+-- a *Dynamic* RA, re-done through the day as conditions change, so nothing
+-- is ever overwritten — app.js shows only the latest row for a given day.
+-- No UPDATE/DELETE policy, deliberately: same immutable-log precedent as
+-- `registrations` above.
+CREATE TABLE IF NOT EXISTS race_day_safety (
+  id                   bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  race_day_id          date NOT NULL REFERENCES race_days(id) ON DELETE CASCADE,
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  lead_name            text NOT NULL DEFAULT '',
+  lead_phone           text NOT NULL DEFAULT '',
+  shore_contact_name   text NOT NULL DEFAULT '',
+  shore_contact_phone  text NOT NULL DEFAULT '',
+  vhf_channel          text NOT NULL DEFAULT '',
+  boats_racing         int,
+  sailors_afloat       int,
+  forecast_text        text NOT NULL DEFAULT '',
+  other_factors        text NOT NULL DEFAULT '',
+  sunset_time          time,
+  wind_kts             numeric,
+  sea_state            text CHECK (sea_state IN ('low','medium','high')),
+  visibility_nm        numeric,
+  air_temp_c           numeric,
+  water_temp_c         numeric,
+  competence           text CHECK (competence IN ('low','medium','high')),
+  time_afloat_hrs      numeric,
+  distance_nm          numeric,
+  boat_ratio           text CHECK (boat_ratio IN ('low','medium','high')),
+  controls             jsonb NOT NULL DEFAULT '{}'::jsonb,
+  decision_go          boolean NOT NULL
+);
+CREATE INDEX IF NOT EXISTS race_day_safety_race_day_id_idx ON race_day_safety(race_day_id);
+ALTER TABLE race_day_safety ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "race_day_safety_select" ON race_day_safety;
+DROP POLICY IF EXISTS "race_day_safety_insert" ON race_day_safety;
+CREATE POLICY "race_day_safety_select" ON race_day_safety FOR SELECT USING (true);
+CREATE POLICY "race_day_safety_insert" ON race_day_safety FOR INSERT WITH CHECK (true);
+GRANT SELECT, INSERT ON race_day_safety TO anon;
+
+
 -- ── race_areas ──────────────────────────────────────────────
 -- WHERE a race happens (migration 055) — a different axis from fleet
 -- (WHO races together). Empty until an RO adds rows via the Areas
@@ -1078,7 +1120,8 @@ INSERT INTO schema_migrations (filename) VALUES
   ('054_race_days.sql'),
   ('055_race_areas.sql'),
   ('056_registration_sail_number.sql'),
-  ('057_published_courses_per_race.sql')
+  ('057_published_courses_per_race.sql'),
+  ('082_race_day_safety.sql')
 ON CONFLICT (filename) DO NOTHING;
 -- Not included: 034 (buggy, superseded by 035 — see 035's own comments) and
 -- migrations that are seed data specific to another club.

@@ -1030,6 +1030,11 @@
     <span class="ro-sec-chev" id="roSecChev-raceday">▾</span>
   </div>
   <div class="dash-grid ro-only" id="roSecBody-raceday">
+    <div id="tile-ro-safetyOversight" class="dash-card ro-card" onclick="openSafetyOversightPanel()" style="display:none">
+      <div class="dash-card-icon">🦺</div>
+      <div class="dash-card-label">Safety Oversight</div>
+      <div class="dash-card-sub" id="safety-tile-sub">Not yet assessed</div>
+    </div>
     <div class="dash-card ro-card" onclick="openPanel('roCoursePanel')">
       <div class="dash-card-icon">🗺</div>
       <div class="dash-card-label">Course Builder</div>
@@ -1301,6 +1306,15 @@
     </div><!-- /crewRosterTab -->
 
   </div>
+</div>
+
+<!-- roSafetyPanel — Safety Oversight (Pre-Launch Dynamic Risk Assessment) -->
+<div class="panel-overlay" id="roSafetyPanel" style="display:none">
+  <div class="panel-header">
+    <button class="panel-back" onclick="closePanel('roSafetyPanel')">‹</button>
+    <span class="panel-title">🦺 Safety Oversight</span>
+  </div>
+  <div class="panel-body" id="safetyPanelBody"><!-- renderSafetyOversightForm() fills this --></div>
 </div>
 
 <!-- roCoursePanel — Course Builder -->

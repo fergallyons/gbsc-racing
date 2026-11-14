@@ -717,6 +717,7 @@ const FEAT={
 // A key can map to multiple tiles (e.g. 'feeStatements' controls both the RO and skipper tiles).
 const FEAT_TILE_MAP={
   // RO tiles
+  safetyOversight:['tile-ro-safetyOversight'],
   startTimer:     ['tile-ro-startTimer'],
   halsail:        ['tile-ro-halsail'],
   paymentReport:  ['tile-ro-paymentReport'],
@@ -764,7 +765,7 @@ const FEAT_DEFAULTS={
   fleetsManager:true, areasManager:true,
   publishResults:true, usageStats:true, feeStatements:true, viewCourse:true,
   registrations:true, protests:true, boatMgmt:true, clubSettings:true,
-  raceSchedule:true, startSequence:true, finishRecording:true,
+  raceSchedule:true, startSequence:true, finishRecording:true, safetyOversight:true,
   raceTracker:false, // experimental — off by default, RO opts the club in first (Features panel)
   courseCard:false,
   autoRegister:false, // opt-in — most clubs use explicit registration and must stay unaffected
@@ -788,6 +789,7 @@ const FEAT_CATALOG=[
   {key:'orcRatings', label:'ORC Ratings — each boat\'s ORC certificate (GPH, ToT) in Handicaps and the boat card', type:'bool', group:'Behaviour'},
   {key:'resultsSource', label:'Results Source — where the Results tab gets its standings', type:'select', group:'Behaviour',
     options:[{value:'halsail',label:'Halsail'},{value:'sailscoring',label:'Sail Scoring'},{value:'none',label:'None (club website link only)'}]},
+  {key:'safetyOversight',label:'Safety Oversight — pre-launch dynamic risk assessment', type:'bool', group:'RO Tiles'},
   {key:'viewCourse',     label:'View / Publish Course', type:'bool', group:'RO Tiles'},
   {key:'courseCard',     label:'Course Card Picker',    type:'bool', group:'RO Tiles'},
   {key:'registrations',  label:'Registrations',         type:'bool', group:'RO Tiles'},
@@ -889,9 +891,9 @@ let SCHEMA_HAS_FLEETS=false, SCHEMA_HAS_SEQUENCE_MINS=false, SCHEMA_HAS_RACE_FLE
     SCHEMA_HAS_PER_RACE_COURSES=false, SCHEMA_HAS_DAY_SCOPED_PAYMENTS=false,
     SCHEMA_HAS_PROTEST_ARCHIVE=false, SCHEMA_HAS_RNLI=false, SCHEMA_HAS_RNLI_BASE=false,
     SCHEMA_HAS_COURSE_TEMPLATES=false, SCHEMA_HAS_POSITION_ACCURACY=false,
-    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false, SCHEMA_HAS_BRANDING=false, SCHEMA_HAS_LAID_START_OFFSET=false, SCHEMA_HAS_LAID_SPREADER=false, SCHEMA_HAS_SS_API_KEY=false, SCHEMA_HAS_STRIPE_WEBHOOK_SECRET=false;
+    SCHEMA_HAS_RACING_CANCELLED=false, SCHEMA_HAS_BOAT_INFO=false, SCHEMA_HAS_RO_PROTEST=false, SCHEMA_HAS_HAL_API_KEY=false, SCHEMA_HAS_BRANDING=false, SCHEMA_HAS_LAID_START_OFFSET=false, SCHEMA_HAS_LAID_SPREADER=false, SCHEMA_HAS_SS_API_KEY=false, SCHEMA_HAS_STRIPE_WEBHOOK_SECRET=false, SCHEMA_HAS_RACE_DAY_SAFETY=false;
 async function checkSchemaCapabilities(){
-  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql,070_club_branding.sql,073_laid_start_offset.sql,074_laid_spreader.sql,069_ss_api_key.sql,081_stripe_webhook_secret.sql)&select=filename');
+  const rows=await sbFetch('/rest/v1/schema_migrations?filename=in.(051_fleets.sql,052_race_starts_sequence_length.sql,053_races_fleet.sql,054_race_days.sql,055_race_areas.sql,056_registration_sail_number.sql,057_published_courses_per_race.sql,058_day_scoped_race_payments.sql,059_protest_archive.sql,061_rnli_contributions.sql,062_rnli_base_amount.sql,063_course_templates.sql,064_position_accuracy.sql,065_racing_cancelled.sql,066_boat_info.sql,067_ro_protest.sql,068_hal_api_key.sql,070_club_branding.sql,073_laid_start_offset.sql,074_laid_spreader.sql,069_ss_api_key.sql,081_stripe_webhook_secret.sql,082_race_day_safety.sql)&select=filename');
   if(!Array.isArray(rows)) return;
   const names=new Set(rows.map(r=>r.filename));
   SCHEMA_HAS_FLEETS=names.has('051_fleets.sql');
@@ -920,6 +922,7 @@ async function checkSchemaCapabilities(){
   SCHEMA_HAS_LAID_START_OFFSET=names.has('073_laid_start_offset.sql');
   SCHEMA_HAS_LAID_SPREADER=names.has('074_laid_spreader.sql');
   SCHEMA_HAS_SS_API_KEY=names.has('069_ss_api_key.sql');
+  SCHEMA_HAS_RACE_DAY_SAFETY=names.has('082_race_day_safety.sql');
   // Hide the Fleets Manager's "requires sail number" checkbox outright on
   // any club that hasn't applied 056 — submitAddFleet() won't send the
   // field either way, but showing a control with no effect is confusing.
@@ -2354,6 +2357,10 @@ async function enterApp(b,ro,admin){
     buildPinMgmtList();
     loadProtests();
     initRoFeatures();
+    // After initRoFeatures() (which calls applyAllFeatureVisibility()) —
+    // safetyOversight is a FEAT_TILE_MAP entry, so whichever of that and
+    // this schema-gate runs last wins the tile's visibility. This must be last.
+    loadSafetyOversight();
     return;
   }
   document.getElementById('crewList').innerHTML='<div class="empty-state"><div class="icon">⏳</div>Loading…</div>';
@@ -4385,6 +4392,337 @@ function updateRacingCancelledTile(){
   if(sub) sub.textContent=on?'Tap to resume racing':'Notify everyone racing is off';
   tile.style.background=on?'rgba(230,57,70,.12)':'';
   tile.style.borderColor=on?'rgba(230,57,70,.4)':'';
+}
+
+// ── Safety Oversight — Pre-Launch Dynamic Risk Assessment ────────────────
+// Digitises Irish Sailing's own "Pre-Launch Dynamic Risk Assessment" form
+// (race_day_safety, migration 082). One row per SAVE, not per day — this
+// is a *Dynamic* RA, meant to be redone through the day as conditions
+// change, so nothing already saved is ever overwritten; the dashboard only
+// shows the latest row for today. The form's own printed rule, not an
+// invented score, governs the decision: any risk at Medium/High needs a
+// recorded control, or the decision to go afloat must be No — enforced
+// below by disabling "Yes" rather than by auto-deciding anything. The RO
+// always taps the final Yes/No themselves; nothing here cancels racing
+// without a human doing it (it offers to flip the existing racing_cancelled
+// switch above, the same one toggleRacingCancelled() uses — not a second
+// "is racing on" flag).
+
+// Numeric rows only (Sea State/Competence/Safety Boat Ratio are inherently
+// a judgement call on the real form, not a number — see SAFETY_ROWS below,
+// which makes those three direct pickers instead). Boundary numbers the
+// source PDF's own adjacent bands both claim (e.g. wind's Medium "12-21"
+// vs. High "21+" both naming 21) are resolved one consistent way
+// throughout: a shared boundary belongs to the higher-risk tier.
+const SAFETY_RISK_THRESHOLDS={
+  wind:      {dir:'asc',  lowBelow:12,     highAtOrAbove:21},
+  visibility:{dir:'desc', lowAtOrAbove:5,  highBelow:0.6},
+  airTemp:   {dir:'desc', lowAtOrAbove:15, highBelow:10},
+  waterTemp: {dir:'desc', lowAtOrAbove:15, highBelow:8},
+  timeAfloat:{dir:'asc',  lowBelow:2,      highAtOrAbove:3},
+  distance:  {dir:'asc',  lowBelow:0.5,    highAtOrAbove:2},
+};
+function safetyLevelMeta(level){
+  return level==='low' ?{colour:'var(--success)',label:'Low'}
+       : level==='high'?{colour:'var(--danger)', label:'High'}
+       :                 {colour:'var(--warn)',   label:'Medium'};
+}
+function safetyRiskFor(rowKey,value){
+  const t=SAFETY_RISK_THRESHOLDS[rowKey];
+  if(!t||value==null||value===''||isNaN(value)) return null;
+  const v=Number(value);
+  const level=t.dir==='asc'
+    ? (v<t.lowBelow?'low':v>=t.highAtOrAbove?'high':'medium')
+    : (v>=t.lowAtOrAbove?'low':v<t.highBelow?'high':'medium');
+  return {level,...safetyLevelMeta(level)};
+}
+// Row order matches the source PDF exactly — also the tie-break order
+// _safetyWorstRow() uses when more than one row is equally bad. `col` is
+// the matching race_day_safety column (migration 082).
+const SAFETY_ROWS=[
+  {key:'wind',       col:'wind_kts',       label:'Wind Strength',                 type:'num', unit:'kt',  step:'1'},
+  {key:'seaState',   col:'sea_state',      label:'Sea State',                     type:'sel', options:[['low','Slight'],['medium','Moderate'],['high','Rough']]},
+  {key:'visibility', col:'visibility_nm',  label:'Visibility',                    type:'num', unit:'NM',  step:'0.1'},
+  {key:'airTemp',    col:'air_temp_c',     label:'Air Temperature',               type:'num', unit:'°C',  step:'1'},
+  {key:'waterTemp',  col:'water_temp_c',   label:'Water Temperature',             type:'num', unit:'°C',  step:'1'},
+  {key:'competence', col:'competence',     label:'Competence of Sailor (lowest)', type:'sel', options:[['low','Advanced'],['medium','Intermediate'],['high','Novice']]},
+  {key:'timeAfloat', col:'time_afloat_hrs',label:'Projected Time Afloat',         type:'num', unit:'hrs', step:'0.5'},
+  {key:'distance',   col:'distance_nm',    label:'Distance from Safety Cover',    type:'num', unit:'NM',  step:'0.1'},
+  {key:'boatRatio',  col:'boat_ratio',     label:'Safety Boat Ratio',             type:'sel', options:[['low','Better than 1:6'],['medium','Better than 1:8'],['high','Worse than 1:10']]},
+];
+
+let _safetyToday=null;   // latest saved row for today, or null — drives the dashboard tile
+let _safetyDraft=null;   // the open panel's current date + field values (DB column names throughout)
+
+async function _safetyFetchLatestRow(dateStr){
+  const rows=await sbFetch('/rest/v1/race_day_safety?race_day_id=eq.'+encodeURIComponent(dateStr)+'&order=created_at.desc&limit=1&select=*');
+  return (Array.isArray(rows)&&rows[0])||null;
+}
+async function loadSafetyOversight(){
+  if(!SCHEMA_HAS_RACE_DAY_SAFETY) return;
+  _safetyToday=await _safetyFetchLatestRow(_ssRoToday());
+  updateSafetyOversightTile();
+}
+// Fixed PDF row order is the tie-break: the first row found at the worst
+// level wins. Not an invented aggregate score — the real form defines
+// none, so this is only ever surfaced as "highest risk factor."
+function _safetyWorstRow(row){
+  let worst=null;
+  for(const r of SAFETY_ROWS){
+    const raw=row[r.col];
+    if(raw==null||raw==='') continue;
+    const lvl=r.type==='sel'?raw:(safetyRiskFor(r.key,raw)||{}).level;
+    if(!lvl) continue;
+    const rank=lvl==='high'?2:lvl==='medium'?1:0;
+    if(!worst||rank>worst.rank) worst={slug:r.key,label:r.label,level:lvl,rank};
+  }
+  return worst;
+}
+function updateSafetyOversightTile(){
+  const tile=document.getElementById('tile-ro-safetyOversight');
+  if(!tile) return;
+  tile.style.display=SCHEMA_HAS_RACE_DAY_SAFETY?'':'none';
+  const sub=document.getElementById('safety-tile-sub');
+  if(!sub) return;
+  tile.style.background=''; tile.style.borderColor=''; sub.style.color='';
+  if(!_safetyToday){ sub.textContent='Not yet assessed'; return; }
+  if(_safetyToday.decision_go===false){
+    sub.textContent='🛑 Racing cancelled — see Safety Oversight';
+    sub.style.color='var(--danger)';
+    tile.style.background='rgba(230,57,70,.12)'; tile.style.borderColor='rgba(230,57,70,.4)';
+    return;
+  }
+  const worst=_safetyWorstRow(_safetyToday);
+  if(worst){ sub.textContent='Highest risk: '+worst.label+' ('+safetyLevelMeta(worst.level).label+')'; sub.style.color=safetyLevelMeta(worst.level).colour; }
+  else { sub.textContent='✅ Assessed — cleared to race'; sub.style.color='var(--success)'; }
+}
+
+function openSafetyOversightPanel(){
+  openPanel('roSafetyPanel');
+  _safetyLoadDay(_ssRoToday());
+}
+async function _safetyLoadDay(dateStr){
+  _safetyDraft={date:dateStr,loading:true};
+  renderSafetyOversightForm();
+  const existing=await _safetyFetchLatestRow(dateStr);
+  if(!_safetyDraft||_safetyDraft.date!==dateStr) return; // another date picked meanwhile
+  _safetyDraft=existing?{date:dateStr,...existing}:{date:dateStr,controls:{}};
+  if(!existing) await _safetyPrefillBlankDraft(_safetyDraft,dateStr);
+  renderSafetyOversightForm();
+}
+// Only ever pre-fills a genuinely blank draft (never overwrites a loaded,
+// already-saved assessment) for TODAY specifically — "current" conditions
+// have no meaning for a blank past/future day, which stays manual. Every
+// source degrades to a blank, manually-filled field on its own if
+// unavailable — none of this is required for the form to work.
+async function _safetyPrefillBlankDraft(draft,dateStr){
+  if(dateStr!==_ssRoToday()) return;
+  draft.boats_racing=roDashRegsCount||null;
+  draft.lead_name=roOnDuty();
+  try{
+    let wind=null,airTemp=null,sunset=null;
+    if(FEAT.livePortWeather&&livePortWx){ wind=livePortWx.speed; airTemp=livePortWx.temp; }
+    if(wind==null||airTemp==null){
+      const c=JSON.parse(localStorage.getItem('__race_weather_v3__')||'null');
+      if(c&&c.wx&&c.wx.hourly&&c.wx.hourly.time&&Date.now()-c.ts<3600000){
+        const nowTs=Math.floor(Date.now()/1000);
+        const times=c.wx.hourly.time;
+        let idx=times.findIndex(t=>t>=nowTs); if(idx<0) idx=times.length-1; idx=Math.max(idx,0);
+        if(wind==null&&c.wx.hourly.wind_speed_10m) wind=c.wx.hourly.wind_speed_10m[idx];
+        if(airTemp==null&&c.wx.hourly.temperature_2m) airTemp=c.wx.hourly.temperature_2m[idx];
+        if(c.wx.daily&&c.wx.daily.sunset&&c.wx.daily.time){
+          const todayStr=new Date().toISOString().split('T')[0];
+          const di=c.wx.daily.time.findIndex(t=>new Date(t*1000).toISOString().split('T')[0]===todayStr);
+          if(di>=0&&c.wx.daily.sunset[di]) sunset=new Date(c.wx.daily.sunset[di]*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Europe/Dublin'});
+        }
+      }
+    }
+    if(wind!=null) draft.wind_kts=Math.round(wind);
+    if(airTemp!=null) draft.air_temp_c=Math.round(airTemp);
+    if(sunset) draft.sunset_time=sunset;
+  }catch(e){ console.warn('Safety Oversight weather prefill',e); }
+}
+
+function renderSafetyOversightForm(){
+  const body=document.getElementById('safetyPanelBody'); if(!body||!_safetyDraft) return;
+  const d=_safetyDraft;
+  if(d.loading){ body.innerHTML='<div style="text-align:center;padding:40px;color:var(--muted)">⏳ Loading…</div>'; return; }
+  const v=x=>x==null?'':x;
+  const controls=d.controls||{};
+  const rowsHtml=SAFETY_ROWS.map(r=>{
+    const raw=d[r.col];
+    const risk=r.type==='sel'?(raw?{level:raw,...safetyLevelMeta(raw)}:null):safetyRiskFor(r.key,raw);
+    const ctrlVisible=!!(risk&&risk.level!=='low');
+    const field=r.type==='sel'
+      ?`<select id="safety-${r.key}" onchange="onSafetyRowInput('${r.key}')" style="min-width:160px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px">
+          <option value="">Select…</option>
+          ${r.options.map(([val,label])=>`<option value="${val}" ${raw===val?'selected':''}>${label}</option>`).join('')}
+        </select>`
+      :`<input id="safety-${r.key}" type="number" step="${r.step}" inputmode="decimal" placeholder="${r.unit}" value="${v(raw)}"
+          oninput="onSafetyRowInput('${r.key}')" style="width:90px;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px">`;
+    return `<div class="ro-row" style="margin-bottom:8px;flex-wrap:wrap">
+        <label style="min-width:210px">${r.label}${r.unit?' ('+r.unit+')':''}</label>
+        ${field}
+        <span id="safety-${r.key}-pill" class="risk-pill${risk?' '+risk.level:''}">${risk?risk.label:'—'}</span>
+      </div>
+      <div id="safety-${r.key}-ctrl-wrap" style="display:${ctrlVisible?'':'none'};margin:0 0 14px 0">
+        <input id="safety-${r.key}-ctrl" type="text" placeholder="Control to mitigate this risk (required to go afloat)"
+          value="${escHtml(controls[r.key]||'')}" oninput="_safetyUpdateDecisionButtons()"
+          style="width:100%;box-sizing:border-box;background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px;outline:none">
+      </div>`;
+  }).join('');
+
+  body.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap">
+      <input type="date" id="safety-date" value="${escHtml(d.date)}" onchange="if(this.value)_safetyLoadDay(this.value)"
+        style="background:var(--navy-input);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:6px 8px">
+      <button class="btn btn-ghost" style="padding:6px 10px" onclick="_safetyLoadDay('${escHtml(d.date)}')" title="Reload">↺</button>
+      <div style="flex:1;min-width:160px;font-size:.78rem;color:var(--muted)">Irish Sailing Pre-Launch Dynamic Risk Assessment — re-assess any time conditions change; each save is a new, timestamped entry.</div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Officer on Duty (Lead)</label>
+      ${_roOnDutyInput()}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="form-group"><label>Lead Phone</label><input id="safety-lead-phone" type="tel" value="${escHtml(v(d.lead_phone))}"></div>
+      <div class="form-group"><label>VHF Channel</label><input id="safety-vhf" type="text" value="${escHtml(v(d.vhf_channel))}"></div>
+      <div class="form-group"><label>Shore Contact</label><input id="safety-shore-name" type="text" value="${escHtml(v(d.shore_contact_name))}"></div>
+      <div class="form-group"><label>Shore Contact Phone</label><input id="safety-shore-phone" type="tel" value="${escHtml(v(d.shore_contact_phone))}"></div>
+      <div class="form-group"><label>Boats Racing</label><input id="safety-boats" type="number" min="0" value="${v(d.boats_racing)}"></div>
+      <div class="form-group"><label>Sailors / Crew Afloat</label><input id="safety-sailors" type="number" min="0" value="${v(d.sailors_afloat)}"></div>
+      <div class="form-group"><label>Sunset Time</label><input id="safety-sunset" type="time" value="${v(d.sunset_time)}"></div>
+    </div>
+    <div class="form-group" style="margin-bottom:10px">
+      <label>Forecast for Location</label>
+      <textarea id="safety-forecast" rows="2" style="background:var(--navy);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px;resize:vertical">${escHtml(v(d.forecast_text))}</textarea>
+    </div>
+    <div class="form-group" style="margin-bottom:22px">
+      <label>Other Factors (tide, sailing area, etc.)</label>
+      <textarea id="safety-other" rows="2" style="background:var(--navy);border:1px solid var(--border);border-radius:8px;color:var(--white);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px;resize:vertical">${escHtml(v(d.other_factors))}</textarea>
+    </div>
+
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Risk Factors</div>
+    ${rowsHtml}
+
+    <div style="display:flex;gap:10px;margin-top:22px">
+      <button id="safety-btn-go" class="btn btn-primary" style="flex:1;padding:14px" onclick="saveSafetyAssessment(true)">✅ Yes — Go Afloat</button>
+      <button id="safety-btn-cancel" class="btn btn-ghost" style="flex:1;padding:14px;color:var(--danger);border-color:rgba(230,57,70,.4)" onclick="saveSafetyAssessment(false)">🛑 No — Cancel Racing</button>
+    </div>
+    <div id="safety-btn-go-sub" style="text-align:center;font-size:.78rem;color:var(--warn);margin-top:8px"></div>
+  `;
+  _safetyUpdateDecisionButtons();
+}
+
+// Only patches the one row that changed — a full re-render on every
+// keystroke would drop focus mid-type.
+function onSafetyRowInput(key){
+  _safetyUpdateRowPill(key,_safetyRowLevel(key));
+}
+function _safetyRowLevel(key){
+  const row=SAFETY_ROWS.find(r=>r.key===key); if(!row) return null;
+  const el=document.getElementById('safety-'+key); if(!el||el.value==='') return null;
+  return row.type==='sel'?{level:el.value,...safetyLevelMeta(el.value)}:safetyRiskFor(key,el.value);
+}
+function _safetyUpdateRowPill(key,risk){
+  const pill=document.getElementById('safety-'+key+'-pill');
+  if(pill){ pill.className='risk-pill'+(risk?' '+risk.level:''); pill.textContent=risk?risk.label:'—'; }
+  const wrap=document.getElementById('safety-'+key+'-ctrl-wrap');
+  if(wrap) wrap.style.display=(risk&&risk.level!=='low')?'':'none';
+  _safetyUpdateDecisionButtons();
+}
+// The form's own printed rule: any row at Medium/High needs a recorded
+// control, or the decision to go afloat must be No. Enforced here by
+// disabling "Yes" rather than by deciding anything automatically.
+function _safetyCanGo(){
+  return SAFETY_ROWS.every(row=>{
+    const risk=_safetyRowLevel(row.key);
+    if(!risk||risk.level==='low') return true;
+    const ctrl=document.getElementById('safety-'+row.key+'-ctrl');
+    return !!(ctrl&&ctrl.value.trim());
+  });
+}
+function _safetyUpdateDecisionButtons(){
+  const goBtn=document.getElementById('safety-btn-go'); if(!goBtn) return;
+  const canGo=_safetyCanGo();
+  goBtn.disabled=!canGo;
+  goBtn.style.opacity=canGo?'':'.5';
+  const sub=document.getElementById('safety-btn-go-sub');
+  if(sub) sub.textContent=canGo?'':'Add a control for every Medium/High row above before you can go afloat';
+}
+
+// The only writer — race_day_safety has no UPDATE policy (migration 082),
+// by design: this always inserts a new row, never edits one in place.
+async function saveSafetyAssessment(decisionGo){
+  if(!_safetyDraft||_safetyDraft.loading) return;
+  if(decisionGo&&!_safetyCanGo()){ toast('⚠ Add a control for every Medium/High row first'); return; }
+  const dateStr=_safetyDraft.date;
+  const getVal=id=>{ const el=document.getElementById(id); return el?el.value:''; };
+  const numOrNull=s=>s===''||s==null?null:Number(s);
+  const controls={};
+  SAFETY_ROWS.forEach(row=>{
+    const risk=_safetyRowLevel(row.key);
+    if(risk&&risk.level!=='low'){
+      const ctrl=getVal('safety-'+row.key+'-ctrl').trim();
+      if(ctrl) controls[row.key]=ctrl;
+    }
+  });
+  const payload={
+    lead_name: roOnDuty(),
+    lead_phone: getVal('safety-lead-phone'),
+    shore_contact_name: getVal('safety-shore-name'),
+    shore_contact_phone: getVal('safety-shore-phone'),
+    vhf_channel: getVal('safety-vhf'),
+    boats_racing: numOrNull(getVal('safety-boats')),
+    sailors_afloat: numOrNull(getVal('safety-sailors')),
+    forecast_text: getVal('safety-forecast'),
+    other_factors: getVal('safety-other'),
+    sunset_time: getVal('safety-sunset')||null,
+    wind_kts: numOrNull(getVal('safety-wind')),
+    sea_state: getVal('safety-seaState')||null,
+    visibility_nm: numOrNull(getVal('safety-visibility')),
+    air_temp_c: numOrNull(getVal('safety-airTemp')),
+    water_temp_c: numOrNull(getVal('safety-waterTemp')),
+    competence: getVal('safety-competence')||null,
+    time_afloat_hrs: numOrNull(getVal('safety-timeAfloat')),
+    distance_nm: numOrNull(getVal('safety-distance')),
+    boat_ratio: getVal('safety-boatRatio')||null,
+    controls, decision_go: decisionGo,
+  };
+  // Upsert race_days first — same on_conflict pattern saveRace() uses —
+  // so an assessment can be saved even for a day with no race added yet.
+  const dayRes=await sbFetch('/rest/v1/race_days?on_conflict=id',{
+    method:'POST',headers:{...SBH,'Prefer':'resolution=merge-duplicates,return=minimal'},
+    body:JSON.stringify({id:dateStr})});
+  if(dayRes&&dayRes._err){ toast('⚠ Could not save — '+dayRes._err.slice(0,80)); return; }
+  const r=await sbFetch('/rest/v1/race_day_safety',{
+    method:'POST',headers:{...SBH,'Prefer':'return=minimal'},
+    body:JSON.stringify({race_day_id:dateStr,...payload})});
+  if(r&&r._err){ toast('⚠ Could not save — '+r._err.slice(0,80)); return; }
+  toast(decisionGo?'✅ Assessment saved':'🛑 Assessment saved — No');
+  await _safetyLoadDay(dateStr);
+  await loadSafetyOversight();
+  if(!decisionGo){
+    if(!clubSettings.racing_cancelled) await _safetyOfferCancelRacing(payload);
+  } else if(clubSettings.racing_cancelled){
+    // An improving reassessment has no other way back to "on" from inside
+    // this panel — mirrors toggleRacingCancelled()'s own turning-off branch.
+    if(confirm('This assessment says Yes — resume racing? This removes the cancelled notice for everyone.')){
+      await saveClubSettingsFields({racing_cancelled:false, racing_cancelled_note:''});
+      updateRacingCancelledTile();
+      toast('✅ Racing resumed');
+    }
+  }
+}
+// Mirrors toggleRacingCancelled()'s own turning-on branch exactly —
+// same prompt-for-a-note, same save call, same "racing is off" tile.
+async function _safetyOfferCancelRacing(savedPayload){
+  const worst=_safetyWorstRow(savedPayload);
+  const suggested=worst?('Cancelled — '+worst.label+' risk is '+safetyLevelMeta(worst.level).label+' (Safety Oversight)'):'Cancelled per Safety Oversight assessment';
+  const note=(prompt('Reason (shown to everyone):',suggested)||'').trim();
+  await saveClubSettingsFields({racing_cancelled:true, racing_cancelled_note:note});
+  updateRacingCancelledTile();
+  toast('🏁 Racing marked cancelled');
 }
 
 async function saveBoatSettings(whatsapp,bowOffsetM){
