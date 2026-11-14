@@ -23,6 +23,7 @@ The app has no user accounts or logins in the traditional sense — access is PI
 ## 3. Race Officer features
 
 **Race day**
+- **Safety Oversight** — digital Pre-Launch Dynamic Risk Assessment: the RO rates wind, sea state, visibility, air/water temperature, crew competence, time afloat, distance from safety cover, and safety-boat ratio as Low/Medium/High before racing, with a required mitigating control on any Medium/High row and an explicit Yes/No go-afloat decision. Re-assessable through the day — each save is a new, timestamped entry, nothing is overwritten — and a "No" offers to flag racing as cancelled club-wide.
 - **Course Builder** — three ways to set today's course, selectable per club:
   - *Mark-builder* — tap real marks in sequence; the app computes leg bearings and distances from wind direction automatically.
   - *Laid course* — no fixed marks; pick a shape (windward-leeward, triangle, olympic) and lap count, and the app renders a schematic diagram.
